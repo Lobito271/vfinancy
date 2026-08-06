@@ -3,7 +3,7 @@ package bindings
 import (
 	"time"
 
-	authuc "vfinancy/backend/internal/application/usecases/auth"
+	"vfinancy/backend/internal/features/auth"
 )
 
 type LoginRequest struct {
@@ -27,7 +27,7 @@ type LoginResponse struct {
 func (a *App) Login(req LoginRequest) (*LoginResponse, error) {
 	ctx := a.Context()
 
-	ucReq := authuc.LoginRequest{
+	wfReq := auth.LoginRequest{
 		CompanyID: demoCompanyID.String(),
 		Username:  req.Username,
 		Password:  req.Password,
@@ -37,7 +37,7 @@ func (a *App) Login(req LoginRequest) (*LoginResponse, error) {
 		Remember:  req.Remember,
 	}
 
-	resp, err := a.loginUC.Execute(ctx, ucReq)
+	resp, err := a.authSvc.Login(ctx, wfReq)
 	if err != nil {
 		return nil, err
 	}
@@ -58,12 +58,12 @@ func (a *App) Login(req LoginRequest) (*LoginResponse, error) {
 func (a *App) Logout(sessionToken string) error {
 	ctx := a.Context()
 
-	req := authuc.LogoutRequest{
+	req := auth.LogoutRequest{
 		SessionToken: sessionToken,
 		CompanyID:    demoCompanyID.String(),
 	}
 
-	return a.logoutUC.Execute(ctx, req)
+	return a.authSvc.Logout(ctx, req)
 }
 
 func (a *App) ChangePassword(currentPassword, newPassword, sessionToken string) error {
@@ -74,7 +74,7 @@ func (a *App) ChangePassword(currentPassword, newPassword, sessionToken string) 
 		return err
 	}
 
-	req := authuc.ChangePasswordRequest{
+	req := auth.ChangePasswordRequest{
 		UserID:          session.UserID.String(),
 		CurrentPassword: currentPassword,
 		NewPassword:     newPassword,
@@ -82,7 +82,7 @@ func (a *App) ChangePassword(currentPassword, newPassword, sessionToken string) 
 		CompanyID:       demoCompanyID.String(),
 	}
 
-	return a.changePwUC.Execute(ctx, req)
+	return a.authSvc.ChangePassword(ctx, req)
 }
 
 func (a *App) ValidateSession(sessionToken string) (bool, error) {

@@ -4,15 +4,13 @@
 
 **vfinancy** is a custom Desktop ERP (Enterprise Resource Planning) system built with Wails v2 (Go + React + TypeScript) backed by PostgreSQL. It replaces manual business processes with a centralized platform for purchasing, sales, inventory, treasury, accounting, and financial reporting.
 
-**Current state: Phase 1.4 (Business Service Layer) — done.** Phase 0 (init), Phase 0.5 (UI/UX), Phase 0.6 (architecture refinement), Phase 1 (database architecture), Phase 1.1 (PostgreSQL schema for Module 1), Phase 1.2 (Domain Layer), Phase 1.3 (Repository Layer) complete. Phase 1.4 produced the complete business service layer under `backend/internal/application/services/`: 8 service packages (customer, supplier, product, inventory, purchasing, sales, customerpayments, treasury, accounting, reporting), shared errors, a TxManager adapter, and a slog-based logger. **No business logic outside the service layer.** 178 unit tests pass across the project.
-
 ## Target Stack (mandatory)
 
 - **Desktop framework:** Wails v2
 - **Backend:** Go 1.23
 - **Frontend:** TypeScript + **React 18** + Vite 5
 - **State / data:** Zustand, TanStack Query, React Hook Form, Zod
-- **Styling:** TailwindCSS 3 + `tailwindcss-animate` + Shadcn UI patterns
+- **Styling:** plain CSS3 in `src/index.css` (hand-rolled utility system with the same class names + design tokens as before) — **no Tailwind, no PostCSS**
 - **DB:** PostgreSQL via `github.com/jackc/pgx/v5/stdlib`
 
 ## Key Commands
@@ -38,20 +36,29 @@ go test ./backend/...
 
 In this dev container, only Node/npm are on PATH. Go, the `wails` CLI, and `psql` are not. Frontend changes can be verified with `npm run build` / `npm run check`. Go changes must be verified on a host with the full Wails toolchain.
 
-## Architecture: Clean Architecture + DDD
+## Architecture: feature-based vertical slices (Service + Repository)
 
 ```
 Desktop Application (Wails)
 ├── React Frontend  →  Wails Bindings (auto-generated)
 └── Go Backend
-    ├── Domain (entities, value objects, repository interfaces)
-    ├── Application (services, use cases)         [Phase 1+]
-    ├── Infrastructure (DB, config, logger, migrations)
-    ├── Repository (concrete implementations)     [Phase 1+]
-    └── Interfaces/Bindings (Wails-exposed methods)
+    ├── Domain          (shared cross-feature primitives: enums, errors, value objects, repo contracts)
+    ├── Features        (vertical slices: entity + repository interface + service, one package per module)
+    │   └── <feature>/postgres  (concrete SQL repository implementations)
+    ├── Shared          (apperrors, logger — cross-feature helpers, no business logic)
+    ├── Infrastructure  (DB, config, logger, migrations, persistence)
+    └── Interfaces      (Wails-exposed bindings)
 ```
 
-**Rule:** Frontend never accesses the database directly. All traffic flows React → Wails binding → Application service → Repository → PostgreSQL.
+**Rule:** Frontend never accesses the database directly. All traffic flows React → Wails binding → feature service → Repository → PostgreSQL.
+
+**Vertical-slice rules:**
+
+- Each feature is a **vertical slice**: `internal/features/<feature>/` holds the entities, the repository interface, and the feature service that owns every business operation of that module. Nothing lives in a separate use-case/workflow layer.
+- The **service is the only orchestrator**. Cross-feature operations (e.g. creating a sale touches sales + customer debt) are composed inside the owning feature's service, in a single transaction. There is **no** use case / workflow / application-service layer.
+- The **service talks to repositories and other services** — never to SQL. Only the `postgres/` subpackage of the same feature (via `infrastructure/persistence` helpers) knows SQL.
+- Cross-feature composition happens through **service-to-service or service-to-repository calls inside `repositories.TransactionManager.WithinTransaction`**. The TxManager joins an already-active transaction in `ctx`, so nested calls stay on one DB transaction (BEGIN → … → COMMIT, ROLLBACK on error).
+- Shared application-level error sentinels (`ErrValidation`, `ErrNotFound`, `ErrConflict`, `ErrUnauthorized`, `ErrInternal`), `apperrors.Errorf`, and `apperrors.MapError` live in `internal/shared/apperrors`. Feature-specific typed errors (e.g. `auth.ErrAuthLocked`) live in the feature package.
 
 ## Backend Layout (current)
 
@@ -59,28 +66,38 @@ Desktop Application (Wails)
 backend/
   cmd/
     cli/                 # standalone CLI: `migrate`, `status`
-  internal/
-    domain/
-      entities/          # Base (id + audit), future entities live here
-      valueobjects/      # ID, Money
-      repositories/      # generic Repository[T] interface
   infrastructure/        # NOT under internal/ on purpose (see "Internal packages" below)
     config/              # env-based config loader
     logger/              # structured slog logger (json | text, levels debug..error)
     database/            # *sql.DB wrapper + WithTx(ctx, fn) helper
     postgres/            # Connect(), EnsureDatabase(), DSN helpers
     migrations/          # file-based SQL migration runner
+    persistence/         # Querier, TxManager, scan/decode/builder/error-map helpers
   interfaces/
-    bindings/            # structs exposed to the React frontend via wails.Run
-  migrations/            # SQL migration files (0001_xxx.up.sql / .down.sql)
+    bindings/            # Wails-exposed methods (auth, profile, settings, system)
+  internal/
+    domain/              # cross-feature domain primitives
+      enums/             # 20+ enums (sale_status, journal_type, ...)
+      errors/            # derrors: business, validation, notfound, conflict
+      valueobjects/      # Money, Percentage, Quantity, Email, SKU, ...
+      repositories/      # shared repo interfaces (pagination, transaction, errors)
+    shared/
+      apperrors/         # shared app-level error sentinels + MapError/Errorf helpers
+      logger/            # slog-based app logger
+    features/            # one vertical slice per business module
+      <feature>/         # entity(ies) + repository interface + service (orchestration lives here)
+      <feature>/postgres/# concrete repository implementations
+  migrations/            # SQL migration files (0000_xxx.up.sql / .down.sql)
   pkg/                   # reusable packages (reserved; empty in Phase 0)
 ```
+
+Each feature (`auth`, `administration`, `customer`, `supplier`, `product`, `inventory`, `purchasing`, `sales`, `treasury`, `accounting`, `customerpayments`, `reporting`) is a **vertical slice**: it owns its entity definitions, its repository interface, and its business service. When an operation spans multiple features, the owning feature's service composes the other features' services/repositories inside a single transaction (e.g. `sales.SalesService.Create` records the sale AND the customer debt; `auth.AuthenticationService.Login` authenticates, creates the session and records the audit event). Concrete SQL lives only in the feature's `postgres/` subpackage.
 
 The root `main.go` and `app.go` are the Wails entrypoint. `app.go` initializes config + logger, ensures the database exists, opens a connection, and runs pending migrations on startup. It binds two structs: the root `App` (config accessors for the frontend) and `bindings.App` (Wails-exposed methods).
 
 ### Internal packages
 
-`backend/internal/...` packages can only be imported by packages whose import path is `vfinancy/backend/...` or a subpath. The root `vfinancy` package (where `main.go`/`app.go` live) cannot import them. So for Phase 0, `infrastructure/` and `interfaces/` live directly under `backend/` (not under `internal/`). When the root entrypoint is moved into `backend/cmd/server/` (a later phase), these can be folded back into `internal/`.
+`backend/internal/...` packages can only be imported by packages whose import path is `vfinancy/backend/...` or a subpath. The root `vfinancy` package (where `main.go`/`app.go` live) cannot import them. So `infrastructure/` and `interfaces/` live directly under `backend/` (not under `internal/`). When the root entrypoint is moved into `backend/cmd/server/` (a later phase), these can be folded back into `internal/`.
 
 ## Frontend Layout (current)
 
@@ -90,8 +107,6 @@ frontend/
   package.json
   tsconfig.json + tsconfig.app.json + tsconfig.node.json
   vite.config.ts
-  tailwind.config.js
-  postcss.config.js
   src/
     main.tsx
     app/                     # App.tsx (routes + lazy), Providers.tsx, ErrorBoundary.tsx
@@ -124,18 +139,19 @@ All UI text is in Spanish (es-PE). Source code (variable names, comments if any)
 
 ### Design system
 
-Two documentos canónicos:
+Un documento canónico:
 
-- **`DESIGN_SYSTEM.md`** — reglas de diseño (paleta, tipografía, spacing, componentes, accesibilidad).
-- **`ARCHITECTURE.md`** — reglas arquitectónicas (capas, límites, dependencias, estado, permisos, performance).
+- **`DESIGN.md`** — reglas de diseño (paleta, tipografía, spacing, componentes, accesibilidad).
 
 Tokens tienen **dos representaciones sincronizadas**:
-- CSS variables en `src/index.css` (lo que consume Tailwind).
+- CSS variables en `src/index.css` (lo que consume la UI en runtime).
 - TypeScript en `src/design-system/` (type safety y valores no-CSS).
+
+Estilos: `src/index.css` es un sistema **plain CSS3** auto-suficiente (sin Tailwind/PostCSS). Define tokens, reset/base, utilities y variantes responsive (`sm:`/`lg:`/`xl:`), Radix `data-[state=*]`/`data-[side=*]`, animaciones (`vf-enter`/`vf-exit`) y `prefers-reduced-motion`. Usa `hsl(var(--x) / N)` para opacidades (ej. `bg-primary/10`) y `--vf-offset`/`--vf-offset-color` para focus rings.
 
 Reglas operativas:
 
-- **No hardcoded colors.** Usa Tailwind tokens (`bg-primary`, `text-muted-foreground`, `border-destructive`, …).
+- **No hardcoded colors.** Usa tokens (`bg-primary`, `text-muted-foreground`, `border-destructive`, …) — definidos en `src/index.css`.
 - **Money usa `formatCurrency(value, 'PEN')`**, nunca `toFixed`.
 - **Dates usa `formatDate(value)`**, nunca `toLocaleString` ad-hoc.
 - **No emojis en la UI** salvo que el usuario lo pida.
@@ -147,7 +163,7 @@ Reglas operativas:
 ### Theme (light / dark / system)
 
 - Stored in `useThemeStore` (Zustand + `persist` to `localStorage`).
-- Class strategy in Tailwind (`darkMode: ['class']`). `themeStore` toggles the `dark` class on `<html>` before React hydrates.
+- Class strategy: `.dark` variants are defined in `src/index.css`. `themeStore` toggles the `dark` class on `<html>` before React hydrates.
 - `system` sigue `prefers-color-scheme`.
 
 ### Permission system
@@ -201,13 +217,13 @@ Cada carpeta tiene su `index.ts` barrel — importar de `@/components/<categorí
 
 - **Money types:** always `NUMERIC(18,2)` or `DECIMAL(18,2)`. **Never** `FLOAT`/`REAL` — this is the #1 cause of accounting rounding bugs.
 - **PKs:** surrogate UUIDs (use `github.com/google/uuid`).
-- **Audit columns** on every important entity: `id`, `created_at`, `updated_at`, `deleted_at` (soft delete), `created_by`, `updated_by`. See `backend/internal/domain/entities/base.go` for the `Base` struct + `Audit` embedded type to embed in every entity.
+- **Audit columns** on every important entity: `id`, `created_at`, `updated_at`, `deleted_at` (soft delete), `created_by`, `updated_by`. Feature entities carry these fields directly (e.g. `auth.User`, `customer.Customer`).
 - **3NF**, FK constraints, optimized indexes.
 - **Audit log** (`audit_logs` table) records every INSERT/UPDATE/DELETE/LOGIN/LOGOUT with `user_id`, `table_name`, `record_id`, `action`, `old_value`, `new_value`, `timestamp`, `ip_address`, `device`.
 
 ## Transactional Rules (non-negotiable)
 
-- Every **sale** (and any operation that mutates inventory + receivables + accounting) **must** run inside a DB transaction. Use `database.DB.WithTx(ctx, fn)` — the helper handles begin/commit/rollback semantics and ignores `sql.ErrTxDone` on already-rolled-back txns.
+- Every **sale** (and any operation that mutates inventory + receivables + accounting) **must** run inside a DB transaction. Use `repositories.TransactionManager.WithinTransaction(ctx, fn)` (backed by `database.DB.WithTx`) — it begins/commits/rolls back, joins an already-active transaction in `ctx` (so composed service calls share one DB transaction), and ignores `sql.ErrTxDone` on already-rolled-back txns.
 - Inside the transaction, use `SELECT ... FOR UPDATE` to lock the inventory row before reading quantity.
 - On any error: `ROLLBACK`. No partial writes.
 - Pattern: `BEGIN → SELECT FOR UPDATE → UPDATE inventory → INSERT sale → INSERT sale_items → INSERT journal → INSERT receivable → COMMIT`.
@@ -231,7 +247,7 @@ Cada carpeta tiene su `index.ts` barrel — importar de `@/components/<categorí
 ## Wails / Build Gotchas
 
 - `frontend/dist/` is gitignored but **must exist** for `//go:embed all:frontend/dist` in `main.go` to compile. Run `npm run build` in `frontend/` before `go build` or `wails build`. Wails also calls this automatically via `wails.json` `frontend:build`.
-- Wails regenerates `frontend/wailsjs/go/main/` bindings on every `wails dev`/`wails build`. **Do not** edit those files manually. After adding a new exported method to a Go struct bound via `wails.Run`, regenerate by running Wails. Until then, a stub `AppBindings` in `src/vite-env.d.ts` keeps the TS build green.
+- Wails regenerates `frontend/wailsjs/` bindings on every `wails dev`/`wails build`. **Do not** edit those files manually. After adding a new exported method to a Go struct bound via `wails.Run`, regenerate by running Wails. The frontend loads them at runtime through `src/services/bindings.ts` (dynamic `import('../../wailsjs/go/bindings/App')` with a mock fallback when `window.go` is absent — e.g. `pnpm run dev`).
 - `wails.json` controls frontend scripts. `frontend:install` and `frontend:build` are run from the project root; `frontend:dev:watcher` runs Vite in the `frontend/` directory.
 - The original `go.mod` shipped with a local `replace` directive pointing to a Windows path. It was removed because it was not portable. Re-add it locally if your Wails is installed in a non-default location:
   ```
@@ -241,17 +257,17 @@ Cada carpeta tiene su `index.ts` barrel — importar de `@/components/<categorí
 
 ## Development Phases (from the plan)
 
-Phase 0 = complete: project init, stack swap, env config, logger, DB driver + connection + migrations runner, frontend scaffold with Shadcn primitives.
+Phase 0 = complete: project init, stack swap, env config, logger, DB driver + connection + migrations runner, frontend scaffold with Radix primitives.
 Phase 0.5 = complete: UI/UX foundation — Spanish i18n, design system, layout shell, theme, navigation, mock data, placeholder pages. **No business logic, no DB connections yet.**
 Phase 0.6 = complete: architecture & design system refinement — design tokens, icon registry, enterprise form/table frameworks, dashboard widget system, permission system, providers, services per domain, feature-based modules, lazy loading, error boundaries, full documentation.
 Phase 1 = complete: enterprise database architecture — ~65 tables, 9 modules, full ERD, entity/relationship catalogs, naming/index/constraint strategies, no SQL yet.
-Phase 1.1 = complete: PostgreSQL schema (Module 1: Authentication) — 10 tables + 12 paired up/down migrations + seed, validated against PostgreSQL 16. Module 1 covers `companies`, `branches`, `permissions`, `roles`, `role_permissions`, `users`, `user_roles`, `login_history`, `audit_logs`.
-Phase 1.2 = complete: Domain Layer — typed errors, value objects (Money, Percentage, Quantity, SKU, Barcode, Email, Phone, DocumentNumber, Address, ExchangeRate, CurrencyCode), 15+ enums, validation package, 7 entity packages (identity, masterdata, inventory, purchasing, sales, treasury, accounting) with rich behavior, domain services (TaxCalculator, ProfitCalculator), domain events scaffold, 141 unit tests. **Zero dependencies on infrastructure.**
-Phase 1.3 = complete: Repository Layer — 20+ repository interfaces in `internal/domain/repositories/`, `TransactionManager` + `UnitOfWork` + pgx error mapper, fully-implemented `CustomerRepository` with 8 integration tests against an embedded PostgreSQL 16, stubs for the remaining 19 repositories. **No business logic in the persistence layer.**
-Phase 1.4 = complete: Service Layer — 8 service packages under `backend/internal/application/services/` (customer, supplier, product, inventory, purchasing, sales, customerpayments, treasury, accounting, reporting), shared errors, TxManager adapter, slog-based logger, 22 unit tests covering customer/inventory/sales/accounting. **No business logic outside the service layer.**
-Phase 1.5 = next: Application use case layer (composes services across transactions, e.g. CreateSale = SalesService.Create + InventoryService.Issue + AccountingService.PostSaleEntry).
-Phase 2 = after all service + use case layers: Wails bindings + UI integration.
-Phase 3 = master data UI on top of the repository layer.
+Phase 1.1 = complete: PostgreSQL schema (Module 1: Authentication) — 20 paired up/down migrations + seed, validated against PostgreSQL 16. Module 1 covers `companies`, `branches`, `permissions`, `roles`, `role_permissions`, `users`, `user_roles`, `login_history`, `audit_logs`, `user_sessions`, `user_profiles`, plus Module 1.5 administration tables (`application_settings`, `currencies`, `countries`, `taxes`, `exchange_rates`, `audit_events`).
+Phase 1.2 = complete: Domain Layer — typed errors, value objects (Money, Percentage, Quantity, SKU, Barcode, Email, Phone, DocumentNumber, Address, ExchangeRate, CurrencyCode), 20+ enums, validation package, rich feature entities. **Zero dependencies on infrastructure.**
+Phase 1.3 = complete: Repository Layer — repository interfaces per feature (in `internal/features/<feature>/`), shared `repositories` (pagination, transaction, errors), concrete PostgreSQL implementations in each feature's `postgres/` subpackage. **No business logic in the persistence layer.**
+Phase 1.4 = complete: Service Layer — business services per feature under `internal/features/<feature>/` (`customer_service.go`, `sales_service.go`, `inventory_service.go`, …), shared errors via `internal/shared/apperrors`. **No business logic outside the service layer.**
+Phase 1.5 = complete: cross-feature orchestration folded into the feature services — no use case / workflow layer. The owning feature's service composes other features' services/repositories inside a single transaction (e.g. `auth.AuthenticationService.Login` = authenticate + session + audit; `sales.SalesService.Create` = sale + customer debt).
+Phase 2 = in progress: Wails bindings + UI integration — `backend/interfaces/bindings/` exposes auth, profile, settings, system; frontend consumes them via `src/services/bindings.ts` (`wailsClient` with mock fallback).
+Phase 3 = next: master data UI on top of the repository layer.
 Phase 4 = purchasing, Phase 5 = sales, Phase 6 = inventory (incl. 25-day clearance), Phase 7 = treasury, Phase 8 = accounting, Phase 9 = dashboards, Phase 10 = PDF/Excel/CSV reports, Phase 11 = optimization.
 
 Inventory aging rule: `max_sale_date = arrival_date + 25 days`. Items past that date are **clearance** and appear on dashboards automatically.
@@ -259,6 +275,7 @@ Inventory aging rule: `max_sale_date = arrival_date + 25 days`. Items past that 
 ## Coding Standards
 
 - SOLID, Clean Architecture, dependency injection, repository pattern.
+- Feature-based vertical slices: **service + repository** per module. No use-case / workflow / application-service layer — the feature service is the only orchestrator.
 - Business logic independent from UI.
 - Small focused functions; document exported funcs; semantic versioning.
 - Unit tests per module; integration tests for critical business processes (sales, payments, inventory movements).
@@ -266,14 +283,7 @@ Inventory aging rule: `max_sale_date = arrival_date + 25 days`. Items past that 
 
 ## Useful References
 
-- `DESIGN_SYSTEM.md` — visual design rules (colors, typography, spacing, components, accessibility).
-- `ARCHITECTURE.md` — frontend architecture, layers, dependencies, state, permissions, performance.
-- `DATABASE_ARCHITECTURE.md` — Phase 1 database design (entities, ERD, indexes, constraints, future scalability).
-- `DATABASE_SCHEMA.md` — Phase 1.1+ physical schema reference (per-table columns, types, constraints, indexes).
-- `backend/SERVICE_LAYER.md` — Phase 1.4 service layer reference (every service, responsibilities, conventions, anti-patterns).
-- `FRONTEND_GUIDE.md` — how to add modules, forms, tables, features, services.
-- `COMPONENT_GUIDE.md` — inventory and API of every reusable component.
-- `FOLDER_STRUCTURE.md` — what goes where, with anti-patterns.
-- `backend/README.md` — backend layout, env vars, migrations format.
+- `PROJECT_PLAN.md` — full development plan by phase.
+- `DESIGN.md` — visual design rules (colors, typography, spacing, components, accessibility).
 - `frontend/README.md` — frontend stack and folder conventions.
 - `AGENTS.md` (this file) — repo-wide rules for agents.

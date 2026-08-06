@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"vfinancy/backend/internal/domain/repositories"
+	"vfinancy/backend/internal/features/administration"
 )
 
 type ProfileDTO struct {
@@ -32,6 +33,11 @@ type AuditEventDTO struct {
 	OccurredAt  string `json:"occurredAt"`
 }
 
+type AuditLogResult struct {
+	Events []AuditEventDTO `json:"events"`
+	Total  int             `json:"total"`
+}
+
 func (a *App) GetProfile(sessionToken string) (*ProfileDTO, error) {
 	ctx := a.Context()
 
@@ -40,7 +46,7 @@ func (a *App) GetProfile(sessionToken string) (*ProfileDTO, error) {
 		return nil, err
 	}
 
-	user, err := a.repos.Users.GetByID(ctx, session.UserID)
+	user, err := a.users.GetByID(ctx, session.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +131,7 @@ func (a *App) UpdateProfile(sessionToken string, dto ProfileDTO) error {
 	return a.profileSvc.Update(ctx, profile)
 }
 
-func (a *App) GetAuditLog(page, pageSize int, eventType string) ([]AuditEventDTO, int, error) {
+func (a *App) GetAuditLog(page, pageSize int, eventType string) (*AuditLogResult, error) {
 	ctx := a.Context()
 
 	if page < 1 {
@@ -136,7 +142,7 @@ func (a *App) GetAuditLog(page, pageSize int, eventType string) ([]AuditEventDTO
 	}
 	offset := (page - 1) * pageSize
 
-	filter := repositories.AuditEventFilter{
+	filter := administration.AuditEventFilter{
 		EventType: eventType,
 		PageRequest: repositories.PageRequest{
 			Limit:  pageSize,
@@ -146,10 +152,13 @@ func (a *App) GetAuditLog(page, pageSize int, eventType string) ([]AuditEventDTO
 
 	events, total, err := a.auditSvc.List(ctx, demoCompanyID, filter)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
-	result := make([]AuditEventDTO, len(events))
+	result := &AuditLogResult{
+		Events: make([]AuditEventDTO, len(events)),
+		Total:  total,
+	}
 	for i, e := range events {
 		dto := AuditEventDTO{
 			ID:          e.ID.String(),
@@ -162,8 +171,8 @@ func (a *App) GetAuditLog(page, pageSize int, eventType string) ([]AuditEventDTO
 		if e.UserID != nil {
 			dto.UserID = e.UserID.String()
 		}
-		result[i] = dto
+		result.Events[i] = dto
 	}
 
-	return result, total, nil
+	return result, nil
 }

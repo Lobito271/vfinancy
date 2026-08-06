@@ -3,10 +3,9 @@ package repositories
 import "context"
 
 // TxRunner is the closure invoked inside a transaction. The closure
-// receives a context.Context that carries the active transaction; the
-// application layer typically extracts a UnitOfWork from that context
-// (see WithUnitOfWork) and uses the unit-of-work repositories to keep
-// the entire workflow on a single transaction.
+// receives a context.Context that carries the active transaction;
+// services and repositories use the same context so the entire
+// workflow stays on a single transaction.
 type TxRunner func(ctx context.Context) error
 
 // TransactionManager begins, commits and rolls back transactions. The

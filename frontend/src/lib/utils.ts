@@ -1,9 +1,8 @@
 import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
 import { locale } from '@/locales';
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
+  return clsx(inputs);
 }
 
 const currencyFormatters = new Map<string, Intl.NumberFormat>();

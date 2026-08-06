@@ -8,4 +8,4 @@ export { accountingService, type Account, type JournalEntry, type JournalEntryLi
 export { reportsService, type ReportType, type ReportRunInput, type ReportResult } from './reports';
 export { authService, type LoginInput, type LoginResult } from './auth';
 export { settingsService } from './settings';
-export { administrationService, type AdminUser } from './administration';
+export { administrationService, type AuditEvent, type UserProfile } from './administration';

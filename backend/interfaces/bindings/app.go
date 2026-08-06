@@ -11,24 +11,14 @@ import (
 	"vfinancy/backend/infrastructure/logger"
 	"vfinancy/backend/infrastructure/migrations"
 	"vfinancy/backend/infrastructure/postgres"
-	"vfinancy/backend/internal/application/services"
-	"vfinancy/backend/internal/application/services/auth"
-	adminservice "vfinancy/backend/internal/application/services/administration"
-	"vfinancy/backend/internal/application/services/common"
-	"vfinancy/backend/internal/application/usecases"
-	authuc "vfinancy/backend/internal/application/usecases/auth"
-	repospostgres "vfinancy/backend/internal/infrastructure/persistence/postgres"
+	"vfinancy/backend/internal/features/administration"
+	adminpostgres "vfinancy/backend/internal/features/administration/postgres"
+	"vfinancy/backend/internal/features/auth"
+	authpostgres "vfinancy/backend/internal/features/auth/postgres"
+	sharedlogger "vfinancy/backend/internal/shared/logger"
 )
 
 var demoCompanyID = uuid.MustParse("00000000-0000-0000-0000-000000000001")
-
-type txBridge struct {
-	inner services.TxManager
-}
-
-func (t *txBridge) WithinTransaction(ctx context.Context, fn usecases.TxRunner) error {
-	return t.inner.WithinTransaction(ctx, services.TxRunner(fn))
-}
 
 type App struct {
 	ctx context.Context
@@ -36,18 +26,15 @@ type App struct {
 	cfg *config.Config
 	log *logger.Logger
 
-	repos  *repospostgres.Repositories
-	appLog *common.Logger
+	appLog *sharedlogger.Logger
 
-	loginUC    *authuc.LoginUseCase
-	logoutUC   *authuc.LogoutUseCase
-	changePwUC *authuc.ChangePasswordUseCase
-
-	settingsSvc *adminservice.SettingsService
-	profileSvc  *adminservice.ProfileService
-	auditSvc    *adminservice.AuditService
-	sessionSvc  *auth.SessionService
 	authSvc     *auth.AuthenticationService
+	settingsSvc *administration.SettingsService
+	profileSvc  *auth.ProfileService
+	auditSvc    *administration.AuditService
+	sessionSvc  *auth.SessionService
+
+	users auth.UserRepository
 }
 
 func New(cfg *config.Config, log *logger.Logger) *App {
@@ -89,11 +76,19 @@ func (a *App) Init() error {
 		return fmt.Errorf("migrate: %w", err)
 	}
 
-	a.repos = repospostgres.NewRepositories(db.DB)
-	txMgr := repospostgres.NewTxManager(db)
-	a.repos.SetTransactionManager(txMgr)
+	a.appLog = sharedlogger.NewLogger(a.log.Logger)
 
-	a.appLog = common.NewLogger(a.log.Logger)
+	users := authpostgres.NewUserRepository(db.DB)
+	sessions := authpostgres.NewSessionRepository(db.DB)
+	userRoles := authpostgres.NewUserRoleRepository(db.DB)
+	profiles := authpostgres.NewProfileRepository(db.DB)
+	settings := adminpostgres.NewSettingRepository(db.DB)
+	currencies := adminpostgres.NewCurrencyRepository(db.DB)
+	taxes := adminpostgres.NewTaxRepository(db.DB)
+	countries := adminpostgres.NewCountryRepository(db.DB)
+	auditEvents := adminpostgres.NewAuditEventRepository(db.DB)
+
+	a.users = users
 
 	argonParams := &auth.Argon2Params{
 		Memory:      a.cfg.Auth.ArgonMemory,
@@ -103,47 +98,12 @@ func (a *App) Init() error {
 		KeyLength:   a.cfg.Auth.ArgonKeyLength,
 	}
 
-	a.authSvc = auth.NewAuthenticationService(
-		a.repos.Users,
-		a.repos.UserRoles,
-		argonParams,
-		a.appLog,
-		a.cfg.Auth.MaxLoginAttempts,
-		a.cfg.Auth.LockoutTTL,
-	)
+	a.sessionSvc = auth.NewSessionService(sessions, a.cfg.Auth.SessionTTL, a.appLog)
+	a.settingsSvc = administration.NewSettingsService(settings, currencies, taxes, countries, a.appLog)
+	a.profileSvc = auth.NewProfileService(profiles, users, a.appLog)
+	a.auditSvc = administration.NewAuditService(auditEvents, a.appLog)
 
-	a.sessionSvc = auth.NewSessionService(
-		a.repos.Sessions,
-		a.cfg.Auth.SessionTTL,
-		a.appLog,
-	)
-
-	a.settingsSvc = adminservice.NewSettingsService(
-		a.repos.Settings,
-		a.repos.Currencies,
-		a.repos.Taxes,
-		a.repos.Countries,
-		a.appLog,
-	)
-
-	a.profileSvc = adminservice.NewProfileService(
-		a.repos.Profiles,
-		a.repos.Users,
-		a.appLog,
-	)
-
-	a.auditSvc = adminservice.NewAuditService(
-		a.repos.AuditEvents,
-		a.appLog,
-	)
-
-	svcTx := services.NewTxManager(txMgr)
-	ucTx := &txBridge{inner: svcTx}
-	base := usecases.NewBase(ucTx, a.appLog)
-
-	a.loginUC = authuc.NewLoginUseCase(base, a.authSvc, a.sessionSvc, a.auditSvc)
-	a.logoutUC = authuc.NewLogoutUseCase(base, a.sessionSvc, a.auditSvc)
-	a.changePwUC = authuc.NewChangePasswordUseCase(base, a.authSvc, a.sessionSvc, a.auditSvc)
+	a.authSvc = auth.NewAuthenticationService(users, userRoles, a.sessionSvc, a.auditSvc, argonParams, a.appLog, a.cfg.Auth.MaxLoginAttempts, a.cfg.Auth.LockoutTTL)
 
 	a.log.Info("bindings initialized")
 	return nil

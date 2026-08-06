@@ -5,7 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
-	adminservice "vfinancy/backend/internal/application/services/administration"
+	"vfinancy/backend/internal/features/administration"
 )
 
 type BusinessInfoDTO struct {
@@ -79,7 +79,7 @@ func (a *App) GetBusinessInfo() (*BusinessInfoDTO, error) {
 func (a *App) UpdateBusinessInfo(info BusinessInfoDTO) error {
 	ctx := a.Context()
 
-	domainInfo := &adminservice.BusinessInfo{
+	domainInfo := &administration.BusinessInfo{
 		Name:      info.Name,
 		TradeName: info.TradeName,
 		TaxID:     info.TaxID,

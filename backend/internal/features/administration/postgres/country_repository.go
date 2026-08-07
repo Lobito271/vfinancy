@@ -54,17 +54,26 @@ func (r *countryRepository) List(ctx context.Context) ([]*administration.Country
 }
 
 func (r *countryRepository) Upsert(ctx context.Context, c *administration.Country) error {
+	// default_document_types is text[] on PostgreSQL and a {a,b,c}
+	// literal string on SQLite. The {..} text form is what the shared
+	// scan helper (parseTextArray) reads back, so both dialects stay
+	// byte-compatible at the repository level.
 	var (
-		placeholders []string
-		args         []any
+		args    []any
+		arrayExpr string
 	)
-	for i, dt := range c.DefaultDocumentTypes {
-		placeholders = append(placeholders, fmt.Sprintf("$%d", i+1))
-		args = append(args, dt)
-	}
-	arrayExpr := "ARRAY[]::text[]"
-	if len(placeholders) > 0 {
-		arrayExpr = fmt.Sprintf("ARRAY[%s]::text[]", strings.Join(placeholders, ","))
+	if persistence.IsSQLite() {
+		arrayExpr = persistence.ArrayLiteral(c.DefaultDocumentTypes)
+	} else {
+		arrayExpr = "ARRAY[]::text[]"
+		if len(c.DefaultDocumentTypes) > 0 {
+			placeholders := make([]string, len(c.DefaultDocumentTypes))
+			for i, dt := range c.DefaultDocumentTypes {
+				placeholders[i] = fmt.Sprintf("$%d", i+1)
+				args = append(args, dt)
+			}
+			arrayExpr = fmt.Sprintf("ARRAY[%s]::text[]", strings.Join(placeholders, ","))
+		}
 	}
 	arrayPos := len(args) + 1
 	args = append(args, c.Code)

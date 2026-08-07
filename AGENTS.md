@@ -11,7 +11,7 @@
 - **Frontend:** TypeScript + **React 18** + Vite 5
 - **State / data:** Zustand, TanStack Query, React Hook Form, Zod
 - **Styling:** plain CSS3 in `src/index.css` (hand-rolled utility system with the same class names + design tokens as before) — **no Tailwind, no PostCSS**
-- **DB:** PostgreSQL via `github.com/jackc/pgx/v5/stdlib`
+- **DB:** hybrid — local **SQLite** (primary runtime DB, `modernc.org/sqlite`, pure Go) + cloud **PostgreSQL** mirror (via `github.com/jackc/pgx/v5/stdlib`) synchronized by the built-in sync engine.
 
 ## Key Commands
 
@@ -27,14 +27,22 @@ npm run build      # Type-check + production build → frontend/dist/
 npm run check      # tsc --noEmit
 
 # Backend CLI (run in repo root or backend/)
-go run ./backend/cmd/cli migrate    # apply pending SQL migrations
-go run ./backend/cmd/cli status     # show migration status
+go run ./backend/cmd/cli migrate [--postgres]   # apply pending migrations (default: local SQLite via migrations/sqlite)
+go run ./backend/cmd/cli status  [--postgres]   # show migration status
+
+# Sync server (cloud PostgreSQL mirror)
+DB_DRIVER=postgres DB_MIGRATION_DIR=backend/migrations/postgres SYNC_ENABLED=false \
+  go run ./backend/cmd/syncserver
 
 # Go tests
 go test ./backend/...
 ```
 
-In this dev container, only Node/npm are on PATH. Go, the `wails` CLI, and `psql` are not. Frontend changes can be verified with `npm run build` / `npm run check`. Go changes must be verified on a host with the full Wails toolchain.
+Toolchain notes for this dev container:
+
+- **Go IS available** at `/usr/local/go/bin/go` (used for `go build`, `go vet`, `go test`). `npm` is on PATH too. Only the `wails` CLI and `psql` are missing.
+- `modernc.org/sqlite` is a declared dependency (pure Go, no CGO) — needed to build the desktop app offline.
+- The backend assumes a working directory of the repo root: set `DB_MIGRATION_DIR=backend/migrations/sqlite` (or `backend/migrations/postgres`) and `SYNC_ENABLED=false` unless a sync server URL is configured.
 
 ## Architecture: feature-based vertical slices (Service + Repository)
 
@@ -50,7 +58,7 @@ Desktop Application (Wails)
     └── Interfaces      (Wails-exposed bindings)
 ```
 
-**Rule:** Frontend never accesses the database directly. All traffic flows React → Wails binding → feature service → Repository → PostgreSQL.
+**Rule:** Frontend never accesses the database directly. All traffic flows React → Wails binding → feature service → Repository → local SQLite (primary runtime DB) or the cloud PostgreSQL mirror (via the sync server).
 
 **Vertical-slice rules:**
 
@@ -65,16 +73,18 @@ Desktop Application (Wails)
 ```
 backend/
   cmd/
-    cli/                 # standalone CLI: `migrate`, `status`
+    cli/                 # standalone CLI: `migrate`, `status` (default: local SQLite; `--postgres` for cloud)
+    syncserver/          # self-hosted HTTP sync server (cloud PostgreSQL mirror)
   infrastructure/        # NOT under internal/ on purpose (see "Internal packages" below)
-    config/              # env-based config loader
+    config/              # env-based config loader (DB_DRIVER, DB_PATH, SYNC_*, ...)
     logger/              # structured slog logger (json | text, levels debug..error)
     database/            # *sql.DB wrapper + WithTx(ctx, fn) helper
     postgres/            # Connect(), EnsureDatabase(), DSN helpers
-    migrations/          # file-based SQL migration runner
-    persistence/         # Querier, TxManager, scan/decode/builder/error-map helpers
+    sqlite/              # embedded SQLite driver (pure Go, modernc.org/sqlite)
+    migrations/          # file-based SQL migration runner (dialect-aware bookkeeping)
+    persistence/         # Querier, TxManager, dialect switch, scan/decode/builder/error-map helpers
   interfaces/
-    bindings/            # Wails-exposed methods (auth, profile, settings, system)
+    bindings/            # Wails-exposed methods (auth, profile, settings, system) + sync worker bootstrap
   internal/
     domain/              # cross-feature domain primitives
       enums/             # 20+ enums (sale_status, journal_type, ...)
@@ -87,8 +97,11 @@ backend/
     features/            # one vertical slice per business module
       <feature>/         # entity(ies) + repository interface + service (orchestration lives here)
       <feature>/postgres/# concrete repository implementations
-  migrations/            # SQL migration files (0000_xxx.up.sql / .down.sql)
-  pkg/                   # reusable packages (reserved; empty in Phase 0)
+      sync/              # replication engine: device registry, cursors, LWW conflicts, tombstones
+  migrations/
+    sqlite/              # SQLite migration pairs (0000_xxx.up.sql / .down.sql) — local runtime DB
+    postgres/            # PostgreSQL pairs — cloud mirror (moved via git mv)
+  pkg/                   # reusable packages
 ```
 
 Each feature (`auth`, `administration`, `customer`, `supplier`, `product`, `inventory`, `purchasing`, `sales`, `treasury`, `accounting`, `customerpayments`, `reporting`) is a **vertical slice**: it owns its entity definitions, its repository interface, and its business service. When an operation spans multiple features, the owning feature's service composes the other features' services/repositories inside a single transaction (e.g. `sales.SalesService.Create` records the sale AND the customer debt; `auth.AuthenticationService.Login` authenticates, creates the session and records the audit event). Concrete SQL lives only in the feature's `postgres/` subpackage.
@@ -97,7 +110,7 @@ The root `main.go` and `app.go` are the Wails entrypoint. `app.go` initializes c
 
 ### Internal packages
 
-`backend/internal/...` packages can only be imported by packages whose import path is `vfinancy/backend/...` or a subpath. The root `vfinancy` package (where `main.go`/`app.go` live) cannot import them. So `infrastructure/` and `interfaces/` live directly under `backend/` (not under `internal/`). When the root entrypoint is moved into `backend/cmd/server/` (a later phase), these can be folded back into `internal/`.
+`backend/internal/...` packages can only be imported by packages whose import path is `vfinancy/backend/...` or a subpath. The root `vfinancy` package (where `main.go`/`app.go` live) cannot import them. So `infrastructure/` and `interfaces/` live directly under `backend/` (not under `internal/`). Moving the root entrypoint into `backend/cmd/server/` would let these be folded back into `internal/`.
 
 ## Frontend Layout (current)
 
@@ -238,11 +251,21 @@ Cada carpeta tiene su `index.ts` barrel — importar de `@/components/<categorí
 
 ## Migrations
 
-- Files live in `backend/migrations/` and follow the pattern `0001_create_users.up.sql` / `0001_create_users.down.sql`.
+- Files live in `backend/migrations/` under two dialect directories: `sqlite/` (the local runtime DB) and `postgres/` (the cloud mirror). Both contain the same versions; keep every pair in sync.
+- Filenames follow the pattern `0001_create_users.up.sql` / `0001_create_users.down.sql`.
 - Each pair is a version. Runner records applied versions in `schema_migrations(version, name, applied_at)`.
 - Filename must be `VERSION_NAME.up.sql` or `VERSION_NAME.down.sql` (single underscore between version and name; name may contain underscores but no dots).
-- Apply with `go run ./backend/cmd/cli migrate`. Status with `go run ./backend/cmd/cli status`.
+- Apply with `go run ./backend/cmd/cli migrate` (default: local SQLite; add `--postgres` for the cloud). Status with `go run ./backend/cmd/cli status`.
 - The Wails app also auto-runs pending migrations on `OnStartup`.
+- SQLite dialect notes: `gen_random_uuid()` → `lower(hex(randomblob(16)))`, `NOW()` → `(CAST(unixepoch('subsec') * 1000 AS INTEGER))`, `TIMESTAMPTZ`/`JSONB`/`TEXT[]`/`INET` → `TIMESTAMP`/`TEXT`/`TEXT`/`TEXT`. Timestamps are INTEGER ms; `ALTER TABLE ADD CONSTRAINT` is a no-op (FKs are declared inline in `CREATE TABLE`). SQLite requires all columns before table-level `CONSTRAINT`s, and triggers cannot be `BEFORE UPDATE OR DELETE`.
+
+## Sync architecture
+
+- **Local SQLite is the runtime DB.** The background worker in `interfaces/bindings/app.go` (`startSyncWorker`, gated on `SYNC_ENABLED`) pushes/pulls changes to the self-hosted sync server (`backend/cmd/syncserver`, cloud PostgreSQL mirror).
+- **Model:** watermark-diff replication with last-writer-wins. Rows travel as "all rows whose time column > per-table cursor" in both directions; hard deletes are captured by the `AFTER DELETE` triggers in `migrations/sqlite/0020` into `sync_tombstones`. The postgres 0020 has no triggers — the server records tombstones explicitly. There are no INSERT/UPDATE triggers (no outbox echo).
+- The generic engine lives in `internal/features/sync` (entities, registry of 13 replicated tables, `Repository` interface, `HTTPClient`) and `internal/features/sync/postgres` (dialect-safe implementation). `internal/features/sync/server.go` is the server-side handler.
+- Replicated tables are the master-data/auth set: `companies`, `branches`, `roles`, `users`, `user_roles`, `user_profiles`, `user_sessions`, `application_settings`, `taxes`, `currencies`, `countries`, `permissions`, `role_permissions`. `audit_logs`, `audit_events`, `login_history`, `exchange_rates` are intentionally excluded.
+- Config: `SYNC_ENABLED=true`, `SYNC_SERVER_URL`, `SYNC_API_KEY`, `SYNC_POLL_INTERVAL_SEC=30`.
 
 ## Wails / Build Gotchas
 
@@ -253,22 +276,7 @@ Cada carpeta tiene su `index.ts` barrel — importar de `@/components/<categorí
   ```
   // replace github.com/wailsapp/wails/v2 v2.11.0 => /path/to/local/wails
   ```
-- This dev container has Node only. `wails` CLI, `go`, and `psql` are not available; verify Go changes on a host with the Wails toolchain.
-
-## Development Phases (from the plan)
-
-Phase 0 = complete: project init, stack swap, env config, logger, DB driver + connection + migrations runner, frontend scaffold with Radix primitives.
-Phase 0.5 = complete: UI/UX foundation — Spanish i18n, design system, layout shell, theme, navigation, mock data, placeholder pages. **No business logic, no DB connections yet.**
-Phase 0.6 = complete: architecture & design system refinement — design tokens, icon registry, enterprise form/table frameworks, dashboard widget system, permission system, providers, services per domain, feature-based modules, lazy loading, error boundaries, full documentation.
-Phase 1 = complete: enterprise database architecture — ~65 tables, 9 modules, full ERD, entity/relationship catalogs, naming/index/constraint strategies, no SQL yet.
-Phase 1.1 = complete: PostgreSQL schema (Module 1: Authentication) — 20 paired up/down migrations + seed, validated against PostgreSQL 16. Module 1 covers `companies`, `branches`, `permissions`, `roles`, `role_permissions`, `users`, `user_roles`, `login_history`, `audit_logs`, `user_sessions`, `user_profiles`, plus Module 1.5 administration tables (`application_settings`, `currencies`, `countries`, `taxes`, `exchange_rates`, `audit_events`).
-Phase 1.2 = complete: Domain Layer — typed errors, value objects (Money, Percentage, Quantity, SKU, Barcode, Email, Phone, DocumentNumber, Address, ExchangeRate, CurrencyCode), 20+ enums, validation package, rich feature entities. **Zero dependencies on infrastructure.**
-Phase 1.3 = complete: Repository Layer — repository interfaces per feature (in `internal/features/<feature>/`), shared `repositories` (pagination, transaction, errors), concrete PostgreSQL implementations in each feature's `postgres/` subpackage. **No business logic in the persistence layer.**
-Phase 1.4 = complete: Service Layer — business services per feature under `internal/features/<feature>/` (`customer_service.go`, `sales_service.go`, `inventory_service.go`, …), shared errors via `internal/shared/apperrors`. **No business logic outside the service layer.**
-Phase 1.5 = complete: cross-feature orchestration folded into the feature services — no use case / workflow layer. The owning feature's service composes other features' services/repositories inside a single transaction (e.g. `auth.AuthenticationService.Login` = authenticate + session + audit; `sales.SalesService.Create` = sale + customer debt).
-Phase 2 = in progress: Wails bindings + UI integration — `backend/interfaces/bindings/` exposes auth, profile, settings, system; frontend consumes them via `src/services/bindings.ts` (`wailsClient` with mock fallback).
-Phase 3 = next: master data UI on top of the repository layer.
-Phase 4 = purchasing, Phase 5 = sales, Phase 6 = inventory (incl. 25-day clearance), Phase 7 = treasury, Phase 8 = accounting, Phase 9 = dashboards, Phase 10 = PDF/Excel/CSV reports, Phase 11 = optimization.
+- This dev container has Go (`/usr/local/go/bin/go`) and Node, but no `wails` CLI or `psql`. `go build`/`go vet`/`go test` run fine here; only Wails-specific steps need a host with the Wails toolchain.
 
 Inventory aging rule: `max_sale_date = arrival_date + 25 days`. Items past that date are **clearance** and appear on dashboards automatically.
 
@@ -283,7 +291,6 @@ Inventory aging rule: `max_sale_date = arrival_date + 25 days`. Items past that 
 
 ## Useful References
 
-- `PROJECT_PLAN.md` — full development plan by phase.
 - `DESIGN.md` — visual design rules (colors, typography, spacing, components, accessibility).
 - `frontend/README.md` — frontend stack and folder conventions.
 - `AGENTS.md` (this file) — repo-wide rules for agents.

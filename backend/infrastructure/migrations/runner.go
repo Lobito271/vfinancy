@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"vfinancy/backend/infrastructure/logger"
+	"vfinancy/backend/internal/shared/logger"
 )
 
 type Migration struct {
@@ -25,24 +25,39 @@ type Migration struct {
 }
 
 type Runner struct {
-	dir   string
-	db    *sql.DB
-	log   *logger.Logger
-	table string
+	dir      string
+	db       *sql.DB
+	log      *logger.Logger
+	table    string
+	dialect  string
 }
 
-func NewRunner(dir string, db *sql.DB, log *logger.Logger) *Runner {
-	return &Runner{dir: dir, db: db, log: log, table: "schema_migrations"}
+// NewRunner returns a runner that applies the migrations in dir to db.
+// dialect is "postgres" or "sqlite" and selects the bookkeeping-table
+// DDL; the migration files themselves must match the dialect.
+func NewRunner(dir string, db *sql.DB, log *logger.Logger, dialect string) *Runner {
+	if dialect == "" {
+		dialect = "postgres"
+	}
+	return &Runner{dir: dir, db: db, log: log, table: "schema_migrations", dialect: dialect}
 }
 
 func (r *Runner) EnsureTable(ctx context.Context) error {
-	stmt := fmt.Sprintf(`
+	createTable := fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s (
 			version    BIGINT PRIMARY KEY,
 			name       TEXT NOT NULL,
 			applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`, r.table)
-	_, err := r.db.ExecContext(ctx, stmt)
+	if r.dialect == "sqlite" {
+		createTable = fmt.Sprintf(`
+			CREATE TABLE IF NOT EXISTS %s (
+				version    INTEGER PRIMARY KEY,
+				name       TEXT NOT NULL,
+				applied_at TIMESTAMP NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER))
+			)`, r.table)
+	}
+	_, err := r.db.ExecContext(ctx, createTable)
 	if err != nil {
 		return fmt.Errorf("migrations: ensure table: %w", err)
 	}

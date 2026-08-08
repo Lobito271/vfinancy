@@ -39,5 +39,7 @@ INSERT INTO currencies (code, symbol, name, decimal_places, type, is_active) VAL
     ('MXN', 'MX$', 'Peso mexicano',      2, 'fiat', FALSE),
     ('COP', 'COP$', 'Peso colombiano',   2, 'fiat', FALSE),
     ('CLP', 'CLP$', 'Peso chileno',      0, 'fiat', FALSE),
-    ('BRL', 'R$',  'Real brasileño',     2, 'fiat', FALSE)
+    ('BRL', 'R$',  'Real brasileño',     2, 'fiat', FALSE),
+    ('ARS', 'AR$', 'Peso argentino',     2, 'fiat', FALSE),
+    ('BOB', 'Bs',  'Boliviano',          2, 'fiat', FALSE)
 ON CONFLICT (code) DO NOTHING;

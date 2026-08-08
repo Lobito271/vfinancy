@@ -239,3 +239,14 @@ func DecimalFromString(s string) decimal.Decimal {
 	d, _ := decimal.NewFromString(s)
 	return d
 }
+
+// ArrayLiteral renders a []string as a PostgreSQL-style text array
+// literal string, e.g. {"a","b"}. SQLite stores text arrays in this
+// form so the shared scan helpers parse both dialects identically.
+func ArrayLiteral(values []string) string {
+	quoted := make([]string, 0, len(values))
+	for _, v := range values {
+		quoted = append(quoted, `"`+strings.ReplaceAll(v, `"`, `\"`)+`"`)
+	}
+	return "{" + strings.Join(quoted, ",") + "}"
+}

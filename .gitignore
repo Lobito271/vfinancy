@@ -1,3 +1,43 @@
-build/bin
-node_modules
-frontend/dist
+# =========================
+# Wails
+# =========================
+build/bin/
+frontend/wailsjs/
+
+# =========================
+# Frontend
+# =========================
+node_modules/
+frontend/dist/
+
+# =========================
+# Go
+# =========================
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# =========================
+# IDE / Editors
+# =========================
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# Environment / Secrets
+# =========================
+.env
+.env.*
+!.env.example

@@ -12,7 +12,7 @@ import (
 
 	"vfinancy/backend/infrastructure/config"
 	"vfinancy/backend/infrastructure/database"
-	"vfinancy/backend/infrastructure/logger"
+	"vfinancy/backend/internal/shared/logger"
 )
 
 const DriverName = "pgx"

@@ -5,6 +5,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -72,6 +74,7 @@ type SyncConfig struct {
 }
 
 func Load() (*Config, error) {
+	godotenv.Load() // ponytail: .env optional; explicit env vars win
 	cfg := &Config{
 		App: AppConfig{
 			Name:        getEnv("APP_NAME", "vfinancy"),

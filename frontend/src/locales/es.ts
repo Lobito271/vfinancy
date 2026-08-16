@@ -83,9 +83,9 @@ const es = {
   },
   status: {
     pending: 'Pendiente',
-    paid: 'Pagado',
+    paid: 'Cobrada',
     partial: 'Parcial',
-    cancelled: 'Cancelado',
+    cancelled: 'Anulada',
     active: 'Activo',
     inactive: 'Inactivo',
     lowStock: 'Stock Bajo',

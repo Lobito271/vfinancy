@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"vfinancy/backend/internal/domain/enums"
 	derrors "vfinancy/backend/internal/domain/errors"
 	"vfinancy/backend/internal/domain/valueobjects"
 )
@@ -21,7 +22,7 @@ type CustomerAdvance struct {
 	Amount        valueobjects.Money
 	CurrencyCode  valueobjects.CurrencyCode
 	ExchangeRate  valueobjects.ExchangeRate
-	Method        string
+	Method        enums.PaymentMethod
 	BankAccountID *uuid.UUID
 	applications  []AdvanceApplication
 	Status        string
@@ -48,7 +49,7 @@ type NewCustomerAdvanceOptions struct {
 	Amount        valueobjects.Money
 	CurrencyCode  valueobjects.CurrencyCode
 	ExchangeRate  valueobjects.ExchangeRate
-	Method        string
+	Method        enums.PaymentMethod
 	BankAccountID *uuid.UUID
 	Notes         string
 }
@@ -60,6 +61,9 @@ func NewCustomerAdvance(now time.Time, opts NewCustomerAdvanceOptions) (*Custome
 	}
 	if !opts.Amount.IsPositive() {
 		return nil, derrors.Wrap(derrors.ErrInvalidPayment, errField("advance amount must be positive"))
+	}
+	if !opts.Method.Valid() {
+		return nil, derrors.Wrap(derrors.ErrInvalidEnum, errField("payment method is invalid"))
 	}
 	return &CustomerAdvance{
 		ID:             uuid.New(),

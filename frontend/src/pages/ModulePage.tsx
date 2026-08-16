@@ -1,4 +1,4 @@
-import { Users, type LucideIcon } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { PlaceholderPage } from './PlaceholderPage';
 
 interface ModulePageProps {
@@ -8,10 +8,9 @@ interface ModulePageProps {
   phase: string;
   features: string[];
   icon: LucideIcon;
-  mockStats?: { label: string; value: string }[];
 }
 
-export function ModulePage({ title, subtitle, description, phase, features, icon, mockStats }: ModulePageProps) {
+export function ModulePage({ title, subtitle, description, phase, features, icon }: ModulePageProps) {
   return (
     <PlaceholderPage
       title={title}
@@ -20,9 +19,6 @@ export function ModulePage({ title, subtitle, description, phase, features, icon
       phase={phase}
       features={features}
       icon={icon}
-      mockStats={mockStats}
     />
   );
 }
-
-void Users;

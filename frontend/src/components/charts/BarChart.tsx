@@ -8,7 +8,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from 'recharts';
-import type { ChartPoint } from '@/data/mock';
+import type { ChartPoint } from '@/types/domain';
 
 interface BarChartProps {
   data: ChartPoint[];

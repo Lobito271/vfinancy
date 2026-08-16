@@ -36,6 +36,12 @@ type Product struct {
 	DeletedAt    *time.Time
 	CreatedBy    *uuid.UUID
 	UpdatedBy    *uuid.UUID
+
+	// Read-model enrichment populated by the repository via joins; never
+	// persisted. Used by the UI to render category / brand / unit names.
+	CategoryName string
+	BrandName    string
+	UnitName     string
 }
 
 // NewProductOptions is the input to NewProduct.

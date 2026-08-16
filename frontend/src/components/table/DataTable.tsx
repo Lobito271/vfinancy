@@ -43,6 +43,7 @@ export interface DataTableProps<T> {
   onRetry?: () => void;
   onRowClick?: (row: T) => void;
   onSelectionChange?: (rows: T[]) => void;
+  rowClassName?: (row: T) => string | undefined;
   state?: Partial<DataTableState>;
   onStateChange?: (state: DataTableState) => void;
   preferencesKey?: string;
@@ -83,6 +84,7 @@ export function DataTable<T>({
   empty,
   onRowClick,
   onSelectionChange,
+  rowClassName,
   state: externalState,
   onStateChange,
   preferencesKey,
@@ -375,6 +377,7 @@ export function DataTable<T>({
                       'border-b transition-colors hover:bg-muted/30',
                       onRowClick && 'cursor-pointer',
                       isSelected && 'bg-accent/40',
+                      rowClassName?.(row),
                     )}
                   >
                     {onSelectionChange && (

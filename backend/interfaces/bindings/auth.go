@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"vfinancy/backend/internal/features/auth"
+	"vfinancy/backend/internal/shared/apperrors"
 )
 
 type LoginRequest struct {
@@ -25,6 +26,10 @@ type LoginResponse struct {
 }
 
 func (a *App) Login(req LoginRequest) (*LoginResponse, error) {
+	if a.authSvc == nil {
+		return nil, apperrors.Errorf(apperrors.ErrInternal, "authentication service is not initialized")
+	}
+
 	ctx := a.Context()
 
 	wfReq := auth.LoginRequest{
@@ -56,6 +61,10 @@ func (a *App) Login(req LoginRequest) (*LoginResponse, error) {
 }
 
 func (a *App) Logout(sessionToken string) error {
+	if a.authSvc == nil {
+		return apperrors.Errorf(apperrors.ErrInternal, "authentication service is not initialized")
+	}
+
 	ctx := a.Context()
 
 	req := auth.LogoutRequest{
@@ -67,6 +76,10 @@ func (a *App) Logout(sessionToken string) error {
 }
 
 func (a *App) ChangePassword(currentPassword, newPassword, sessionToken string) error {
+	if a.sessionSvc == nil || a.authSvc == nil {
+		return apperrors.Errorf(apperrors.ErrInternal, "authentication service is not initialized")
+	}
+
 	ctx := a.Context()
 
 	session, err := a.sessionSvc.Validate(ctx, sessionToken)
@@ -86,6 +99,10 @@ func (a *App) ChangePassword(currentPassword, newPassword, sessionToken string) 
 }
 
 func (a *App) ValidateSession(sessionToken string) (bool, error) {
+	if a.sessionSvc == nil {
+		return false, apperrors.Errorf(apperrors.ErrInternal, "authentication service is not initialized")
+	}
+
 	ctx := a.Context()
 
 	_, err := a.sessionSvc.Validate(ctx, sessionToken)

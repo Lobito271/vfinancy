@@ -3,6 +3,7 @@ package bindings
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,12 +14,29 @@ import (
 	"vfinancy/backend/infrastructure/migrations"
 	"vfinancy/backend/infrastructure/persistence"
 	"vfinancy/backend/infrastructure/sqlite"
+	"vfinancy/backend/internal/features/accounting"
+	accountingpostgres "vfinancy/backend/internal/features/accounting/postgres"
 	"vfinancy/backend/internal/features/administration"
 	adminpostgres "vfinancy/backend/internal/features/administration/postgres"
 	"vfinancy/backend/internal/features/auth"
 	authpostgres "vfinancy/backend/internal/features/auth/postgres"
+	"vfinancy/backend/internal/features/customer"
+	customerpostgres "vfinancy/backend/internal/features/customer/postgres"
+	"vfinancy/backend/internal/features/customerpayments"
+	"vfinancy/backend/internal/features/inventory"
+	inventorypostgres "vfinancy/backend/internal/features/inventory/postgres"
+	"vfinancy/backend/internal/features/product"
+	productpostgres "vfinancy/backend/internal/features/product/postgres"
+	"vfinancy/backend/internal/features/purchasing"
+	purchasingpostgres "vfinancy/backend/internal/features/purchasing/postgres"
+	"vfinancy/backend/internal/features/sales"
+	salespostgres "vfinancy/backend/internal/features/sales/postgres"
+	"vfinancy/backend/internal/features/supplier"
+	supplierpostgres "vfinancy/backend/internal/features/supplier/postgres"
 	"vfinancy/backend/internal/features/sync"
 	syncpostgres "vfinancy/backend/internal/features/sync/postgres"
+	"vfinancy/backend/internal/features/treasury"
+	treasurypostgres "vfinancy/backend/internal/features/treasury/postgres"
 )
 
 var demoCompanyID = uuid.MustParse("00000000-0000-0000-0000-000000000001")
@@ -29,19 +47,31 @@ type App struct {
 	cfg *config.Config
 	log *logger.Logger
 
+	migrationsFS fs.FS
+
 	authSvc     *auth.AuthenticationService
 	settingsSvc *administration.SettingsService
 	profileSvc  *auth.ProfileService
 	auditSvc    *administration.AuditService
 	sessionSvc  *auth.SessionService
 
+	treasurySvc    *treasury.TreasuryService
+	salesSvc       *sales.SalesService
+	paymentSvc     *customerpayments.CustomerPaymentService
+	inventorySvc   *inventory.InventoryService
+	accountingSvc  *accounting.AccountingService
+	purchasingSvc  *purchasing.PurchasingService
+	customersSvc   *customer.CustomerService
+	productsSvc    *product.ProductService
+	suppliersSvc   *supplier.SupplierService
+
 	syncCancel context.CancelFunc
 
 	users auth.UserRepository
 }
 
-func New(cfg *config.Config, log *logger.Logger) *App {
-	return &App{cfg: cfg, log: log}
+func New(cfg *config.Config, log *logger.Logger, migrationsFS fs.FS) *App {
+	return &App{cfg: cfg, log: log, migrationsFS: migrationsFS}
 }
 
 func (a *App) Startup(ctx context.Context) {
@@ -82,7 +112,7 @@ func (a *App) Init() error {
 	a.db = db
 	persistence.SetDialect(persistence.DialectSQLite)
 
-	runner := migrations.NewRunner(a.cfg.Database.MigrationDir, db.DB, a.log, "sqlite")
+	runner := migrations.NewRunnerFS(a.migrationsFS, db.DB, a.log, "sqlite")
 	if err := runner.Up(ctx); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}
@@ -96,6 +126,33 @@ func (a *App) Init() error {
 	taxes := adminpostgres.NewTaxRepository(db.DB)
 	countries := adminpostgres.NewCountryRepository(db.DB)
 	auditEvents := adminpostgres.NewAuditEventRepository(db.DB)
+
+	txm := persistence.NewTxManager(db)
+	customers := customerpostgres.NewCustomerRepository(db.DB)
+	products := productpostgres.NewProductRepository(db.DB)
+	suppliers := supplierpostgres.NewSupplierRepository(db.DB)
+
+	bankAccounts := treasurypostgres.NewBankAccountRepository(db.DB)
+	creditCards := treasurypostgres.NewCreditCardRepository(db.DB)
+	bankTransactions := treasurypostgres.NewBankTransactionRepository(db.DB)
+	exchangeRates := treasurypostgres.NewExchangeRateRepository(db.DB)
+
+	batches := inventorypostgres.NewInventoryBatchRepository(db.DB)
+	movements := inventorypostgres.NewInventoryMovementRepository(db.DB)
+	warehouseResolver := inventorypostgres.NewWarehouseResolver(db.DB)
+	productClassifier := inventorypostgres.NewProductClassifier(db.DB)
+
+	orders := salespostgres.NewSaleRepository(db.DB)
+	payments := salespostgres.NewCustomerPaymentRepository(db.DB)
+	advances := salespostgres.NewCustomerAdvanceRepository(db.DB)
+
+	purchaseOrders := purchasingpostgres.NewPurchaseRepository(db.DB)
+	supplierPayments := purchasingpostgres.NewSupplierPaymentRepository(db.DB)
+
+	journalEntries := accountingpostgres.NewJournalRepository(db.DB)
+	chartOfAccounts := accountingpostgres.NewChartOfAccountRepository(db.DB)
+	ledger := accountingpostgres.NewLedgerRepository(db.DB)
+	fiscalPeriods := accountingpostgres.NewFiscalPeriodRepository(db.DB)
 
 	a.users = users
 
@@ -113,6 +170,20 @@ func (a *App) Init() error {
 	a.auditSvc = administration.NewAuditService(auditEvents, a.log)
 
 	a.authSvc = auth.NewAuthenticationService(users, userRoles, a.sessionSvc, a.auditSvc, argonParams, a.log, a.cfg.Auth.MaxLoginAttempts, a.cfg.Auth.LockoutTTL)
+
+	a.treasurySvc = treasury.New(bankAccounts, creditCards, bankTransactions, exchangeRates, txm, a.log)
+	a.inventorySvc = inventory.New(batches, movements, warehouseResolver, productClassifier, txm, a.log)
+	a.salesSvc = sales.New(orders, customers, a.inventorySvc, productClassifier, txm, a.log)
+	a.paymentSvc = customerpayments.New(payments, advances, orders, customers, txm, a.log)
+	a.accountingSvc = accounting.New(journalEntries, chartOfAccounts, ledger, fiscalPeriods, txm, a.log)
+	a.purchasingSvc = purchasing.New(purchaseOrders, supplierPayments, a.inventorySvc, txm, a.log)
+	a.customersSvc = customer.New(customers, txm, a.log)
+	a.productsSvc = product.New(products, txm, a.log)
+	a.suppliersSvc = supplier.New(suppliers, txm, a.log)
+
+	if err := a.seedAuthData(ctx, users, userRoles); err != nil {
+		a.log.Warn("auth seeder failed; continuing without demo admin", "error", err.Error())
+	}
 
 	a.startSyncWorker(ctx)
 

@@ -1,13 +1,13 @@
-import { ShoppingCart, TrendingUp, TrendingDown, Minus, type LucideIcon } from 'lucide-react';
+import { ShoppingCart, TrendingUp, TrendingDown, Wallet, Users, AlertTriangle, Trophy, Activity, type LucideIcon } from 'lucide-react';
 import { WidgetShell } from './WidgetShell';
 import { StatCard } from '@/components/card';
+import { EmptyState } from '@/components/feedback';
 import { formatCurrency, formatNumber, formatPercent } from '@/utils/format';
-import { cn } from '@/utils/cn';
-import { dashboardKpis, salesLast7Days, topProducts, salesByCategory, activity } from '@/data/mock';
-import { LineChart, BarChart, PieChart } from '@/components/charts';
+import { useDashboardData, type DashboardKpis } from '../hooks/useDashboard';
+import { LineChart, BarChart } from '@/components/charts';
 import { DataTable, type Column } from '@/components/table';
-import { formatDateTime, formatRelative } from '@/utils/format';
-import type { ActivityItem, ChartPoint } from '@/data/mock';
+import { formatRelative } from '@/utils/format';
+import type { ActivityItem, ChartPoint } from '@/types/domain';
 
 export interface WidgetMeta<P = unknown> {
   id: string;
@@ -27,131 +27,169 @@ export const WIDGET_REGISTRY = {
   'kpi.customersWithDebt': CustomersWithDebtWidget,
   'kpi.lowStock': LowStockWidget,
   'chart.salesLast7Days': SalesLast7DaysWidget,
-  'chart.salesByCategory': SalesByCategoryWidget,
+  'chart.salesByStatus': SalesByStatusWidget,
   'list.topProducts': TopProductsWidget,
   'list.recentActivity': RecentActivityWidget,
-  'chart.operationsByStatus': OperationsByStatusWidget,
 } as const;
 
 export type WidgetId = keyof typeof WIDGET_REGISTRY;
 
-interface BaseKpiProps {
+interface KpiWidgetProps {
   label: string;
   value: number;
   format: 'currency' | 'number' | 'percent';
-  change?: number;
   icon: LucideIcon;
   currency?: string;
 }
 
-export function KpiWidget({ label, value, format, change, icon, currency }: BaseKpiProps) {
+function KpiWidget({ label, value, format, icon, currency }: KpiWidgetProps) {
   const formatted =
     format === 'currency' ? formatCurrency(value, currency) : format === 'percent' ? formatPercent(value) : formatNumber(value);
-  return (
-    <StatCard
-      label={label}
-      value={formatted}
-      icon={icon}
-      change={change}
-      changeLabel="vs. mes anterior"
-    />
-  );
+  return <StatCard label={label} value={formatted} icon={icon} />;
 }
 
-void ShoppingCart;
-void TrendingUp;
-void TrendingDown;
-void Minus;
-void cn;
-void WIDGET_REGISTRY;
+function fromKpis(kpis: DashboardKpis | undefined) {
+  return {
+    monthSales: kpis?.monthSales ?? 0,
+    monthPurchases: kpis?.monthPurchases ?? 0,
+    profit: kpis?.profit ?? 0,
+    inventoryValue: kpis?.inventoryValue ?? 0,
+    accountsReceivable: kpis?.accountsReceivable ?? 0,
+    accountsPayable: kpis?.accountsPayable ?? 0,
+    clearanceProducts: kpis?.clearanceProducts ?? 0,
+    customersWithDebt: kpis?.customersWithDebt ?? 0,
+    lowStock: kpis?.lowStock ?? 0,
+  };
+}
 
 export function MonthSalesWidget() {
-  return <KpiWidget label="Ventas del Mes" value={dashboardKpis.monthSales} format="currency" change={dashboardKpis.monthSalesChange} icon={ShoppingCart} />;
+  const { data } = useDashboardData();
+  const k = fromKpis(data?.kpis);
+  return <KpiWidget label="Ventas del Mes" value={k.monthSales} format="currency" icon={ShoppingCart} />;
 }
 
 export function MonthPurchasesWidget() {
-  return <KpiWidget label="Compras del Mes" value={dashboardKpis.monthPurchases} format="currency" change={dashboardKpis.monthPurchasesChange} icon={ShoppingCart} />;
+  const { data } = useDashboardData();
+  const k = fromKpis(data?.kpis);
+  return <KpiWidget label="Compras del Mes" value={k.monthPurchases} format="currency" icon={Wallet} />;
 }
 
 export function ProfitWidget() {
-  return <KpiWidget label="Utilidad" value={dashboardKpis.profit} format="currency" change={dashboardKpis.profitChange} icon={TrendingUp} />;
+  const { data } = useDashboardData();
+  const k = fromKpis(data?.kpis);
+  return <KpiWidget label="Utilidad" value={k.profit} format="currency" icon={TrendingUp} />;
 }
 
 export function AccountsReceivableWidget() {
-  return <KpiWidget label="Cuentas por Cobrar" value={dashboardKpis.accountsReceivable} format="currency" icon={ShoppingCart} />;
+  const { data } = useDashboardData();
+  const k = fromKpis(data?.kpis);
+  return <KpiWidget label="Cuentas por Cobrar" value={k.accountsReceivable} format="currency" icon={Wallet} />;
 }
 
 export function AccountsPayableWidget() {
-  return <KpiWidget label="Cuentas por Pagar" value={dashboardKpis.accountsPayable} format="currency" icon={ShoppingCart} />;
+  const { data } = useDashboardData();
+  const k = fromKpis(data?.kpis);
+  return <KpiWidget label="Cuentas por Pagar" value={k.accountsPayable} format="currency" icon={Wallet} />;
 }
 
 export function ClearanceWidget() {
-  return <KpiWidget label="Productos en Remate" value={dashboardKpis.clearanceProducts} format="number" icon={TrendingDown} />;
+  const { data } = useDashboardData();
+  const k = fromKpis(data?.kpis);
+  return <KpiWidget label="Productos en Remate" value={k.clearanceProducts} format="number" icon={AlertTriangle} />;
 }
 
 export function CustomersWithDebtWidget() {
-  return <KpiWidget label="Clientes con Deuda" value={dashboardKpis.customersWithDebt} format="number" icon={Minus} />;
+  const { data } = useDashboardData();
+  const k = fromKpis(data?.kpis);
+  return <KpiWidget label="Clientes con Deuda" value={k.customersWithDebt} format="number" icon={Users} />;
 }
 
 export function LowStockWidget() {
-  return <KpiWidget label="Stock Bajo" value={dashboardKpis.lowStock} format="number" icon={TrendingDown} />;
+  const { data } = useDashboardData();
+  const k = fromKpis(data?.kpis);
+  return <KpiWidget label="Stock Bajo" value={k.lowStock} format="number" icon={AlertTriangle} />;
 }
 
 export function SalesLast7DaysWidget() {
+  const { data, isLoading, isError, error } = useDashboardData();
+  const points: ChartPoint[] = data?.salesLast7Days ?? [];
   return (
-    <WidgetShell title="Ventas últimos 7 días" description="Comparación diaria del periodo">
-      <LineChart data={salesLast7Days} />
+    <WidgetShell title="Ventas últimos 7 días" description="Comparación diaria del periodo" loading={isLoading} error={isError ? (error as Error) : null}>
+      {points.length ? (
+        <LineChart data={points} />
+      ) : (
+        <EmptyState title="Sin ventas" description="El gráfico se completará con las ventas del periodo." />
+      )}
     </WidgetShell>
   );
 }
 
-export function SalesByCategoryWidget() {
+export function SalesByStatusWidget() {
+  const { data, isLoading, isError, error } = useDashboardData();
+  const points: ChartPoint[] = data?.salesByStatus ?? [];
   return (
-    <WidgetShell title="Ventas por categoría" description="Distribución porcentual">
-      <PieChart data={salesByCategory} />
+    <WidgetShell title="Ventas por estado" description="Distribución de documentos según su estado" loading={isLoading} error={isError ? (error as Error) : null}>
+      {points.length ? (
+        <BarChart data={points} />
+      ) : (
+        <EmptyState title="Sin ventas" description="La distribución se completará con los documentos de venta." />
+      )}
     </WidgetShell>
   );
 }
 
 export function TopProductsWidget() {
+  const { data, isLoading, isError, error } = useDashboardData();
+  const rows: ChartPoint[] = data?.topProducts ?? [];
   const columns: Column<ChartPoint>[] = [
     { id: 'label', header: 'Producto', cell: (r) => r.label },
-    { id: 'value', header: 'Ventas', align: 'right', cell: (r) => <span className="font-medium tabular-nums">{formatCurrency(r.value)}</span> },
+    {
+      id: 'value',
+      header: 'Ventas',
+      align: 'right',
+      cell: (r) => <span className="font-medium tabular-nums">{formatCurrency(r.value)}</span>,
+    },
   ];
   return (
-    <WidgetShell title="Productos más vendidos" description="Top del mes">
-      <DataTable columns={columns} data={topProducts} keyField="label" globalSearch={false} exportable={false} />
+    <WidgetShell title="Productos más vendidos" description="Top del mes" loading={isLoading} error={isError ? (error as Error) : null}>
+      {rows.length ? (
+        <DataTable columns={columns} data={rows} keyField="label" globalSearch={false} exportable={false} />
+      ) : (
+        <EmptyState title="Sin datos" description="El ranking se completará con las ventas del mes." />
+      )}
     </WidgetShell>
   );
 }
 
 export function RecentActivityWidget() {
+  const { data, isLoading, isError, error } = useDashboardData();
+  const rows: ActivityItem[] = data?.activity ?? [];
   const columns: Column<ActivityItem>[] = [
     { id: 'description', header: 'Descripción', cell: (r) => r.description },
-    { id: 'amount', header: 'Monto', align: 'right', cell: (r) => (r.amount != null ? formatCurrency(r.amount) : '—') },
-    { id: 'date', header: 'Fecha', cell: (r) => <span className="text-muted-foreground">{formatRelative(r.date)}</span> },
+    {
+      id: 'amount',
+      header: 'Monto',
+      align: 'right',
+      cell: (r) => (r.amount != null ? formatCurrency(r.amount) : '—'),
+    },
+    {
+      id: 'date',
+      header: 'Fecha',
+      cell: (r) => <span className="text-muted-foreground">{formatRelative(r.date)}</span>,
+    },
   ];
   return (
-    <WidgetShell title="Actividad reciente" description="Últimas operaciones del sistema">
-      <DataTable columns={columns} data={activity} keyField="id" globalSearch={false} exportable={false} />
+    <WidgetShell title="Actividad reciente" description="Últimas operaciones del sistema" loading={isLoading} error={isError ? (error as Error) : null}>
+      {rows.length ? (
+        <DataTable columns={columns} data={rows} keyField="id" globalSearch={false} exportable={false} />
+      ) : (
+        <EmptyState title="Sin actividad" description="Las operaciones registradas aparecerán aquí." />
+      )}
     </WidgetShell>
   );
 }
 
-export function OperationsByStatusWidget() {
-  return (
-    <WidgetShell title="Operaciones por estado" description="Distribución de ventas y compras">
-      <BarChart
-        data={[
-          { label: 'Pagado', value: 24 },
-          { label: 'Pendiente', value: 6 },
-          { label: 'Parcial', value: 3 },
-          { label: 'Cancelado', value: 2 },
-        ]}
-        colors={['hsl(var(--success))', 'hsl(var(--warning))', 'hsl(var(--info))', 'hsl(var(--destructive))']}
-      />
-    </WidgetShell>
-  );
-}
-
-void formatDateTime;
+void WIDGET_REGISTRY;
+void Trophy;
+void Activity;
+void TrendingDown;

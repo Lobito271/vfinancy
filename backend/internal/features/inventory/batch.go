@@ -26,6 +26,16 @@ import (
 // appear on the operator dashboard under "Productos en remate".
 const ClearanceDays = 25
 
+// Batch statuses. "active" is sellable; "depleted" has no remaining
+// stock; "written_off" was zeroed by damage/expiry; "voided" was a
+// mistaken receipt cancelled by the user (the row is kept for audit).
+const (
+	InventoryBatchStatusActive     = "active"
+	InventoryBatchStatusDepleted   = "depleted"
+	InventoryBatchStatusWrittenOff = "written_off"
+	InventoryBatchStatusVoided     = "voided"
+)
+
 // InventoryBatch groups a set of units of a single product that share
 // the same arrival date, lot and (optionally) supplier. Each batch
 // tracks its own quantity and its clearance deadline.
@@ -94,7 +104,7 @@ func NewInventoryBatch(now time.Time, opts NewInventoryBatchOptions) (*Inventory
 		CurrentQuantity: opts.InitialQuantity,
 		UnitCost:        opts.UnitCost,
 		CurrencyCode:    opts.CurrencyCode,
-		Status:          "active",
+		Status:          InventoryBatchStatusActive,
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}, nil
@@ -137,8 +147,12 @@ func (b *InventoryBatch) NeedsClearanceSoon(today valueobjects.Date) bool {
 }
 
 // Consume reduces current_quantity by a positive amount. Used by sales
-// and outbound adjustments. Cannot reduce below zero.
+// and outbound adjustments. Cannot reduce below zero. Rejects
+// consumption from a voided or written-off batch.
 func (b *InventoryBatch) Consume(amount valueobjects.Quantity) error {
+	if b.Status == InventoryBatchStatusVoided || b.Status == InventoryBatchStatusWrittenOff {
+		return derrors.Wrap(derrors.ErrInvalidStateTransition, errField("cannot consume from a voided or written-off batch"))
+	}
 	if !amount.IsPositive() {
 		return derrors.Wrap(derrors.ErrNegativeQuantity, errField("consume amount must be positive"))
 	}
@@ -147,21 +161,25 @@ func (b *InventoryBatch) Consume(amount valueobjects.Quantity) error {
 	}
 	b.CurrentQuantity = b.CurrentQuantity.Sub(amount)
 	if b.CurrentQuantity.IsZero() {
-		b.Status = "depleted"
+		b.Status = InventoryBatchStatusDepleted
 	}
 	return nil
 }
 
 // Receive adds quantity to the batch (e.g. on a stock correction
 // adjustment or a partial re-receipt from a supplier). Returns the
-// new current quantity.
+// new current quantity. Rejects receipt into a voided or written-off
+// batch.
 func (b *InventoryBatch) Receive(amount valueobjects.Quantity) (valueobjects.Quantity, error) {
+	if b.Status == InventoryBatchStatusVoided || b.Status == InventoryBatchStatusWrittenOff {
+		return b.CurrentQuantity, derrors.Wrap(derrors.ErrInvalidStateTransition, errField("cannot receive into a voided or written-off batch"))
+	}
 	if !amount.IsPositive() {
 		return b.CurrentQuantity, derrors.Wrap(derrors.ErrNegativeQuantity, errField("receive amount must be positive"))
 	}
 	b.CurrentQuantity = b.CurrentQuantity.Add(amount)
-	if b.Status == "depleted" {
-		b.Status = "active"
+	if b.Status == InventoryBatchStatusDepleted {
+		b.Status = InventoryBatchStatusActive
 	}
 	return b.CurrentQuantity, nil
 }
@@ -171,5 +189,14 @@ func (b *InventoryBatch) Receive(amount valueobjects.Quantity) (valueobjects.Qua
 // inventory_movement row in the application layer.
 func (b *InventoryBatch) WriteOff() {
 	b.CurrentQuantity = valueobjects.ZeroQuantity()
-	b.Status = "written_off"
+	b.Status = InventoryBatchStatusWrittenOff
+}
+
+// Void cancels a mistaken receipt. The batch row is kept for audit
+// purposes, its remaining quantity is zeroed and its status flips to
+// "voided" — no further consumption, adjustment or transfer is allowed.
+// The application layer records a compensating "void_out" movement.
+func (b *InventoryBatch) Void() {
+	b.CurrentQuantity = valueobjects.ZeroQuantity()
+	b.Status = InventoryBatchStatusVoided
 }

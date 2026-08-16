@@ -4,6 +4,7 @@ package supplier
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -113,10 +114,11 @@ type UpdateInput struct {
 	Email           string
 	Phone           string
 	Address         string
+	IsActive        *bool // nil = unchanged
 }
 
-// UpdateSupplier applies the requested changes. The supplier must be
-// active; deactivated suppliers cannot be modified.
+// UpdateSupplier applies the requested changes. Deactivated suppliers
+// can still be edited (e.g. to re-activate them).
 func (s *SupplierService) Update(ctx context.Context, in UpdateInput) (*Supplier, error) {
 	var out *Supplier
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
@@ -124,8 +126,12 @@ func (s *SupplierService) Update(ctx context.Context, in UpdateInput) (*Supplier
 		if err != nil {
 			return err
 		}
-		if sup.Status == enums.SupplierStatusInactive {
-			return apperrors.ErrSupplierBlocked
+		if in.IsActive != nil {
+			if *in.IsActive {
+				sup.Activate()
+			} else {
+				sup.Deactivate()
+			}
 		}
 		if in.BusinessName != "" {
 			sup.BusinessName = valueobjects.MustFullName(in.BusinessName)
@@ -195,6 +201,23 @@ func (s *SupplierService) Deactivate(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+// Delete physically removes the supplier. It fails with a friendly
+// error if the supplier is referenced by purchases, payments or
+// returns, in which case the caller should edit the record and set it
+// to Inactive instead.
+func (s *SupplierService) Delete(ctx context.Context, id uuid.UUID) error {
+	err := s.repo.Delete(ctx, id)
+	if errors.Is(err, repositories.ErrForeignKey) {
+		return apperrors.Errorf(apperrors.ErrConflict,
+			"no se puede eliminar porque tiene transacciones asociadas. Por favor, edite el registro y cambie su estado a Inactivo")
+	}
+	if err != nil {
+		return err
+	}
+	s.log.Info("supplier deleted", "supplier_id", id)
+	return nil
+}
+
 // RecordPurchase adds a purchase amount to the supplier's debt.
 // Called by the purchasing slice.
 func (s *SupplierService) RecordPurchase(ctx context.Context, id uuid.UUID, amount valueobjects.Money) (valueobjects.Money, error) {
@@ -255,4 +278,9 @@ func (s *SupplierService) CanPlacePurchase(ctx context.Context, id uuid.UUID, am
 // GetByID returns the supplier aggregate.
 func (s *SupplierService) GetByID(ctx context.Context, id uuid.UUID) (*Supplier, error) {
 	return s.repo.GetByID(ctx, id)
+}
+
+// List returns a page of suppliers matching the filter.
+func (s *SupplierService) List(ctx context.Context, filter SupplierFilter) (repositories.Page[*Supplier], error) {
+	return s.repo.List(ctx, filter)
 }

@@ -1,65 +1,197 @@
-import { sleep } from '@/utils';
+import type {
+  AccountDTO,
+  CreateChartOfAccountRequest,
+  CreateJournalEntryLineRequest,
+  FiscalPeriodDTO,
+  JournalEntryDTO,
+  JournalEntryLineDTO,
+  UpdateChartOfAccountRequest,
+} from '../wails-types';
+import { wailsClient } from '../bindings';
+
+export type AccountType = 'asset' | 'liability' | 'equity' | 'income' | 'expense';
 
 export interface Account {
+  id: string;
   code: string;
   name: string;
-  type: 'asset' | 'liability' | 'equity' | 'income' | 'expense';
-  parentCode?: string;
+  type: AccountType;
+  parentId: string;
+  path: string;
+  depth: number;
+  isActive: boolean;
+  allowsMovement: boolean;
+  description: string;
 }
 
-export interface JournalEntry {
-  id: string;
-  date: string;
-  description: string;
-  reference?: string;
-  lines: JournalEntryLine[];
-  status: 'draft' | 'posted';
-}
+export type JournalEntryStatus = 'draft' | 'posted' | 'reversed';
+export type JournalEntrySource = 'manual' | 'sale' | 'purchase' | 'payment' | 'receipt' | 'bank';
 
 export interface JournalEntryLine {
-  accountCode: string;
+  id: string;
+  lineNumber: number;
+  accountId: string;
+  description: string;
   debit: number;
   credit: number;
 }
 
-const MOCK_ACCOUNTS: Account[] = [
-  { code: '1', name: 'ACTIVO', type: 'asset' },
-  { code: '1.1', name: 'Activo Corriente', type: 'asset', parentCode: '1' },
-  { code: '1.1.01', name: 'Caja y Bancos', type: 'asset', parentCode: '1.1' },
-  { code: '1.1.02', name: 'Cuentas por Cobrar', type: 'asset', parentCode: '1.1' },
-  { code: '1.1.03', name: 'Inventario', type: 'asset', parentCode: '1.1' },
-  { code: '2', name: 'PASIVO', type: 'liability' },
-  { code: '2.1', name: 'Pasivo Corriente', type: 'liability', parentCode: '2' },
-  { code: '2.1.01', name: 'Cuentas por Pagar', type: 'liability', parentCode: '2.1' },
-  { code: '4', name: 'INGRESOS', type: 'income' },
-  { code: '4.1', name: 'Ventas', type: 'income', parentCode: '4' },
-  { code: '5', name: 'GASTOS', type: 'expense' },
-  { code: '5.1', name: 'Costo de Ventas', type: 'expense', parentCode: '5' },
-];
+export interface JournalEntry {
+  id: string;
+  number: string;
+  entryDate: string;
+  description: string;
+  source: JournalEntrySource;
+  sourceId: string;
+  status: JournalEntryStatus;
+  lines: JournalEntryLine[];
+  createdAt: string;
+}
 
-let accounts = [...MOCK_ACCOUNTS];
-let entries: JournalEntry[] = [];
+export interface FiscalPeriod {
+  id: string;
+  name: string;
+  periodStart: string;
+  periodEnd: string;
+  status: 'open' | 'closing' | 'closed';
+}
+
+export interface AccountInput {
+  code: string;
+  name: string;
+  type: AccountType;
+  parentId?: string;
+  allowsMovement: boolean;
+  description?: string;
+}
+
+export interface AccountUpdateInput extends AccountInput {
+  isActive: boolean;
+}
+
+export interface JournalEntryLineInput {
+  accountId: string;
+  description?: string;
+  debit: number;
+  credit: number;
+}
+
+export interface JournalEntryInput {
+  entryDate: string;
+  description: string;
+  lines: JournalEntryLineInput[];
+}
+
+function toAccount(dto: AccountDTO): Account {
+  return {
+    id: dto.id,
+    code: dto.code,
+    name: dto.name,
+    type: dto.type as AccountType,
+    parentId: dto.parentId,
+    path: dto.path,
+    depth: dto.depth,
+    isActive: dto.isActive,
+    allowsMovement: dto.allowsMovement,
+    description: dto.description,
+  };
+}
+
+function toLine(dto: JournalEntryLineDTO): JournalEntryLine {
+  return {
+    id: dto.id,
+    lineNumber: dto.lineNumber,
+    accountId: dto.accountId,
+    description: dto.description,
+    debit: Number(dto.debit),
+    credit: Number(dto.credit),
+  };
+}
+
+function toEntry(dto: JournalEntryDTO): JournalEntry {
+  return {
+    id: dto.id,
+    number: dto.number,
+    entryDate: dto.entryDate,
+    description: dto.description,
+    source: dto.source as JournalEntrySource,
+    sourceId: dto.sourceId,
+    status: dto.status as JournalEntryStatus,
+    lines: dto.lines.map(toLine),
+    createdAt: dto.createdAt,
+  };
+}
+
+function toPeriod(dto: FiscalPeriodDTO): FiscalPeriod {
+  return {
+    id: dto.id,
+    name: dto.name,
+    periodStart: dto.periodStart,
+    periodEnd: dto.periodEnd,
+    status: dto.status as FiscalPeriod['status'],
+  };
+}
+
+function toCreateRequest(input: AccountInput): CreateChartOfAccountRequest {
+  return {
+    code: input.code,
+    name: input.name,
+    type: input.type,
+    parentId: input.parentId ?? '',
+    allowsMovement: input.allowsMovement,
+    description: input.description ?? '',
+  };
+}
+
+function toLineRequest(line: JournalEntryLineInput): CreateJournalEntryLineRequest {
+  return {
+    accountId: line.accountId,
+    description: line.description ?? '',
+    debit: line.debit.toFixed(2),
+    credit: line.credit.toFixed(2),
+  };
+}
 
 export const accountingService = {
-  async getChartOfAccounts(): Promise<Account[]> {
-    await sleep(150);
-    return [...accounts];
+  async listChartOfAccounts(): Promise<Account[]> {
+    return (await wailsClient.listChartOfAccounts()).map(toAccount);
   },
-  async listEntries(): Promise<JournalEntry[]> {
-    await sleep(150);
-    return [...entries];
+  async createChartOfAccount(input: AccountInput): Promise<Account> {
+    return toAccount(await wailsClient.createChartOfAccount(toCreateRequest(input)));
   },
-  async postEntry(input: Omit<JournalEntry, 'id' | 'status'>): Promise<JournalEntry> {
-    await sleep(200);
-    const debit = input.lines.reduce((s, l) => s + l.debit, 0);
-    const credit = input.lines.reduce((s, l) => s + l.credit, 0);
-    if (Math.abs(debit - credit) > 0.01) throw new Error('Asiento descuadrado');
-    const entry: JournalEntry = {
-      id: `je-${Date.now()}`,
-      status: 'posted',
-      ...input,
+  async updateChartOfAccount(id: string, input: AccountUpdateInput): Promise<Account> {
+    const req: UpdateChartOfAccountRequest = {
+      ...toCreateRequest(input),
+      id,
+      isActive: input.isActive,
     };
-    entries = [entry, ...entries];
-    return entry;
+    return toAccount(await wailsClient.updateChartOfAccount(req));
+  },
+  async removeChartOfAccount(id: string): Promise<void> {
+    await wailsClient.deleteChartOfAccount(id);
+  },
+  async listJournalEntries(status?: string): Promise<JournalEntry[]> {
+    const res = await wailsClient.listJournalEntries({
+      status: status ?? '',
+      page: 1,
+      pageSize: 200,
+    });
+    return res.items.map(toEntry);
+  },
+  async createJournalEntry(input: JournalEntryInput): Promise<JournalEntry> {
+    return toEntry(
+      await wailsClient.createJournalEntry({
+        fiscalPeriodId: '',
+        entryDate: input.entryDate,
+        description: input.description,
+        lines: input.lines.map(toLineRequest),
+      }),
+    );
+  },
+  async postJournalEntry(id: string): Promise<JournalEntry> {
+    return toEntry(await wailsClient.postJournalEntry(id));
+  },
+  async listFiscalPeriods(): Promise<FiscalPeriod[]> {
+    return (await wailsClient.listFiscalPeriods()).map(toPeriod);
   },
 };

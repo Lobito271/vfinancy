@@ -11,12 +11,13 @@ import (
 
 // InventoryBatchFilter is the input to InventoryBatchRepository.List.
 type InventoryBatchFilter struct {
-	CompanyID   *uuid.UUID
-	ProductID   *uuid.UUID
-	WarehouseID *uuid.UUID
-	OnlyActive  bool          // exclude depleted / written-off
-	OnlyClearance bool        // batches past their maximum sale date
-	ArrivalRange repositories.TimeRange
+	CompanyID     *uuid.UUID
+	ProductID     *uuid.UUID
+	WarehouseID   *uuid.UUID
+	PurchaseLineID *uuid.UUID
+	OnlyActive    bool          // exclude depleted / written-off / voided
+	OnlyClearance bool          // batches past their maximum sale date
+	ArrivalRange  repositories.TimeRange
 	repositories.PageRequest
 }
 
@@ -28,7 +29,16 @@ type InventoryBatchRepository interface {
 	Update(ctx context.Context, b *InventoryBatch) error
 
 	GetByID(ctx context.Context, id uuid.UUID) (*InventoryBatch, error)
+	// GetByIDForUpdate locks the batch row (SELECT ... FOR UPDATE) for
+	// use inside a write transaction. The row must be read only inside
+	// repositories.TransactionManager.WithinTransaction.
+	GetByIDForUpdate(ctx context.Context, id uuid.UUID) (*InventoryBatch, error)
 	List(ctx context.Context, filter InventoryBatchFilter) (repositories.Page[*InventoryBatch], error)
+
+	// ExistsByPurchaseLineID reports whether a batch has already been
+	// created for the given purchase order line. Used to make purchase
+	// receipts idempotent across Create / Approve / MarkAsReceived.
+	ExistsByPurchaseLineID(ctx context.Context, purchaseLineID uuid.UUID) (bool, error)
 
 	// GetStockSummary returns the available quantity and weighted
 	// average cost for a (product, warehouse) pair. The summary is

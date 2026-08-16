@@ -2,6 +2,11 @@ export function generateId(prefix = 'id'): string {
   return `${prefix}-${crypto.randomUUID()}`;
 }
 
+export function todayISO(): string {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+}
+
 export function isString(v: unknown): v is string {
   return typeof v === 'string';
 }

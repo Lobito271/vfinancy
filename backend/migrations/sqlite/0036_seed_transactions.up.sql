@@ -1,0 +1,5 @@
+-- 0036_seed_transactions.up.sql (SQLite)
+-- DISABLED: mock transactions (sales, purchases, inventory movements)
+-- are no longer auto-seeded on startup. This migration is kept as a
+-- no-op so the version numbering of later migrations (0037-0039) stays
+-- intact. Restore from git history to re-enable.

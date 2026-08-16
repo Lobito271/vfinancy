@@ -134,7 +134,7 @@ frontend/
     constants/               # routes, permissions, currencies, countries, languages, status, taxes
     utils/                   # format, validators, permissions, debounce, clipboard, download, collection, misc, storage
     locales/                 # i18n (es-PE) — t() helper
-    data/                    # mock data generators (deterministic seeded RNG)
+    types/                   # shared domain types (Customer, Product, Supplier, Sale, InventoryItem, ...)
     lib/                     # nav config
     assets/
     vite-env.d.ts
@@ -270,7 +270,7 @@ Cada carpeta tiene su `index.ts` barrel — importar de `@/components/<categorí
 ## Wails / Build Gotchas
 
 - `frontend/dist/` is gitignored but **must exist** for `//go:embed all:frontend/dist` in `main.go` to compile. Run `npm run build` in `frontend/` before `go build` or `wails build`. Wails also calls this automatically via `wails.json` `frontend:build`.
-- Wails regenerates `frontend/wailsjs/` bindings on every `wails dev`/`wails build`. **Do not** edit those files manually. After adding a new exported method to a Go struct bound via `wails.Run`, regenerate by running Wails. The frontend loads them at runtime through `src/services/bindings.ts` (dynamic `import('../../wailsjs/go/bindings/App')` with a mock fallback when `window.go` is absent — e.g. `pnpm run dev`).
+- Wails regenerates `frontend/wailsjs/` bindings on every `wails dev`/`wails build`. **Do not** edit those files manually. After adding a new exported method to a Go struct bound via `wails.Run`, regenerate by running Wails. The frontend loads them at runtime through `src/services/bindings.ts` (dynamic `import('../../wailsjs/go/bindings/App')`; it throws a clear error outside the Wails runtime — there is **no** mock fallback, the UI always renders real DB data).
 - `wails.json` controls frontend scripts. `frontend:install` and `frontend:build` are run from the project root; `frontend:dev:watcher` runs Vite in the `frontend/` directory.
 - The original `go.mod` shipped with a local `replace` directive pointing to a Windows path. It was removed because it was not portable. Re-add it locally if your Wails is installed in a non-default location:
   ```

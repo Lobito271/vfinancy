@@ -1,13 +1,42 @@
 import type { ReactNode } from 'react';
-import { FormProvider, useForm, type UseFormProps, type UseFormReturn, type FieldValues, type SubmitHandler } from 'react-hook-form';
+import {
+  FormProvider,
+  useForm,
+  type UseFormProps,
+  type UseFormReturn,
+  type FieldValues,
+  type FieldErrors,
+  type SubmitHandler,
+  type Resolver,
+} from 'react-hook-form';
+import { z } from 'zod';
 
-export interface FormProps<T extends FieldValues> extends Omit<UseFormProps<T>, 'children'> {
+export interface FormProps<T extends FieldValues>
+  extends Omit<UseFormProps<T, any, T>, 'children' | 'resolver'> {
+  schema?: z.ZodType<T>;
   onSubmit: SubmitHandler<T>;
-  children: ReactNode | ((form: UseFormReturn<T>) => ReactNode);
+  children: ReactNode | ((form: UseFormReturn<T, any, T>) => ReactNode);
 }
 
-export function Form<T extends FieldValues>({ onSubmit, children, ...props }: FormProps<T>) {
-  const form = useForm<T>(props);
+function makeResolver<T extends FieldValues>(schema: z.ZodType<T>): Resolver<T, any, T> {
+  return (values) => {
+    const result = schema.safeParse(values);
+    if (result.success) {
+      return { values: result.data as T, errors: {} };
+    }
+    const errors: Record<string, { type: string; message: string }> = {};
+    for (const issue of result.error.issues) {
+      const path = issue.path.length ? issue.path.join('.') : 'root';
+      if (!errors[path]) {
+        errors[path] = { type: issue.code, message: issue.message };
+      }
+    }
+    return { values: {}, errors: errors as unknown as FieldErrors<T> };
+  };
+}
+
+export function Form<T extends FieldValues>({ schema, onSubmit, children, ...props }: FormProps<T>) {
+  const form = useForm<T, any, T>({ ...props, resolver: schema ? makeResolver(schema) : undefined });
   return (
     <FormProvider {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>

@@ -1,0 +1,5 @@
+-- 0035_seed_mock_data.up.sql (SQLite)
+-- DISABLED: mock business data (customers, suppliers, products,
+-- bank accounts) is no longer auto-seeded on startup. This migration
+-- is kept as a no-op so the version numbering of later migrations
+-- (0036-0039) stays intact. Restore from git history to re-enable.

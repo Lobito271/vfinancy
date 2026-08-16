@@ -6,7 +6,7 @@
 
 CREATE TABLE exchange_rates (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id      UUID           NOT NULL,
+    company_id      UUID,
     from_currency   VARCHAR(3)     NOT NULL,
     to_currency     VARCHAR(3)     NOT NULL,
     rate_date       DATE           NOT NULL,
@@ -33,7 +33,7 @@ CREATE TABLE exchange_rates (
 );
 
 CREATE UNIQUE INDEX uq_exchange_rates_pair_date
-    ON exchange_rates (company_id, from_currency, to_currency, rate_date);
+    ON exchange_rates (from_currency, to_currency, rate_date);
 
 CREATE INDEX idx_exchange_rates_lookup
-    ON exchange_rates (company_id, from_currency, to_currency, rate_date DESC);
+    ON exchange_rates (from_currency, to_currency, rate_date DESC);

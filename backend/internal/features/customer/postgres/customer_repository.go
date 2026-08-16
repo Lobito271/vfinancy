@@ -77,9 +77,8 @@ func (r *customerRepository) Update(ctx context.Context, c *customer.Customer) e
 }
 
 func (r *customerRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	const q = `UPDATE customers SET deleted_at = $1, updated_at = $2, is_active = FALSE WHERE id = $3 AND deleted_at IS NULL`
-	now := time.Now().UTC()
-	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q, now, now, id)
+	const q = `DELETE FROM customers WHERE id = $1`
+	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q, id)
 	if err != nil {
 		return persistence.Translate(err)
 	}

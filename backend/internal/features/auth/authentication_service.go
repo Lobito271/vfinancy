@@ -182,7 +182,7 @@ func (s *AuthenticationService) Login(ctx context.Context, req LoginRequest) (*L
 
 	roles := make([]string, 0, len(result.Roles))
 	for _, r := range result.Roles {
-		roles = append(roles, r.RoleID.String())
+		roles = append(roles, r.RoleCode)
 	}
 
 	resp := &LoginResponse{

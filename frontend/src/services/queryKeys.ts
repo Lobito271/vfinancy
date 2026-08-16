@@ -15,7 +15,21 @@ export const queryKeys = {
     list: (q: unknown) => ['products', 'list', q] as const,
     options: ['products', 'options'] as const,
   },
-  sales: { all: ['sales'] as const, list: ['sales', 'list'] as const },
+  catalog: {
+    categories: ['catalog', 'categories'] as const,
+    categoryList: ['catalog', 'category-list'] as const,
+    brands: ['catalog', 'brands'] as const,
+    brandList: ['catalog', 'brand-list'] as const,
+  },
+  sales: {
+    all: ['sales'] as const,
+    list: ['sales', 'list'] as const,
+    detail: (id: string) => ['sales', 'detail', id] as const,
+  },
+  purchasing: {
+    all: ['purchasing'] as const,
+    list: ['purchasing', 'list'] as const,
+  },
   inventory: {
     all: ['inventory'] as const,
     list: ['inventory', 'list'] as const,

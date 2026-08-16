@@ -4,6 +4,7 @@ package product
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,6 +12,7 @@ import (
 
 	"vfinancy/backend/internal/domain/repositories"
 	"vfinancy/backend/internal/domain/valueobjects"
+	"vfinancy/backend/internal/shared/apperrors"
 	"vfinancy/backend/internal/shared/logger"
 )
 
@@ -174,6 +176,258 @@ func (s *ProductService) mutateStatus(ctx context.Context, id uuid.UUID, active 
 	} else {
 		s.log.Info("product deactivated", "product_id", id)
 	}
+	return nil
+}
+
+// Delete physically removes the product. It fails with a friendly
+// error if the product is referenced by other records (sales,
+// inventory, purchases, ...), in which case the caller should edit the
+// record and set it to Inactive instead.
+func (s *ProductService) Delete(ctx context.Context, id uuid.UUID) error {
+	err := s.repo.Delete(ctx, id)
+	if errors.Is(err, repositories.ErrForeignKey) {
+		return apperrors.Errorf(apperrors.ErrConflict,
+			"no se puede eliminar porque tiene transacciones asociadas. Por favor, edite el registro y cambie su estado a Inactivo")
+	}
+	if err != nil {
+		return err
+	}
+	s.log.Info("product deleted", "product_id", id)
+	return nil
+}
+
+// UpdateInput is the payload for UpdateProduct. Only the non-nil /
+// non-zero fields are applied.
+type UpdateInput struct {
+	ID          uuid.UUID
+	Description string
+	CategoryID  *uuid.UUID
+	BrandID     *uuid.UUID
+	UnitID      *uuid.UUID
+	Cost        *valueobjects.Money
+	SalePrice   *valueobjects.Money
+	MinStock    *valueobjects.Quantity
+	MaxStock    *valueobjects.Quantity
+	IsActive    *bool
+}
+
+// UpdateProduct applies the requested changes in a single transaction.
+func (s *ProductService) Update(ctx context.Context, in UpdateInput) (*Product, error) {
+	var out *Product
+	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		p, err := s.repo.GetByID(ctx, in.ID)
+		if err != nil {
+			return err
+		}
+		if in.Description != "" {
+			if err := p.ChangeDescription(in.Description); err != nil {
+				return err
+			}
+		}
+		if in.Cost != nil {
+			if err := p.ChangeCost(*in.Cost); err != nil {
+				return err
+			}
+		}
+		if in.SalePrice != nil {
+			if err := p.ChangeSalePrice(*in.SalePrice); err != nil {
+				return err
+			}
+		}
+		if in.MinStock != nil && in.MaxStock != nil {
+			if err := p.ChangeStockLimits(*in.MinStock, *in.MaxStock); err != nil {
+				return err
+			}
+		}
+		if in.CategoryID != nil {
+			p.CategoryID = in.CategoryID
+		}
+		if in.BrandID != nil {
+			p.BrandID = in.BrandID
+		}
+		if in.UnitID != nil {
+			p.UnitID = *in.UnitID
+		}
+		if in.IsActive != nil {
+			if *in.IsActive {
+				p.Activate()
+			} else {
+				p.Deactivate()
+			}
+		}
+		if err := s.repo.Update(ctx, p); err != nil {
+			return err
+		}
+		out = p
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.log.Info("product updated", "product_id", out.ID)
+	return out, nil
+}
+
+// List returns a page of products matching the filter.
+func (s *ProductService) List(ctx context.Context, filter ProductFilter) (repositories.Page[*Product], error) {
+	return s.repo.List(ctx, filter)
+}
+
+// GetByID returns a single product.
+func (s *ProductService) GetByID(ctx context.Context, id uuid.UUID) (*Product, error) {
+	return s.repo.GetByID(ctx, id)
+}
+
+// ListUnits returns the units of measure available for a company.
+func (s *ProductService) ListUnits(ctx context.Context, companyID uuid.UUID) ([]*UnitOfMeasure, error) {
+	return s.repo.ListUnits(ctx, companyID)
+}
+
+// ListCategories returns the product categories available for a company.
+func (s *ProductService) ListCategories(ctx context.Context, companyID uuid.UUID) ([]*ProductCategory, error) {
+	return s.repo.ListCategories(ctx, companyID)
+}
+
+// ListBrands returns the product brands available for a company.
+func (s *ProductService) ListBrands(ctx context.Context, companyID uuid.UUID) ([]*ProductBrand, error) {
+	return s.repo.ListBrands(ctx, companyID)
+}
+
+// --- Category CRUD ---
+
+// CategoryInput is the payload for CreateCategory.
+type CategoryInput struct {
+	CompanyID uuid.UUID
+	Code      valueobjects.ShortCode
+	Name      valueobjects.FullName
+}
+
+// CreateCategory persists a new root category. The dotted path is
+// materialized as the category code (the same convention the seed data
+// uses for top-level categories).
+func (s *ProductService) CreateCategory(ctx context.Context, in CategoryInput) (*ProductCategory, error) {
+	var out *ProductCategory
+	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		c, err := NewProductCategory(time.Now().UTC(), NewProductCategoryOptions{
+			CompanyID: in.CompanyID,
+			Code:      in.Code,
+			Name:      in.Name,
+			Depth:     1,
+		})
+		if err != nil {
+			return err
+		}
+		c.Path = c.Code.String()
+		if err := s.repo.CreateCategory(ctx, c); err != nil {
+			return err
+		}
+		out = c
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.log.Info("category created", "category_id", out.ID, "code", out.Code.String())
+	return out, nil
+}
+
+// CategoryUpdateInput is the payload for UpdateCategory.
+type CategoryUpdateInput struct {
+	ID   uuid.UUID
+	Code valueobjects.ShortCode
+	Name valueobjects.FullName
+}
+
+// UpdateCategory renames a category and updates its code.
+func (s *ProductService) UpdateCategory(ctx context.Context, in CategoryUpdateInput) (*ProductCategory, error) {
+	var out *ProductCategory
+	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		c, err := s.repo.GetCategoryByID(ctx, in.ID)
+		if err != nil {
+			return err
+		}
+		c.Code = in.Code
+		c.Rename(in.Name)
+		c.Path = in.Code.String()
+		if err := s.repo.UpdateCategory(ctx, c); err != nil {
+			return err
+		}
+		out = c
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.log.Info("category updated", "category_id", out.ID)
+	return out, nil
+}
+
+// DeleteCategory soft-deletes a category (sets deleted_at).
+func (s *ProductService) DeleteCategory(ctx context.Context, id uuid.UUID) error {
+	if err := s.repo.DeleteCategory(ctx, id); err != nil {
+		return err
+	}
+	s.log.Info("category deleted", "category_id", id)
+	return nil
+}
+
+// --- Brand CRUD ---
+
+// BrandInput is the payload for CreateBrand / UpdateBrand.
+type BrandInput struct {
+	ID        uuid.UUID // empty for CreateBrand
+	CompanyID uuid.UUID // ignored for UpdateBrand
+	Code      valueobjects.ShortCode
+	Name      valueobjects.FullName
+}
+
+// CreateBrand persists a new brand.
+func (s *ProductService) CreateBrand(ctx context.Context, in BrandInput) (*ProductBrand, error) {
+	var out *ProductBrand
+	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		b := NewProductBrand(time.Now().UTC(), in.CompanyID, in.Code, in.Name)
+		if err := s.repo.CreateBrand(ctx, b); err != nil {
+			return err
+		}
+		out = b
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.log.Info("brand created", "brand_id", out.ID, "code", out.Code.String())
+	return out, nil
+}
+
+// UpdateBrand renames a brand and updates its code.
+func (s *ProductService) UpdateBrand(ctx context.Context, in BrandInput) (*ProductBrand, error) {
+	var out *ProductBrand
+	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		b, err := s.repo.GetBrandByID(ctx, in.ID)
+		if err != nil {
+			return err
+		}
+		b.Code = in.Code
+		b.Name = in.Name
+		if err := s.repo.UpdateBrand(ctx, b); err != nil {
+			return err
+		}
+		out = b
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.log.Info("brand updated", "brand_id", out.ID)
+	return out, nil
+}
+
+// DeleteBrand soft-deletes a brand (sets deleted_at).
+func (s *ProductService) DeleteBrand(ctx context.Context, id uuid.UUID) error {
+	if err := s.repo.DeleteBrand(ctx, id); err != nil {
+		return err
+	}
+	s.log.Info("brand deleted", "brand_id", id)
 	return nil
 }
 

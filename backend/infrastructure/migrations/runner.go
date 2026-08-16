@@ -26,6 +26,7 @@ type Migration struct {
 
 type Runner struct {
 	dir      string
+	fsys     fs.FS
 	db       *sql.DB
 	log      *logger.Logger
 	table    string
@@ -40,6 +41,17 @@ func NewRunner(dir string, db *sql.DB, log *logger.Logger, dialect string) *Runn
 		dialect = "postgres"
 	}
 	return &Runner{dir: dir, db: db, log: log, table: "schema_migrations", dialect: dialect}
+}
+
+// NewRunnerFS returns a runner that reads migration files from the
+// embedded filesystem fsys (rooted at the dialect directory) instead of
+// the OS filesystem. This makes the desktop app independent of the
+// working directory.
+func NewRunnerFS(fsys fs.FS, db *sql.DB, log *logger.Logger, dialect string) *Runner {
+	if dialect == "" {
+		dialect = "postgres"
+	}
+	return &Runner{fsys: fsys, db: db, log: log, table: "schema_migrations", dialect: dialect}
 }
 
 func (r *Runner) EnsureTable(ctx context.Context) error {
@@ -65,6 +77,10 @@ func (r *Runner) EnsureTable(ctx context.Context) error {
 }
 
 func (r *Runner) Load() ([]Migration, error) {
+	if r.fsys != nil {
+		return loadFromFS(r.fsys)
+	}
+
 	entries, err := os.ReadDir(r.dir)
 	if err != nil {
 		return nil, fmt.Errorf("migrations: read dir %q: %w", r.dir, err)
@@ -277,6 +293,13 @@ func (r *Runner) Status(ctx context.Context) error {
 }
 
 func (r *Runner) FromFS(fsys fs.FS) ([]Migration, error) {
+	return loadFromFS(fsys)
+}
+
+// loadFromFS walks fsys and parses every *.up.sql / *.down.sql file into
+// a versioned Migration. fsys must be rooted at the dialect directory
+// (e.g. the embedded "backend/migrations/sqlite" content).
+func loadFromFS(fsys fs.FS) ([]Migration, error) {
 	byVersion := map[int]Migration{}
 	err := fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {

@@ -11,6 +11,7 @@ package inventory
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,6 +27,8 @@ import (
 type InventoryService struct {
 	batches   InventoryBatchRepository
 	movements InventoryMovementRepository
+	warehouses WarehouseResolver
+	products  ProductClassifier
 	txm       repositories.TransactionManager
 	log       *logger.Logger
 }
@@ -34,14 +37,18 @@ type InventoryService struct {
 func New(
 	batches InventoryBatchRepository,
 	movements InventoryMovementRepository,
+	warehouses WarehouseResolver,
+	products ProductClassifier,
 	txm repositories.TransactionManager,
 	log *logger.Logger,
 ) *InventoryService {
 	return &InventoryService{
-		batches:   batches,
-		movements: movements,
-		txm:       txm,
-		log:       log,
+		batches:    batches,
+		movements:  movements,
+		warehouses: warehouses,
+		products:   products,
+		txm:        txm,
+		log:        log,
 	}
 }
 
@@ -159,6 +166,71 @@ func (s *InventoryService) Adjust(ctx context.Context, in AdjustInput) error {
 	return s.consumeOrAdjust(ctx, in.BatchID, in.Delta, in.Reference, movementType, notes)
 }
 
+// VoidInput cancels a mistaken stock receipt.
+type VoidInput struct {
+	BatchID uuid.UUID
+	Reason  string
+}
+
+// Void cancels a mistaken stock receipt: the batch's remaining
+// quantity is zeroed, its status flips to "voided", and a compensating
+// "void_out" movement is appended to the ledger. The receipt row is
+// kept for audit (no hard delete, the product reference is untouched).
+// Already-voided batches are rejected. Runs inside a single
+// transaction with the batch row locked (SELECT ... FOR UPDATE).
+func (s *InventoryService) Void(ctx context.Context, in VoidInput) error {
+	return s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		batch, err := s.batches.GetByIDForUpdate(ctx, in.BatchID)
+		if err != nil {
+			return err
+		}
+		if batch.Status == InventoryBatchStatusVoided {
+			return ErrBatchAlreadyVoided
+		}
+		remaining := batch.CurrentQuantity
+		batch.Void()
+		if err := s.batches.Update(ctx, batch); err != nil {
+			return err
+		}
+		if remaining.IsPositive() {
+			notes := "lote anulado"
+			if reason := strings.TrimSpace(in.Reason); reason != "" {
+				notes = reason
+			}
+			ref, err := valueobjects.NewReference(enums.ReferenceTypeAdjustment, batch.ID)
+			if err != nil {
+				return err
+			}
+			mv, err := NewInventoryMovement(NewInventoryMovementOptions{
+				CompanyID:    batch.CompanyID,
+				ProductID:    batch.ProductID,
+				WarehouseID:  batch.WarehouseID,
+				BatchID:      &batch.ID,
+				Type:         enums.MovementTypeVoidOut,
+				Quantity:     remaining.Neg(),
+				UnitCost:     batch.UnitCost,
+				CurrencyCode: batch.CurrencyCode,
+				OccurredAt:   time.Now().UTC(),
+				Reference:    &ref,
+				Notes:        notes,
+			})
+			if err != nil {
+				return err
+			}
+			if err := s.movements.Create(ctx, mv); err != nil {
+				return err
+			}
+		}
+		s.log.Info("inventory batch voided",
+			"batch_id", batch.ID,
+			"product_id", batch.ProductID,
+			"warehouse_id", batch.WarehouseID,
+			"quantity", remaining,
+		)
+		return nil
+	})
+}
+
 // TransferInput moves stock from one batch to another (typically
 // between warehouses; we keep batches per warehouse in this model).
 type TransferInput struct {
@@ -181,6 +253,9 @@ func (s *InventoryService) Transfer(ctx context.Context, in TransferInput) error
 		if err != nil {
 			return err
 		}
+		if from.CompanyID != to.CompanyID {
+			return derrors.New("COMPANY_MISMATCH", "transfer must stay within a company")
+		}
 		if from.ProductID != to.ProductID {
 			return derrors.New("PRODUCT_MISMATCH", "transfer must keep the same product")
 		}
@@ -197,9 +272,37 @@ func (s *InventoryService) Transfer(ctx context.Context, in TransferInput) error
 			return err
 		}
 		now := time.Now().UTC()
-		outRef, _ := valueobjects.NewReference(enums.ReferenceTypeTransfer, in.ToBatchID)
-		out, _ := NewInventoryMovement(NewInventoryMovementOptions{
-			CompanyID:    to.ProductID, // synthetic: replaced below
+		// Outbound movement on the source batch.
+		outRef, err := valueobjects.NewReference(enums.ReferenceTypeTransfer, to.ID)
+		if err != nil {
+			return err
+		}
+		out, err := NewInventoryMovement(NewInventoryMovementOptions{
+			CompanyID:    from.CompanyID,
+			ProductID:    from.ProductID,
+			WarehouseID:  from.WarehouseID,
+			BatchID:      &from.ID,
+			Type:         enums.MovementTypeTransferOut,
+			Quantity:     in.Quantity.Neg(),
+			UnitCost:     from.UnitCost,
+			CurrencyCode: from.CurrencyCode,
+			OccurredAt:   now,
+			Reference:    &outRef,
+			Notes:        "transfer out",
+		})
+		if err != nil {
+			return err
+		}
+		if err := s.movements.Create(ctx, out); err != nil {
+			return err
+		}
+		// Inbound movement on the destination batch.
+		inRef, err := valueobjects.NewReference(enums.ReferenceTypeTransfer, from.ID)
+		if err != nil {
+			return err
+		}
+		in, err := NewInventoryMovement(NewInventoryMovementOptions{
+			CompanyID:    to.CompanyID,
 			ProductID:    to.ProductID,
 			WarehouseID:  to.WarehouseID,
 			BatchID:      &to.ID,
@@ -208,11 +311,15 @@ func (s *InventoryService) Transfer(ctx context.Context, in TransferInput) error
 			UnitCost:     to.UnitCost,
 			CurrencyCode: to.CurrencyCode,
 			OccurredAt:   now,
-			Reference:    &outRef,
+			Reference:    &inRef,
+			Notes:        "transfer in",
 		})
-		_ = out
-		// We use the *InventoryBatch* repo's transfer-aware API; the
-		// repo's Create method records a transfer_in companion.
+		if err != nil {
+			return err
+		}
+		if err := s.movements.Create(ctx, in); err != nil {
+			return err
+		}
 		return nil
 	})
 }
@@ -234,13 +341,17 @@ func (s *InventoryService) consumeOrAdjust(
 			return err
 		}
 		// Stock signs: outbound (Issue, AdjustOut) use Consume; inbound
-		// (AdjustIn) uses Receive.
+		// (AdjustIn) uses Receive. The movement row carries the signed
+		// quantity (negative for outbound, positive for inbound).
+		amount := delta.Abs()
+		movementQuantity := amount
 		if movementType.IsOutbound() {
-			if err := batch.Consume(delta); err != nil {
+			if err := batch.Consume(amount); err != nil {
 				return err
 			}
+			movementQuantity = amount.Neg()
 		} else {
-			if _, err := batch.Receive(delta); err != nil {
+			if _, err := batch.Receive(amount); err != nil {
 				return err
 			}
 		}
@@ -253,7 +364,7 @@ func (s *InventoryService) consumeOrAdjust(
 			WarehouseID:  batch.WarehouseID,
 			BatchID:      &batch.ID,
 			Type:         movementType,
-			Quantity:     delta,
+			Quantity:     movementQuantity,
 			UnitCost:     batch.UnitCost,
 			CurrencyCode: batch.CurrencyCode,
 			OccurredAt:   time.Now().UTC(),
@@ -334,4 +445,14 @@ func (s *InventoryService) AgingReport(ctx context.Context, companyID uuid.UUID)
 	}
 	_ = now
 	return all.Items, nil
+}
+
+// ListBatches returns inventory batches matching the filter.
+func (s *InventoryService) ListBatches(ctx context.Context, filter InventoryBatchFilter) (repositories.Page[*InventoryBatch], error) {
+	return s.batches.List(ctx, filter)
+}
+
+// ListMovements returns inventory movements matching the filter.
+func (s *InventoryService) ListMovements(ctx context.Context, filter InventoryMovementFilter) (repositories.Page[*InventoryMovement], error) {
+	return s.movements.List(ctx, filter)
 }

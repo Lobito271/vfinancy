@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter } from 'react-router-dom';
+import { HashRouter } from 'react-router-dom';
 import { TooltipProvider } from '@/components/misc';
 import { useThemeStore } from '@/stores/theme';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -28,9 +28,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <ThemeBridge>
-          <BrowserRouter>
+          <HashRouter>
             <TooltipProvider delayDuration={300}>{children}</TooltipProvider>
-          </BrowserRouter>
+          </HashRouter>
         </ThemeBridge>
       </QueryClientProvider>
     </ErrorBoundary>

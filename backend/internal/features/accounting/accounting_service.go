@@ -5,11 +5,14 @@ package accounting
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 
 	"vfinancy/backend/internal/domain/enums"
+	derrors "vfinancy/backend/internal/domain/errors"
 	"vfinancy/backend/internal/domain/repositories"
 	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/shared/logger"
@@ -21,6 +24,7 @@ type AccountingService struct {
 	entries JournalRepository
 	chart   ChartOfAccountsRepository
 	ledger  LedgerRepository
+	periods FiscalPeriodRepository
 	txm     repositories.TransactionManager
 	log     *logger.Logger
 }
@@ -30,6 +34,7 @@ func New(
 	entries JournalRepository,
 	chart ChartOfAccountsRepository,
 	ledger LedgerRepository,
+	periods FiscalPeriodRepository,
 	txm repositories.TransactionManager,
 	log *logger.Logger,
 ) *AccountingService {
@@ -37,6 +42,7 @@ func New(
 		entries: entries,
 		chart:   chart,
 		ledger:  ledger,
+		periods: periods,
 		txm:     txm,
 		log:     log,
 	}
@@ -71,10 +77,18 @@ type EntryLineInput struct {
 func (s *AccountingService) CreateEntry(ctx context.Context, in EntryInput) (*JournalEntry, error) {
 	var out *JournalEntry
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		number := in.Number
+		if number == "" {
+			n, err := s.entries.GetNextNumber(ctx, in.CompanyID)
+			if err != nil {
+				return err
+			}
+			number = n
+		}
 		entry, err := NewJournalEntry(time.Now().UTC(), NewJournalEntryOptions{
 			CompanyID:      in.CompanyID,
 			FiscalPeriodID: in.FiscalPeriodID,
-			Number:         in.Number,
+			Number:         number,
 			EntryDate:      in.EntryDate,
 			Description:    in.Description,
 			Source:         in.Source,
@@ -235,4 +249,135 @@ func (s *AccountingService) ListChartOfAccounts(ctx context.Context, companyID u
 		return nil, err
 	}
 	return page.Items, nil
+}
+
+// GetChartAccount returns a single chart-of-accounts entry.
+func (s *AccountingService) GetChartAccount(ctx context.Context, id uuid.UUID) (*ChartOfAccount, error) {
+	return s.chart.GetByID(ctx, id)
+}
+
+// UpdateChartOfAccountInput describes the editable fields of an account.
+type UpdateChartOfAccountInput struct {
+	ID             uuid.UUID
+	Name           string
+	Type           enums.AccountType
+	ParentID       *uuid.UUID
+	Code           string
+	Path           string
+	Depth          int
+	AllowsMovement bool
+	IsActive       bool
+	Description    string
+}
+
+// UpdateChartOfAccount persists changes to a chart-of-accounts entry.
+func (s *AccountingService) UpdateChartOfAccount(ctx context.Context, in UpdateChartOfAccountInput) (*ChartOfAccount, error) {
+	var out *ChartOfAccount
+	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		acc, err := s.chart.GetByID(ctx, in.ID)
+		if err != nil {
+			return err
+		}
+		if in.Name == "" {
+			return derrors.Wrap(derrors.ErrRequired, errField("account name is required"))
+		}
+		if !in.Type.Valid() {
+			return derrors.Wrap(derrors.ErrInvalidEnum, errField("account type is invalid"))
+		}
+		code, err := valueobjects.NewChartOfAccountsCode(in.Code)
+		if err != nil {
+			return err
+		}
+		acc.Code = code
+		acc.Name = in.Name
+		acc.Type = in.Type
+		acc.ParentID = in.ParentID
+		acc.Path = in.Path
+		acc.Depth = in.Depth
+		acc.AllowsMovement = in.AllowsMovement
+		acc.IsActive = in.IsActive
+		acc.Description = in.Description
+		acc.UpdatedAt = time.Now().UTC()
+		if err := s.chart.Update(ctx, acc); err != nil {
+			return err
+		}
+		out = acc
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.log.Info("chart of accounts updated", "account_id", out.ID, "code", out.Code)
+	return out, nil
+}
+
+// DeleteChartOfAccount deactivates a chart-of-accounts entry.
+func (s *AccountingService) DeleteChartOfAccount(ctx context.Context, id uuid.UUID) error {
+	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		return s.chart.Delete(ctx, id)
+	})
+	if err != nil {
+		return err
+	}
+	s.log.Info("chart of accounts deleted", "account_id", id)
+	return nil
+}
+
+// NextEntryNumber returns the next sequential journal entry number.
+func (s *AccountingService) NextEntryNumber(ctx context.Context, companyID uuid.UUID) (string, error) {
+	return s.entries.GetNextNumber(ctx, companyID)
+}
+
+// ListFiscalPeriods returns the fiscal periods of a company.
+func (s *AccountingService) ListFiscalPeriods(ctx context.Context, companyID uuid.UUID) ([]*FiscalPeriod, error) {
+	page, err := s.periods.List(ctx, FiscalPeriodFilter{
+		CompanyID:   &companyID,
+		PageRequest: repositories.PageRequest{Limit: 100},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return page.Items, nil
+}
+
+// EnsureOpenFiscalPeriod returns the open fiscal period covering date,
+// creating an open calendar-year period when none exists yet.
+func (s *AccountingService) EnsureOpenFiscalPeriod(ctx context.Context, companyID uuid.UUID, date time.Time) (*FiscalPeriod, error) {
+	var out *FiscalPeriod
+	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		p, err := s.periods.GetOpenForDate(ctx, companyID, date)
+		if err == nil {
+			out = p
+			return nil
+		}
+		if !errors.Is(err, repositories.ErrNotFound) {
+			return err
+		}
+		start := time.Date(date.Year(), time.January, 1, 0, 0, 0, 0, time.UTC)
+		end := time.Date(date.Year(), time.December, 31, 23, 59, 59, 0, time.UTC)
+		p, err = NewFiscalPeriod(time.Now().UTC(), NewFiscalPeriodOptions{
+			CompanyID:   companyID,
+			Name:        fmt.Sprintf("Ejercicio %d", date.Year()),
+			PeriodStart: start,
+			PeriodEnd:   end,
+			Status:      "open",
+		})
+		if err != nil {
+			return err
+		}
+		if err := s.periods.Create(ctx, p); err != nil {
+			return err
+		}
+		out = p
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ListEntries returns journal entries matching the filter.
+func (s *AccountingService) ListEntries(ctx context.Context, filter JournalEntryFilter) (repositories.Page[*JournalEntry], error) {
+	return s.entries.List(ctx, filter)
 }

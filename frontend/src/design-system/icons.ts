@@ -11,6 +11,7 @@ import {
   BarChart3,
   Settings,
   Shield,
+  Tags,
   Search,
   Bell,
   Sun,
@@ -50,6 +51,7 @@ import {
   TrendingDown,
   AlertTriangle,
   CheckCircle2,
+  Banknote,
   Info,
   XCircle,
   HelpCircle,
@@ -72,6 +74,7 @@ export const Icons = {
     Reports: BarChart3,
     Settings: Settings,
     Administration: Shield,
+    Catalog: Tags,
   },
   Action: {
     Search,
@@ -89,6 +92,7 @@ export const Icons = {
     Upload,
     More: MoreHorizontal,
     MoreVertical,
+    Payment: Banknote,
   },
   Direction: {
     ChevronDown,

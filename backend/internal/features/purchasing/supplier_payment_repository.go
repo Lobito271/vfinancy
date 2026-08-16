@@ -30,6 +30,10 @@ type SupplierPaymentRepository interface {
 	// allocated (in part or in full) to a given purchase. Used by
 	// the supplier statement report.
 	ListAllocationsForPurchase(ctx context.Context, purchaseID uuid.UUID) ([]*SupplierPayment, error)
+
+	// GetNextNumber returns the next sequential number for the
+	// company's supplier payment series.
+	GetNextNumber(ctx context.Context, companyID uuid.UUID) (string, error)
 }
 
 // AccountsPayableRepository exposes the open-balance queries used by

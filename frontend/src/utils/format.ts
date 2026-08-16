@@ -54,8 +54,20 @@ const timeFormatter = new Intl.DateTimeFormat(locale, {
   second: '2-digit',
 });
 
+// Matches a plain "YYYY-MM-DD" date string with no time component.
+const isoDateOnly = /^\d{4}-\d{2}-\d{2}$/;
+
 function toDate(value: string | Date | null | undefined): Date | null {
   if (value === null || value === undefined) return null;
+  // Date-only strings are treated as LOCAL calendar dates: JS parses
+  // "YYYY-MM-DD" as UTC midnight, which shifts the displayed date one
+  // day back in negative-UTC-offset zones (e.g. UTC-5). Build the Date
+  // from the local components instead so the selected day is preserved.
+  if (typeof value === 'string' && isoDateOnly.test(value)) {
+    const [y, m, d] = value.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
   const d = typeof value === 'string' ? new Date(value) : value;
   return Number.isNaN(d.getTime()) ? null : d;
 }

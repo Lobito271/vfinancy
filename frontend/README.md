@@ -40,10 +40,9 @@ src/
   stores/            # Zustand: theme, session, sidebar, ui, notification
   locales/           # es-PE translation dictionary + t() helper
   lib/               # cn(), formatCurrency, formatDate, nav routes
-  data/              # deterministic mock data (seeded RNG, identical every load)
   hooks/             # (reserved)
-  services/          # (reserved for Wails bindings in Phase 1+)
-  types/             # (reserved)
+  services/          # one folder per business domain, all wired to the Wails bindings (no mocks)
+  types/             # shared domain types (Customer, Product, Supplier, Sale, ...)
   assets/            # static files
   main.tsx           # Vite entrypoint
   App.tsx            # router config

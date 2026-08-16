@@ -1,32 +1,227 @@
+import { useMemo, useState } from 'react';
 import { Package } from 'lucide-react';
-import { ModulePage } from './ModulePage';
-import { products } from '@/data/mock';
-import { formatCurrency } from '@/lib/utils';
+import { PageContainer, PageHeader, Grid } from '@/components/layout';
+import { StatCard } from '@/components/card';
+import { DataTable, type Column } from '@/components/table';
+import { Badge } from '@/components/badge';
+import { Input } from '@/components/input';
+import { Button } from '@/components/button';
+import { EmptyState } from '@/components/feedback';
+import { ConfirmDialog } from '@/components/dialog';
+import { Can } from '@/components/auth';
+import { Icons } from '@/design-system/icons';
+import { Permissions } from '@/constants/permissions';
+import { usePermission } from '@/hooks/usePermission';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/select';
+import { useProducts, useDeleteProduct } from '@/features/products/hooks/useProducts';
+import { ProductFormDialog } from '@/features/products/components/ProductFormDialog';
+import type { Product } from '@/types/domain';
+import { formatCurrency, formatPercent } from '@/utils/format';
+import { useNotificationStore } from '@/stores/notification';
+
+const columns: Column<Product>[] = [
+  {
+    id: 'sku',
+    header: 'SKU',
+    sortable: true,
+    sticky: true,
+    cell: (row) => <span className="font-medium tabular-nums">{row.sku}</span>,
+  },
+  {
+    id: 'description',
+    header: 'Descripción',
+    sortable: true,
+    cell: (row) => (
+      <div className="flex flex-col">
+        <span>{row.description}</span>
+        {row.barcode && <span className="text-xs text-muted-foreground">Código: {row.barcode}</span>}
+      </div>
+    ),
+  },
+  { id: 'category', header: 'Categoría', cell: (row) => row.category || '—' },
+  { id: 'brand', header: 'Marca', cell: (row) => row.brand || '—' },
+  { id: 'unit', header: 'Unidad', cell: (row) => row.unit || '—' },
+  {
+    id: 'cost',
+    header: 'Costo',
+    align: 'right',
+    sortable: true,
+    cell: (row) => <span className="tabular-nums">{formatCurrency(row.cost)}</span>,
+  },
+  {
+    id: 'salePrice',
+    header: 'Precio venta',
+    align: 'right',
+    sortable: true,
+    cell: (row) => <span className="tabular-nums">{formatCurrency(row.salePrice)}</span>,
+  },
+  {
+    id: 'margin',
+    header: 'Margen',
+    align: 'right',
+    cell: (row) => (
+      <span className="tabular-nums text-muted-foreground">
+        {row.cost > 0 ? formatPercent((row.salePrice - row.cost) / row.cost) : '—'}
+      </span>
+    ),
+  },
+  {
+    id: 'isActive',
+    header: 'Estado',
+    cell: (row) =>
+      row.isActive ? <Badge variant="success">Activo</Badge> : <Badge variant="muted">Inactivo</Badge>,
+  },
+];
 
 export function ProductsPage() {
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('');
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<Product | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+
+  const { data, isLoading, isError, error, refetch } = useProducts({ search, status });
+  const deleteMutation = useDeleteProduct();
+  const push = useNotificationStore((s) => s.push);
+  const canEdit = usePermission(Permissions.Products.Edit);
+  const canDelete = usePermission(Permissions.Products.Delete);
+
+  const products = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const active = products.filter((p) => p.isActive).length;
+  const avgMargin = products.length
+    ? products.reduce((s, p) => s + (p.salePrice - p.cost) / Math.max(p.cost, 0.01), 0) / products.length
+    : 0;
+
+  const tableColumns = useMemo<Column<Product>[]>(() => {
+    if (!canEdit && !canDelete) return columns;
+    return [
+      ...columns,
+      {
+        id: 'actions',
+        header: '',
+        width: 88,
+        exportable: false,
+        cell: (row) => (
+          <div className="flex items-center justify-end gap-1">
+            {canEdit && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Editar ${row.sku}`}
+                onClick={() => {
+                  setEditing(row);
+                  setFormOpen(true);
+                }}
+              >
+                <Icons.Action.Edit />
+              </Button>
+            )}
+            {canDelete && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Eliminar ${row.sku}`}
+                onClick={() => setDeleteTarget(row)}
+              >
+                <Icons.Action.Delete />
+              </Button>
+            )}
+          </div>
+        ),
+      },
+    ];
+  }, [canEdit, canDelete]);
+
   return (
-    <ModulePage
-      title="Productos"
-      subtitle="Catálogo de productos y precios"
-      icon={Package}
-      description="Administre su catálogo de productos, precios, categorías y marcas."
-      phase="Fase 3"
-      features={[
-        'SKU y código de barras',
-        'Costo y precio de venta',
-        'Stock mínimo y máximo',
-        'Categorías y marcas',
-        'Unidades de medida',
-        'Márgenes por producto',
-        'Imágenes y descripciones',
-        'Importación masiva',
-      ]}
-      mockStats={[
-        { label: 'Total productos', value: String(products.length) },
-        { label: 'Categorías', value: '8' },
-        { label: 'Marcas', value: '8' },
-        { label: 'Valor del catálogo', value: formatCurrency(products.reduce((s, p) => s + p.salePrice, 0)) },
-      ]}
-    />
+    <PageContainer>
+      <PageHeader
+        title="Productos"
+        subtitle="Catálogo de productos y servicios"
+        actions={
+          <div className="flex items-center gap-2">
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar producto…" className="w-64" aria-label="Buscar producto" />
+            <Can permission={Permissions.Products.Create}>
+              <Button
+                onClick={() => {
+                  setEditing(null);
+                  setFormOpen(true);
+                }}
+              >
+                <Icons.Action.Create /> Nuevo producto
+              </Button>
+            </Can>
+          </div>
+        }
+      />
+
+      <Grid cols={4}>
+        <StatCard label="Total productos" value={String(total)} icon={Package} />
+        <StatCard label="Productos activos" value={String(active)} />
+        <StatCard label="Inactivos" value={String(total - active)} />
+        <StatCard label="Margen promedio" value={formatPercent(avgMargin)} />
+      </Grid>
+
+      <DataTable
+        columns={tableColumns}
+        data={products}
+        keyField="id"
+        loading={isLoading}
+        error={isError ? (error as Error) : null}
+        onRetry={() => refetch()}
+        globalSearch={false}
+        exportFilename="productos.csv"
+        toolbarLeft={
+          <Select value={status} onValueChange={(v) => setStatus(v === 'all' ? '' : v)}>
+            <SelectTrigger className="w-44" aria-label="Filtrar por estado">
+              <SelectValue placeholder="Estado: todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Estado: todos</SelectItem>
+              <SelectItem value="active">Activos</SelectItem>
+              <SelectItem value="inactive">Inactivos</SelectItem>
+            </SelectContent>
+          </Select>
+        }
+        empty={
+          <EmptyState
+            title="No hay productos registrados"
+            description="Cuando se creen productos, aparecerán aquí con su costo, precio y estado."
+          />
+        }
+      />
+
+      <ProductFormDialog open={formOpen} onOpenChange={setFormOpen} product={editing} />
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title="Eliminar producto"
+        description={`¿Eliminar el producto ${deleteTarget?.sku ?? ''} — ${deleteTarget?.description ?? 'este producto'}? Esta acción no se puede deshacer.`}
+        confirmLabel="Eliminar"
+        loading={deleteMutation.isPending}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          deleteMutation.mutate(deleteTarget.id, {
+            onSuccess: () => {
+              push({ title: 'Producto eliminado', variant: 'success' });
+              setDeleteTarget(null);
+            },
+            onError: (err: unknown) => {
+              push({ title: 'No se pudo eliminar el producto', description: err instanceof Error ? err.message : undefined, variant: 'destructive' });
+              setDeleteTarget(null);
+            },
+          });
+        }}
+      />
+    </PageContainer>
   );
 }

@@ -28,6 +28,10 @@ type CustomerPaymentRepository interface {
 	List(ctx context.Context, filter CustomerPaymentFilter) (repositories.Page[*CustomerPayment], error)
 
 	ListAllocationsForSale(ctx context.Context, saleID uuid.UUID) ([]*CustomerPayment, error)
+
+	// GetNextNumber returns the next sequential number for the
+	// company's customer payment series.
+	GetNextNumber(ctx context.Context, companyID uuid.UUID) (string, error)
 }
 
 // CustomerAdvanceRepository persists customer advances (payments

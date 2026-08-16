@@ -1,10 +1,8 @@
-import { type LucideIcon, Hammer, Clock, FileText, Database } from 'lucide-react';
-import { PageContainer, PageHeader, Section, Grid } from '@/components/layout';
+import { type LucideIcon, Hammer, Clock, Database } from 'lucide-react';
+import { PageContainer, PageHeader, Section } from '@/components/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card';
-import { StatCard } from '@/components/card/StatCard';
 import { Badge } from '@/components/badge';
 import { EmptyState } from '@/components/feedback';
-import { formatCurrency } from '@/lib/utils';
 
 interface PlaceholderPageProps {
   title: string;
@@ -13,18 +11,9 @@ interface PlaceholderPageProps {
   description: string;
   phase: string;
   features: string[];
-  mockStats?: { label: string; value: string }[];
 }
 
-export function PlaceholderPage({
-  title,
-  subtitle,
-  icon: Icon,
-  description,
-  phase,
-  features,
-  mockStats,
-}: PlaceholderPageProps) {
+export function PlaceholderPage({ title, subtitle, icon: Icon, description, phase, features }: PlaceholderPageProps) {
   return (
     <PageContainer>
       <PageHeader
@@ -58,16 +47,6 @@ export function PlaceholderPage({
         </CardContent>
       </Card>
 
-      {mockStats && mockStats.length > 0 && (
-        <Section title="Indicadores de ejemplo" description="Datos simulados para visualizar la pantalla">
-          <Grid cols={mockStats.length as 1 | 2 | 3 | 4}>
-            {mockStats.map((s) => (
-              <StatCard key={s.label} label={s.label} value={s.value} />
-            ))}
-          </Grid>
-        </Section>
-      )}
-
       <Section title="Funcionalidades planificadas" description="Qué podrá hacer en este módulo">
         <Card>
           <CardContent className="pt-6">
@@ -93,15 +72,9 @@ export function PlaceholderPage({
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-between rounded-lg border border-dashed p-4 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1">
-          <Hammer className="h-3 w-3" />
-          Módulo en construcción
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <FileText className="h-3 w-3" />
-          Ver {formatCurrency(0)} de datos simulados
-        </span>
+      <div className="flex items-center gap-1 rounded-lg border border-dashed p-4 text-xs text-muted-foreground">
+        <Hammer className="h-3 w-3" />
+        Módulo en construcción
       </div>
     </PageContainer>
   );

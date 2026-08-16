@@ -7,7 +7,7 @@ import {
   Tooltip as ReTooltip,
   ResponsiveContainer,
 } from 'recharts';
-import type { ChartPoint } from '@/data/mock';
+import type { ChartPoint } from '@/types/domain';
 import { formatCurrency } from '@/lib/utils';
 
 interface LineChartProps {

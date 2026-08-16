@@ -25,6 +25,7 @@ type PermissionRepository interface {
 type UserRoleAssignment struct {
 	UserID    uuid.UUID
 	RoleID    uuid.UUID
+	RoleCode  string
 	BranchID  *uuid.UUID
 	ExpiresAt *time.Time
 }

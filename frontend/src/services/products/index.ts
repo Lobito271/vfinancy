@@ -1,53 +1,126 @@
-import type { Product } from '@/data/mock';
-import { products as mockProducts } from '@/data/mock';
-import { sleep, generateId } from '@/utils';
+import type { Product } from '@/types/domain';
+import type { ProductDTO } from '../wails-types';
+import { wailsClient } from '../bindings';
+
+export interface ProductQuery {
+  search?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}
 
 export interface ProductCreateInput {
   sku: string;
   barcode?: string;
   description: string;
-  category: string;
-  brand: string;
+  categoryId?: string;
+  brandId?: string;
+  unitId?: string;
+  taxId?: string;
   cost: number;
   salePrice: number;
   minStock: number;
   maxStock: number;
 }
 
-let store: Product[] = [...mockProducts];
+export interface ProductUpdateInput {
+  id: string;
+  description?: string;
+  categoryId?: string;
+  brandId?: string;
+  cost?: number;
+  salePrice?: number;
+  minStock?: number;
+  maxStock?: number;
+  isActive?: boolean;
+}
+
+function toProduct(dto: ProductDTO): Product {
+  return {
+    id: dto.id,
+    sku: dto.sku,
+    barcode: dto.barcode || undefined,
+    description: dto.description,
+    categoryId: dto.categoryId || undefined,
+    brandId: dto.brandId || undefined,
+    category: dto.category || dto.categoryId,
+    brand: dto.brand || dto.brandId,
+    unit: dto.unit || dto.unitId,
+    unitId: dto.unitId || undefined,
+    taxId: dto.taxId || undefined,
+    cost: Number(dto.cost),
+    salePrice: Number(dto.salePrice),
+    minStock: Number(dto.minStock),
+    maxStock: Number(dto.maxStock),
+    isActive: dto.isActive,
+  };
+}
+
+function money(value: number | undefined): string {
+  return (value ?? 0).toFixed(2);
+}
 
 export const productsService = {
-  async list(): Promise<Product[]> {
-    await sleep(150);
-    return [...store];
+  async list(q: ProductQuery = {}): Promise<{ items: Product[]; total: number }> {
+    const res = await wailsClient.listProducts({
+      search: q.search ?? '',
+      status: q.status ?? '',
+      page: q.page ?? 1,
+      pageSize: q.pageSize ?? 200,
+    });
+    return { items: res.items.map(toProduct), total: res.total };
   },
+
   async get(id: string): Promise<Product | null> {
-    await sleep(100);
-    return store.find((p) => p.id === id) ?? null;
+    try {
+      return toProduct(await wailsClient.getProduct(id));
+    } catch {
+      return null;
+    }
   },
+
   async create(input: ProductCreateInput): Promise<Product> {
-    await sleep(200);
-    const created: Product = {
-      id: generateId('p'),
-      ...input,
-      currentStock: 0,
-    };
-    store = [created, ...store];
-    return created;
+    const created = await wailsClient.createProduct({
+      sku: input.sku,
+      barcode: input.barcode ?? '',
+      description: input.description,
+      categoryId: input.categoryId ?? '',
+      brandId: input.brandId ?? '',
+      unitId: input.unitId ?? '',
+      taxId: input.taxId ?? '',
+      cost: money(input.cost),
+      salePrice: money(input.salePrice),
+      saleCurrency: 'PEN',
+      minStock: (input.minStock ?? 0).toFixed(4),
+      maxStock: (input.maxStock ?? 0).toFixed(4),
+      weight: '0.0000',
+      isService: false,
+    });
+    return toProduct(created);
   },
-  async update(id: string, input: Partial<ProductCreateInput>): Promise<Product> {
-    await sleep(200);
-    const idx = store.findIndex((p) => p.id === id);
-    if (idx < 0) throw new Error('Product not found');
-    const updated: Product = { ...store[idx], ...input };
-    store = [...store.slice(0, idx), updated, ...store.slice(idx + 1)];
-    return updated;
+
+  async update(id: string, input: ProductUpdateInput): Promise<Product> {
+    const updated = await wailsClient.updateProduct({
+      id,
+      description: input.description ?? '',
+      categoryId: input.categoryId ?? '',
+      brandId: input.brandId ?? '',
+      unitId: '',
+      cost: money(input.cost),
+      salePrice: money(input.salePrice),
+      minStock: input.minStock != null ? input.minStock.toFixed(4) : '',
+      maxStock: input.maxStock != null ? input.maxStock.toFixed(4) : '',
+      isActive: input.isActive ?? null,
+    });
+    return toProduct(updated);
   },
+
   async remove(id: string): Promise<void> {
-    await sleep(150);
-    store = store.filter((p) => p.id !== id);
+    await wailsClient.removeProduct(id);
   },
+
   async getOptions(): Promise<Array<{ value: string; label: string }>> {
-    return store.map((p) => ({ value: p.id, label: `${p.sku} — ${p.description}` }));
+    const res = await wailsClient.listProducts({ search: '', status: '', page: 1, pageSize: 200 });
+    return res.items.map((p) => ({ value: p.id, label: `${p.sku} — ${p.description}` }));
   },
 };

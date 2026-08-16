@@ -113,6 +113,94 @@ func (s *CustomerPaymentService) Register(ctx context.Context, in PayInput) (*sa
 	return out, nil
 }
 
+// MarkPaidInput is the payload for MarkPaid.
+type MarkPaidInput struct {
+	CompanyID   uuid.UUID
+	PaymentDate valueobjects.Date
+	Method      enums.PaymentMethod
+	Reference   string
+	Notes       string
+}
+
+// MarkPaid records a customer payment covering the sale's full
+// outstanding balance, applies it to the sale and reduces the
+// customer's debt — all in a single transaction.
+func (s *CustomerPaymentService) MarkPaid(ctx context.Context, saleID uuid.UUID, in MarkPaidInput) (*sales.Sale, error) {
+	var out *sales.Sale
+	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		sale, err := s.sales.GetByID(ctx, saleID)
+		if err != nil {
+			return err
+		}
+		if sale.Status == enums.SaleStatusCancelled {
+			return derrors.New("INVALID_STATE_TRANSITION", "cannot collect a cancelled sale")
+		}
+		if sale.Status == enums.SaleStatusPaid {
+			return derrors.New("SALE_ALREADY_PAID", "sale is already fully paid")
+		}
+		balance := sale.Balance()
+		if !balance.IsPositive() {
+			return derrors.New("EMPTY_DOCUMENT", "sale has no outstanding balance")
+		}
+		method := in.Method
+		if !method.Valid() {
+			method = enums.PaymentMethodCash
+		}
+		number, err := s.payments.GetNextNumber(ctx, in.CompanyID)
+		if err != nil {
+			return err
+		}
+		cp, err := sales.NewCustomerPayment(time.Now().UTC(), sales.NewCustomerPaymentOptions{
+			CompanyID:    in.CompanyID,
+			CustomerID:   sale.CustomerID,
+			Number:       number,
+			PaymentDate:  in.PaymentDate,
+			Amount:       balance,
+			CurrencyCode: sale.CurrencyCode,
+			ExchangeRate: sale.ExchangeRate,
+			Method:       method,
+			Reference:    in.Reference,
+			Notes:        in.Notes,
+		})
+		if err != nil {
+			return err
+		}
+		if err := cp.ApplyToSale(saleID, balance); err != nil {
+			return err
+		}
+		if err := s.payments.Create(ctx, cp); err != nil {
+			return err
+		}
+		if _, err := sale.ApplyPayment(balance); err != nil {
+			return err
+		}
+		if err := s.sales.Update(ctx, sale); err != nil {
+			return err
+		}
+		customer, err := s.customers.GetByID(ctx, sale.CustomerID)
+		if err != nil {
+			return err
+		}
+		if _, err := customer.RecordPayment(balance); err != nil {
+			return err
+		}
+		if err := s.customers.Update(ctx, customer); err != nil {
+			return err
+		}
+		out = sale
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.log.Info("sale marked as paid",
+		"sale_id", saleID,
+		"number", out.Number,
+		"amount", out.Paid,
+	)
+	return out, nil
+}
+
 // ApplyToSale allocates part of a payment to a specific sale. The sale
 // is also updated to reflect the new paid amount, in the same
 // transaction. This is the only "join point" between the payment and
@@ -152,7 +240,7 @@ type AdvanceInput struct {
 	Amount        valueobjects.Money
 	CurrencyCode  valueobjects.CurrencyCode
 	ExchangeRate  valueobjects.ExchangeRate
-	Method        string
+	Method        enums.PaymentMethod
 	BankAccountID *uuid.UUID
 	Notes         string
 }
@@ -262,4 +350,14 @@ func (s *CustomerPaymentService) OutstandingByCustomer(ctx context.Context, cust
 		return valueobjects.Money{}, err
 	}
 	return cust.CurrentDebt, nil
+}
+
+// ListPayments returns customer payments matching the filter.
+func (s *CustomerPaymentService) ListPayments(ctx context.Context, filter sales.CustomerPaymentFilter) (repositories.Page[*sales.CustomerPayment], error) {
+	return s.payments.List(ctx, filter)
+}
+
+// ListAdvances returns the customer advances for a given customer.
+func (s *CustomerPaymentService) ListAdvances(ctx context.Context, customerID uuid.UUID) ([]*sales.CustomerAdvance, error) {
+	return s.advances.ListByCustomer(ctx, customerID)
 }

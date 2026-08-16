@@ -1,12 +1,47 @@
 import type {
+  AdjustStockRequest,
   AppBindings,
   AppSettingsDTO,
   BusinessInfoDTO,
+  CancelPurchaseOrderRequest,
+  CancelSaleRequest,
   ConnectionConfigDTO,
+  CreateCustomerRequest,
+  CreateJournalEntryRequest,
+  CreateBankAccountRequest,
+  CreateBankTransactionRequest,
+  CreateChartOfAccountRequest,
+  CreateProductRequest,
+  CreatePurchaseOrderRequest,
+  CreateSaleRequest,
+  CreateSupplierRequest,
+  CreateCategoryRequest,
+  CreateBrandRequest,
+  IssueStockRequest,
+  ListBankTransactionsRequest,
+  ListCustomerPaymentsRequest,
+  ListCustomersRequest,
+  ListInventoryBatchesRequest,
+  ListInventoryMovementsRequest,
+  ListJournalEntriesRequest,
+  ListProductsRequest,
+  ListPurchaseOrdersRequest,
+  ListSalesRequest,
+  ListSuppliersRequest,
   ProfileDTO,
+  ReceiveStockRequest,
+  RegisterPurchasePaymentRequest,
+  RegisterSalePaymentRequest,
+  UpdateBankAccountRequest,
+  UpdateCategoryRequest,
+  UpdateBrandRequest,
+  UpdateChartOfAccountRequest,
+  UpdateCustomerRequest,
+  UpdateProductRequest,
+  UpdateSupplierRequest,
+  UpsertExchangeRateRequest,
+  VoidStockRequest,
 } from './wails-types';
-import { mockBindings } from './mock-bindings';
-
 let resolved: AppBindings | null = null;
 
 function isWailsRuntime(): boolean {
@@ -16,11 +51,13 @@ function isWailsRuntime(): boolean {
 async function resolveBindings(): Promise<AppBindings> {
   if (resolved) return resolved;
   if (!isWailsRuntime()) {
-    resolved = mockBindings;
-  } else {
-    const mod = await import('../../wailsjs/go/bindings/App');
-    resolved = mod as unknown as AppBindings;
+    throw new Error(
+      'VFinancy bindings are unavailable outside the Wails runtime. ' +
+        'Start the app with `wails dev` (or `wails build`) so the Go backend is bound to window.go.',
+    );
   }
+  const mod = await import('../../wailsjs/go/bindings/App');
+  resolved = mod as unknown as AppBindings;
   return resolved;
 }
 
@@ -108,5 +145,261 @@ export const wailsClient = {
   async setModuleEnabled(id: string, enabled: boolean) {
     const b = await resolveBindings();
     return b.SetModuleEnabled(id, enabled);
+  },
+
+  async listCustomers(req: ListCustomersRequest) {
+    const b = await resolveBindings();
+    return b.ListCustomers(req);
+  },
+  async getCustomer(id: string) {
+    const b = await resolveBindings();
+    return b.GetCustomer(id);
+  },
+  async createCustomer(req: CreateCustomerRequest) {
+    const b = await resolveBindings();
+    return b.CreateCustomer(req);
+  },
+  async updateCustomer(req: UpdateCustomerRequest) {
+    const b = await resolveBindings();
+    return b.UpdateCustomer(req);
+  },
+  async removeCustomer(id: string) {
+    const b = await resolveBindings();
+    return b.RemoveCustomer(id);
+  },
+
+  async listProducts(req: ListProductsRequest) {
+    const b = await resolveBindings();
+    return b.ListProducts(req);
+  },
+  async getProduct(id: string) {
+    const b = await resolveBindings();
+    return b.GetProduct(id);
+  },
+  async createProduct(req: CreateProductRequest) {
+    const b = await resolveBindings();
+    return b.CreateProduct(req);
+  },
+  async updateProduct(req: UpdateProductRequest) {
+    const b = await resolveBindings();
+    return b.UpdateProduct(req);
+  },
+  async removeProduct(id: string) {
+    const b = await resolveBindings();
+    return b.RemoveProduct(id);
+  },
+  async listUnits() {
+    const b = await resolveBindings();
+    return b.ListUnits();
+  },
+  async listCategories() {
+    const b = await resolveBindings();
+    return b.ListCategories();
+  },
+  async createCategory(req: CreateCategoryRequest) {
+    const b = await resolveBindings();
+    return b.CreateCategory(req);
+  },
+  async updateCategory(req: UpdateCategoryRequest) {
+    const b = await resolveBindings();
+    return b.UpdateCategory(req);
+  },
+  async deleteCategory(id: string) {
+    const b = await resolveBindings();
+    return b.DeleteCategory(id);
+  },
+  async listBrands() {
+    const b = await resolveBindings();
+    return b.ListBrands();
+  },
+  async createBrand(req: CreateBrandRequest) {
+    const b = await resolveBindings();
+    return b.CreateBrand(req);
+  },
+  async updateBrand(req: UpdateBrandRequest) {
+    const b = await resolveBindings();
+    return b.UpdateBrand(req);
+  },
+  async deleteBrand(id: string) {
+    const b = await resolveBindings();
+    return b.DeleteBrand(id);
+  },
+
+  async listSuppliers(req: ListSuppliersRequest) {
+    const b = await resolveBindings();
+    return b.ListSuppliers(req);
+  },
+  async getSupplier(id: string) {
+    const b = await resolveBindings();
+    return b.GetSupplier(id);
+  },
+  async createSupplier(req: CreateSupplierRequest) {
+    const b = await resolveBindings();
+    return b.CreateSupplier(req);
+  },
+  async updateSupplier(req: UpdateSupplierRequest) {
+    const b = await resolveBindings();
+    return b.UpdateSupplier(req);
+  },
+  async removeSupplier(id: string) {
+    const b = await resolveBindings();
+    return b.RemoveSupplier(id);
+  },
+
+  async listSales(req: ListSalesRequest) {
+    const b = await resolveBindings();
+    return b.ListSales(req);
+  },
+  async getSale(id: string) {
+    const b = await resolveBindings();
+    return b.GetSale(id);
+  },
+  async createSale(req: CreateSaleRequest) {
+    const b = await resolveBindings();
+    return b.CreateSale(req);
+  },
+  async cancelSale(req: CancelSaleRequest) {
+    const b = await resolveBindings();
+    return b.CancelSale(req);
+  },
+  async registerSalePayment(req: RegisterSalePaymentRequest) {
+    const b = await resolveBindings();
+    return b.RegisterSalePayment(req);
+  },
+  async listCustomerPayments(req: ListCustomerPaymentsRequest) {
+    const b = await resolveBindings();
+    return b.ListCustomerPayments(req);
+  },
+  async listCustomerAdvances(customerId: string) {
+    const b = await resolveBindings();
+    return b.ListCustomerAdvances(customerId);
+  },
+
+  async listBankAccounts() {
+    const b = await resolveBindings();
+    return b.ListBankAccounts();
+  },
+  async getBankAccount(id: string) {
+    const b = await resolveBindings();
+    return b.GetBankAccount(id);
+  },
+  async createBankAccount(req: CreateBankAccountRequest) {
+    const b = await resolveBindings();
+    return b.CreateBankAccount(req);
+  },
+  async updateBankAccount(req: UpdateBankAccountRequest) {
+    const b = await resolveBindings();
+    return b.UpdateBankAccount(req);
+  },
+  async deleteBankAccount(id: string) {
+    const b = await resolveBindings();
+    return b.DeleteBankAccount(id);
+  },
+  async listBankTransactions(req: ListBankTransactionsRequest) {
+    const b = await resolveBindings();
+    return b.ListBankTransactions(req);
+  },
+  async createBankTransaction(req: CreateBankTransactionRequest) {
+    const b = await resolveBindings();
+    return b.CreateBankTransaction(req);
+  },
+  async reconcileBankTransaction(id: string) {
+    const b = await resolveBindings();
+    return b.ReconcileBankTransaction(id);
+  },
+  async upsertExchangeRate(req: UpsertExchangeRateRequest) {
+    const b = await resolveBindings();
+    return b.UpsertExchangeRate(req);
+  },
+  async latestExchangeRate(from: string, to: string) {
+    const b = await resolveBindings();
+    return b.LatestExchangeRate(from, to);
+  },
+
+  async listInventoryBatches(req: ListInventoryBatchesRequest) {
+    const b = await resolveBindings();
+    return b.ListInventoryBatches(req);
+  },
+  async listInventoryMovements(req: ListInventoryMovementsRequest) {
+    const b = await resolveBindings();
+    return b.ListInventoryMovements(req);
+  },
+  async getClearanceCandidates() {
+    const b = await resolveBindings();
+    return b.GetClearanceCandidates();
+  },
+  async receiveStock(req: ReceiveStockRequest) {
+    const b = await resolveBindings();
+    return b.ReceiveStock(req);
+  },
+  async issueStock(req: IssueStockRequest) {
+    const b = await resolveBindings();
+    return b.IssueStock(req);
+  },
+  async adjustStock(req: AdjustStockRequest) {
+    const b = await resolveBindings();
+    return b.AdjustStock(req);
+  },
+  async voidStock(req: VoidStockRequest) {
+    const b = await resolveBindings();
+    return b.VoidStock(req);
+  },
+  async listWarehouses() {
+    const b = await resolveBindings();
+    return b.ListWarehouses();
+  },
+
+  async listChartOfAccounts() {
+    const b = await resolveBindings();
+    return b.ListChartOfAccounts();
+  },
+  async createChartOfAccount(req: CreateChartOfAccountRequest) {
+    const b = await resolveBindings();
+    return b.CreateChartOfAccount(req);
+  },
+  async updateChartOfAccount(req: UpdateChartOfAccountRequest) {
+    const b = await resolveBindings();
+    return b.UpdateChartOfAccount(req);
+  },
+  async deleteChartOfAccount(id: string) {
+    const b = await resolveBindings();
+    return b.DeleteChartOfAccount(id);
+  },
+  async listFiscalPeriods() {
+    const b = await resolveBindings();
+    return b.ListFiscalPeriods();
+  },
+  async listJournalEntries(req: ListJournalEntriesRequest) {
+    const b = await resolveBindings();
+    return b.ListJournalEntries(req);
+  },
+  async createJournalEntry(req: CreateJournalEntryRequest) {
+    const b = await resolveBindings();
+    return b.CreateJournalEntry(req);
+  },
+  async postJournalEntry(id: string) {
+    const b = await resolveBindings();
+    return b.PostJournalEntry(id);
+  },
+
+  async listPurchaseOrders(req: ListPurchaseOrdersRequest) {
+    const b = await resolveBindings();
+    return b.ListPurchaseOrders(req);
+  },
+  async getPurchaseOrder(id: string) {
+    const b = await resolveBindings();
+    return b.GetPurchaseOrder(id);
+  },
+  async createPurchaseOrder(req: CreatePurchaseOrderRequest) {
+    const b = await resolveBindings();
+    return b.CreatePurchaseOrder(req);
+  },
+  async cancelPurchaseOrder(req: CancelPurchaseOrderRequest) {
+    const b = await resolveBindings();
+    return b.CancelPurchaseOrder(req);
+  },
+  async registerPurchasePayment(req: RegisterPurchasePaymentRequest) {
+    const b = await resolveBindings();
+    return b.RegisterPurchasePayment(req);
   },
 };

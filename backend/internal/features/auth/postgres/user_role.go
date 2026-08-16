@@ -47,9 +47,11 @@ func (r *userRoleRepository) Revoke(ctx context.Context, userID, roleID uuid.UUI
 }
 
 func (r *userRoleRepository) EffectiveRoles(ctx context.Context, userID uuid.UUID, at time.Time) ([]auth.UserRoleAssignment, error) {
-	const q = `SELECT user_id, role_id, branch_id, expires_at FROM user_roles
-		WHERE user_id = $1 AND (expires_at IS NULL OR expires_at > $2)
-		ORDER BY role_id`
+	const q = `SELECT ur.user_id, ur.role_id, ro.code, ur.branch_id, ur.expires_at
+		FROM user_roles ur
+		JOIN roles ro ON ro.id = ur.role_id
+		WHERE ur.user_id = $1 AND (ur.expires_at IS NULL OR ur.expires_at > $2)
+		ORDER BY ur.role_id`
 	rows, err := persistence.Q(ctx, r.q).QueryContext(ctx, q, userID, at)
 	if err != nil {
 		return nil, persistence.Translate(err)
@@ -61,7 +63,7 @@ func (r *userRoleRepository) EffectiveRoles(ctx context.Context, userID uuid.UUI
 			branchID  sql.NullString
 			expiresAt sql.NullTime
 		)
-		if err := r.Scan(&a.UserID, &a.RoleID, &branchID, &expiresAt); err != nil {
+		if err := r.Scan(&a.UserID, &a.RoleID, &a.RoleCode, &branchID, &expiresAt); err != nil {
 			return persistence.Translate(err)
 		}
 		if branchID.Valid {

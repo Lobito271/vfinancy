@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgconn"
 
@@ -41,6 +42,10 @@ const (
 //   * network/connection errors  → repositories.ErrConnection
 //   * context cancellation       → unchanged (caller decides)
 //   * everything else             → unchanged
+//
+// SQLite (modernc.org/sqlite) reports constraint failures as plain
+// strings ("constraint failed: FOREIGN KEY constraint failed (787)");
+// those are matched by message text and mapped to the same sentinels.
 func Translate(err error) error {
 	if err == nil {
 		return nil
@@ -66,7 +71,30 @@ func Translate(err error) error {
 	if errors.Is(err, sql.ErrConnDone) || errors.Is(err, sql.ErrTxDone) {
 		return fmt.Errorf("%w: %s", repositories.ErrConnection, err.Error())
 	}
+	if code := sqliteConstraintCode(err); code != nil {
+		return fmt.Errorf("%w: %s", code, err.Error())
+	}
 	return err
+}
+
+// sqliteConstraintCode maps a SQLite constraint error (modernc.org/sqlite)
+// to the corresponding repository sentinel. SQLite reports constraint
+// failures as plain error strings such as
+// "constraint failed: FOREIGN KEY constraint failed (787)", so the
+// message text is matched here. Returns nil for non-SQLite errors.
+func sqliteConstraintCode(err error) error {
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "FOREIGN KEY constraint failed"):
+		return repositories.ErrForeignKey
+	case strings.Contains(msg, "UNIQUE constraint failed"):
+		return repositories.ErrDuplicate
+	case strings.Contains(msg, "CHECK constraint failed"),
+		strings.Contains(msg, "NOT NULL constraint failed"):
+		return repositories.ErrCheckConstraint
+	default:
+		return nil
+	}
 }
 
 // isPgNoRows reports whether the error is the standard "no rows in

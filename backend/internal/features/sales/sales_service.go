@@ -19,20 +19,32 @@ import (
 	"vfinancy/backend/internal/domain/repositories"
 	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/features/customer"
+	"vfinancy/backend/internal/features/inventory"
 	"vfinancy/backend/internal/shared/logger"
 )
+
+// StockLedger is the narrow inventory contract consumed by the sales
+// slice. It is satisfied by *inventory.InventoryService and lets the
+// sales service trigger FIFO stock deduction and void restocking
+// without depending on the full inventory surface.
+type StockLedger interface {
+	ReserveForSale(ctx context.Context, in inventory.ReserveForSaleInput) (valueobjects.Money, error)
+	ReturnVoidedSale(ctx context.Context, companyID, saleID uuid.UUID) error
+}
 
 // SalesService owns the sales slice.
 type SalesService struct {
 	orders    SalesRepository
 	customers customer.CustomerRepository
+	stock     StockLedger
+	products  inventory.ProductClassifier
 	txm       repositories.TransactionManager
 	log       *logger.Logger
 }
 
 // New returns a SalesService ready for use.
-func New(orders SalesRepository, customers customer.CustomerRepository, txm repositories.TransactionManager, log *logger.Logger) *SalesService {
-	return &SalesService{orders: orders, customers: customers, txm: txm, log: log}
+func New(orders SalesRepository, customers customer.CustomerRepository, stock StockLedger, products inventory.ProductClassifier, txm repositories.TransactionManager, log *logger.Logger) *SalesService {
+	return &SalesService{orders: orders, customers: customers, stock: stock, products: products, txm: txm, log: log}
 }
 
 // CreateInput is the payload for CreateSale. CurrencyCode is the
@@ -64,6 +76,21 @@ type CreateItemInput struct {
 	TaxAmount       valueobjects.Money
 	CostSnapshot    valueobjects.Money
 	Description     string
+}
+
+// endOfDay interprets a date-only due date as the last moment of its
+// calendar day (UTC). The sales table enforces due_date >= sale_date,
+// and sale_date is the sale's creation timestamp; without this
+// normalization a sale due "today" would compare its midnight due date
+// against the current time and fail the ck_sales_dates CHECK constraint.
+func endOfDay(d *valueobjects.Date) *valueobjects.Date {
+	if d == nil {
+		return nil
+	}
+	t := d.UTC()
+	eod := time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 999999000, time.UTC)
+	out := valueobjects.Date(eod)
+	return &out
 }
 
 // CreateResult bundles the persisted sale plus the customer's updated
@@ -111,8 +138,15 @@ func (s *SalesService) Create(ctx context.Context, in CreateInput) (*CreateResul
 			CustomerID:   in.CustomerID,
 			CurrencyCode: in.CurrencyCode,
 			ExchangeRate: in.ExchangeRate,
-			DueDate:      in.DueDate,
+			DueDate:      endOfDay(in.DueDate),
 			Notes:        in.Notes,
+		}
+		if opts.Number == "" {
+			n, err := s.orders.GetNextNumber(ctx, in.CompanyID)
+			if err != nil {
+				return err
+			}
+			opts.Number = n
 		}
 		sale, err := NewSale(time.Now().UTC(), opts)
 		if err != nil {
@@ -134,6 +168,34 @@ func (s *SalesService) Create(ctx context.Context, in CreateInput) (*CreateResul
 				return err
 			}
 			if err := sale.AddItem(line); err != nil {
+				return err
+			}
+		}
+		// Deduct stock (FIFO) for physical products and snapshot the
+		// weighted average cost per line. Services are not stocked and
+		// keep a zero cost snapshot. All movements happen on the same
+		// transaction; a shortfall aborts the whole sale.
+		if s.stock != nil {
+			for _, li := range sale.Items {
+				isService, err := s.products.IsService(ctx, li.ProductID)
+				if err != nil {
+					return err
+				}
+				if isService {
+					continue
+				}
+				cost, err := s.stock.ReserveForSale(ctx, inventory.ReserveForSaleInput{
+					CompanyID: sale.CompanyID,
+					ProductID: li.ProductID,
+					Quantity:  li.Quantity,
+					SaleID:    sale.ID,
+				})
+				if err != nil {
+					return err
+				}
+				li.CostSnapshot = cost
+			}
+			if err := sale.Recalculate(); err != nil {
 				return err
 			}
 		}
@@ -188,6 +250,11 @@ func (s *SalesService) Cancel(ctx context.Context, in CancelInput) (*Sale, error
 		}
 		if err := s.orders.Update(ctx, sale); err != nil {
 			return err
+		}
+		if s.stock != nil {
+			if err := s.stock.ReturnVoidedSale(ctx, sale.CompanyID, sale.ID); err != nil {
+				return err
+			}
 		}
 		out = sale
 		return nil
@@ -266,4 +333,9 @@ func (s *SalesService) OutstandingBalance(ctx context.Context, id uuid.UUID) (va
 // GetByID returns the sale aggregate.
 func (s *SalesService) GetByID(ctx context.Context, id uuid.UUID) (*Sale, error) {
 	return s.orders.GetByID(ctx, id)
+}
+
+// List returns sales matching the filter.
+func (s *SalesService) List(ctx context.Context, filter SaleFilter) (repositories.Page[*Sale], error) {
+	return s.orders.List(ctx, filter)
 }

@@ -112,7 +112,7 @@ func Load() (*Config, error) {
 			MaxLoginAttempts: getEnvInt("AUTH_MAX_LOGIN_ATTEMPTS", 5),
 		},
 		Sync: SyncConfig{
-			Enabled:      getEnvBool("SYNC_ENABLED", true),
+			Enabled:      getEnvBool("SYNC_ENABLED", false),
 			ServerURL:    getEnv("SYNC_SERVER_URL", ""),
 			APIKey:       getEnv("SYNC_API_KEY", ""),
 			PollInterval: time.Duration(getEnvInt("SYNC_POLL_INTERVAL_SEC", 30)) * time.Second,

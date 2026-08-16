@@ -1,13 +1,26 @@
-import { sleep } from '@/utils';
+import type {
+  BankAccountDTO,
+  BankTransactionDTO,
+  CreateBankAccountRequest,
+  CreateBankTransactionRequest,
+  UpdateBankAccountRequest,
+} from '../wails-types';
+import { wailsClient } from '../bindings';
 
-export interface AccountBalance {
+export type BankAccountType = 'checking' | 'savings';
+
+export interface BankAccount {
   id: string;
   bank: string;
   accountNumber: string;
+  accountType: BankAccountType;
   currency: string;
   balance: number;
-  type: 'checking' | 'savings' | 'credit';
+  isDefault: boolean;
+  isActive: boolean;
 }
+
+export type BankTxType = 'deposit' | 'withdrawal' | 'fee' | 'interest' | 'transfer' | 'other';
 
 export interface BankTransaction {
   id: string;
@@ -15,45 +28,120 @@ export interface BankTransaction {
   date: string;
   description: string;
   amount: number;
-  type: 'credit' | 'debit';
-  reconciled: boolean;
+  type: BankTxType;
+  balanceAfter: number;
+  reference: string;
+  isReconciled: boolean;
 }
 
-const MOCK_ACCOUNTS: AccountBalance[] = [
-  { id: 'a-1', bank: 'BCP', accountNumber: '193-1234567-0-99', currency: 'PEN', balance: 48230.5, type: 'checking' },
-  { id: 'a-2', bank: 'BBVA', accountNumber: '0011-0201-0201-0201', currency: 'PEN', balance: 21500, type: 'savings' },
-  { id: 'a-3', bank: 'BCP', accountNumber: '193-9876543-0-55', currency: 'USD', balance: 5200, type: 'checking' },
-];
+export interface BankAccountInput {
+  bank: string;
+  accountNumber: string;
+  accountType: BankAccountType;
+  currency: string;
+  isDefault: boolean;
+}
 
-let accounts = [...MOCK_ACCOUNTS];
-let transactions: BankTransaction[] = [];
+export interface BankAccountUpdateInput extends BankAccountInput {
+  isActive: boolean;
+}
+
+export interface BankTransactionInput {
+  accountId: string;
+  date: string;
+  description: string;
+  amount: number;
+  type: BankTxType;
+  reference?: string;
+}
+
+function toAccount(dto: BankAccountDTO): BankAccount {
+  return {
+    id: dto.id,
+    bank: dto.bankName,
+    accountNumber: dto.accountNumber,
+    accountType: dto.accountType as BankAccountType,
+    currency: dto.currencyCode,
+    balance: Number(dto.currentBalance),
+    isDefault: dto.isDefault,
+    isActive: dto.isActive,
+  };
+}
+
+function toTransaction(dto: BankTransactionDTO): BankTransaction {
+  return {
+    id: dto.id,
+    accountId: dto.accountId,
+    date: dto.date,
+    description: dto.description,
+    amount: Number(dto.amount),
+    type: dto.type as BankTxType,
+    balanceAfter: Number(dto.balanceAfter),
+    reference: dto.reference,
+    isReconciled: dto.isReconciled,
+  };
+}
+
+function toCreateRequest(input: BankAccountInput): CreateBankAccountRequest {
+  return {
+    bankName: input.bank,
+    accountNumber: input.accountNumber,
+    accountType: input.accountType,
+    currencyCode: input.currency,
+    isDefault: input.isDefault,
+  };
+}
 
 export const treasuryService = {
-  async listAccounts(): Promise<AccountBalance[]> {
-    await sleep(150);
-    return [...accounts];
+  async listAccounts(): Promise<BankAccount[]> {
+    return (await wailsClient.listBankAccounts()).map(toAccount);
   },
-  async getAccount(id: string): Promise<AccountBalance | null> {
-    await sleep(100);
-    return accounts.find((a) => a.id === id) ?? null;
+  async getAccount(id: string): Promise<BankAccount | null> {
+    try {
+      return toAccount(await wailsClient.getBankAccount(id));
+    } catch {
+      return null;
+    }
+  },
+  async createAccount(input: BankAccountInput): Promise<BankAccount> {
+    return toAccount(await wailsClient.createBankAccount(toCreateRequest(input)));
+  },
+  async updateAccount(id: string, input: BankAccountUpdateInput): Promise<BankAccount> {
+    const req: UpdateBankAccountRequest = {
+      ...toCreateRequest(input),
+      id,
+      isActive: input.isActive,
+    };
+    return toAccount(await wailsClient.updateBankAccount(req));
+  },
+  async removeAccount(id: string): Promise<void> {
+    await wailsClient.deleteBankAccount(id);
   },
   async listTransactions(accountId?: string): Promise<BankTransaction[]> {
-    await sleep(150);
-    return accountId ? transactions.filter((t) => t.accountId === accountId) : [...transactions];
+    const res = await wailsClient.listBankTransactions({
+      accountId: accountId ?? '',
+      reconciled: null,
+      page: 1,
+      pageSize: 200,
+    });
+    return res.items.map(toTransaction);
+  },
+  async createTransaction(input: BankTransactionInput): Promise<BankTransaction> {
+    const req: CreateBankTransactionRequest = {
+      accountId: input.accountId,
+      date: input.date,
+      description: input.description,
+      amount: input.amount.toFixed(2),
+      type: input.type,
+      reference: input.reference ?? '',
+    };
+    return toTransaction(await wailsClient.createBankTransaction(req));
   },
   async conciliate(id: string): Promise<BankTransaction> {
-    await sleep(150);
-    const idx = transactions.findIndex((t) => t.id === id);
-    if (idx < 0) throw new Error('Transaction not found');
-    const updated = { ...transactions[idx], reconciled: true };
-    transactions = [...transactions.slice(0, idx), updated, ...transactions.slice(idx + 1)];
-    return updated;
+    return toTransaction(await wailsClient.reconcileBankTransaction(id));
   },
   async getExchangeRate(from: string, to: string): Promise<number> {
-    await sleep(100);
     if (from === to) return 1;
-    if (from === 'USD' && to === 'PEN') return 3.75;
-    if (from === 'PEN' && to === 'USD') return 1 / 3.75;
-    return 1;
+    return Number(await wailsClient.latestExchangeRate(from, to));
   },
 };

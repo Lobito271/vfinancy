@@ -6,7 +6,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import type { ChartPoint } from '@/data/mock';
+import type { ChartPoint } from '@/types/domain';
 
 interface PieChartProps {
   data: ChartPoint[];

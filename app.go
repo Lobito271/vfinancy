@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io/fs"
 	"log"
 
 	"vfinancy/backend/infrastructure/config"
@@ -23,10 +24,16 @@ func NewApp() *App {
 		log.Fatalf("config: %v", err)
 	}
 	l := logger.New(cfg.Logger.Level, cfg.Logger.Format, cfg.Logger.Output)
+
+	migrationsFS, err := fs.Sub(sqliteMigrations, "backend/migrations/sqlite")
+	if err != nil {
+		log.Fatalf("migrations: %v", err)
+	}
+
 	return &App{
 		cfg:      cfg,
 		log:      l,
-		bindings: bindings.New(cfg, l),
+		bindings: bindings.New(cfg, l, migrationsFS),
 	}
 }
 

@@ -1,5 +1,3 @@
-import { sleep } from '@/utils';
-
 export type ReportType =
   | 'sales-by-period'
   | 'sales-by-customer'
@@ -26,28 +24,22 @@ export interface ReportResult {
   url?: string;
 }
 
+const reportTypes: ReportType[] = [
+  'sales-by-period',
+  'sales-by-customer',
+  'sales-by-product',
+  'purchases-by-supplier',
+  'accounts-receivable',
+  'accounts-payable',
+  'inventory-valuation',
+  'profitability',
+];
+
 export const reportsService = {
   async list(): Promise<ReportType[]> {
-    await sleep(100);
-    return [
-      'sales-by-period',
-      'sales-by-customer',
-      'sales-by-product',
-      'purchases-by-supplier',
-      'accounts-receivable',
-      'accounts-payable',
-      'inventory-valuation',
-      'profitability',
-    ];
+    return [...reportTypes];
   },
-  async run(input: ReportRunInput): Promise<ReportResult> {
-    await sleep(800);
-    return {
-      id: `r-${Date.now()}`,
-      type: input.type,
-      generatedAt: new Date().toISOString(),
-      status: 'done',
-      url: '#',
-    };
+  async run(_input: ReportRunInput): Promise<ReportResult> {
+    throw new Error('Report generation is not yet available. Please try again later.');
   },
 };

@@ -1,6 +1,6 @@
-import type { Customer } from '@/data/mock';
-import { customers as mockCustomers } from '@/data/mock';
-import { sleep, generateId } from '@/utils';
+import type { Customer } from '@/types/domain';
+import type { CustomerDTO } from '../wails-types';
+import { wailsClient } from '../bindings';
 
 export interface CustomerQuery {
   search?: string;
@@ -27,23 +27,37 @@ export interface CustomerUpdateInput extends Partial<CustomerCreateInput> {
   status?: Customer['status'];
 }
 
-let store: Customer[] = [...mockCustomers];
+function toCustomer(dto: CustomerDTO): Customer {
+  return {
+    id: dto.id,
+    documentType: dto.documentType as Customer['documentType'],
+    documentNumber: dto.documentNumber,
+    businessName: dto.businessName,
+    contactName: dto.tradeName || undefined,
+    phone: dto.phone || undefined,
+    email: dto.email || undefined,
+    address: dto.address || undefined,
+    creditLimit: Number(dto.creditLimit),
+    currentDebt: Number(dto.currentDebt),
+    status: dto.status as Customer['status'],
+    totalPurchases: 0,
+    createdAt: dto.createdAt,
+  };
+}
+
+function money(value: number): string {
+  return value.toFixed(2);
+}
 
 export const customersService = {
   async list(q: CustomerQuery = {}): Promise<{ items: Customer[]; total: number }> {
-    await sleep(150);
-    let rows = [...store];
-    if (q.search) {
-      const s = q.search.toLowerCase();
-      rows = rows.filter(
-        (c) =>
-          c.businessName.toLowerCase().includes(s) ||
-          c.documentNumber.includes(s) ||
-          (c.contactName?.toLowerCase().includes(s) ?? false),
-      );
-    }
-    if (q.status) rows = rows.filter((c) => c.status === q.status);
-    const total = rows.length;
+    const res = await wailsClient.listCustomers({
+      search: q.search ?? '',
+      status: q.status ?? '',
+      page: q.page ?? 1,
+      pageSize: q.pageSize ?? 25,
+    });
+    let rows = res.items.map(toCustomer);
     if (q.sortBy) {
       rows.sort((a, b) => {
         const av = a[q.sortBy!] as string | number;
@@ -53,44 +67,53 @@ export const customersService = {
         return 0;
       });
     }
-    const start = ((q.page ?? 1) - 1) * (q.pageSize ?? 25);
-    return { items: rows.slice(start, start + (q.pageSize ?? 25)), total };
+    return { items: rows, total: res.total };
   },
 
   async get(id: string): Promise<Customer | null> {
-    await sleep(100);
-    return store.find((c) => c.id === id) ?? null;
+    try {
+      return toCustomer(await wailsClient.getCustomer(id));
+    } catch {
+      return null;
+    }
   },
 
   async create(input: CustomerCreateInput): Promise<Customer> {
-    await sleep(200);
-    const created: Customer = {
-      id: generateId('c'),
-      ...input,
-      currentDebt: 0,
-      totalPurchases: 0,
-      status: 'active',
-      createdAt: new Date().toISOString(),
-    };
-    store = [created, ...store];
-    return created;
+    const created = await wailsClient.createCustomer({
+      documentType: input.documentType,
+      documentNumber: input.documentNumber,
+      businessName: input.businessName,
+      tradeName: input.contactName ?? '',
+      creditLimit: money(input.creditLimit),
+      paymentTermDays: 0,
+      email: input.email ?? '',
+      phone: input.phone ?? '',
+      address: input.address ?? '',
+    });
+    return toCustomer(created);
   },
 
   async update(input: CustomerUpdateInput): Promise<Customer> {
-    await sleep(200);
-    const idx = store.findIndex((c) => c.id === input.id);
-    if (idx < 0) throw new Error('Customer not found');
-    const updated: Customer = { ...store[idx], ...input };
-    store = [...store.slice(0, idx), updated, ...store.slice(idx + 1)];
-    return updated;
+    const updated = await wailsClient.updateCustomer({
+      id: input.id,
+      businessName: input.businessName ?? '',
+      tradeName: input.contactName ?? '',
+      creditLimit: money(input.creditLimit ?? 0),
+      paymentTermDays: 0,
+      email: input.email ?? '',
+      phone: input.phone ?? '',
+      address: input.address ?? '',
+      isActive: input.status === 'inactive' ? false : input.status === 'active' ? true : null,
+    });
+    return toCustomer(updated);
   },
 
   async remove(id: string): Promise<void> {
-    await sleep(150);
-    store = store.filter((c) => c.id !== id);
+    await wailsClient.removeCustomer(id);
   },
 
   async getOptions(): Promise<Array<{ value: string; label: string }>> {
-    return store.map((c) => ({ value: c.id, label: c.businessName }));
+    const res = await wailsClient.listCustomers({ search: '', status: '', page: 1, pageSize: 200 });
+    return res.items.map((c) => ({ value: c.id, label: c.businessName }));
   },
 };

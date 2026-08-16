@@ -1,55 +1,110 @@
-import type { Supplier } from '@/data/mock';
-import { suppliers as mockSuppliers } from '@/data/mock';
-import { sleep, generateId } from '@/utils';
+import type { Supplier } from '@/types/domain';
+import type { SupplierDTO } from '../wails-types';
+import { wailsClient } from '../bindings';
+
+export interface SupplierQuery {
+  search?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}
 
 export interface SupplierCreateInput {
+  documentType: string;
   documentNumber: string;
   businessName: string;
   contactName?: string;
   phone?: string;
   email?: string;
+  address?: string;
+  defaultCurrency?: string;
+  paymentTermDays?: number;
 }
 
-export interface SupplierUpdateInput extends Partial<SupplierCreateInput> {
+export interface SupplierUpdateInput {
   id: string;
-  status?: Supplier['status'];
+  businessName?: string;
+  contactName?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  paymentTermDays?: number;
+  status?: 'active' | 'inactive';
 }
 
-let store: Supplier[] = [...mockSuppliers];
+function toSupplier(dto: SupplierDTO): Supplier {
+  return {
+    id: dto.id,
+    documentType: (dto.documentType as Supplier['documentType']) || undefined,
+    documentNumber: dto.documentNumber,
+    businessName: dto.businessName,
+    contactName: dto.tradeName || undefined,
+    phone: dto.phone || undefined,
+    email: dto.email || undefined,
+    address: dto.address || undefined,
+    paymentTermDays: dto.paymentTermDays || undefined,
+    currentDebt: Number(dto.currentDebt),
+    status: (dto.status === 'active' ? 'active' : 'inactive') as Supplier['status'],
+  };
+}
 
 export const suppliersService = {
-  async list(): Promise<Supplier[]> {
-    await sleep(150);
-    return [...store];
+  async list(q: SupplierQuery = {}): Promise<{ items: Supplier[]; total: number }> {
+    const res = await wailsClient.listSuppliers({
+      search: q.search ?? '',
+      status: q.status ?? '',
+      page: q.page ?? 1,
+      pageSize: q.pageSize ?? 200,
+    });
+    return { items: res.items.map(toSupplier), total: res.total };
   },
+
   async get(id: string): Promise<Supplier | null> {
-    await sleep(100);
-    return store.find((s) => s.id === id) ?? null;
+    try {
+      return toSupplier(await wailsClient.getSupplier(id));
+    } catch {
+      return null;
+    }
   },
+
   async create(input: SupplierCreateInput): Promise<Supplier> {
-    await sleep(200);
-    const created: Supplier = {
-      id: generateId('s'),
-      ...input,
-      currentDebt: 0,
-      status: 'active',
-    };
-    store = [created, ...store];
-    return created;
+    const created = await wailsClient.createSupplier({
+      documentType: input.documentType,
+      documentNumber: input.documentNumber,
+      businessName: input.businessName,
+      tradeName: input.contactName ?? '',
+      taxId: '',
+      isInternational: false,
+      defaultCurrency: input.defaultCurrency ?? 'PEN',
+      paymentTermDays: input.paymentTermDays ?? 0,
+      email: input.email ?? '',
+      phone: input.phone ?? '',
+      address: input.address ?? '',
+    });
+    return toSupplier(created);
   },
+
   async update(input: SupplierUpdateInput): Promise<Supplier> {
-    await sleep(200);
-    const idx = store.findIndex((s) => s.id === input.id);
-    if (idx < 0) throw new Error('Supplier not found');
-    const updated: Supplier = { ...store[idx], ...input };
-    store = [...store.slice(0, idx), updated, ...store.slice(idx + 1)];
-    return updated;
+    const updated = await wailsClient.updateSupplier({
+      id: input.id,
+      businessName: input.businessName ?? '',
+      tradeName: input.contactName ?? '',
+      taxId: '',
+      paymentTermDays: input.paymentTermDays ?? 0,
+      email: input.email ?? '',
+      phone: input.phone ?? '',
+      address: input.address ?? '',
+      isActive: input.status === 'inactive' ? false : input.status === 'active' ? true : null,
+    });
+    return toSupplier(updated);
   },
+
   async remove(id: string): Promise<void> {
-    await sleep(150);
-    store = store.filter((s) => s.id !== id);
+    await wailsClient.removeSupplier(id);
   },
+
   async getOptions(): Promise<Array<{ value: string; label: string }>> {
-    return store.map((s) => ({ value: s.id, label: s.businessName }));
+    const res = await wailsClient.listSuppliers({ search: '', status: '', page: 1, pageSize: 200 });
+    return res.items.map((s) => ({ value: s.id, label: s.businessName }));
   },
 };

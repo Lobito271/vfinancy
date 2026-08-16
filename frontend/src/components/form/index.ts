@@ -12,6 +12,12 @@ export { DateField, DateRangeField, DateTimeField } from './DateFields';
 export { EmailField, PhoneField, PasswordField, SearchField } from './InputFields';
 export { SelectField, AsyncSelectField, type SelectOption } from './SelectField';
 export {
+  LineItemsEditor,
+  type LineItemFormValues,
+  type SaleLineItemFormValues,
+  type ProductLineOption,
+} from './LineItemsEditor';
+export {
   CustomerSelectField,
   SupplierSelectField,
   ProductSelectField,

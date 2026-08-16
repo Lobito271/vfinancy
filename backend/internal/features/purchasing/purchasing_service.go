@@ -18,13 +18,24 @@ import (
 	derrors "vfinancy/backend/internal/domain/errors"
 	"vfinancy/backend/internal/domain/repositories"
 	"vfinancy/backend/internal/domain/valueobjects"
+	"vfinancy/backend/internal/features/inventory"
 	"vfinancy/backend/internal/shared/logger"
 )
+
+// StockLedger is the narrow inventory contract consumed by the purchase
+// slice. It is satisfied by *inventory.InventoryService and lets the
+// purchasing service inject batch stock on receipt and deduct it on
+// cancel without depending on the full inventory surface.
+type StockLedger interface {
+	ReceiveFromPurchase(ctx context.Context, in inventory.ReceiveFromPurchaseInput) (*inventory.InventoryBatch, error)
+	VoidPurchaseReceipt(ctx context.Context, companyID uuid.UUID, purchaseLineIDs []uuid.UUID) error
+}
 
 // PurchasingService owns the purchase slice.
 type PurchasingService struct {
 	orders   PurchaseRepository
 	payments SupplierPaymentRepository
+	stock    StockLedger
 	txm      repositories.TransactionManager
 	log      *logger.Logger
 }
@@ -33,12 +44,14 @@ type PurchasingService struct {
 func New(
 	orders PurchaseRepository,
 	payments SupplierPaymentRepository,
+	stock StockLedger,
 	txm repositories.TransactionManager,
 	log *logger.Logger,
 ) *PurchasingService {
 	return &PurchasingService{
 		orders:   orders,
 		payments: payments,
+		stock:    stock,
 		txm:      txm,
 		log:      log,
 	}
@@ -73,18 +86,59 @@ type CreateItemInput struct {
 	Description     string
 }
 
+// receiveStock injects the received goods as inventory batches. It is
+// idempotent per line (a line whose batch already exists is skipped),
+// so it can be called safely from Create, Approve and MarkAsReceived.
+// The lot is the purchase number and the arrival date is the receipt
+// date (falling back to the order date).
+func (s *PurchasingService) receiveStock(ctx context.Context, po *PurchaseOrder) error {
+	if s.stock == nil || len(po.Items) == 0 {
+		return nil
+	}
+	arrival := po.OrderDate
+	if po.ReceivedDate != nil {
+		arrival = *po.ReceivedDate
+	}
+	for _, li := range po.Items {
+		_, err := s.stock.ReceiveFromPurchase(ctx, inventory.ReceiveFromPurchaseInput{
+			CompanyID:      po.CompanyID,
+			SupplierID:     &po.SupplierID,
+			ProductID:      li.ProductID,
+			PurchaseLineID: li.ID,
+			LotNumber:      valueobjects.LotNumber(po.Number),
+			ArrivalDate:    arrival,
+			Quantity:       li.Quantity,
+			UnitCost:       li.UnitCostNet(),
+			CurrencyCode:   po.CurrencyCode,
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // CreatePurchaseOrder validates the input, builds the purchase order
-// aggregate, and persists it. The order starts in "pending" status.
+// aggregate, and persists it. The order starts in "pending" status and
+// its goods are injected into inventory immediately (idempotently).
 func (s *PurchasingService) Create(ctx context.Context, in CreateInput) (*PurchaseOrder, error) {
 	if len(in.Items) == 0 {
 		return nil, derrors.New("EMPTY_DOCUMENT", "purchase order must have at least one line")
 	}
 	var out *PurchaseOrder
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		number := in.Number
+		if number == "" {
+			n, err := s.orders.GetNextNumber(ctx, in.CompanyID)
+			if err != nil {
+				return err
+			}
+			number = n
+		}
 		opts := NewPurchaseOrderOptions{
 			CompanyID:    in.CompanyID,
 			BranchID:     in.BranchID,
-			Number:       in.Number,
+			Number:       number,
 			SupplierID:   in.SupplierID,
 			CurrencyCode: in.CurrencyCode,
 			ExchangeRate: in.ExchangeRate,
@@ -115,6 +169,9 @@ func (s *PurchasingService) Create(ctx context.Context, in CreateInput) (*Purcha
 			}
 		}
 		if err := s.orders.Create(ctx, po); err != nil {
+			return err
+		}
+		if err := s.receiveStock(ctx, po); err != nil {
 			return err
 		}
 		out = po
@@ -151,7 +208,10 @@ func (s *PurchasingService) Approve(ctx context.Context, id uuid.UUID) error {
 		if err := po.Approve(); err != nil {
 			return err
 		}
-		return s.orders.Update(ctx, po)
+		if err := s.orders.Update(ctx, po); err != nil {
+			return err
+		}
+		return s.receiveStock(ctx, po)
 	})
 	if err != nil {
 		return err
@@ -171,7 +231,10 @@ func (s *PurchasingService) MarkAsReceived(ctx context.Context, id uuid.UUID, at
 		if err := po.MarkAsReceived(at); err != nil {
 			return err
 		}
-		return s.orders.Update(ctx, po)
+		if err := s.orders.Update(ctx, po); err != nil {
+			return err
+		}
+		return s.receiveStock(ctx, po)
 	})
 	if err != nil {
 		return err
@@ -193,7 +256,19 @@ func (s *PurchasingService) Cancel(ctx context.Context, id uuid.UUID, reason str
 		if err := po.Cancel(reason); err != nil {
 			return err
 		}
-		return s.orders.Update(ctx, po)
+		if err := s.orders.Update(ctx, po); err != nil {
+			return err
+		}
+		if s.stock != nil {
+			lineIDs := make([]uuid.UUID, 0, len(po.Items))
+			for _, li := range po.Items {
+				lineIDs = append(lineIDs, li.ID)
+			}
+			if err := s.stock.VoidPurchaseReceipt(ctx, po.CompanyID, lineIDs); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		return err
@@ -265,6 +340,85 @@ func (s *PurchasingService) RegisterSupplierPayment(ctx context.Context, in PayI
 	return out, nil
 }
 
+// MarkPaidInput is the payload for MarkPaid.
+type MarkPaidInput struct {
+	CompanyID   uuid.UUID
+	PaymentDate valueobjects.Date
+	Method      enums.PaymentMethod
+	Reference   string
+	Notes       string
+}
+
+// MarkPaid records a supplier payment covering the purchase's full
+// outstanding balance and transitions the purchase to "paid", all in
+// a single transaction. The payment and its allocation are persisted
+// through SupplierPaymentRepository.
+func (s *PurchasingService) MarkPaid(ctx context.Context, purchaseID uuid.UUID, in MarkPaidInput) (*PurchaseOrder, error) {
+	var out *PurchaseOrder
+	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		po, err := s.orders.GetByID(ctx, purchaseID)
+		if err != nil {
+			return err
+		}
+		if po.IsCancelled() {
+			return derrors.Wrap(derrors.ErrPurchaseCancelled, errField("cannot pay a cancelled purchase"))
+		}
+		if po.Status == enums.PurchaseStatusPaid || po.Status == enums.PurchaseStatusReconciled {
+			return derrors.Wrap(derrors.ErrInvalidStateTransition, errField("purchase is already paid"))
+		}
+		balance := po.Balance()
+		if !balance.IsPositive() {
+			return derrors.Wrap(derrors.ErrEmptyDocument, errField("purchase has no outstanding balance"))
+		}
+		method := in.Method
+		if !method.Valid() {
+			method = enums.PaymentMethodCash
+		}
+		number, err := s.payments.GetNextNumber(ctx, in.CompanyID)
+		if err != nil {
+			return err
+		}
+		sp, err := NewSupplierPayment(time.Now().UTC(), NewSupplierPaymentOptions{
+			CompanyID:    in.CompanyID,
+			SupplierID:   po.SupplierID,
+			Number:       number,
+			PaymentDate:  in.PaymentDate,
+			Amount:       balance,
+			CurrencyCode: po.CurrencyCode,
+			ExchangeRate: po.ExchangeRate,
+			Method:       method,
+			Reference:    in.Reference,
+			Notes:        in.Notes,
+		})
+		if err != nil {
+			return err
+		}
+		if err := sp.ApplyToPurchase(purchaseID, balance); err != nil {
+			return err
+		}
+		if err := s.payments.Create(ctx, sp); err != nil {
+			return err
+		}
+		if _, err := po.ApplyPayment(balance); err != nil {
+			return err
+		}
+		if err := s.orders.Update(ctx, po); err != nil {
+			return err
+		}
+		out = po
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.log.Info("purchase marked as paid",
+		"po_id", purchaseID,
+		"number", out.Number,
+		"amount", out.Paid,
+	)
+	return out, nil
+}
+
 // Reconcile marks a paid purchase as fully reconciled. Terminal state.
 func (s *PurchasingService) Reconcile(ctx context.Context, id uuid.UUID) error {
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
@@ -287,4 +441,9 @@ func (s *PurchasingService) Reconcile(ctx context.Context, id uuid.UUID) error {
 // GetByID returns the purchase order aggregate.
 func (s *PurchasingService) GetByID(ctx context.Context, id uuid.UUID) (*PurchaseOrder, error) {
 	return s.orders.GetByID(ctx, id)
+}
+
+// List returns purchase orders matching the filter.
+func (s *PurchasingService) List(ctx context.Context, filter PurchaseFilter) (repositories.Page[*PurchaseOrder], error) {
+	return s.orders.List(ctx, filter)
 }

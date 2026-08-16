@@ -77,6 +77,16 @@ func (li *PurchaseOrderItem) LineSubtotal() valueobjects.Money {
 	return m
 }
 
+// UnitCostNet is the effective per-unit cost after discount
+// ((line_subtotal - discount) / quantity). It is the value booked into
+// the inventory batch when the goods are received.
+func (li *PurchaseOrderItem) UnitCostNet() valueobjects.Money {
+	net := li.LineSubtotal().Sub(li.DiscountAmount)
+	qDec := li.Quantity.Decimal()
+	m, _ := valueobjects.MoneyFromDecimal(net.Decimal().Div(qDec))
+	return m
+}
+
 // LineTotal is line_subtotal - discount + tax.
 func (li *PurchaseOrderItem) LineTotal() valueobjects.Money {
 	sub := li.LineSubtotal()

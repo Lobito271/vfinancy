@@ -4,6 +4,7 @@ package customer
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -142,10 +143,11 @@ type UpdateInput struct {
 	Email           string
 	Phone           string
 	Address         string
+	IsActive        *bool // nil = unchanged
 }
 
 // UpdateCustomer loads the customer, applies the requested changes,
-// persists the updated entity. The customer must be active.
+// persists the updated entity. Blocked customers cannot be edited.
 func (s *CustomerService) Update(ctx context.Context, in UpdateInput) (*Customer, error) {
 	if in.ID == uuid.Nil {
 		return nil, derrors.New("REQUIRED", "customer id is required")
@@ -156,8 +158,15 @@ func (s *CustomerService) Update(ctx context.Context, in UpdateInput) (*Customer
 		if err != nil {
 			return err
 		}
-		if c.Status != enums.CustomerStatusActive {
+		if c.Status == enums.CustomerStatusBlocked {
 			return apperrors.ErrCustomerBlocked
+		}
+		if in.IsActive != nil {
+			if *in.IsActive {
+				c.Activate()
+			} else {
+				c.Deactivate()
+			}
 		}
 		if in.BusinessName != "" {
 			name, err := valueobjects.NewFullName(in.BusinessName)
@@ -237,6 +246,23 @@ func (s *CustomerService) Deactivate(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 	s.log.Info("customer deactivated", "customer_id", id)
+	return nil
+}
+
+// Delete physically removes the customer. It fails with a friendly
+// error if the customer is referenced by sales, payments or advances,
+// in which case the caller should edit the record and set it to
+// Inactive instead.
+func (s *CustomerService) Delete(ctx context.Context, id uuid.UUID) error {
+	err := s.repo.Delete(ctx, id)
+	if errors.Is(err, repositories.ErrForeignKey) {
+		return apperrors.Errorf(apperrors.ErrConflict,
+			"no se puede eliminar porque tiene transacciones asociadas. Por favor, edite el registro y cambie su estado a Inactivo")
+	}
+	if err != nil {
+		return err
+	}
+	s.log.Info("customer deleted", "customer_id", id)
 	return nil
 }
 
@@ -386,4 +412,9 @@ func (s *CustomerService) GetByID(ctx context.Context, id uuid.UUID) (*Customer,
 // GetByDocument looks up a customer by document type + number.
 func (s *CustomerService) GetByDocument(ctx context.Context, companyID uuid.UUID, docType enums.DocumentType, docNum string) (*Customer, error) {
 	return s.repo.GetByDocument(ctx, companyID, string(docType), docNum)
+}
+
+// List returns customers matching the filter.
+func (s *CustomerService) List(ctx context.Context, filter CustomerFilter) (repositories.Page[*Customer], error) {
+	return s.repo.List(ctx, filter)
 }

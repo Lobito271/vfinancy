@@ -122,6 +122,13 @@ func (p *SupplierPayment) AllocatedAmount() valueobjects.Money {
 	return sum
 }
 
+// Allocations returns a copy of the payment's allocations.
+func (p *SupplierPayment) Allocations() []SupplierPaymentAllocation {
+	out := make([]SupplierPaymentAllocation, len(p.allocations))
+	copy(out, p.allocations)
+	return out
+}
+
 // UnallocatedAmount returns the portion of the payment not yet
 // allocated.
 func (p *SupplierPayment) UnallocatedAmount() valueobjects.Money {

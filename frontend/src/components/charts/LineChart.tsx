@@ -43,7 +43,7 @@ export function LineChart({ data, height = 280, formatY = formatCurrency }: Line
             borderRadius: 8,
             fontSize: 12,
           }}
-          formatter={(v: number) => [formatY(v), 'Valor']}
+          formatter={(v) => [formatY(v as number), 'Valor']}
         />
         <Line
           type="monotone"

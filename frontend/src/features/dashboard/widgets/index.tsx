@@ -147,7 +147,7 @@ export function TopProductsWidget() {
       id: 'value',
       header: 'Ventas',
       align: 'right',
-      cell: (r) => <span className="font-medium tabular-nums">{formatCurrency(r.value)}</span>,
+      cell: (r) => <span className="fw-medium tabular">{formatCurrency(r.value)}</span>,
     },
   ];
   return (
@@ -175,7 +175,7 @@ export function RecentActivityWidget() {
     {
       id: 'date',
       header: 'Fecha',
-      cell: (r) => <span className="text-muted-foreground">{formatRelative(r.date)}</span>,
+      cell: (r) => <span className="muted">{formatRelative(r.date)}</span>,
     },
   ];
   return (

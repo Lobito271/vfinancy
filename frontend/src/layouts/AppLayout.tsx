@@ -9,14 +9,14 @@ export function AppLayout() {
   const location = useLocation();
   return (
     <ErrorBoundary>
-      <div className="flex h-full bg-background">
+      <div className="app-shell">
         <Sidebar />
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="app-shell__main-col">
           <Topbar />
-          <div className="border-b bg-background px-6 py-3">
+          <div className="app-shell__breadcrumbs">
             <Breadcrumbs path={location.pathname} />
           </div>
-          <main className="flex-1 overflow-y-auto">
+          <main className="app-shell__main">
             <Outlet />
           </main>
         </div>

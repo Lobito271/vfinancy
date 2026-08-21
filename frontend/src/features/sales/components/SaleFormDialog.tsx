@@ -150,8 +150,8 @@ export function SaleFormDialog({ open, onOpenChange }: SaleFormDialogProps) {
         <Form schema={SaleFormSchema} defaultValues={defaults} onSubmit={handleSubmit}>
           {({ formState }) => (
             <>
-              <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-2">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="dialog-body-scroll">
+                <div className="form-grid">
                   <CustomerSelectField name="customerId" label="Cliente" required />
                   <DateField name="date" label="Fecha de venta" required />
                 </div>

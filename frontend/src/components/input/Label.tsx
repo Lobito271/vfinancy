@@ -1,6 +1,6 @@
 import * as React from 'react';
 import * as LabelPrimitive from '@radix-ui/react-label';
-import { cn } from '@/lib/utils';
+import { cx } from '@/utils/cx';
 
 export const Label = React.forwardRef<
   React.ElementRef<typeof LabelPrimitive.Root>,
@@ -8,15 +8,12 @@ export const Label = React.forwardRef<
 >(({ className, required, children, ...props }, ref) => (
   <LabelPrimitive.Root
     ref={ref}
-    className={cn(
-      'text-sm font-medium leading-none text-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70',
-      className,
-    )}
+    className={cx('label', className)}
     {...props}
   >
     {children}
     {required && (
-      <span className="ml-0.5 text-destructive" aria-hidden="true">
+      <span className="required-mark" aria-hidden="true">
         *
       </span>
     )}

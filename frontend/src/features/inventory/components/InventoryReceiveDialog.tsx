@@ -78,14 +78,14 @@ export function InventoryReceiveDialog({ open, onOpenChange }: InventoryReceiveD
         <Form schema={ReceiveSchema} defaultValues={defaults} onSubmit={handleSubmit}>
           {({ formState }) => (
             <>
-              <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-2">
+              <div className="dialog-body-scroll">
                 <ProductSelectField name="productId" label="Producto" required />
                 <WarehouseSelectField name="warehouseId" label="Almacén" required />
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="form-grid">
                   <TextField name="lotNumber" label="Número de lote" required />
                   <DateField name="arrivalDate" label="Fecha de ingreso" required />
                 </div>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="form-grid">
                   <NumberField name="quantity" label="Cantidad" required min={0} step={0.01} />
                   <MoneyField name="unitCost" label="Costo unitario" />
                 </div>

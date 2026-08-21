@@ -110,7 +110,7 @@ export function ChartAccountFormDialog({ open, onOpenChange, account }: ChartAcc
         <Form<ChartAccountFormValues> schema={ChartAccountSchema} defaultValues={defaults} onSubmit={handleSubmit}>
           {({ formState }) => (
             <>
-              <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-2">
+              <div className="dialog-body-scroll">
                 <Grid cols={2}>
                   <TextField name="code" label="Código" required placeholder="Ej. 104.01" />
                   <TextField name="name" label="Nombre" required placeholder="Ej. Bancos — cuenta corriente" />

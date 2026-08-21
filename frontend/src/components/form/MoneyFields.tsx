@@ -4,7 +4,6 @@ import { Field } from './Field';
 import { Input } from '@/components/input';
 import { Currencies, type CurrencyCode, DefaultCurrency } from '@/constants/currencies';
 import { formatCurrency } from '@/utils/format';
-import { cn } from '@/utils/cn';
 
 interface MoneyFieldProps<T extends FieldValues> {
   name: FieldPath<T>;
@@ -40,12 +39,9 @@ export function MoneyField<T extends FieldValues>({
 
   return (
     <Field label={label} required={required} description={description} error={error} className={className} htmlFor={String(name)}>
-      <div className="relative">
+      <div className={showSymbol ? 'input-affix input-affix--prefix' : undefined}>
         {showSymbol && (
-          <span
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground"
-            aria-hidden="true"
-          >
+          <span className="input-affix__prefix" aria-hidden="true">
             {cur.symbol}
           </span>
         )}
@@ -55,7 +51,8 @@ export function MoneyField<T extends FieldValues>({
           inputMode="decimal"
           disabled={disabled}
           invalid={!!error}
-          className={cn(showSymbol ? 'pl-10' : '', 'text-right tabular-nums')}
+          className="tabular"
+          style={{ textAlign: 'right' }}
           value={raw}
           onChange={(e) => {
             const next = e.target.value.replace(/[^0-9.,-]/g, '').replace(',', '.');
@@ -71,7 +68,7 @@ export function MoneyField<T extends FieldValues>({
         />
       </div>
       {value != null && Number.isFinite(value) && (
-        <p className="text-xs text-muted-foreground">≈ {formatCurrency(value, currency)}</p>
+        <p className="field-hint">≈ {formatCurrency(value, currency)}</p>
       )}
     </Field>
   );
@@ -96,7 +93,7 @@ export function PercentageField<T extends FieldValues>({
   const error = formState.errors[name]?.message as string | undefined;
   return (
     <Field label={label} required={required} description={description} error={error} className={className} htmlFor={String(name)}>
-      <div className="relative">
+      <div className="input-affix input-affix--suffix">
         <Input
           id={String(name)}
           type="number"
@@ -105,10 +102,11 @@ export function PercentageField<T extends FieldValues>({
           min={0}
           max={100}
           invalid={!!error}
-          className="pr-8 text-right tabular-nums"
+          className="tabular"
+          style={{ textAlign: 'right' }}
           {...register(name, { valueAsNumber: true })}
         />
-        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground" aria-hidden="true">%</span>
+        <span className="input-affix__suffix" aria-hidden="true">%</span>
       </div>
     </Field>
   );
@@ -129,7 +127,7 @@ export function CurrencyField<T extends FieldValues>({ name, label, description,
     <Field label={label} required={required} description={description} error={error} className={className} htmlFor={String(name)}>
       <select
         id={String(name)}
-        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="input"
         {...register(name)}
       >
         {Object.values(Currencies).map((c) => (

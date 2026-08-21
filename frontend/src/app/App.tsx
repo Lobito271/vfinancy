@@ -23,7 +23,7 @@ const AdministrationPage = lazy(() => import('@/pages/AdministrationPage').then(
 
 function PageLoader() {
   return (
-    <div className="flex h-full items-center justify-center p-16">
+    <div className="page-loader">
       <Spinner size="lg" />
     </div>
   );

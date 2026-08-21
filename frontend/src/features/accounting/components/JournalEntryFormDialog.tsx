@@ -69,9 +69,9 @@ function JournalLineRow({
   onRemove: () => void;
 }) {
   return (
-    <div className="rounded-md border bg-muted/30 p-3">
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1">
+    <div className="journal-line">
+      <div className="hstack hstack--start hstack--sm hstack--between">
+        <div className="grow">
           <SelectField
             name={`lines.${index}.accountId` as Path<JournalEntryFormValues>}
             label={`Cuenta ${index + 1}`}
@@ -84,7 +84,7 @@ function JournalLineRow({
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="mt-7"
+          className="journal-line__remove"
           aria-label={`Quitar línea ${index + 1}`}
           onClick={onRemove}
         >
@@ -107,20 +107,20 @@ function BalanceFooter() {
   const unbalanced = Math.abs(totalDebit - totalCredit) > 0.005;
 
   return (
-    <div className="space-y-1 rounded-md border bg-muted/30 p-3 text-sm">
-      <div className="flex justify-between">
-        <span className="text-muted-foreground">Total débitos</span>
-        <span className="tabular-nums">{formatCurrency(totalDebit, 'PEN')}</span>
+    <div className="balance-box">
+      <div className="split-row">
+        <span className="muted">Total débitos</span>
+        <span className="tabular">{formatCurrency(totalDebit, 'PEN')}</span>
       </div>
-      <div className="flex justify-between">
-        <span className="text-muted-foreground">Total créditos</span>
-        <span className="tabular-nums">{formatCurrency(totalCredit, 'PEN')}</span>
+      <div className="split-row">
+        <span className="muted">Total créditos</span>
+        <span className="tabular">{formatCurrency(totalCredit, 'PEN')}</span>
       </div>
-      <div className={`flex justify-between font-medium ${unbalanced ? 'text-destructive' : 'text-success'}`}>
+      <div className={`split-row fw-medium ${unbalanced ? 'color-destructive' : 'color-success'}`}>
         <span>{unbalanced ? 'Asiento descuadrado' : 'Asiento cuadrado'}</span>
-        <span className="tabular-nums">{formatCurrency(totalDebit - totalCredit, 'PEN')}</span>
+        <span className="tabular">{formatCurrency(totalDebit - totalCredit, 'PEN')}</span>
       </div>
-      {unbalanced && <p className="text-xs text-destructive">El total de débitos debe ser igual al de créditos.</p>}
+      {unbalanced && <p className="error-note">El total de débitos debe ser igual al de créditos.</p>}
     </div>
   );
 }
@@ -130,8 +130,8 @@ function JournalLinesEditor({ accountOptions }: { accountOptions: AccountSelectO
   const { fields, append, remove } = useFieldArray<JournalEntryFormValues, 'lines', 'id'>({ control, name: 'lines' });
 
   return (
-    <div className="space-y-3">
-      <div className="space-y-3">
+    <div className="stack stack--md">
+      <div className="stack stack--md">
         {fields.map((field, index) => (
           <JournalLineRow key={field.id} index={index} accountOptions={accountOptions} onRemove={() => remove(index)} />
         ))}
@@ -196,7 +196,7 @@ export function JournalEntryFormDialog({ open, onOpenChange }: JournalEntryFormD
         <Form<JournalEntryFormValues> schema={JournalEntrySchema} defaultValues={defaults} onSubmit={handleSubmit}>
           {({ formState }) => (
             <>
-              <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-2">
+              <div className="dialog-body-scroll">
                 <Grid cols={2}>
                   <DateField name="entryDate" label="Fecha" required />
                   <TextField name="description" label="Descripción" required placeholder="Ej. Pago a proveedor, apertura…" />

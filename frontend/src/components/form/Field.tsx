@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { cn } from '@/utils/cn';
+import { cx } from '@/utils/cx';
 
 interface FieldProps {
   label?: string;
@@ -13,12 +13,12 @@ interface FieldProps {
 
 export function Field({ label, required, description, error, children, className, htmlFor }: FieldProps) {
   return (
-    <div className={cn('flex flex-col gap-1.5', className)}>
+    <div className={cx('field', className)}>
       {label && (
-        <label htmlFor={htmlFor} className="text-sm font-medium text-foreground">
+        <label htmlFor={htmlFor} className="label">
           {label}
           {required && (
-            <span className="ml-0.5 text-destructive" aria-hidden="true">
+            <span className="required-mark" aria-hidden="true">
               *
             </span>
           )}
@@ -26,10 +26,10 @@ export function Field({ label, required, description, error, children, className
       )}
       {children}
       {description && !error && (
-        <p className="text-xs text-muted-foreground">{description}</p>
+        <p className="field-hint">{description}</p>
       )}
       {error && (
-        <p role="alert" className="text-xs text-destructive">
+        <p role="alert" className="field-error">
           {error}
         </p>
       )}
@@ -38,13 +38,13 @@ export function Field({ label, required, description, error, children, className
 }
 
 export function FieldDescription({ children }: { children: ReactNode }) {
-  return <p className="text-xs text-muted-foreground">{children}</p>;
+  return <p className="field-hint">{children}</p>;
 }
 
 export function FieldError({ children }: { children?: ReactNode }) {
   if (!children) return null;
   return (
-    <p role="alert" className="text-xs text-destructive">
+    <p role="alert" className="field-error">
       {children}
     </p>
   );

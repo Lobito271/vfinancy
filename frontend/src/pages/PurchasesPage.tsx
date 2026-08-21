@@ -31,13 +31,13 @@ const columns: Column<Purchase>[] = [
     header: 'Número',
     sortable: true,
     sticky: true,
-    cell: (row) => <span className="font-medium tabular-nums">{row.number}</span>,
+    cell: (row) => <span className="fw-medium tabular">{row.number}</span>,
   },
   { id: 'supplierName', header: 'Proveedor', sortable: true, cell: (row) => row.supplierName || '—' },
   {
     id: 'date',
     header: 'Fecha',
-    cell: (row) => <span className="text-muted-foreground">{formatDate(row.date)}</span>,
+    cell: (row) => <span className="muted">{formatDate(row.date)}</span>,
   },
   {
     id: 'status',
@@ -52,7 +52,7 @@ const columns: Column<Purchase>[] = [
     header: 'Total',
     align: 'right',
     sortable: true,
-    cell: (row) => <span className="font-medium tabular-nums">{formatCurrency(row.total)}</span>,
+    cell: (row) => <span className="fw-medium tabular">{formatCurrency(row.total)}</span>,
   },
 ];
 
@@ -87,7 +87,7 @@ export function PurchasesPage() {
           const payable = row.status === 'pending' || row.status === 'received';
           const cancellable = row.status !== 'cancelled';
           return (
-            <div className="flex items-center justify-end gap-1">
+            <div className="row-actions">
               {canPay && payable && (
                 <Button
                   variant="ghost"

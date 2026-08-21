@@ -8,7 +8,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import type { ChartPoint } from '@/types/domain';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency } from '@/utils/format';
 
 interface LineChartProps {
   data: ChartPoint[];

@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils';
+import { cx } from '@/utils/cx';
 
 interface ProgressBarProps extends React.HTMLAttributes<HTMLDivElement> {
   value: number;
@@ -6,11 +6,11 @@ interface ProgressBarProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: 'default' | 'success' | 'warning' | 'destructive';
 }
 
-const variantMap = {
-  default: 'bg-primary',
-  success: 'bg-success',
-  warning: 'bg-warning',
-  destructive: 'bg-destructive',
+const variantClass = {
+  default: '',
+  success: 'progress__bar--success',
+  warning: 'progress__bar--warning',
+  destructive: 'progress__bar--destructive',
 };
 
 export function ProgressBar({ value, max = 100, variant = 'default', className, ...props }: ProgressBarProps) {
@@ -21,11 +21,11 @@ export function ProgressBar({ value, max = 100, variant = 'default', className, 
       aria-valuenow={value}
       aria-valuemin={0}
       aria-valuemax={max}
-      className={cn('relative h-2 w-full overflow-hidden rounded-full bg-muted', className)}
+      className={cx('progress', className)}
       {...props}
     >
       <div
-        className={cn('h-full transition-all', variantMap[variant])}
+        className={cx('progress__bar', variantClass[variant])}
         style={{ width: `${pct}%` }}
       />
     </div>

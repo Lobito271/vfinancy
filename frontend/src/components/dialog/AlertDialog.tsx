@@ -1,5 +1,5 @@
 import { AlertTriangle, CheckCircle2, Info, XCircle, type LucideIcon } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cx } from '@/utils/cx';
 import {
   Dialog,
   DialogContent,
@@ -12,35 +12,20 @@ import { Button } from '@/components/button';
 
 type Variant = 'success' | 'warning' | 'destructive' | 'info' | 'confirmation';
 
-const variantConfig: Record<
-  Variant,
-  { icon: LucideIcon; iconClass: string; bgClass: string }
-> = {
-  success: {
-    icon: CheckCircle2,
-    iconClass: 'text-success',
-    bgClass: 'bg-success/10',
-  },
-  warning: {
-    icon: AlertTriangle,
-    iconClass: 'text-warning',
-    bgClass: 'bg-warning/10',
-  },
-  destructive: {
-    icon: XCircle,
-    iconClass: 'text-destructive',
-    bgClass: 'bg-destructive/10',
-  },
-  info: {
-    icon: Info,
-    iconClass: 'text-info',
-    bgClass: 'bg-info/10',
-  },
-  confirmation: {
-    icon: AlertTriangle,
-    iconClass: 'text-warning',
-    bgClass: 'bg-warning/10',
-  },
+const variantIcon: Record<Variant, LucideIcon> = {
+  success: CheckCircle2,
+  warning: AlertTriangle,
+  destructive: XCircle,
+  info: Info,
+  confirmation: AlertTriangle,
+};
+
+const variantIconClass: Record<Variant, string> = {
+  success: 'alert-icon--success',
+  warning: 'alert-icon--warning',
+  destructive: 'alert-icon--destructive',
+  info: 'alert-icon--info',
+  confirmation: 'alert-icon--warning',
 };
 
 export interface AlertDialogProps {
@@ -68,30 +53,29 @@ export function AlertDialog({
   loading = false,
   size = 'sm',
 }: AlertDialogProps) {
-  const cfg = variantConfig[variant];
-  const Icon = cfg.icon;
+  const Icon = variantIcon[variant];
   const isDestructive = variant === 'destructive';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size={size} className="sm:max-w-md">
+      <DialogContent size={size}>
         <DialogHeader>
-          <div className="flex items-start gap-3">
-            <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full', cfg.bgClass)}>
-              <Icon className={cn('h-5 w-5', cfg.iconClass)} aria-hidden="true" />
+          <div className="alert-header">
+            <div className={cx('alert-icon', variantIconClass[variant])}>
+              <Icon aria-hidden="true" />
             </div>
-            <div className="flex-1 space-y-1.5">
+            <div className="alert-header__body">
               <DialogTitle>{title}</DialogTitle>
               {description && <DialogDescription>{description}</DialogDescription>}
             </div>
           </div>
         </DialogHeader>
-        <DialogFooter className="sm:gap-2">
+        <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             {cancelLabel}
           </Button>
           <Button
-            variant={isDestructive ? 'destructive' : 'default'}
+            variant={isDestructive ? 'destructive' : 'primary'}
             onClick={() => {
               onConfirm?.();
             }}

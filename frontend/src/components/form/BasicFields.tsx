@@ -1,8 +1,7 @@
 import { useFormContext, Controller, type FieldPath, type FieldValues, type Control } from 'react-hook-form';
 import type { ReactNode, ReactElement } from 'react';
 import { Field } from './Field';
-import { Input, Textarea, type InputProps } from '@/components/input';
-import { cn } from '@/utils/cn';
+import { Input, Textarea } from '@/components/input';
 
 interface BaseFieldProps<T extends FieldValues> {
   name: FieldPath<T>;
@@ -15,7 +14,7 @@ interface BaseFieldProps<T extends FieldValues> {
   children?: ReactNode;
 }
 
-interface TextFieldProps<T extends FieldValues> extends BaseFieldProps<T>, Omit<InputProps, 'name' | 'value' | 'onChange' | 'onBlur'> {
+interface TextFieldProps<T extends FieldValues> extends BaseFieldProps<T>, Omit<React.InputHTMLAttributes<HTMLInputElement>, 'name' | 'value' | 'onChange' | 'onBlur'> {
   type?: 'text' | 'email' | 'tel' | 'url' | 'password';
 }
 
@@ -66,7 +65,7 @@ export function NumberField<T extends FieldValues>({
         min={min}
         max={max}
         step={step}
-        className="tabular-nums"
+        className="tabular"
         {...register(name, { valueAsNumber: true })}
         {...inputProps}
       />
@@ -97,7 +96,7 @@ export function TextareaField<T extends FieldValues>({
         id={String(name)}
         rows={rows}
         invalid={!!error}
-        className={cn('min-h-[80px]', className)}
+        className={className}
         {...register(name)}
         {...rest}
       />
@@ -115,15 +114,15 @@ export function CheckboxField<T extends FieldValues>({ name, label, description,
   const error = formState.errors[name]?.message as string | undefined;
   return (
     <Field error={error} className={className}>
-      <label className="inline-flex items-center gap-2 text-sm">
+      <label className="checkbox-row">
         <input
           type="checkbox"
-          className="h-4 w-4 rounded-sm border border-input accent-primary"
+          className="checkbox-native"
           {...register(name)}
         />
         <span>{label}</span>
       </label>
-      {description && <p className="ml-6 text-xs text-muted-foreground">{description}</p>}
+      {description && <p className="field-hint checkbox-hint">{description}</p>}
     </Field>
   );
 }

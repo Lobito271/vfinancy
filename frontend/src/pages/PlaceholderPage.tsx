@@ -20,8 +20,8 @@ export function PlaceholderPage({ title, subtitle, icon: Icon, description, phas
         title={title}
         subtitle={subtitle}
         actions={
-          <Badge variant="secondary" className="gap-1">
-            <Clock className="h-3 w-3" />
+          <Badge variant="secondary" className="badge--with-icon">
+            <Clock className="icon-xs" />
             {phase}
           </Badge>
         }
@@ -29,18 +29,18 @@ export function PlaceholderPage({ title, subtitle, icon: Icon, description, phas
 
       <Card>
         <CardHeader>
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Icon className="h-5 w-5" aria-hidden="true" />
+          <div className="hstack hstack--start hstack--md">
+            <div className="icon-tile">
+              <Icon className="icon-md" aria-hidden="true" />
             </div>
-            <div className="flex-1">
+            <div className="grow">
               <CardTitle>Acerca de este módulo</CardTitle>
               <CardDescription>{description}</CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">
+          <p className="desc-text">
             Este módulo se implementará en una fase posterior. La interfaz y navegación ya están listas
             para que pueda familiarizarse con el sistema.
           </p>
@@ -49,11 +49,11 @@ export function PlaceholderPage({ title, subtitle, icon: Icon, description, phas
 
       <Section title="Funcionalidades planificadas" description="Qué podrá hacer en este módulo">
         <Card>
-          <CardContent className="pt-6">
-            <ul className="grid gap-2 sm:grid-cols-2">
+          <CardContent className="card-content--padded">
+            <ul className="feature-grid">
               {features.map((f) => (
-                <li key={f} className="flex items-start gap-2 text-sm">
-                  <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden="true" />
+                <li key={f} className="feature-item">
+                  <span className="feature-dot" aria-hidden="true" />
                   {f}
                 </li>
               ))}
@@ -63,7 +63,7 @@ export function PlaceholderPage({ title, subtitle, icon: Icon, description, phas
       </Section>
 
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="card-content--padded">
           <EmptyState
             icon={Database}
             title="Sin datos aún"
@@ -72,8 +72,8 @@ export function PlaceholderPage({ title, subtitle, icon: Icon, description, phas
         </CardContent>
       </Card>
 
-      <div className="flex items-center gap-1 rounded-lg border border-dashed p-4 text-xs text-muted-foreground">
-        <Hammer className="h-3 w-3" />
+      <div className="construction-note">
+        <Hammer className="icon-xs" />
         Módulo en construcción
       </div>
     </PageContainer>

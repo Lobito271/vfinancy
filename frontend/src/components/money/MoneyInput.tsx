@@ -1,5 +1,4 @@
 import * as React from 'react';
-import { cn } from '@/lib/utils';
 import { Input } from '@/components/input';
 
 export interface MoneyInputProps
@@ -9,8 +8,10 @@ export interface MoneyInputProps
   currency?: string;
 }
 
+const symbols: Record<string, string> = { PEN: 'S/', USD: '$' };
+
 export const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
-  ({ className, value, onValueChange, currency = 'PEN', ...props }, ref) => {
+  ({ value, onValueChange, currency = 'PEN', ...props }, ref) => {
     const [raw, setRaw] = React.useState<string>(() => formatRaw(value));
 
     React.useEffect(() => {
@@ -18,12 +19,9 @@ export const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
     }, [value]);
 
     return (
-      <div className={cn('relative', className)}>
-        <span
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground"
-          aria-hidden="true"
-        >
-          {currency === 'PEN' ? 'S/' : currency === 'USD' ? '$' : currency}
+      <div className="input-affix input-affix--prefix">
+        <span className="input-affix__prefix" aria-hidden="true">
+          {symbols[currency] ?? currency}
         </span>
         <Input
           ref={ref}
@@ -36,7 +34,6 @@ export const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
             const n = Number(next);
             if (!Number.isNaN(n)) onValueChange(n);
           }}
-          className="pl-12 text-right tabular-nums"
           {...props}
         />
       </div>

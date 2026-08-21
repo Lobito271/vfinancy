@@ -42,9 +42,9 @@ func main() {
 // target decides which database the command operates on. The default
 // is the local SQLite runtime database; "--postgres" (or "--cloud")
 // targets the cloud PostgreSQL mirror.
-func target(args []string) (dialect, dir string) {
+func target(args []string, cfg *config.Config) (dialect, dir string) {
 	dialect = "sqlite"
-	dir = "migrations/sqlite"
+	dir = cfg.Database.MigrationDir
 	for _, a := range args {
 		switch strings.TrimPrefix(a, "--") {
 		case "postgres", "cloud":
@@ -77,7 +77,7 @@ func openTarget(ctx context.Context, cfg *config.Config, log *logger.Logger, dia
 
 func runMigrations(cfg *config.Config, log *logger.Logger, args []string) {
 	ctx := context.Background()
-	dialect, dir := target(args)
+	dialect, dir := target(args, cfg)
 	persistence.SetDialect(persistence.Dialect(dialect))
 
 	db, err := openTarget(ctx, cfg, log, dialect)
@@ -96,7 +96,7 @@ func runMigrations(cfg *config.Config, log *logger.Logger, args []string) {
 
 func runStatus(cfg *config.Config, log *logger.Logger, args []string) {
 	ctx := context.Background()
-	dialect, dir := target(args)
+	dialect, dir := target(args, cfg)
 	persistence.SetDialect(persistence.Dialect(dialect))
 
 	db, err := openTarget(ctx, cfg, log, dialect)

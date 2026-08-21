@@ -15,7 +15,9 @@ type repository struct{ q persistence.Querier }
 
 func NewRepository(db *sql.DB) *repository { return &repository{q: persistence.FromDB(db)} }
 
-const companyColumns = `id, code, legal_name, trade_name, tax_id, address, phone, email,
+const companyColumns = `id, code, legal_name,
+ COALESCE(trade_name, ''), tax_id, COALESCE(address, ''), COALESCE(phone, ''),
+ COALESCE(email, ''),
  country_code, functional_currency_code, timezone, fiscal_year_start_month,
  is_active, created_at, updated_at, deleted_at`
 

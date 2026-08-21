@@ -13,7 +13,6 @@ import { AccountingPage } from '@/pages/AccountingPage';
 import { ReportsPage } from '@/pages/ReportsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { AdministrationPage } from '@/pages/AdministrationPage';
-import { LoginPage } from '@/pages/LoginPage';
 import { useThemeStore } from '@/stores/theme';
 
 export default function App() {
@@ -25,7 +24,6 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
       <Route element={<AppLayout />}>
         <Route index element={<DashboardPage />} />
         <Route path="clientes" element={<CustomersPage />} />

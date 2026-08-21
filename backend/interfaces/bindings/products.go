@@ -79,7 +79,7 @@ func (a *App) ListProducts(req ListProductsRequest) (PageResult, error) {
 		isActive = &v
 	}
 	filter := product.ProductFilter{
-		CompanyID:   &demoCompanyID,
+		CompanyID:   a.companyIDPtr(),
 		Search:      req.Search,
 		IsActive:    isActive,
 		PageRequest: req.toPageRequest(),
@@ -183,7 +183,7 @@ func (a *App) CreateProduct(req CreateProductRequest) (*ProductDTO, error) {
 		return nil, err
 	}
 	in := product.CreateInput{
-		CompanyID:    demoCompanyID,
+		CompanyID:    a.companyID(),
 		SKU:          sku,
 		Barcode:      barcode,
 		Description:  req.Description,

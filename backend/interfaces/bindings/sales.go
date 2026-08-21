@@ -15,61 +15,61 @@ import (
 
 // SaleItemDTO is a serializable sale line.
 type SaleItemDTO struct {
-	ID               string `json:"id"`
-	ProductID        string `json:"productId"`
-	LineNumber       int    `json:"lineNumber"`
-	Quantity         string `json:"quantity"`
-	UnitPrice        string `json:"unitPrice"`
-	DiscountPercent  string `json:"discountPercent"`
-	DiscountAmount   string `json:"discountAmount"`
-	TaxRate          string `json:"taxRate"`
-	TaxAmount        string `json:"taxAmount"`
-	CostSnapshot     string `json:"costSnapshot"`
-	Description      string `json:"description"`
+	ID              string `json:"id"`
+	ProductID       string `json:"productId"`
+	LineNumber      int    `json:"lineNumber"`
+	Quantity        string `json:"quantity"`
+	UnitPrice       string `json:"unitPrice"`
+	DiscountPercent string `json:"discountPercent"`
+	DiscountAmount  string `json:"discountAmount"`
+	TaxRate         string `json:"taxRate"`
+	TaxAmount       string `json:"taxAmount"`
+	CostSnapshot    string `json:"costSnapshot"`
+	Description     string `json:"description"`
 }
 
 // SaleDTO is the serializable view of a sale.
 type SaleDTO struct {
-	ID           string        `json:"id"`
-	Number       string        `json:"number"`
-	CustomerID   string        `json:"customerId"`
-	CustomerName string        `json:"customerName"`
-	Date         string        `json:"date"`
-	Status       string        `json:"status"`
-	Subtotal     string        `json:"subtotal"`
-	Tax          string        `json:"tax"`
-	Discount     string        `json:"discount"`
-	Total        string        `json:"total"`
-	Cost         string        `json:"cost"`
-	Profit       string        `json:"profit"`
-	Paid         string        `json:"paid"`
-	Balance      string        `json:"balance"`
+	ID           string         `json:"id"`
+	Number       string         `json:"number"`
+	CustomerID   string         `json:"customerId"`
+	CustomerName string         `json:"customerName"`
+	Date         string         `json:"date"`
+	Status       string         `json:"status"`
+	Subtotal     string         `json:"subtotal"`
+	Tax          string         `json:"tax"`
+	Discount     string         `json:"discount"`
+	Total        string         `json:"total"`
+	Cost         string         `json:"cost"`
+	Profit       string         `json:"profit"`
+	Paid         string         `json:"paid"`
+	Balance      string         `json:"balance"`
 	Items        []*SaleItemDTO `json:"items"`
 }
 
 // CustomerPaymentDTO is the serializable view of a customer payment.
 type CustomerPaymentDTO struct {
-	ID          string `json:"id"`
-	Number      string `json:"number"`
-	CustomerID  string `json:"customerId"`
-	PaymentDate string `json:"paymentDate"`
-	Amount      string `json:"amount"`
+	ID           string `json:"id"`
+	Number       string `json:"number"`
+	CustomerID   string `json:"customerId"`
+	PaymentDate  string `json:"paymentDate"`
+	Amount       string `json:"amount"`
 	CurrencyCode string `json:"currencyCode"`
-	Method      string `json:"method"`
-	Status      string `json:"status"`
-	Reference   string `json:"reference"`
-	Notes       string `json:"notes"`
+	Method       string `json:"method"`
+	Status       string `json:"status"`
+	Reference    string `json:"reference"`
+	Notes        string `json:"notes"`
 }
 
 // CustomerAdvanceDTO is the serializable view of a customer advance.
 type CustomerAdvanceDTO struct {
-	ID          string `json:"id"`
-	Number      string `json:"number"`
-	CustomerID  string `json:"customerId"`
-	AdvanceDate string `json:"advanceDate"`
-	Amount      string `json:"amount"`
+	ID           string `json:"id"`
+	Number       string `json:"number"`
+	CustomerID   string `json:"customerId"`
+	AdvanceDate  string `json:"advanceDate"`
+	Amount       string `json:"amount"`
 	CurrencyCode string `json:"currencyCode"`
-	Method      string `json:"method"`
+	Method       string `json:"method"`
 }
 
 func toSaleDTO(ctx context.Context, customers *customer.CustomerService, s *sales.Sale) *SaleDTO {
@@ -123,7 +123,7 @@ type ListSalesRequest struct {
 func (a *App) ListSales(req ListSalesRequest) (PageResult, error) {
 	ctx := a.Context()
 	filter := sales.SaleFilter{
-		CompanyID:   &demoCompanyID,
+		CompanyID:   a.companyIDPtr(),
 		Status:      req.Status,
 		PageRequest: req.toPageRequest(),
 	}
@@ -251,7 +251,7 @@ func (a *App) CreateSale(req CreateSaleRequest) (*SaleDTO, error) {
 		})
 	}
 	in := sales.CreateInput{
-		CompanyID:    demoCompanyID,
+		CompanyID:    a.companyID(),
 		Number:       "",
 		CustomerID:   cid,
 		CurrencyCode: cc,
@@ -320,7 +320,7 @@ func (a *App) RegisterSalePayment(req RegisterSalePaymentRequest) (*SaleDTO, err
 		method = enums.PaymentMethodCash
 	}
 	s, err := a.paymentSvc.MarkPaid(ctx, sid, customerpayments.MarkPaidInput{
-		CompanyID:   demoCompanyID,
+		CompanyID:   a.companyID(),
 		PaymentDate: pd,
 		Method:      method,
 		Reference:   req.Reference,
@@ -346,7 +346,7 @@ func (a *App) ListCustomerPayments(req ListCustomerPaymentsRequest) (PageResult,
 		return PageResult{}, err
 	}
 	filter := sales.CustomerPaymentFilter{
-		CompanyID:   &demoCompanyID,
+		CompanyID:   a.companyIDPtr(),
 		CustomerID:  &cid,
 		PageRequest: req.toPageRequest(),
 	}

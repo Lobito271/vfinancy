@@ -4,10 +4,13 @@ import type {
   AppSettingsDTO,
   BusinessInfoDTO,
   CancelPurchaseOrderRequest,
+  CompanyDTO,
+  CompanyRequest,
   CancelSaleRequest,
   ConnectionConfigDTO,
   CreateCustomerRequest,
   CreateJournalEntryRequest,
+  CreateLocalProfileRequest,
   CreateBankAccountRequest,
   CreateBankTransactionRequest,
   CreateChartOfAccountRequest,
@@ -28,7 +31,6 @@ import type {
   ListPurchaseOrdersRequest,
   ListSalesRequest,
   ListSuppliersRequest,
-  ProfileDTO,
   ReceiveStockRequest,
   RegisterPurchasePaymentRequest,
   RegisterSalePaymentRequest,
@@ -62,21 +64,53 @@ async function resolveBindings(): Promise<AppBindings> {
 }
 
 export const wailsClient = {
-  async login(username: string, password: string, remember: boolean) {
+  async getLocalAuthState() {
     const b = await resolveBindings();
-    return b.Login({ username, password, remember });
+    return b.GetLocalAuthState();
   },
-  async logout(token: string) {
+  async getLocalProfile() {
     const b = await resolveBindings();
-    return b.Logout(token);
+    return b.GetLocalProfile();
   },
-  async changePassword(currentPassword: string, newPassword: string, token: string) {
+  async initializeLocalProfile(req: CreateLocalProfileRequest) {
     const b = await resolveBindings();
-    return b.ChangePassword(currentPassword, newPassword, token);
+    return b.InitializeLocalProfile(req);
   },
-  async validateSession(token: string) {
+  async unlockLocalProfile(password: string) {
     const b = await resolveBindings();
-    return b.ValidateSession(token);
+    return b.UnlockLocalProfile(password);
+  },
+  async setLocalPassword(current: string, next: string) {
+    const b = await resolveBindings();
+    return b.SetLocalPassword(current, next);
+  },
+  async removeLocalPassword(current: string) {
+    const b = await resolveBindings();
+    return b.RemoveLocalPassword(current);
+  },
+  async lockLocalProfile() {
+    const b = await resolveBindings();
+    return b.LockLocalProfile();
+  },
+  async listCompanies(): Promise<CompanyDTO[]> {
+    const b = await resolveBindings();
+    return b.ListCompanies();
+  },
+  async getActiveCompany() {
+    const b = await resolveBindings();
+    return b.GetActiveCompany();
+  },
+  async setActiveCompany(id: string) {
+    const b = await resolveBindings();
+    return b.SetActiveCompany(id);
+  },
+  async createCompany(req: CompanyRequest) {
+    const b = await resolveBindings();
+    return b.CreateCompany(req);
+  },
+  async updateCompany(req: CompanyRequest) {
+    const b = await resolveBindings();
+    return b.UpdateCompany(req);
   },
   async getBusinessInfo() {
     const b = await resolveBindings();
@@ -105,14 +139,6 @@ export const wailsClient = {
   async getAllSettings() {
     const b = await resolveBindings();
     return b.GetAllSettings();
-  },
-  async getProfile(token: string) {
-    const b = await resolveBindings();
-    return b.GetProfile(token);
-  },
-  async updateProfile(token: string, profile: ProfileDTO) {
-    const b = await resolveBindings();
-    return b.UpdateProfile(token, profile);
   },
   async getAuditLog(page: number, pageSize: number, eventType: string) {
     const b = await resolveBindings();

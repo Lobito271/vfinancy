@@ -31,10 +31,6 @@ var (
 	// business invariant (e.g. trying to approve a paid purchase).
 	ErrConflict = derrors.New("CONFLICT", "services: conflict")
 
-	// ErrUnauthorized is returned when the user is not allowed to
-	// perform the requested operation.
-	ErrUnauthorized = derrors.New("UNAUTHORIZED", "services: not allowed")
-
 	// ErrInternal wraps unexpected errors from the lower layers.
 	// The original error is wrapped for debugging.
 	ErrInternal = derrors.New("INTERNAL", "services: internal error")

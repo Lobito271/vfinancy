@@ -69,7 +69,7 @@ func toBankTransactionDTO(t *treasury.BankTransaction) *BankTransactionDTO {
 func (a *App) ListBankAccounts() ([]*BankAccountDTO, error) {
 	ctx := a.Context()
 	filter := treasury.BankAccountFilter{
-		CompanyID: &demoCompanyID,
+		CompanyID: a.companyIDPtr(),
 	}
 	page, err := a.treasurySvc.ListAccounts(ctx, filter)
 	if err != nil {
@@ -118,7 +118,7 @@ func (a *App) CreateBankAccount(req CreateBankAccountRequest) (*BankAccountDTO, 
 		return nil, err
 	}
 	acc, err := a.treasurySvc.OpenAccount(ctx, treasury.OpenAccountInput{
-		CompanyID:     demoCompanyID,
+		CompanyID:     a.companyID(),
 		BankName:      req.BankName,
 		AccountNumber: req.AccountNumber,
 		AccountType:   req.AccountType,
@@ -180,9 +180,9 @@ func (a *App) DeleteBankAccount(id string) error {
 
 // ensureBankGLAccount returns the GL account used for bank movements,
 // creating the standard 104.01 current account when the chart of
-// accounts is empty (first-run / demo database).
+// accounts is empty during initial setup.
 func (a *App) ensureBankGLAccount(ctx context.Context) (uuid.UUID, error) {
-	accounts, err := a.accountingSvc.ListChartOfAccounts(ctx, demoCompanyID)
+	accounts, err := a.accountingSvc.ListChartOfAccounts(ctx, a.companyID())
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -196,7 +196,7 @@ func (a *App) ensureBankGLAccount(ctx context.Context) (uuid.UUID, error) {
 		return uuid.Nil, err
 	}
 	acc, err := a.accountingSvc.CreateChartOfAccounts(ctx, accounting.CreateChartOfAccountsInput{
-		CompanyID:      demoCompanyID,
+		CompanyID:      a.companyID(),
 		Code:           code,
 		Name:           "Cuentas corrientes en instituciones financieras",
 		Type:           enums.AccountTypeAsset,
@@ -212,7 +212,7 @@ func (a *App) ensureBankGLAccount(ctx context.Context) (uuid.UUID, error) {
 
 // ListBankTransactionsRequest lists transactions for an account.
 type ListBankTransactionsRequest struct {
-	AccountID string `json:"accountId"`
+	AccountID  string `json:"accountId"`
 	Reconciled *bool  `json:"reconciled"`
 	PaginationRequest
 }

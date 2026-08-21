@@ -2,18 +2,17 @@ package postgres_test
 
 import (
 	"context"
-	"encoding/json"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"vfinancy/backend/infrastructure/database"
-	"vfinancy/backend/internal/shared/logger"
 	"vfinancy/backend/infrastructure/migrations"
 	"vfinancy/backend/infrastructure/persistence"
 	"vfinancy/backend/infrastructure/sqlite"
 	"vfinancy/backend/internal/features/sync"
 	syncpostgres "vfinancy/backend/internal/features/sync/postgres"
+	"vfinancy/backend/internal/shared/logger"
 )
 
 const migrationDir = "../../../../../backend/migrations/sqlite"
@@ -176,46 +175,6 @@ func TestTombstonePropagation(t *testing.T) {
 	}
 	if len(propagated) != 1 || propagated[0].RecordID != "XXX" {
 		t.Fatalf("second device did not see the delete: %+v", propagated)
-	}
-}
-
-func TestCompositePKTombstone(t *testing.T) {
-	persistence.SetDialect(persistence.DialectSQLite)
-	ctx := context.Background()
-	db := newTestDB(t)
-	repo := syncpostgres.NewSyncRepository(db.DB)
-
-	var roleID, permissionCode string
-	if err := db.QueryRowContext(ctx, `SELECT role_id, permission_code FROM role_permissions LIMIT 1`).Scan(&roleID, &permissionCode); err != nil {
-		t.Fatalf("select role_permission: %v", err)
-	}
-	if _, err := db.ExecContext(ctx, `DELETE FROM role_permissions WHERE role_id = $1 AND permission_code = $2`, roleID, permissionCode); err != nil {
-		t.Fatalf("delete role_permission: %v", err)
-	}
-
-	tombs, err := repo.TombstonesSince(ctx, "role_permissions", 0)
-	if err != nil {
-		t.Fatalf("tombstones: %v", err)
-	}
-	if len(tombs) != 1 {
-		t.Fatalf("expected 1 tombstone, got %d", len(tombs))
-	}
-
-	meta := sync.LookupTable("role_permissions")
-	expected, err := meta.RecordID(map[string]any{"role_id": roleID, "permission_code": permissionCode})
-	if err != nil {
-		t.Fatalf("record id: %v", err)
-	}
-	if tombs[0].RecordID != expected {
-		t.Fatalf("tombstone record id = %q, want %q", tombs[0].RecordID, expected)
-	}
-
-	var vals []string
-	if err := json.Unmarshal([]byte(tombs[0].RecordID), &vals); err != nil {
-		t.Fatalf("composite id is not a JSON array: %v", err)
-	}
-	if len(vals) != 2 {
-		t.Fatalf("composite id has %d values, want 2", len(vals))
 	}
 }
 

@@ -1,12 +1,9 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from '@/layouts/AppLayout';
 import { Spinner } from '@/components/feedback';
 import { Providers } from './Providers';
-import { LoginPage } from '@/pages/LoginPage';
 import { useThemeStore } from '@/stores/theme';
-import { useSessionStore } from '@/stores/session';
-import { Routes as RoutePaths } from '@/constants/routes';
 
 const DashboardPage = lazy(() =>
   import('@/features/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })),
@@ -40,63 +37,13 @@ function ThemeInit() {
   return null;
 }
 
-function isSessionExpired(expiresAt: string | null): boolean {
-  if (!expiresAt) return true;
-  return new Date(expiresAt).getTime() <= Date.now();
-}
-
-function hasValidSession(
-  isAuthenticated: boolean,
-  token: string | null,
-  expiresAt: string | null,
-): boolean {
-  return isAuthenticated && Boolean(token) && !isSessionExpired(expiresAt);
-}
-
-function RequireAuth({ children }: { children: React.ReactNode }) {
-  const isAuthenticated = useSessionStore((s) => s.isAuthenticated);
-  const token = useSessionStore((s) => s.token);
-  const expiresAt = useSessionStore((s) => s.expiresAt);
-  const location = useLocation();
-
-  if (!hasValidSession(isAuthenticated, token, expiresAt)) {
-    return <Navigate to={RoutePaths.Login} replace state={{ from: location }} />;
-  }
-  return <>{children}</>;
-}
-
-function PublicOnly({ children }: { children: React.ReactNode }) {
-  const isAuthenticated = useSessionStore((s) => s.isAuthenticated);
-  const token = useSessionStore((s) => s.token);
-  const expiresAt = useSessionStore((s) => s.expiresAt);
-
-  if (hasValidSession(isAuthenticated, token, expiresAt)) {
-    return <Navigate to={RoutePaths.Dashboard} replace />;
-  }
-  return <>{children}</>;
-}
-
 export function App() {
   return (
     <Providers>
       <ThemeInit />
       <Suspense fallback={<PageLoader />}>
         <Routes>
-          <Route
-            path="/login"
-            element={
-              <PublicOnly>
-                <LoginPage />
-              </PublicOnly>
-            }
-          />
-          <Route
-            element={
-              <RequireAuth>
-                <AppLayout />
-              </RequireAuth>
-            }
-          >
+          <Route element={<AppLayout />}>
             <Route index element={<DashboardPage />} />
             <Route path="clientes" element={<CustomersPage />} />
             <Route path="proveedores" element={<SuppliersPage />} />

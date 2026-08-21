@@ -58,7 +58,7 @@ type ListSuppliersRequest struct {
 // ListSuppliers returns paged suppliers.
 func (a *App) ListSuppliers(req ListSuppliersRequest) (PageResult, error) {
 	filter := supplier.SupplierFilter{
-		CompanyID:   &demoCompanyID,
+		CompanyID:   a.companyIDPtr(),
 		Search:      req.Search,
 		Status:      req.Status,
 		PageRequest: req.toPageRequest(),
@@ -109,7 +109,7 @@ func (a *App) CreateSupplier(req CreateSupplierRequest) (*SupplierDTO, error) {
 		return nil, err
 	}
 	in := supplier.CreateInput{
-		CompanyID:       demoCompanyID,
+		CompanyID:       a.companyID(),
 		DocumentType:    enums.DocumentType(req.DocumentType),
 		DocumentNumber:  req.DocumentNumber,
 		BusinessName:    req.BusinessName,

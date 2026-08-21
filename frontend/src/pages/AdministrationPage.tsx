@@ -7,12 +7,12 @@ export function AdministrationPage() {
       title="Administración"
       subtitle="Configuración avanzada del sistema"
       icon={Shield}
-      description="Administre usuarios, roles, permisos y configuración avanzada del sistema."
+      description="Administre empresas y configuración avanzada del sistema."
       phase="Fase 2"
       features={[
-        'Gestión de usuarios (crear, editar, desactivar)',
-        'Roles y permisos (RBAC)',
-        'Auditoría de operaciones (login, logout, CRUD)',
+        'Gestión de empresas (crear, editar, desactivar)',
+        'Perfil local y contraseña opcional',
+        'Auditoría de operaciones empresariales',
         'Configuración de impuestos',
         'Respaldo y restauración',
         'Parámetros del sistema',

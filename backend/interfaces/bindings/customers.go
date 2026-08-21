@@ -58,7 +58,7 @@ type ListCustomersRequest struct {
 func (a *App) ListCustomers(req ListCustomersRequest) (PageResult, error) {
 	ctx := a.Context()
 	filter := customer.CustomerFilter{
-		CompanyID:   &demoCompanyID,
+		CompanyID:   a.companyIDPtr(),
 		Search:      req.Search,
 		Status:      req.Status,
 		PageRequest: req.toPageRequest(),
@@ -107,7 +107,7 @@ func (a *App) CreateCustomer(req CreateCustomerRequest) (*CustomerDTO, error) {
 		return nil, err
 	}
 	in := customer.CreateInput{
-		CompanyID:       demoCompanyID,
+		CompanyID:       a.companyID(),
 		DocumentType:    enums.DocumentType(req.DocumentType),
 		DocumentNumber:  req.DocumentNumber,
 		BusinessName:    req.BusinessName,

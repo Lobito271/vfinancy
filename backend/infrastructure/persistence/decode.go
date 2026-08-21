@@ -124,26 +124,6 @@ func ParsePurchaseStatus(s string) enums.PurchaseStatus {
 	return st
 }
 
-// --- UserStatus ---
-
-func ParseUserStatus(s string) enums.UserStatus {
-	st := enums.UserStatus(s)
-	if !st.Valid() {
-		return enums.UserStatus("")
-	}
-	return st
-}
-
-// --- RoleType ---
-
-func ParseRoleType(s string) enums.RoleType {
-	rt := enums.RoleType(s)
-	if !rt.Valid() {
-		return enums.RoleType("")
-	}
-	return rt
-}
-
 // --- AccountType ---
 
 func ParseAccountType(s string) enums.AccountType {

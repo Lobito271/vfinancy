@@ -60,7 +60,7 @@ type TaxDTO struct {
 func (a *App) GetBusinessInfo() (*BusinessInfoDTO, error) {
 	ctx := a.Context()
 
-	info, err := a.settingsSvc.GetBusinessInfo(ctx, demoCompanyID)
+	info, err := a.settingsSvc.GetBusinessInfo(ctx, a.companyID())
 	if err != nil {
 		return nil, err
 	}
@@ -89,13 +89,13 @@ func (a *App) UpdateBusinessInfo(info BusinessInfoDTO) error {
 		Logo:      info.Logo,
 	}
 
-	return a.settingsSvc.UpdateBusinessInfo(ctx, demoCompanyID, domainInfo, uuid.Nil)
+	return a.settingsSvc.UpdateBusinessInfo(ctx, a.companyID(), domainInfo, uuid.Nil)
 }
 
 func (a *App) GetPreferences() (*PreferencesDTO, error) {
 	ctx := a.Context()
 
-	prefs, err := a.settingsSvc.GetPreferences(ctx, demoCompanyID)
+	prefs, err := a.settingsSvc.GetPreferences(ctx, a.companyID())
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func (a *App) GetPreferences() (*PreferencesDTO, error) {
 
 func (a *App) UpdatePreference(key string, value string) error {
 	ctx := a.Context()
-	return a.settingsSvc.UpdatePreference(ctx, demoCompanyID, key, value, uuid.Nil)
+	return a.settingsSvc.UpdatePreference(ctx, a.companyID(), key, value, uuid.Nil)
 }
 
 func (a *App) GetCurrencies() ([]CurrencyDTO, error) {
@@ -174,7 +174,7 @@ func (a *App) GetTaxes() ([]TaxDTO, error) {
 func (a *App) GetAllSettings() (map[string]interface{}, error) {
 	ctx := a.Context()
 
-	raw, err := a.settingsSvc.GetAllSettings(ctx, demoCompanyID)
+	raw, err := a.settingsSvc.GetAllSettings(ctx, a.companyID())
 	if err != nil {
 		return nil, err
 	}

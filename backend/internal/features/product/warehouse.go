@@ -9,24 +9,23 @@ import (
 	"vfinancy/backend/internal/domain/valueobjects"
 )
 
-// Warehouse is a physical storage location. Each warehouse has a
-// default address and a manager (user).
+// Warehouse is a physical storage location with an optional manager reference.
 type Warehouse struct {
-	ID          uuid.UUID
-	CompanyID   uuid.UUID
-	BranchID    uuid.UUID
-	Code        valueobjects.ShortCode
-	Name        valueobjects.FullName
-	Address     valueobjects.Address
-	ManagerID   *uuid.UUID
-	IsDefault   bool
+	ID              uuid.UUID
+	CompanyID       uuid.UUID
+	BranchID        uuid.UUID
+	Code            valueobjects.ShortCode
+	Name            valueobjects.FullName
+	Address         valueobjects.Address
+	ManagerID       *uuid.UUID
+	IsDefault       bool
 	AllowsClearance bool
-	IsActive    bool
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	DeletedAt   *time.Time
-	CreatedBy   *uuid.UUID
-	UpdatedBy   *uuid.UUID
+	IsActive        bool
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	DeletedAt       *time.Time
+	CreatedBy       *uuid.UUID
+	UpdatedBy       *uuid.UUID
 }
 
 // NewWarehouseOptions is the input to NewWarehouse.

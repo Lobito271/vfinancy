@@ -1,21 +1,3 @@
-export interface LoginRequest {
-  username: string;
-  password: string;
-  remember: boolean;
-}
-
-export interface LoginResponse {
-  token: string;
-  expiresAt: string;
-  userId: string;
-  fullName: string;
-  email: string;
-  username: string;
-  roles: string[];
-  companyId: string;
-  mustChangePassword: boolean;
-}
-
 export interface BusinessInfoDTO {
   name: string;
   tradeName: string;
@@ -25,6 +7,48 @@ export interface BusinessInfoDTO {
   email: string;
   logo: string;
 }
+
+export interface LocalAuthStateDTO {
+  configured: boolean;
+  passwordEnabled: boolean;
+  unlocked: boolean;
+}
+
+export interface LocalProfileDTO {
+  id: string;
+  name: string;
+  passwordEnabled: boolean;
+  activeCompanyId: string;
+  theme: string;
+  language: string;
+  dateFormat: string;
+  numberFormat: string;
+  decimalPlaces: number;
+  timezone: string;
+}
+
+export interface CompanyDTO {
+  id: string;
+  code: string;
+  legalName: string;
+  tradeName: string;
+  taxId: string;
+  address: string;
+  phone: string;
+  email: string;
+  countryCode: string;
+  functionalCurrency: string;
+  timezone: string;
+  fiscalYearStartMonth: number;
+  isActive: boolean;
+}
+
+export interface CreateLocalProfileRequest {
+  name: string;
+  companyId: string;
+}
+
+export interface CompanyRequest extends CompanyDTO {}
 
 export interface PreferencesDTO {
   defaultCurrency: string;
@@ -62,22 +86,6 @@ export interface TaxDTO {
   isInclusive: boolean;
   isPercentage: boolean;
   category: string;
-  isActive: boolean;
-}
-
-export interface ProfileDTO {
-  userId: string;
-  fullName: string;
-  username: string;
-  email: string;
-  avatarUrl: string;
-  theme: string;
-  language: string;
-  dateFormat: string;
-  numberFormat: string;
-  decimalPlaces: number;
-  timezone: string;
-  lastLoginAt: string;
   isActive: boolean;
 }
 
@@ -700,10 +708,18 @@ export interface RegisterSalePaymentRequest {
 }
 
 export interface AppBindings {
-  Login(req: LoginRequest): Promise<LoginResponse>;
-  Logout(sessionToken: string): Promise<void>;
-  ChangePassword(currentPassword: string, newPassword: string, sessionToken: string): Promise<void>;
-  ValidateSession(sessionToken: string): Promise<boolean>;
+  GetLocalAuthState(): Promise<LocalAuthStateDTO>;
+  GetLocalProfile(): Promise<LocalProfileDTO>;
+  InitializeLocalProfile(req: CreateLocalProfileRequest): Promise<LocalProfileDTO>;
+  UnlockLocalProfile(password: string): Promise<void>;
+  SetLocalPassword(current: string, next: string): Promise<void>;
+  RemoveLocalPassword(current: string): Promise<void>;
+  LockLocalProfile(): Promise<void>;
+  ListCompanies(): Promise<CompanyDTO[]>;
+  GetActiveCompany(): Promise<CompanyDTO>;
+  SetActiveCompany(id: string): Promise<void>;
+  CreateCompany(req: CompanyRequest): Promise<CompanyDTO>;
+  UpdateCompany(req: CompanyRequest): Promise<CompanyDTO>;
 
   GetBusinessInfo(): Promise<BusinessInfoDTO>;
   UpdateBusinessInfo(info: BusinessInfoDTO): Promise<void>;
@@ -713,8 +729,6 @@ export interface AppBindings {
   GetTaxes(): Promise<TaxDTO[]>;
   GetAllSettings(): Promise<Record<string, unknown>>;
 
-  GetProfile(sessionToken: string): Promise<ProfileDTO>;
-  UpdateProfile(sessionToken: string, profile: ProfileDTO): Promise<void>;
   GetAuditLog(page: number, pageSize: number, eventType: string): Promise<AuditLogResult>;
 
   GetConnectionConfig(): Promise<ConnectionConfigDTO>;

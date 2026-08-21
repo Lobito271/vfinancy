@@ -1,7 +1,4 @@
-import { useNavigate } from 'react-router-dom';
-import { ChevronsUpDown, LogOut, User as UserIcon } from 'lucide-react';
 import { useThemeStore, type Theme } from '@/stores/theme';
-import { useSessionStore } from '@/stores/session';
 import { useUIStore } from '@/stores/ui';
 import { Button } from '@/components/button';
 import { SearchInput } from '@/components/input';
@@ -10,7 +7,6 @@ import { Icons } from '@/design-system/icons';
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -27,11 +23,8 @@ const themeIcons: Record<Theme, typeof Icons.Theme.Sun> = {
 export function Topbar() {
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
-  const user = useSessionStore((s) => s.user);
-  const logout = useSessionStore((s) => s.logout);
   const search = useUIStore((s) => s.globalSearch);
   const setSearch = useUIStore((s) => s.setGlobalSearch);
-  const navigate = useNavigate();
 
   const ThemeIcon = themeIcons[theme];
 
@@ -109,48 +102,6 @@ export function Topbar() {
 
         <div className="mx-2 h-6 w-px bg-border" aria-hidden="true" />
 
-        {user && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">
-                  {user.fullName
-                    .split(' ')
-                    .map((p) => p[0])
-                    .slice(0, 2)
-                    .join('')}
-                </div>
-                <div className="hidden text-left sm:block">
-                  <p className="text-sm font-medium leading-tight">{user.fullName}</p>
-                  <p className="text-xs text-muted-foreground leading-tight">{user.company}</p>
-                </div>
-                <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>Mi cuenta</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => navigate('/configuracion')}>
-                <UserIcon className="mr-2 h-4 w-4" />
-                Mi perfil
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => navigate('/configuracion')}>
-                Configuración
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onSelect={() => {
-                  logout();
-                  navigate('/login');
-                }}
-                className="text-destructive focus:text-destructive"
-              >
-                <LogOut className="mr-2 h-4 w-4" />
-                Cerrar sesión
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
       </div>
     </header>
   );

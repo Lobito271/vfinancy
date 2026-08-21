@@ -48,8 +48,7 @@ func (a Address) Equals(other Address) bool {
 	return true
 }
 
-// FullName is a non-empty, trimmed person name. Stored once on User
-// and on customer/supplier contacts.
+// FullName is a non-empty, trimmed person name used by local and business contacts.
 type FullName struct {
 	value string
 }
@@ -74,7 +73,7 @@ func MustFullName(s string) FullName {
 	return n
 }
 
-func (n FullName) String() string         { return n.value }
+func (n FullName) String() string             { return n.value }
 func (n FullName) Equals(other FullName) bool { return n.value == other.value }
 
 // LotNumber is the optional supplier/manufacturer lot code.
@@ -88,12 +87,12 @@ func NewLotNumber(s string) (LotNumber, error) {
 	return LotNumber(s), nil
 }
 
-func (l LotNumber) String() string  { return string(l) }
-func (l LotNumber) IsEmpty() bool    { return string(l) == "" }
+func (l LotNumber) String() string { return string(l) }
+func (l LotNumber) IsEmpty() bool  { return string(l) == "" }
 
 // ShortCode is a generic short identifier (1..20 chars, uppercase,
 // letters/digits/dots/dashes). Used for company codes, branch codes,
-// role codes, etc.
+// company and branch codes.
 type ShortCode string
 
 func NewShortCode(s string) (ShortCode, error) {
@@ -115,7 +114,7 @@ func NewShortCode(s string) (ShortCode, error) {
 }
 
 func (s ShortCode) String() string { return string(s) }
-func (s ShortCode) IsEmpty() bool { return string(s) == "" }
+func (s ShortCode) IsEmpty() bool  { return string(s) == "" }
 
 // Date is an inclusive day (no time, no timezone). It is the same Go
 // type as time.Time but the constructors reject time-of-day input.

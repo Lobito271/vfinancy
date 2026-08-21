@@ -28,7 +28,7 @@ const ClearanceDays = 25
 
 // Batch statuses. "active" is sellable; "depleted" has no remaining
 // stock; "written_off" was zeroed by damage/expiry; "voided" was a
-// mistaken receipt cancelled by the user (the row is kept for audit).
+// mistaken receipt cancelled by the operator (the row is kept for audit).
 const (
 	InventoryBatchStatusActive     = "active"
 	InventoryBatchStatusDepleted   = "depleted"
@@ -40,25 +40,25 @@ const (
 // the same arrival date, lot and (optionally) supplier. Each batch
 // tracks its own quantity and its clearance deadline.
 type InventoryBatch struct {
-	ID               uuid.UUID
-	CompanyID        uuid.UUID
-	ProductID        uuid.UUID
-	WarehouseID      uuid.UUID
-	SupplierID       *uuid.UUID
-	PurchaseLineID   *uuid.UUID
-	LotNumber        valueobjects.LotNumber
-	SerialNumber     string
-	ArrivalDate      valueobjects.Date
-	ExpiryDate       *valueobjects.Date
-	InitialQuantity  valueobjects.Quantity
-	CurrentQuantity  valueobjects.Quantity
-	UnitCost         valueobjects.Money
-	CurrencyCode     valueobjects.CurrencyCode
-	Status           string
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
-	CreatedBy        *uuid.UUID
-	UpdatedBy        *uuid.UUID
+	ID              uuid.UUID
+	CompanyID       uuid.UUID
+	ProductID       uuid.UUID
+	WarehouseID     uuid.UUID
+	SupplierID      *uuid.UUID
+	PurchaseLineID  *uuid.UUID
+	LotNumber       valueobjects.LotNumber
+	SerialNumber    string
+	ArrivalDate     valueobjects.Date
+	ExpiryDate      *valueobjects.Date
+	InitialQuantity valueobjects.Quantity
+	CurrentQuantity valueobjects.Quantity
+	UnitCost        valueobjects.Money
+	CurrencyCode    valueobjects.CurrencyCode
+	Status          string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	CreatedBy       *uuid.UUID
+	UpdatedBy       *uuid.UUID
 }
 
 // NewInventoryBatchOptions is the input to NewInventoryBatch.

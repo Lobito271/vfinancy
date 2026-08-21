@@ -1,3 +1,0 @@
--- 0036_seed_transactions.down.sql (SQLite)
--- DISABLED: the matching .up migration is a no-op, so there is nothing
--- to clean up. Kept in sync with the disabled up migration.

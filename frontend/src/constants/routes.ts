@@ -9,9 +9,7 @@ export const Routes = {
   Sales: '/ventas',
   Treasury: '/tesoreria',
   Accounting: '/contabilidad',
-  Reports: '/reportes',
   Settings: '/configuracion',
-  Administration: '/administracion',
 } as const;
 
 export type RouteKey = keyof typeof Routes;

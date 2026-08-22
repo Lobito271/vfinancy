@@ -39,6 +39,7 @@ import type {
   UpdateBrandRequest,
   UpdateChartOfAccountRequest,
   UpdateCustomerRequest,
+  UpdateLocalProfileRequest,
   UpdateProductRequest,
   UpdateSupplierRequest,
   UpsertExchangeRateRequest,
@@ -75,6 +76,10 @@ export const wailsClient = {
   async initializeLocalProfile(req: CreateLocalProfileRequest) {
     const b = await resolveBindings();
     return b.InitializeLocalProfile(req);
+  },
+  async updateLocalProfile(req: UpdateLocalProfileRequest) {
+    const b = await resolveBindings();
+    return b.UpdateLocalProfile(req);
   },
   async unlockLocalProfile(password: string) {
     const b = await resolveBindings();

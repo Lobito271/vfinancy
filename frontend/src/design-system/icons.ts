@@ -57,6 +57,7 @@ import {
   HelpCircle,
   Inbox,
   Loader2,
+  Globe,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -139,6 +140,7 @@ export const Icons = {
   Check,
   Bell,
   Loading: Loader2,
+  Globe,
 } as const;
 
 export type IconName =
@@ -152,7 +154,7 @@ export type IconName =
   | `Math.${keyof typeof Icons.Math}`
   | 'Check'
   | 'Bell'
-  | 'Loading';
+   | 'Loading';
 
 export function getIcon(name: IconName): LucideIcon {
   if (name.includes('.')) {

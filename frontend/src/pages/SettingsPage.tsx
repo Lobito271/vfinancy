@@ -1,122 +1,121 @@
-import { useThemeStore } from '@/stores/theme';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { z } from 'zod';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card';
+import { Button } from '@/components/button';
+import { EmailField, Form, NumberField, TextField, TextareaField } from '@/components/form';
 import { Label } from '@/components/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select';
 import { PageContainer, PageHeader, Section } from '@/components/layout';
-import { Sun, Moon, Monitor, Building2, Globe, Bell } from 'lucide-react';
-import type { Theme } from '@/stores/theme';
+import { Icons } from '@/design-system/icons';
+import { wailsClient } from '@/services/bindings';
+import { useThemeStore, type Theme } from '@/stores/theme';
+
+const businessSchema = z.object({
+  name: z.string().trim().min(2, 'Ingresa la razón social.'),
+  tradeName: z.string().trim(),
+  taxId: z.string().trim().min(8, 'Ingresa el número fiscal.'),
+  address: z.string().trim(),
+  phone: z.string().trim(),
+  email: z.string().trim().email('Ingresa un correo válido.'),
+});
+
+const preferenceSchema = z.object({
+  clearanceDays: z.coerce.number().int().positive(),
+  clearanceWarningDays: z.coerce.number().int().nonnegative(),
+  saleNumberPrefix: z.string().trim().min(1),
+  purchaseNumberPrefix: z.string().trim().min(1),
+  journalNumberPrefix: z.string().trim().min(1),
+});
+
+type BusinessValues = z.infer<typeof businessSchema>;
+type PreferenceValues = z.infer<typeof preferenceSchema>;
 
 export function SettingsPage() {
-  const theme = useThemeStore((s) => s.theme);
-  const setTheme = useThemeStore((s) => s.setTheme);
+  const queryClient = useQueryClient();
+  const theme = useThemeStore((state) => state.theme);
+  const setTheme = useThemeStore((state) => state.setTheme);
+  const business = useQuery({ queryKey: ['settings', 'business'], queryFn: () => wailsClient.getBusinessInfo() });
+  const preferences = useQuery({ queryKey: ['settings', 'preferences'], queryFn: () => wailsClient.getPreferences() });
+  const profile = useQuery({ queryKey: ['settings', 'profile'], queryFn: () => wailsClient.getLocalProfile() });
+  const saveBusiness = useMutation({
+    mutationFn: (values: BusinessValues) => wailsClient.updateBusinessInfo({ ...values, logo: business.data?.logo ?? '' }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings', 'business'] }),
+  });
+  const savePreferences = useMutation({
+    mutationFn: async (values: PreferenceValues) => {
+      await wailsClient.updatePreference('clearance_days', String(values.clearanceDays));
+      await wailsClient.updatePreference('clearance_warning_days', String(values.clearanceWarningDays));
+      await wailsClient.updatePreference('sale_number_prefix', values.saleNumberPrefix);
+      await wailsClient.updatePreference('purchase_number_prefix', values.purchaseNumberPrefix);
+      await wailsClient.updatePreference('journal_number_prefix', values.journalNumberPrefix);
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings', 'preferences'] }),
+  });
+  const saveProfile = useMutation({
+    mutationFn: (nextTheme: Theme) => wailsClient.updateLocalProfile({
+      name: profile.data?.name ?? '', theme: nextTheme, language: profile.data?.language ?? 'es-PE',
+      dateFormat: profile.data?.dateFormat ?? 'DD/MM/YYYY', numberFormat: profile.data?.numberFormat ?? 'es-PE',
+      decimalPlaces: profile.data?.decimalPlaces ?? 2, timezone: profile.data?.timezone ?? 'America/Lima',
+    }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings', 'profile'] }),
+  });
+
+  if (business.isLoading || preferences.isLoading || profile.isLoading) {
+    return <div className="page-loader"><span className="loader-bar" /></div>;
+  }
 
   return (
     <PageContainer>
-      <PageHeader
-        title="Configuración"
-        subtitle="Preferencias generales del sistema"
-      />
-
-      <Section title="Empresa" description="Información de la empresa actual">
-        <Card>
-          <CardHeader>
-            <div className="hstack hstack--md">
-              <Building2 className="icon-md muted" aria-hidden="true" />
-              <div>
-                <CardTitle>Datos de la empresa</CardTitle>
-                <CardDescription>Información general del negocio</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
+      <PageHeader title="Configuración" subtitle="Administra la información y las reglas de tu empresa." />
+      <Section title="Empresa" description="Estos datos aparecen en tus documentos y reportes.">
+        {business.data && <Card>
+          <CardHeader><CardTitle>Información fiscal</CardTitle><CardDescription>Datos principales de la empresa activa.</CardDescription></CardHeader>
           <CardContent>
-            <p className="desc-text">
-              La edición de datos de la empresa estará disponible en una fase posterior.
-            </p>
-          </CardContent>
-        </Card>
-      </Section>
-
-      <Section title="Apariencia" description="Tema y preferencias visuales">
-        <Card>
-          <CardHeader>
-            <div className="hstack hstack--md">
-              <Sun className="icon-md muted" aria-hidden="true" />
-              <div>
-                <CardTitle>Tema</CardTitle>
-                <CardDescription>Seleccione el tema visual del sistema</CardDescription>
+            <Form<BusinessValues> schema={businessSchema} defaultValues={business.data} onSubmit={(values) => saveBusiness.mutate(values)}>
+              <div className="form-grid">
+                <TextField name="name" label="Razón social" required />
+                <TextField name="tradeName" label="Nombre comercial" />
+                <TextField name="taxId" label="RUC o identificación fiscal" required />
+                <EmailField name="email" label="Correo" required />
+                <TextField name="phone" label="Teléfono" type="tel" />
+                <TextareaField name="address" label="Dirección" className="form-grid__wide" />
               </div>
-            </div>
-          </CardHeader>
-          <CardContent className="stack stack--lg">
-            <div className="stack stack--sm">
-              <Label htmlFor="theme">Tema de la aplicación</Label>
-              <Select value={theme} onValueChange={(v) => setTheme(v as Theme)}>
-                <SelectTrigger id="theme" style={{ width: "16rem" }}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="light">
-                    <span className="hstack hstack--sm">
-                      <Sun className="icon-sm" /> Claro
-                    </span>
-                  </SelectItem>
-                  <SelectItem value="dark">
-                    <span className="hstack hstack--sm">
-                      <Moon className="icon-sm" /> Oscuro
-                    </span>
-                  </SelectItem>
-                  <SelectItem value="system">
-                    <span className="hstack hstack--sm">
-                      <Monitor className="icon-sm" /> Sistema
-                    </span>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+              <div className="form-actions"><Button type="submit" loading={saveBusiness.isPending}><Icons.Action.Save /> Guardar empresa</Button></div>
+            </Form>
           </CardContent>
-        </Card>
+        </Card>}
       </Section>
-
-      <Section title="Idioma y región" description="Configuración regional">
-        <Card>
-          <CardHeader>
-            <div className="hstack hstack--md">
-              <Globe className="icon-md muted" aria-hidden="true" />
-              <div>
-                <CardTitle>Idioma</CardTitle>
-                <CardDescription>Idioma de la interfaz</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
+      <Section title="Reglas operativas" description="Valores usados para alertas y numeración.">
+        {preferences.data && <Card>
+          <CardHeader><CardTitle>Preferencias de operación</CardTitle><CardDescription>Configura el remate de inventario y los prefijos documentales.</CardDescription></CardHeader>
           <CardContent>
-            <p className="desc-text">
-              Español (Perú) — es-PE. La selección de otros idiomas se habilitará en versiones futuras.
-            </p>
-          </CardContent>
-        </Card>
-      </Section>
-
-      <Section title="Notificaciones" description="Preferencias de alertas">
-        <Card>
-          <CardHeader>
-            <div className="hstack hstack--md">
-              <Bell className="icon-md muted" aria-hidden="true" />
-              <div>
-                <CardTitle>Alertas del sistema</CardTitle>
-                <CardDescription>Configure qué alertas desea recibir</CardDescription>
+            <Form<PreferenceValues> schema={preferenceSchema} defaultValues={{
+              clearanceDays: preferences.data.clearanceDays, clearanceWarningDays: preferences.data.clearanceWarningDays,
+              saleNumberPrefix: preferences.data.saleNumberPrefix, purchaseNumberPrefix: preferences.data.purchaseNumberPrefix,
+              journalNumberPrefix: preferences.data.journalNumberPrefix,
+            }} onSubmit={(values) => savePreferences.mutate(values)}>
+              <div className="form-grid">
+                <NumberField name="clearanceDays" label="Días hasta remate" required min={1} />
+                <NumberField name="clearanceWarningDays" label="Aviso anticipado" required min={0} />
+                <TextField name="saleNumberPrefix" label="Prefijo de ventas" required />
+                <TextField name="purchaseNumberPrefix" label="Prefijo de compras" required />
+                <TextField name="journalNumberPrefix" label="Prefijo de asientos" required />
               </div>
-            </div>
-          </CardHeader>
+              <div className="form-actions"><Button type="submit" loading={savePreferences.isPending}><Icons.Action.Save /> Guardar reglas</Button></div>
+            </Form>
+          </CardContent>
+        </Card>}
+      </Section>
+      <Section title="Perfil local" description="Preferencias de este dispositivo.">
+        <Card>
+          <CardHeader><CardTitle>Apariencia y región</CardTitle><CardDescription>Solo afecta a tu perfil local.</CardDescription></CardHeader>
           <CardContent>
-            <p className="desc-text">
-              La configuración detallada de notificaciones se habilitará en una fase posterior.
-            </p>
+            <div className="settings-preferences">
+              <div className="field"><Label htmlFor="theme">Tema</Label><Select value={theme} onValueChange={(value) => { const next = value as Theme; setTheme(next); saveProfile.mutate(next); }}><SelectTrigger id="theme"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="light">Claro</SelectItem><SelectItem value="dark">Oscuro</SelectItem><SelectItem value="system">Sistema</SelectItem></SelectContent></Select></div>
+              <div className="settings-preferences__item"><span className="settings-preferences__label">Perfil</span><strong>{profile.data?.name}</strong></div>
+              <div className="settings-preferences__item"><span className="settings-preferences__label">Zona horaria</span><strong>{profile.data?.timezone}</strong></div>
+              <div className="settings-preferences__item"><span className="settings-preferences__label">Idioma</span><strong>{profile.data?.language}</strong></div>
+            </div>
           </CardContent>
         </Card>
       </Section>

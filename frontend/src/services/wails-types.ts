@@ -48,6 +48,16 @@ export interface CreateLocalProfileRequest {
   companyId: string;
 }
 
+export interface UpdateLocalProfileRequest {
+  name: string;
+  theme: string;
+  language: string;
+  dateFormat: string;
+  numberFormat: string;
+  decimalPlaces: number;
+  timezone: string;
+}
+
 export interface CompanyRequest extends CompanyDTO {}
 
 export interface PreferencesDTO {
@@ -65,6 +75,11 @@ export interface PreferencesDTO {
   backupFolder: string;
   exportFolder: string;
   backupFrequency: string;
+  clearanceDays: number;
+  clearanceWarningDays: number;
+  saleNumberPrefix: string;
+  purchaseNumberPrefix: string;
+  journalNumberPrefix: string;
 }
 
 export interface CurrencyDTO {
@@ -711,6 +726,7 @@ export interface AppBindings {
   GetLocalAuthState(): Promise<LocalAuthStateDTO>;
   GetLocalProfile(): Promise<LocalProfileDTO>;
   InitializeLocalProfile(req: CreateLocalProfileRequest): Promise<LocalProfileDTO>;
+  UpdateLocalProfile(req: UpdateLocalProfileRequest): Promise<LocalProfileDTO>;
   UnlockLocalProfile(password: string): Promise<void>;
   SetLocalPassword(current: string, next: string): Promise<void>;
   RemoveLocalPassword(current: string): Promise<void>;

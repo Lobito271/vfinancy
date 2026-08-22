@@ -1,11 +1,11 @@
 import { Link, NavLink } from 'react-router-dom';
-import { ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { cx } from '@/utils/cx';
 import { navRoutes } from '@/lib/nav';
 import { useSidebarStore } from '@/stores/sidebar';
 import { Button } from '@/components/button';
 import { Can } from '@/components/auth';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/misc';
+import { Icons } from '@/design-system/icons';
 
 export function Sidebar() {
   const collapsed = useSidebarStore((s) => s.collapsed);
@@ -74,10 +74,10 @@ export function Sidebar() {
           className={cx('sidebar__toggle', !collapsed && 'btn--justify-start')}
         >
           {collapsed ? (
-            <ChevronsRight />
+            <Icons.Direction.ChevronsRight />
           ) : (
             <>
-              <ChevronsLeft />
+              <Icons.Direction.ChevronsLeft />
               <span>Colapsar</span>
             </>
           )}

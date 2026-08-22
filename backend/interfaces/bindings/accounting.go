@@ -57,6 +57,17 @@ type FiscalPeriodDTO struct {
 	Status      string `json:"status"`
 }
 
+type TrialBalanceRowDTO struct {
+	AccountID      string `json:"accountId"`
+	AccountCode    string `json:"accountCode"`
+	AccountName    string `json:"accountName"`
+	AccountType    string `json:"accountType"`
+	OpeningBalance string `json:"openingBalance"`
+	DebitTotal     string `json:"debitTotal"`
+	CreditTotal    string `json:"creditTotal"`
+	ClosingBalance string `json:"closingBalance"`
+}
+
 func toFiscalPeriodDTO(p *accounting.FiscalPeriod) *FiscalPeriodDTO {
 	return &FiscalPeriodDTO{
 		ID:          p.ID.String(),
@@ -254,6 +265,26 @@ func (a *App) ListFiscalPeriods() ([]*FiscalPeriodDTO, error) {
 		items = append(items, toFiscalPeriodDTO(p))
 	}
 	return items, nil
+}
+
+func (a *App) GetTrialBalance(fiscalPeriodID string) ([]*TrialBalanceRowDTO, error) {
+	periodID, err := uuid.Parse(fiscalPeriodID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := a.accountingSvc.TrialBalance(a.Context(), periodID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*TrialBalanceRowDTO, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, &TrialBalanceRowDTO{
+			AccountID: row.AccountID.String(), AccountCode: row.AccountCode, AccountName: row.AccountName,
+			AccountType: row.AccountType, OpeningBalance: row.OpeningBalance, DebitTotal: row.DebitTotal,
+			CreditTotal: row.CreditTotal, ClosingBalance: row.ClosingBalance,
+		})
+	}
+	return result, nil
 }
 
 // resolveChartParent returns the parent account for a given parent ID

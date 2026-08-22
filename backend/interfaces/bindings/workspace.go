@@ -93,6 +93,24 @@ func (a *App) GetLocalProfile() (*LocalProfileDTO, error) {
 	return localProfileDTO(p), nil
 }
 
+type UpdateLocalProfileRequest struct {
+	Name          string `json:"name"`
+	Theme         string `json:"theme"`
+	Language      string `json:"language"`
+	DateFormat    string `json:"dateFormat"`
+	NumberFormat  string `json:"numberFormat"`
+	DecimalPlaces int    `json:"decimalPlaces"`
+	Timezone      string `json:"timezone"`
+}
+
+func (a *App) UpdateLocalProfile(req UpdateLocalProfileRequest) (*LocalProfileDTO, error) {
+	p, err := a.workspaceSvc.UpdateProfile(a.rawContext(), req.Name, req.Theme, req.Language, req.DateFormat, req.NumberFormat, req.Timezone, req.DecimalPlaces)
+	if err != nil {
+		return nil, err
+	}
+	return localProfileDTO(p), nil
+}
+
 func (a *App) InitializeLocalProfile(req CreateLocalProfileRequest) (*LocalProfileDTO, error) {
 	companyID, err := uuid.Parse(req.CompanyID)
 	if err != nil {

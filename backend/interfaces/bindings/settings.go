@@ -19,20 +19,25 @@ type BusinessInfoDTO struct {
 }
 
 type PreferencesDTO struct {
-	DefaultCurrency string `json:"defaultCurrency"`
-	DefaultTaxCode  string `json:"defaultTaxCode"`
-	ExpiryAlertDays int    `json:"expiryAlertDays"`
-	DefaultCountry  string `json:"defaultCountry"`
-	DateFormat      string `json:"dateFormat"`
-	NumberFormat    string `json:"numberFormat"`
-	DecimalPlaces   int    `json:"decimalPlaces"`
-	Language        string `json:"language"`
-	Theme           string `json:"theme"`
-	Timezone        string `json:"timezone"`
-	FiscalYearStart int    `json:"fiscalYearStart"`
-	BackupFolder    string `json:"backupFolder"`
-	ExportFolder    string `json:"exportFolder"`
-	BackupFrequency string `json:"backupFrequency"`
+	DefaultCurrency      string `json:"defaultCurrency"`
+	DefaultTaxCode       string `json:"defaultTaxCode"`
+	ExpiryAlertDays      int    `json:"expiryAlertDays"`
+	DefaultCountry       string `json:"defaultCountry"`
+	DateFormat           string `json:"dateFormat"`
+	NumberFormat         string `json:"numberFormat"`
+	DecimalPlaces        int    `json:"decimalPlaces"`
+	Language             string `json:"language"`
+	Theme                string `json:"theme"`
+	Timezone             string `json:"timezone"`
+	FiscalYearStart      int    `json:"fiscalYearStart"`
+	BackupFolder         string `json:"backupFolder"`
+	ExportFolder         string `json:"exportFolder"`
+	BackupFrequency      string `json:"backupFrequency"`
+	ClearanceDays        int    `json:"clearanceDays"`
+	ClearanceWarningDays int    `json:"clearanceWarningDays"`
+	SaleNumberPrefix     string `json:"saleNumberPrefix"`
+	PurchaseNumberPrefix string `json:"purchaseNumberPrefix"`
+	JournalNumberPrefix  string `json:"journalNumberPrefix"`
 }
 
 type CurrencyDTO struct {
@@ -101,20 +106,25 @@ func (a *App) GetPreferences() (*PreferencesDTO, error) {
 	}
 
 	return &PreferencesDTO{
-		DefaultCurrency: prefs.DefaultCurrency,
-		DefaultTaxCode:  prefs.DefaultTaxCode,
-		ExpiryAlertDays: prefs.ExpiryAlertDays,
-		DefaultCountry:  prefs.DefaultCountry,
-		DateFormat:      prefs.DateFormat,
-		NumberFormat:    prefs.NumberFormat,
-		DecimalPlaces:   prefs.DecimalPlaces,
-		Language:        prefs.Language,
-		Theme:           prefs.Theme,
-		Timezone:        prefs.Timezone,
-		FiscalYearStart: prefs.FiscalYearStart,
-		BackupFolder:    prefs.BackupFolder,
-		ExportFolder:    prefs.ExportFolder,
-		BackupFrequency: prefs.BackupFrequency,
+		DefaultCurrency:      prefs.DefaultCurrency,
+		DefaultTaxCode:       prefs.DefaultTaxCode,
+		ExpiryAlertDays:      prefs.ExpiryAlertDays,
+		DefaultCountry:       prefs.DefaultCountry,
+		DateFormat:           prefs.DateFormat,
+		NumberFormat:         prefs.NumberFormat,
+		DecimalPlaces:        prefs.DecimalPlaces,
+		Language:             prefs.Language,
+		Theme:                prefs.Theme,
+		Timezone:             prefs.Timezone,
+		FiscalYearStart:      prefs.FiscalYearStart,
+		BackupFolder:         prefs.BackupFolder,
+		ExportFolder:         prefs.ExportFolder,
+		BackupFrequency:      prefs.BackupFrequency,
+		ClearanceDays:        prefs.ClearanceDays,
+		ClearanceWarningDays: prefs.ClearanceWarningDays,
+		SaleNumberPrefix:     prefs.SaleNumberPrefix,
+		PurchaseNumberPrefix: prefs.PurchaseNumberPrefix,
+		JournalNumberPrefix:  prefs.JournalNumberPrefix,
 	}, nil
 }
 

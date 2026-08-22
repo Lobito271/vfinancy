@@ -38,6 +38,22 @@ type BankTransactionDTO struct {
 	IsReconciled bool   `json:"isReconciled"`
 }
 
+type CreditCardDTO struct {
+	ID              string `json:"id"`
+	Issuer          string `json:"issuer"`
+	LastFour        string `json:"lastFour"`
+	CardHolder      string `json:"cardHolder"`
+	ExpirationMonth int    `json:"expirationMonth"`
+	ExpirationYear  int    `json:"expirationYear"`
+	CreditLimit     string `json:"creditLimit"`
+	CurrentBalance  string `json:"currentBalance"`
+	AvailableCredit string `json:"availableCredit"`
+	CutOffDay       int    `json:"cutOffDay"`
+	PaymentDueDay   int    `json:"paymentDueDay"`
+	CurrencyCode    string `json:"currencyCode"`
+	IsActive        bool   `json:"isActive"`
+}
+
 func toBankAccountDTO(a *treasury.BankAccount) *BankAccountDTO {
 	return &BankAccountDTO{
 		ID:             a.ID.String(),
@@ -63,6 +79,93 @@ func toBankTransactionDTO(t *treasury.BankTransaction) *BankTransactionDTO {
 		Reference:    t.Reference,
 		IsReconciled: t.IsReconciled,
 	}
+}
+
+func toCreditCardDTO(c *treasury.CreditCard) *CreditCardDTO {
+	return &CreditCardDTO{
+		ID: c.ID.String(), Issuer: c.Issuer, LastFour: c.LastFour, CardHolder: c.CardHolder,
+		ExpirationMonth: c.ExpirationMonth, ExpirationYear: c.ExpirationYear,
+		CreditLimit: c.CreditLimit.String(), CurrentBalance: c.CurrentBalance.String(),
+		AvailableCredit: c.AvailableCredit().String(), CutOffDay: c.CutOffDay,
+		PaymentDueDay: c.PaymentDueDay, CurrencyCode: c.CurrencyCode.String(), IsActive: c.IsActive,
+	}
+}
+
+func (a *App) ListCreditCards() ([]*CreditCardDTO, error) {
+	cards, err := a.treasurySvc.ListCards(a.Context(), a.companyID())
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*CreditCardDTO, 0, len(cards))
+	for _, card := range cards {
+		result = append(result, toCreditCardDTO(card))
+	}
+	return result, nil
+}
+
+type IssueCreditCardRequest struct {
+	Issuer          string `json:"issuer"`
+	LastFour        string `json:"lastFour"`
+	CardHolder      string `json:"cardHolder"`
+	ExpirationMonth int    `json:"expirationMonth"`
+	ExpirationYear  int    `json:"expirationYear"`
+	CreditLimit     string `json:"creditLimit"`
+	CutOffDay       int    `json:"cutOffDay"`
+	PaymentDueDay   int    `json:"paymentDueDay"`
+	CurrencyCode    string `json:"currencyCode"`
+}
+
+func (a *App) IssueCreditCard(req IssueCreditCardRequest) (*CreditCardDTO, error) {
+	limit, err := valueobjects.MoneyFromString(req.CreditLimit)
+	if err != nil {
+		return nil, err
+	}
+	currency, err := valueobjects.NewCurrencyCode(req.CurrencyCode)
+	if err != nil {
+		return nil, err
+	}
+	gl, err := a.ensureBankGLAccount(a.Context())
+	if err != nil {
+		return nil, err
+	}
+	card, err := a.treasurySvc.IssueCard(a.Context(), treasury.IssueCardInput{
+		CompanyID: a.companyID(), Issuer: req.Issuer, LastFour: req.LastFour, CardHolder: req.CardHolder,
+		ExpirationMonth: req.ExpirationMonth, ExpirationYear: req.ExpirationYear, CreditLimit: limit,
+		CutOffDay: req.CutOffDay, PaymentDueDay: req.PaymentDueDay, CurrencyCode: currency, GLAccountID: gl,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return toCreditCardDTO(card), nil
+}
+
+type CreditCardAmountRequest struct {
+	ID     string `json:"id"`
+	Amount string `json:"amount"`
+}
+
+func (a *App) ChargeCreditCard(req CreditCardAmountRequest) error {
+	id, err := uuid.Parse(req.ID)
+	if err != nil {
+		return err
+	}
+	amount, err := valueobjects.MoneyFromString(req.Amount)
+	if err != nil {
+		return err
+	}
+	return a.treasurySvc.ChargeCard(a.Context(), id, amount)
+}
+
+func (a *App) PayCreditCard(req CreditCardAmountRequest) error {
+	id, err := uuid.Parse(req.ID)
+	if err != nil {
+		return err
+	}
+	amount, err := valueobjects.MoneyFromString(req.Amount)
+	if err != nil {
+		return err
+	}
+	return a.treasurySvc.PayCard(a.Context(), id, amount)
 }
 
 // ListBankAccounts returns all active bank accounts.

@@ -177,3 +177,38 @@ func (a *App) RemoveCustomer(id string) error {
 	}
 	return a.customersSvc.Delete(a.Context(), cid)
 }
+
+type BlockCustomerRequest struct {
+	ID     string `json:"id"`
+	Reason string `json:"reason"`
+}
+
+func (a *App) BlockCustomer(req BlockCustomerRequest) (*CustomerDTO, error) {
+	id, err := uuid.Parse(req.ID)
+	if err != nil {
+		return nil, err
+	}
+	if err := a.customersSvc.Block(a.Context(), id, req.Reason); err != nil {
+		return nil, err
+	}
+	c, err := a.customersSvc.GetByID(a.Context(), id)
+	if err != nil {
+		return nil, err
+	}
+	return toCustomerDTO(c), nil
+}
+
+func (a *App) UnblockCustomer(id string) (*CustomerDTO, error) {
+	cid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, err
+	}
+	if err := a.customersSvc.Unblock(a.Context(), cid); err != nil {
+		return nil, err
+	}
+	c, err := a.customersSvc.GetByID(a.Context(), cid)
+	if err != nil {
+		return nil, err
+	}
+	return toCustomerDTO(c), nil
+}

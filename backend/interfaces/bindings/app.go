@@ -52,15 +52,17 @@ type App struct {
 	auditSvc     *administration.AuditService
 	workspaceSvc *workspace.Service
 
-	treasurySvc   *treasury.TreasuryService
-	salesSvc      *sales.SalesService
-	paymentSvc    *customerpayments.CustomerPaymentService
-	inventorySvc  *inventory.InventoryService
-	accountingSvc *accounting.AccountingService
-	purchasingSvc *purchasing.PurchasingService
-	customersSvc  *customer.CustomerService
-	productsSvc   *product.ProductService
-	suppliersSvc  *supplier.SupplierService
+	treasurySvc        *treasury.TreasuryService
+	salesSvc           *sales.SalesService
+	paymentSvc         *customerpayments.CustomerPaymentService
+	inventorySvc       *inventory.InventoryService
+	accountingSvc      *accounting.AccountingService
+	purchasingSvc      *purchasing.PurchasingService
+	customersSvc       *customer.CustomerService
+	productsSvc        *product.ProductService
+	suppliersSvc       *supplier.SupplierService
+	accountsReceivable sales.AccountsReceivableRepository
+	accountsPayable    purchasing.AccountsPayableRepository
 
 	syncCancel context.CancelFunc
 }
@@ -146,9 +148,11 @@ func (a *App) Init() error {
 	orders := salespostgres.NewSaleRepository(db.DB)
 	payments := salespostgres.NewCustomerPaymentRepository(db.DB)
 	advances := salespostgres.NewCustomerAdvanceRepository(db.DB)
+	a.accountsReceivable = salespostgres.NewAccountsReceivableRepository(db.DB)
 
 	purchaseOrders := purchasingpostgres.NewPurchaseRepository(db.DB)
 	supplierPayments := purchasingpostgres.NewSupplierPaymentRepository(db.DB)
+	a.accountsPayable = purchasingpostgres.NewAccountsPayableRepository(db.DB)
 
 	journalEntries := accountingpostgres.NewJournalRepository(db.DB)
 	chartOfAccounts := accountingpostgres.NewChartOfAccountRepository(db.DB)
@@ -176,6 +180,13 @@ func (a *App) Init() error {
 
 	a.treasurySvc = treasury.New(bankAccounts, creditCards, bankTransactions, exchangeRates, txm, a.log)
 	a.inventorySvc = inventory.New(batches, movements, warehouseResolver, productClassifier, txm, a.log)
+	a.inventorySvc.SetClearanceSettings(func(ctx context.Context, companyID uuid.UUID) (int, int) {
+		prefs, err := a.settingsSvc.GetPreferences(ctx, companyID)
+		if err != nil {
+			return inventory.ClearanceDays, 3
+		}
+		return prefs.ClearanceDays, prefs.ClearanceWarningDays
+	})
 	a.salesSvc = sales.New(orders, customers, a.inventorySvc, productClassifier, txm, a.log)
 	a.paymentSvc = customerpayments.New(payments, advances, orders, customers, txm, a.log)
 	a.accountingSvc = accounting.New(journalEntries, chartOfAccounts, ledger, fiscalPeriods, txm, a.log)

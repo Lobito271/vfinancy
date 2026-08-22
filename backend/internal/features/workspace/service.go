@@ -83,6 +83,43 @@ func (s *Service) Profile() (*LocalProfile, error) {
 	return cloneProfile(s.profile), nil
 }
 
+func (s *Service) UpdateProfile(ctx context.Context, name, theme, language, dateFormat, numberFormat, timezone string, decimalPlaces int) (*LocalProfile, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.profile == nil {
+		return nil, ErrProfileNotFound
+	}
+	if strings.TrimSpace(name) != "" {
+		s.profile.Name = strings.TrimSpace(name)
+	}
+	if theme != "" {
+		s.profile.Theme = theme
+	}
+	if language != "" {
+		s.profile.Language = language
+	}
+	if dateFormat != "" {
+		s.profile.DateFormat = dateFormat
+	}
+	if numberFormat != "" {
+		s.profile.NumberFormat = numberFormat
+	}
+	if timezone != "" {
+		s.profile.Timezone = timezone
+	}
+	if decimalPlaces >= 0 {
+		s.profile.DecimalPlaces = decimalPlaces
+	}
+	s.profile.UpdatedAt = time.Now().UTC()
+	if err := s.profile.Validate(); err != nil {
+		return nil, err
+	}
+	if err := s.repo.UpdateProfile(ctx, s.profile); err != nil {
+		return nil, err
+	}
+	return cloneProfile(s.profile), nil
+}
+
 func (s *Service) ListCompanies(ctx context.Context) ([]*Company, error) {
 	return s.repo.ListCompanies(ctx)
 }

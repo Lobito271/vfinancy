@@ -25,12 +25,26 @@ import (
 
 // InventoryService owns the inventory slice.
 type InventoryService struct {
-	batches   InventoryBatchRepository
-	movements InventoryMovementRepository
-	warehouses WarehouseResolver
-	products  ProductClassifier
-	txm       repositories.TransactionManager
-	log       *logger.Logger
+	batches           InventoryBatchRepository
+	movements         InventoryMovementRepository
+	warehouses        WarehouseResolver
+	products          ProductClassifier
+	txm               repositories.TransactionManager
+	log               *logger.Logger
+	clearanceSettings func(context.Context, uuid.UUID) (int, int)
+}
+
+func (s *InventoryService) SetClearanceSettings(provider func(context.Context, uuid.UUID) (int, int)) {
+	s.clearanceSettings = provider
+}
+
+func (s *InventoryService) clearancePolicy(ctx context.Context, companyID uuid.UUID) (int, int) {
+	if s.clearanceSettings != nil {
+		if days, warning := s.clearanceSettings(ctx, companyID); days > 0 && warning >= 0 {
+			return days, warning
+		}
+	}
+	return ClearanceDays, 3
 }
 
 // New returns an InventoryService ready for use.
@@ -401,7 +415,28 @@ func (s *InventoryService) StockFor(ctx context.Context, batchID uuid.UUID) (val
 // maximum sale date and still have stock. Used by the dashboard widget
 // and the "Productos en remate" report.
 func (s *InventoryService) GenerateClearanceCandidates(ctx context.Context, companyID uuid.UUID, at time.Time) ([]*InventoryBatch, error) {
-	return s.batches.ListClearance(ctx, companyID, at)
+	days, _ := s.clearancePolicy(ctx, companyID)
+	today := valueobjects.Date(at)
+	out := make([]*InventoryBatch, 0)
+	for offset := 0; ; {
+		page, err := s.batches.List(ctx, InventoryBatchFilter{
+			CompanyID: &companyID, OnlyActive: true,
+			PageRequest: repositories.PageRequest{Limit: 200, Offset: offset},
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, batch := range page.Items {
+			if batch.IsClearanceAfter(today, days) {
+				out = append(out, batch)
+			}
+		}
+		if !page.HasMore() {
+			break
+		}
+		offset += len(page.Items)
+	}
+	return out, nil
 }
 
 // NeedsClearanceSoon returns the batches within 3 days of their clearance
@@ -416,9 +451,10 @@ func (s *InventoryService) NeedsClearanceSoon(ctx context.Context, companyID uui
 		return nil, err
 	}
 	now := time.Now().UTC()
+	days, warning := s.clearancePolicy(ctx, companyID)
 	var out []*InventoryBatch
 	for _, b := range all.Items {
-		if b.NeedsClearanceSoon(now) {
+		if b.NeedsClearanceSoonAfter(valueobjects.Date(now), days, warning) {
 			out = append(out, b)
 		}
 	}

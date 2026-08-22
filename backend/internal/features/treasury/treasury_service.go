@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	derrors "vfinancy/backend/internal/domain/errors"
 	"vfinancy/backend/internal/domain/enums"
+	derrors "vfinancy/backend/internal/domain/errors"
 	"vfinancy/backend/internal/domain/repositories"
 	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/shared/logger"
@@ -346,6 +346,10 @@ func (s *TreasuryService) LatestExchangeRate(ctx context.Context, from, to value
 // ListAccounts returns bank accounts matching the filter.
 func (s *TreasuryService) ListAccounts(ctx context.Context, filter BankAccountFilter) (repositories.Page[*BankAccount], error) {
 	return s.accounts.List(ctx, filter)
+}
+
+func (s *TreasuryService) ListCards(ctx context.Context, companyID uuid.UUID) ([]*CreditCard, error) {
+	return s.cards.List(ctx, companyID)
 }
 
 // GetAccount returns a single bank account by ID.

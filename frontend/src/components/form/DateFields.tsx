@@ -35,7 +35,7 @@ export function DateField<T extends FieldValues>({
         max={max}
         {...register(name)}
       />
-      {value && <p className="text-xs text-muted-foreground">{formatDate(value)}</p>}
+      {value && <p className="field-hint">{formatDate(value)}</p>}
     </Field>
   );
 }
@@ -59,7 +59,7 @@ export function DateRangeField<T extends FieldValues>({
 }: DateRangeFieldProps<T>) {
   return (
     <Field label={label} required={required} description={description} className={className}>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="date-range">
         <DateField name={fromName} label="Desde" />
         <DateField name={toName} label="Hasta" />
       </div>

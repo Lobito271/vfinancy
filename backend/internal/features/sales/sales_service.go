@@ -130,6 +130,10 @@ func (s *SalesService) Create(ctx context.Context, in CreateInput) (*CreateResul
 		if err := customer.CanPlaceSale(total); err != nil {
 			return err
 		}
+		if in.DueDate == nil {
+			due := valueobjects.Date(time.Now().UTC().AddDate(0, 0, customer.PaymentTermDays))
+			in.DueDate = &due
+		}
 
 		opts := NewSaleOptions{
 			CompanyID:    in.CompanyID,
@@ -245,6 +249,7 @@ func (s *SalesService) Cancel(ctx context.Context, in CancelInput) (*Sale, error
 		if err != nil {
 			return err
 		}
+		outstanding := sale.Balance()
 		if err := sale.Cancel(in.Reason); err != nil {
 			return err
 		}
@@ -253,6 +258,18 @@ func (s *SalesService) Cancel(ctx context.Context, in CancelInput) (*Sale, error
 		}
 		if s.stock != nil {
 			if err := s.stock.ReturnVoidedSale(ctx, sale.CompanyID, sale.ID); err != nil {
+				return err
+			}
+		}
+		if outstanding.IsPositive() {
+			customer, err := s.customers.GetByID(ctx, sale.CustomerID)
+			if err != nil {
+				return err
+			}
+			if _, err := customer.RecordPayment(outstanding); err != nil {
+				return err
+			}
+			if err := s.customers.Update(ctx, customer); err != nil {
 				return err
 			}
 		}

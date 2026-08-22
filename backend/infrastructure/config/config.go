@@ -13,7 +13,6 @@ type Config struct {
 	App      AppConfig
 	Database DatabaseConfig
 	Logger   LoggerConfig
-	Auth     AuthConfig
 	Sync     SyncConfig
 }
 
@@ -49,17 +48,6 @@ type LoggerConfig struct {
 	Level  string
 	Format string
 	Output string
-}
-
-type AuthConfig struct {
-	ArgonMemory      uint32
-	ArgonIterations  uint32
-	ArgonParallelism uint8
-	ArgonSaltLength  uint32
-	ArgonKeyLength   uint32
-	SessionTTL       time.Duration
-	LockoutTTL       time.Duration
-	MaxLoginAttempts int
 }
 
 // SyncConfig configures the background synchronizer that pushes local
@@ -103,16 +91,6 @@ func Load() (*Config, error) {
 			Level:  getEnv("LOG_LEVEL", "info"),
 			Format: getEnv("LOG_FORMAT", "json"),
 			Output: getEnv("LOG_OUTPUT", "stdout"),
-		},
-		Auth: AuthConfig{
-			ArgonMemory:      uint32(getEnvInt("AUTH_ARGON_MEMORY_KB", 65536)),
-			ArgonIterations:  uint32(getEnvInt("AUTH_ARGON_ITERATIONS", 3)),
-			ArgonParallelism: uint8(getEnvInt("AUTH_ARGON_PARALLELISM", 2)),
-			ArgonSaltLength:  uint32(getEnvInt("AUTH_ARGON_SALT_LEN", 16)),
-			ArgonKeyLength:   uint32(getEnvInt("AUTH_ARGON_KEY_LEN", 32)),
-			SessionTTL:       time.Duration(getEnvInt("AUTH_SESSION_TTL_MIN", 60)) * time.Minute,
-			LockoutTTL:       time.Duration(getEnvInt("AUTH_LOCKOUT_TTL_MIN", 15)) * time.Minute,
-			MaxLoginAttempts: getEnvInt("AUTH_MAX_LOGIN_ATTEMPTS", 5),
 		},
 		Sync: SyncConfig{
 			Enabled:      getEnvBool("SYNC_ENABLED", false),

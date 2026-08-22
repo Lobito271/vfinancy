@@ -94,7 +94,7 @@ export function BankAccountFormDialog({ open, onOpenChange, account }: BankAccou
         <Form<BankAccountFormValues> schema={BankAccountSchema} defaultValues={defaults} onSubmit={handleSubmit}>
           {({ formState }) => (
             <>
-              <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-2">
+              <div className="dialog-body-scroll">
                 <Grid cols={2}>
                   <TextField name="bank" label="Banco" required placeholder="Ej. Banco de Crédito" />
                   <TextField name="accountNumber" label="N.º de cuenta" required placeholder="Ej. 191-1234567-0-12" />

@@ -31,16 +31,16 @@ const columns: Column<Product>[] = [
     header: 'SKU',
     sortable: true,
     sticky: true,
-    cell: (row) => <span className="font-medium tabular-nums">{row.sku}</span>,
+    cell: (row) => <span className="fw-medium tabular">{row.sku}</span>,
   },
   {
     id: 'description',
     header: 'Descripción',
     sortable: true,
     cell: (row) => (
-      <div className="flex flex-col">
+      <div className="vstack">
         <span>{row.description}</span>
-        {row.barcode && <span className="text-xs text-muted-foreground">Código: {row.barcode}</span>}
+        {row.barcode && <span className="subtle-text">Código: {row.barcode}</span>}
       </div>
     ),
   },
@@ -52,21 +52,21 @@ const columns: Column<Product>[] = [
     header: 'Costo',
     align: 'right',
     sortable: true,
-    cell: (row) => <span className="tabular-nums">{formatCurrency(row.cost)}</span>,
+    cell: (row) => <span className="tabular">{formatCurrency(row.cost)}</span>,
   },
   {
     id: 'salePrice',
     header: 'Precio venta',
     align: 'right',
     sortable: true,
-    cell: (row) => <span className="tabular-nums">{formatCurrency(row.salePrice)}</span>,
+    cell: (row) => <span className="tabular">{formatCurrency(row.salePrice)}</span>,
   },
   {
     id: 'margin',
     header: 'Margen',
     align: 'right',
     cell: (row) => (
-      <span className="tabular-nums text-muted-foreground">
+      <span className="tabular muted">
         {row.cost > 0 ? formatPercent((row.salePrice - row.cost) / row.cost) : '—'}
       </span>
     ),
@@ -109,7 +109,7 @@ export function ProductsPage() {
         width: 88,
         exportable: false,
         cell: (row) => (
-          <div className="flex items-center justify-end gap-1">
+          <div className="row-actions">
             {canEdit && (
               <Button
                 variant="ghost"
@@ -145,8 +145,8 @@ export function ProductsPage() {
         title="Productos"
         subtitle="Catálogo de productos y servicios"
         actions={
-          <div className="flex items-center gap-2">
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar producto…" className="w-64" aria-label="Buscar producto" />
+          <div className="hstack hstack--sm">
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar producto…" style={{ width: "16rem" }} aria-label="Buscar producto" />
             <Can permission={Permissions.Products.Create}>
               <Button
                 onClick={() => {
@@ -179,7 +179,7 @@ export function ProductsPage() {
         exportFilename="productos.csv"
         toolbarLeft={
           <Select value={status} onValueChange={(v) => setStatus(v === 'all' ? '' : v)}>
-            <SelectTrigger className="w-44" aria-label="Filtrar por estado">
+            <SelectTrigger style={{ width: "11rem" }} aria-label="Filtrar por estado">
               <SelectValue placeholder="Estado: todos" />
             </SelectTrigger>
             <SelectContent>

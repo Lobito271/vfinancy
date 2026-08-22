@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { cn } from '@/lib/utils';
+import { cx } from '@/utils/cx';
 
 export interface FieldProps extends React.HTMLAttributes<HTMLDivElement> {
   error?: string;
@@ -9,13 +9,13 @@ export interface FieldProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export const Field = React.forwardRef<HTMLDivElement, FieldProps>(
   ({ className, error, description, children, ...props }, ref) => (
-    <div ref={ref} className={cn('flex flex-col gap-1.5', className)} {...props}>
+    <div ref={ref} className={cx('field', className)} {...props}>
       {children}
       {description && !error && (
-        <p className="text-xs text-muted-foreground">{description}</p>
+        <p className="field-hint">{description}</p>
       )}
       {error && (
-        <p role="alert" className="text-xs text-destructive">
+        <p role="alert" className="field-error">
           {error}
         </p>
       )}

@@ -1,12 +1,11 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from '@/layouts/AppLayout';
 import { Spinner } from '@/components/feedback';
 import { Providers } from './Providers';
-import { LoginPage } from '@/pages/LoginPage';
 import { useThemeStore } from '@/stores/theme';
-import { useSessionStore } from '@/stores/session';
-import { Routes as RoutePaths } from '@/constants/routes';
+import { wailsClient } from '@/services/bindings';
 
 const DashboardPage = lazy(() =>
   import('@/features/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })),
@@ -20,13 +19,12 @@ const PurchasesPage = lazy(() => import('@/pages/PurchasesPage').then((m) => ({ 
 const SalesPage = lazy(() => import('@/pages/SalesPage').then((m) => ({ default: m.SalesPage })));
 const TreasuryPage = lazy(() => import('@/pages/TreasuryPage').then((m) => ({ default: m.TreasuryPage })));
 const AccountingPage = lazy(() => import('@/pages/AccountingPage').then((m) => ({ default: m.AccountingPage })));
-const ReportsPage = lazy(() => import('@/pages/ReportsPage').then((m) => ({ default: m.ReportsPage })));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
-const AdministrationPage = lazy(() => import('@/pages/AdministrationPage').then((m) => ({ default: m.AdministrationPage })));
+const SetupWizardPage = lazy(() => import('@/pages/SetupWizardPage').then((m) => ({ default: m.SetupWizardPage })));
 
 function PageLoader() {
   return (
-    <div className="flex h-full items-center justify-center p-16">
+    <div className="page-loader">
       <Spinner size="lg" />
     </div>
   );
@@ -40,39 +38,11 @@ function ThemeInit() {
   return null;
 }
 
-function isSessionExpired(expiresAt: string | null): boolean {
-  if (!expiresAt) return true;
-  return new Date(expiresAt).getTime() <= Date.now();
-}
-
-function hasValidSession(
-  isAuthenticated: boolean,
-  token: string | null,
-  expiresAt: string | null,
-): boolean {
-  return isAuthenticated && Boolean(token) && !isSessionExpired(expiresAt);
-}
-
-function RequireAuth({ children }: { children: React.ReactNode }) {
-  const isAuthenticated = useSessionStore((s) => s.isAuthenticated);
-  const token = useSessionStore((s) => s.token);
-  const expiresAt = useSessionStore((s) => s.expiresAt);
-  const location = useLocation();
-
-  if (!hasValidSession(isAuthenticated, token, expiresAt)) {
-    return <Navigate to={RoutePaths.Login} replace state={{ from: location }} />;
-  }
-  return <>{children}</>;
-}
-
-function PublicOnly({ children }: { children: React.ReactNode }) {
-  const isAuthenticated = useSessionStore((s) => s.isAuthenticated);
-  const token = useSessionStore((s) => s.token);
-  const expiresAt = useSessionStore((s) => s.expiresAt);
-
-  if (hasValidSession(isAuthenticated, token, expiresAt)) {
-    return <Navigate to={RoutePaths.Dashboard} replace />;
-  }
+function SetupState({ children, setup }: { children: React.ReactNode; setup: boolean }) {
+  const state = useQuery({ queryKey: ['setup'], queryFn: () => wailsClient.getLocalAuthState() });
+  if (state.isLoading) return <PageLoader />;
+  if (state.isError) return <div className="page-loader">No se pudo comprobar la configuración.</div>;
+  if (state.data?.configured !== setup) return <Navigate to={setup ? '/' : '/configuracion-inicial'} replace />;
   return <>{children}</>;
 }
 
@@ -82,38 +52,19 @@ export function App() {
       <ThemeInit />
       <Suspense fallback={<PageLoader />}>
         <Routes>
-          <Route
-            path="/login"
-            element={
-              <PublicOnly>
-                <LoginPage />
-              </PublicOnly>
-            }
-          />
-          <Route
-            element={
-              <RequireAuth>
-                <AppLayout />
-              </RequireAuth>
-            }
-          >
+          <Route path="configuracion-inicial" element={<SetupState setup={false}><SetupWizardPage /></SetupState>} />
+          <Route element={<SetupState setup><AppLayout /></SetupState>}>
             <Route index element={<DashboardPage />} />
             <Route path="clientes" element={<CustomersPage />} />
             <Route path="proveedores" element={<SuppliersPage />} />
             <Route path="productos" element={<ProductsPage />} />
             <Route path="configuracion-catalogo" element={<CatalogSettingsPage />} />
             <Route path="inventario" element={<InventoryPage />} />
-            <Route path="inventory" element={<InventoryPage />} />
             <Route path="compras" element={<PurchasesPage />} />
             <Route path="ventas" element={<SalesPage />} />
-            <Route path="sales" element={<SalesPage />} />
             <Route path="tesoreria" element={<TreasuryPage />} />
-            <Route path="treasury" element={<TreasuryPage />} />
             <Route path="contabilidad" element={<AccountingPage />} />
-            <Route path="accounting" element={<AccountingPage />} />
-            <Route path="reportes" element={<ReportsPage />} />
             <Route path="configuracion" element={<SettingsPage />} />
-            <Route path="administracion" element={<AdministrationPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

@@ -88,25 +88,25 @@ export function TreasuryPage() {
         header: 'Banco',
         sortable: true,
         sticky: true,
-        cell: (row) => <span className="font-medium">{row.bank}</span>,
+        cell: (row) => <span className="fw-medium">{row.bank}</span>,
       },
       {
         id: 'accountNumber',
         header: 'N.º de cuenta',
-        cell: (row) => <span className="tabular-nums">{row.accountNumber}</span>,
+        cell: (row) => <span className="tabular">{row.accountNumber}</span>,
       },
       {
         id: 'accountType',
         header: 'Tipo',
         cell: (row) => (row.accountType === 'checking' ? 'Cuenta corriente' : 'Cuenta de ahorros'),
       },
-      { id: 'currency', header: 'Moneda', cell: (row) => <span className="font-medium">{row.currency}</span> },
+      { id: 'currency', header: 'Moneda', cell: (row) => <span className="fw-medium">{row.currency}</span> },
       {
         id: 'balance',
         header: 'Saldo',
         align: 'right',
         sortable: true,
-        cell: (row) => <span className="tabular-nums">{formatCurrency(row.balance, row.currency)}</span>,
+        cell: (row) => <span className="tabular">{formatCurrency(row.balance, row.currency)}</span>,
       },
       {
         id: 'isDefault',
@@ -129,7 +129,7 @@ export function TreasuryPage() {
         width: 88,
         exportable: false,
         cell: (row) => (
-          <div className="flex items-center justify-end gap-1">
+          <div className="row-actions">
             {canEdit && (
               <Button
                 variant="ghost"
@@ -166,15 +166,15 @@ export function TreasuryPage() {
         header: 'Fecha',
         sortable: true,
         sticky: true,
-        cell: (row) => <span className="tabular-nums">{formatDate(row.date)}</span>,
+        cell: (row) => <span className="tabular">{formatDate(row.date)}</span>,
       },
       {
         id: 'description',
         header: 'Descripción',
         cell: (row) => (
-          <div className="flex flex-col">
+          <div className="vstack">
             <span>{row.description}</span>
-            {row.reference && <span className="text-xs text-muted-foreground">Ref. {row.reference}</span>}
+            {row.reference && <span className="subtle-text">Ref. {row.reference}</span>}
           </div>
         ),
       },
@@ -188,7 +188,7 @@ export function TreasuryPage() {
           const currency = currencyOf.get(row.accountId) ?? 'PEN';
           const value = signedAmount(row);
           return (
-            <span className={`tabular-nums ${value >= 0 ? 'text-success' : 'text-destructive'}`}>
+            <span className={`tabular ${value >= 0 ? 'color-success' : 'color-destructive'}`}>
               {formatCurrency(value, currency)}
             </span>
           );
@@ -200,7 +200,7 @@ export function TreasuryPage() {
         align: 'right',
         cell: (row) => {
           const currency = currencyOf.get(row.accountId) ?? 'PEN';
-          return <span className="tabular-nums">{formatCurrency(row.balanceAfter, currency)}</span>;
+          return <span className="tabular">{formatCurrency(row.balanceAfter, currency)}</span>;
         },
       },
       {
@@ -219,7 +219,7 @@ export function TreasuryPage() {
         exportable: false,
         cell: (row) =>
           !row.isReconciled ? (
-            <div className="flex justify-end">
+            <div className="row-end">
               <Button
                 variant="ghost"
                 size="sm"
@@ -331,7 +331,7 @@ export function TreasuryPage() {
           exportFilename="movimientos-bancarios.csv"
           toolbarLeft={
             <Select value={txFilter} onValueChange={(v) => setTxFilter(v)}>
-              <SelectTrigger className="w-56" aria-label="Filtrar por cuenta">
+              <SelectTrigger style={{ width: "14rem" }} aria-label="Filtrar por cuenta">
                 <SelectValue placeholder="Todas las cuentas" />
               </SelectTrigger>
               <SelectContent>

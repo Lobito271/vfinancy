@@ -112,7 +112,7 @@ export function BankTransactionFormDialog({ open, onOpenChange, accountId }: Ban
         <Form<BankTransactionFormValues> schema={BankTransactionSchema} defaultValues={defaults} onSubmit={handleSubmit}>
           {({ formState }) => (
             <>
-              <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-2">
+              <div className="dialog-body-scroll">
                 <Grid cols={2}>
                   <SelectField name="accountId" label="Cuenta bancaria" required placeholder="Seleccione la cuenta…" options={accountOptions} />
                   <SelectField name="type" label="Tipo de movimiento" required options={transactionTypeOptions} />

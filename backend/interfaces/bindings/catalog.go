@@ -30,9 +30,9 @@ func toUnitDTO(u *product.UnitOfMeasure) *UnitDTO {
 	}
 }
 
-// ListUnits returns the units of measure available for the demo company.
+// ListUnits returns the units of measure available for the active company.
 func (a *App) ListUnits() ([]UnitDTO, error) {
-	units, err := a.productsSvc.ListUnits(a.Context(), demoCompanyID)
+	units, err := a.productsSvc.ListUnits(a.Context(), a.companyID())
 	if err != nil {
 		return nil, err
 	}
@@ -57,9 +57,9 @@ type BrandDTO struct {
 	Name string `json:"name"`
 }
 
-// ListCategories returns the product categories available for the demo company.
+// ListCategories returns the product categories available for the active company.
 func (a *App) ListCategories() ([]CategoryDTO, error) {
-	categories, err := a.productsSvc.ListCategories(a.Context(), demoCompanyID)
+	categories, err := a.productsSvc.ListCategories(a.Context(), a.companyID())
 	if err != nil {
 		return nil, err
 	}
@@ -70,9 +70,9 @@ func (a *App) ListCategories() ([]CategoryDTO, error) {
 	return out, nil
 }
 
-// ListBrands returns the product brands available for the demo company.
+// ListBrands returns the product brands available for the active company.
 func (a *App) ListBrands() ([]BrandDTO, error) {
-	brands, err := a.productsSvc.ListBrands(a.Context(), demoCompanyID)
+	brands, err := a.productsSvc.ListBrands(a.Context(), a.companyID())
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +127,7 @@ func (a *App) CreateCategory(req CreateCategoryRequest) (*CategoryDTO, error) {
 		return nil, err
 	}
 	c, err := a.productsSvc.CreateCategory(a.Context(), product.CategoryInput{
-		CompanyID: demoCompanyID,
+		CompanyID: a.companyID(),
 		Code:      code,
 		Name:      name,
 	})
@@ -182,7 +182,7 @@ func (a *App) CreateBrand(req CreateBrandRequest) (*BrandDTO, error) {
 		return nil, err
 	}
 	b, err := a.productsSvc.CreateBrand(a.Context(), product.BrandInput{
-		CompanyID: demoCompanyID,
+		CompanyID: a.companyID(),
 		Code:      code,
 		Name:      name,
 	})

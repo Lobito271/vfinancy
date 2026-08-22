@@ -10,7 +10,7 @@
 - **Backend:** Go 1.23
 - **Frontend:** TypeScript + **React 18** + Vite 5
 - **State / data:** Zustand, TanStack Query, React Hook Form, Zod
-- **Styling:** plain CSS3 in `src/index.css` (hand-rolled utility system with the same class names + design tokens as before) — **no Tailwind, no PostCSS**
+- **Styling:** plain CSS3 in `src/index.css` (semantic per-component classes + design tokens) — **no Tailwind, no PostCSS**
 - **DB:** hybrid — local **SQLite** (primary runtime DB, `modernc.org/sqlite`, pure Go) + cloud **PostgreSQL** mirror (via `github.com/jackc/pgx/v5/stdlib`) synchronized by the built-in sync engine.
 
 ## Key Commands
@@ -160,11 +160,12 @@ Tokens tienen **dos representaciones sincronizadas**:
 - CSS variables en `src/index.css` (lo que consume la UI en runtime).
 - TypeScript en `src/design-system/` (type safety y valores no-CSS).
 
-Estilos: `src/index.css` es un sistema **plain CSS3** auto-suficiente (sin Tailwind/PostCSS). Define tokens, reset/base, utilities y variantes responsive (`sm:`/`lg:`/`xl:`), Radix `data-[state=*]`/`data-[side=*]`, animaciones (`vf-enter`/`vf-exit`) y `prefers-reduced-motion`. Usa `hsl(var(--x) / N)` para opacidades (ej. `bg-primary/10`) y `--vf-offset`/`--vf-offset-color` para focus rings.
+Estilos: `src/index.css` es un sistema **plain CSS3** auto-suficiente (sin Tailwind/PostCSS). Define tokens, reset/base y **clases semánticas por componente** (`.btn`, `.card`, `.dialog-overlay`, `.sidebar`, `.datatable`, …) con variantes BEM-style (`--primary`, `--collapsed`, `__header`). Los componentes React reciben estilos propios; para composición puntual hay helpers mínimos (`.stack`, `.hstack`, `.grid-N`). Soporta Radix `data-[state=*]`/`data-[side=*]`, animaciones (`vf-enter`/`vf-exit`) y `prefers-reduced-motion`. Usa `hsl(var(--x) / N)` para opacidades y `--vf-offset`/`--vf-offset-color` para focus rings. La unión condicional de clases se hace con `cx()` de `@/utils/cx`.
 
 Reglas operativas:
 
-- **No hardcoded colors.** Usa tokens (`bg-primary`, `text-muted-foreground`, `border-destructive`, …) — definidos en `src/index.css`.
+- **No hardcoded colors.** Usa tokens CSS (`hsl(var(--primary))`, `hsl(var(--muted-foreground))`, `hsl(var(--destructive))`, …) — definidos en `src/index.css`.
+- **No utility classes** (`bg-*`, `text-sm`, `p-4`, `flex items-center gap-2`, …). Usa la clase semántica del componente o los helpers de layout (`.stack`, `.hstack`, `.grid-N`); casos únicos van con `style={{...}}`.
 - **Money usa `formatCurrency(value, 'PEN')`**, nunca `toFixed`.
 - **Dates usa `formatDate(value)`**, nunca `toLocaleString` ad-hoc.
 - **No emojis en la UI** salvo que el usuario lo pida.

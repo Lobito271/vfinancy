@@ -146,8 +146,8 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
         <Form schema={PurchaseFormSchema} defaultValues={defaults} onSubmit={handleSubmit}>
           {({ formState }) => (
             <>
-              <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-2">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="dialog-body-scroll">
+                <div className="form-grid">
                   <SupplierSelectField name="supplierId" label="Proveedor" required />
                   <DateField name="orderDate" label="Fecha de orden" required />
                 </div>

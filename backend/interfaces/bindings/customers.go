@@ -58,7 +58,7 @@ type ListCustomersRequest struct {
 func (a *App) ListCustomers(req ListCustomersRequest) (PageResult, error) {
 	ctx := a.Context()
 	filter := customer.CustomerFilter{
-		CompanyID:   &demoCompanyID,
+		CompanyID:   a.companyIDPtr(),
 		Search:      req.Search,
 		Status:      req.Status,
 		PageRequest: req.toPageRequest(),
@@ -107,7 +107,7 @@ func (a *App) CreateCustomer(req CreateCustomerRequest) (*CustomerDTO, error) {
 		return nil, err
 	}
 	in := customer.CreateInput{
-		CompanyID:       demoCompanyID,
+		CompanyID:       a.companyID(),
 		DocumentType:    enums.DocumentType(req.DocumentType),
 		DocumentNumber:  req.DocumentNumber,
 		BusinessName:    req.BusinessName,
@@ -176,4 +176,39 @@ func (a *App) RemoveCustomer(id string) error {
 		return err
 	}
 	return a.customersSvc.Delete(a.Context(), cid)
+}
+
+type BlockCustomerRequest struct {
+	ID     string `json:"id"`
+	Reason string `json:"reason"`
+}
+
+func (a *App) BlockCustomer(req BlockCustomerRequest) (*CustomerDTO, error) {
+	id, err := uuid.Parse(req.ID)
+	if err != nil {
+		return nil, err
+	}
+	if err := a.customersSvc.Block(a.Context(), id, req.Reason); err != nil {
+		return nil, err
+	}
+	c, err := a.customersSvc.GetByID(a.Context(), id)
+	if err != nil {
+		return nil, err
+	}
+	return toCustomerDTO(c), nil
+}
+
+func (a *App) UnblockCustomer(id string) (*CustomerDTO, error) {
+	cid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, err
+	}
+	if err := a.customersSvc.Unblock(a.Context(), cid); err != nil {
+		return nil, err
+	}
+	c, err := a.customersSvc.GetByID(a.Context(), cid)
+	if err != nil {
+		return nil, err
+	}
+	return toCustomerDTO(c), nil
 }

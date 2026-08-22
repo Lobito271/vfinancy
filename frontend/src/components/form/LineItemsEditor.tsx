@@ -69,12 +69,12 @@ export function LineItemsEditor({ products, isSale = false, currency = DefaultCu
   const total = subtotal - discount + tax;
 
   return (
-    <div className="space-y-3">
-      <div className="space-y-3">
+    <div className="line-items">
+      <div className="line-items">
         {fields.map((field, index) => (
-          <div key={field.id} className="rounded-md border bg-muted/30 p-3">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1">
+          <div key={field.id} className="line-item">
+            <div className="line-item__head">
+              <div className="line-item__field">
                 <SelectField
                   name={`items.${index}.productId` as Path<LineForm>}
                   label={`Producto ${index + 1}`}
@@ -88,7 +88,7 @@ export function LineItemsEditor({ products, isSale = false, currency = DefaultCu
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                className="mt-7"
+                className="line-item__remove"
                 aria-label={`Quitar línea ${index + 1}`}
                 onClick={() => remove(index)}
               >
@@ -109,22 +109,22 @@ export function LineItemsEditor({ products, isSale = false, currency = DefaultCu
         <Icons.Action.Create /> Agregar línea
       </Button>
 
-      <div className="space-y-1 rounded-md border bg-muted/30 p-3 text-sm">
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Subtotal</span>
-          <span className="tabular-nums">{formatCurrency(subtotal, currency)}</span>
+      <div className="line-items-totals">
+        <div className="totals-row">
+          <span className="muted">Subtotal</span>
+          <span className="tabular">{formatCurrency(subtotal, currency)}</span>
         </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Descuento</span>
-          <span className="tabular-nums">{formatCurrency(discount, currency)}</span>
+        <div className="totals-row">
+          <span className="muted">Descuento</span>
+          <span className="tabular">{formatCurrency(discount, currency)}</span>
         </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">IGV</span>
-          <span className="tabular-nums">{formatCurrency(tax, currency)}</span>
+        <div className="totals-row">
+          <span className="muted">IGV</span>
+          <span className="tabular">{formatCurrency(tax, currency)}</span>
         </div>
-        <div className="flex justify-between font-medium">
+        <div className="totals-row totals-row--total">
           <span>Total</span>
-          <span className="tabular-nums">{formatCurrency(total, currency)}</span>
+          <span className="tabular">{formatCurrency(total, currency)}</span>
         </div>
       </div>
     </div>

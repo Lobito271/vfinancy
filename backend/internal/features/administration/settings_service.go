@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	"github.com/google/uuid"
 
@@ -61,20 +62,25 @@ type BusinessInfo struct {
 }
 
 type SystemPreferences struct {
-	DefaultCurrency string
-	DefaultTaxCode  string
-	ExpiryAlertDays int
-	DefaultCountry  string
-	DateFormat      string
-	NumberFormat    string
-	DecimalPlaces   int
-	Language        string
-	Theme           string
-	Timezone        string
-	FiscalYearStart int
-	BackupFolder    string
-	ExportFolder    string
-	BackupFrequency string
+	DefaultCurrency      string
+	DefaultTaxCode       string
+	ExpiryAlertDays      int
+	DefaultCountry       string
+	DateFormat           string
+	NumberFormat         string
+	DecimalPlaces        int
+	Language             string
+	Theme                string
+	Timezone             string
+	FiscalYearStart      int
+	BackupFolder         string
+	ExportFolder         string
+	BackupFrequency      string
+	ClearanceDays        int
+	ClearanceWarningDays int
+	SaleNumberPrefix     string
+	PurchaseNumberPrefix string
+	JournalNumberPrefix  string
 }
 
 func (s *SettingsService) GetBusinessInfo(ctx context.Context, companyID uuid.UUID) (*BusinessInfo, error) {
@@ -168,55 +174,70 @@ func (s *SettingsService) GetPreferences(ctx context.Context, companyID uuid.UUI
 	}
 
 	prefs := &SystemPreferences{
-		DefaultCurrency: "PEN",
-		DefaultTaxCode:  "IGV",
-		ExpiryAlertDays: 30,
-		DefaultCountry:  "PE",
-		DateFormat:      "DD/MM/YYYY",
-		NumberFormat:    "es-PE",
-		DecimalPlaces:   2,
-		Language:        "es-PE",
-		Theme:           "system",
-		Timezone:        "America/Lima",
-		FiscalYearStart: 1,
-		BackupFrequency: "daily",
+		DefaultCurrency:      "PEN",
+		DefaultTaxCode:       "IGV",
+		ExpiryAlertDays:      30,
+		DefaultCountry:       "PE",
+		DateFormat:           "DD/MM/YYYY",
+		NumberFormat:         "es-PE",
+		DecimalPlaces:        2,
+		Language:             "es-PE",
+		Theme:                "system",
+		Timezone:             "America/Lima",
+		FiscalYearStart:      1,
+		BackupFrequency:      "daily",
+		ClearanceDays:        25,
+		ClearanceWarningDays: 3,
+		SaleNumberPrefix:     "V",
+		PurchaseNumberPrefix: "PO",
+		JournalNumberPrefix:  "JE",
 	}
 
-	settings, err := s.settings.ListByCategory(ctx, companyID, "preferences")
+	settings, err := s.settings.ListByCompany(ctx, companyID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get preferences: %w", err)
 	}
 
 	for _, setting := range settings {
 		switch setting.Key {
-		case "preferences.default_currency":
+		case "preferences.default_currency", "defaults.currency":
 			prefs.DefaultCurrency = setting.StringValue()
-		case "preferences.default_tax_code":
+		case "preferences.default_tax_code", "defaults.tax_code":
 			prefs.DefaultTaxCode = setting.StringValue()
-		case "preferences.expiry_alert_days":
+		case "preferences.expiry_alert_days", "defaults.expiry_alert_days":
 			prefs.ExpiryAlertDays = setting.IntValue()
-		case "preferences.default_country":
+		case "preferences.default_country", "defaults.country":
 			prefs.DefaultCountry = setting.StringValue()
-		case "preferences.date_format":
+		case "preferences.date_format", "format.date":
 			prefs.DateFormat = setting.StringValue()
-		case "preferences.number_format":
+		case "preferences.number_format", "format.number":
 			prefs.NumberFormat = setting.StringValue()
-		case "preferences.decimal_places":
+		case "preferences.decimal_places", "format.decimals":
 			prefs.DecimalPlaces = setting.IntValue()
-		case "preferences.language":
+		case "preferences.language", "system.language":
 			prefs.Language = setting.StringValue()
-		case "preferences.theme":
+		case "preferences.theme", "system.theme":
 			prefs.Theme = setting.StringValue()
-		case "preferences.timezone":
+		case "preferences.timezone", "system.timezone":
 			prefs.Timezone = setting.StringValue()
-		case "preferences.fiscal_year_start":
+		case "preferences.fiscal_year_start", "system.fiscal_year_start":
 			prefs.FiscalYearStart = setting.IntValue()
-		case "preferences.backup_folder":
+		case "preferences.backup_folder", "backup.folder":
 			prefs.BackupFolder = setting.StringValue()
-		case "preferences.export_folder":
+		case "preferences.export_folder", "backup.export_folder":
 			prefs.ExportFolder = setting.StringValue()
-		case "preferences.backup_frequency":
+		case "preferences.backup_frequency", "backup.auto_frequency":
 			prefs.BackupFrequency = setting.StringValue()
+		case "preferences.clearance_days":
+			prefs.ClearanceDays = setting.IntValue()
+		case "preferences.clearance_warning_days":
+			prefs.ClearanceWarningDays = setting.IntValue()
+		case "preferences.sale_number_prefix":
+			prefs.SaleNumberPrefix = setting.StringValue()
+		case "preferences.purchase_number_prefix":
+			prefs.PurchaseNumberPrefix = setting.StringValue()
+		case "preferences.journal_number_prefix":
+			prefs.JournalNumberPrefix = setting.StringValue()
 		}
 	}
 
@@ -231,6 +252,16 @@ func (s *SettingsService) UpdatePreference(ctx context.Context, companyID uuid.U
 		return derrors.New("REQUIRED", "key is required")
 	}
 
+	if raw, ok := value.(string); ok {
+		switch key {
+		case "clearance_days", "clearance_warning_days", "decimal_places", "fiscal_year_start", "expiry_alert_days":
+			n, err := strconv.Atoi(raw)
+			if err != nil {
+				return derrors.New("INVALID", "preference must be an integer")
+			}
+			value = n
+		}
+	}
 	jsonValue, err := json.Marshal(value)
 	if err != nil {
 		return fmt.Errorf("failed to marshal value: %w", err)

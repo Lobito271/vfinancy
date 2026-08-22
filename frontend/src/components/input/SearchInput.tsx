@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Search, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cx } from '@/utils/cx';
 import { Input } from './Input';
 import { Button } from '@/components/button';
 
@@ -10,16 +10,12 @@ export interface SearchInputProps extends Omit<React.InputHTMLAttributes<HTMLInp
 
 export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
   ({ className, value, onClear, ...props }, ref) => (
-    <div className={cn('relative', className)}>
-      <Search
-        className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-        aria-hidden="true"
-      />
+    <div className={cx('search-box', className)}>
+      <Search className="search-box__icon" aria-hidden="true" />
       <Input
         ref={ref}
         type="search"
         value={value}
-        className="pl-9 pr-9"
         aria-label="Buscar"
         {...props}
       />
@@ -29,7 +25,7 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
           variant="ghost"
           size="icon-sm"
           onClick={onClear}
-          className="absolute right-1 top-1/2 -translate-y-1/2"
+          className="search-box__clear"
           aria-label="Limpiar búsqueda"
         >
           <X />

@@ -87,15 +87,15 @@ export function AccountingPage() {
         header: 'Código',
         sortable: true,
         sticky: true,
-        cell: (row) => <span className="tabular-nums font-medium">{row.code}</span>,
+        cell: (row) => <span className="tabular fw-medium">{row.code}</span>,
       },
       {
         id: 'name',
         header: 'Nombre',
         cell: (row) => (
-          <div className="flex flex-col">
+          <div className="vstack">
             <span>{row.name}</span>
-            {row.description && <span className="text-xs text-muted-foreground">{row.description}</span>}
+            {row.description && <span className="subtle-text">{row.description}</span>}
           </div>
         ),
       },
@@ -128,7 +128,7 @@ export function AccountingPage() {
         width: 88,
         exportable: false,
         cell: (row) => (
-          <div className="flex items-center justify-end gap-1">
+          <div className="row-actions">
             {canEdit && (
               <Button
                 variant="ghost"
@@ -165,13 +165,13 @@ export function AccountingPage() {
         header: 'N.º',
         sortable: true,
         sticky: true,
-        cell: (row) => <span className="tabular-nums font-medium">{row.number}</span>,
+        cell: (row) => <span className="tabular fw-medium">{row.number}</span>,
       },
       {
         id: 'entryDate',
         header: 'Fecha',
         sortable: true,
-        cell: (row) => <span className="tabular-nums">{formatDate(row.entryDate)}</span>,
+        cell: (row) => <span className="tabular">{formatDate(row.entryDate)}</span>,
       },
       { id: 'description', header: 'Descripción', cell: (row) => row.description },
       { id: 'status', header: 'Estado', cell: (row) => <EntryStatusBadge status={row.status} /> },
@@ -179,18 +179,18 @@ export function AccountingPage() {
         id: 'debit',
         header: 'Débito',
         align: 'right',
-        cell: (row) => <span className="tabular-nums">{formatCurrency(entryTotals(row).debit, 'PEN')}</span>,
+        cell: (row) => <span className="tabular">{formatCurrency(entryTotals(row).debit, 'PEN')}</span>,
       },
       {
         id: 'credit',
         header: 'Crédito',
         align: 'right',
-        cell: (row) => <span className="tabular-nums">{formatCurrency(entryTotals(row).credit, 'PEN')}</span>,
+        cell: (row) => <span className="tabular">{formatCurrency(entryTotals(row).credit, 'PEN')}</span>,
       },
       {
         id: 'lines',
         header: 'Líneas',
-        cell: (row) => <span className="tabular-nums">{row.lines.length}</span>,
+        cell: (row) => <span className="tabular">{row.lines.length}</span>,
       },
     ];
     if (!canEdit) return base;
@@ -203,7 +203,7 @@ export function AccountingPage() {
         exportable: false,
         cell: (row) =>
           row.status === 'draft' ? (
-            <div className="flex justify-end">
+            <div className="row-end">
               <Button
                 variant="ghost"
                 size="sm"

@@ -13,26 +13,26 @@ import (
 
 // AccountDTO is the serializable view of a chart-of-accounts entry.
 type AccountDTO struct {
-	ID            string `json:"id"`
-	Code          string `json:"code"`
-	Name          string `json:"name"`
-	Type          string `json:"type"`
-	ParentID      string `json:"parentId"`
-	Path          string `json:"path"`
-	Depth         int    `json:"depth"`
-	IsActive      bool   `json:"isActive"`
-	AllowsMovement bool  `json:"allowsMovement"`
-	Description   string `json:"description"`
+	ID             string `json:"id"`
+	Code           string `json:"code"`
+	Name           string `json:"name"`
+	Type           string `json:"type"`
+	ParentID       string `json:"parentId"`
+	Path           string `json:"path"`
+	Depth          int    `json:"depth"`
+	IsActive       bool   `json:"isActive"`
+	AllowsMovement bool   `json:"allowsMovement"`
+	Description    string `json:"description"`
 }
 
 // JournalEntryLineDTO is a serializable journal line.
 type JournalEntryLineDTO struct {
-	ID           string `json:"id"`
-	LineNumber   int    `json:"lineNumber"`
-	AccountID    string `json:"accountId"`
-	Description  string `json:"description"`
-	Debit        string `json:"debit"`
-	Credit       string `json:"credit"`
+	ID          string `json:"id"`
+	LineNumber  int    `json:"lineNumber"`
+	AccountID   string `json:"accountId"`
+	Description string `json:"description"`
+	Debit       string `json:"debit"`
+	Credit      string `json:"credit"`
 }
 
 // JournalEntryDTO is the serializable view of a journal entry.
@@ -55,6 +55,17 @@ type FiscalPeriodDTO struct {
 	PeriodStart string `json:"periodStart"`
 	PeriodEnd   string `json:"periodEnd"`
 	Status      string `json:"status"`
+}
+
+type TrialBalanceRowDTO struct {
+	AccountID      string `json:"accountId"`
+	AccountCode    string `json:"accountCode"`
+	AccountName    string `json:"accountName"`
+	AccountType    string `json:"accountType"`
+	OpeningBalance string `json:"openingBalance"`
+	DebitTotal     string `json:"debitTotal"`
+	CreditTotal    string `json:"creditTotal"`
+	ClosingBalance string `json:"closingBalance"`
 }
 
 func toFiscalPeriodDTO(p *accounting.FiscalPeriod) *FiscalPeriodDTO {
@@ -118,7 +129,7 @@ func toJournalEntryDTO(e *accounting.JournalEntry) *JournalEntryDTO {
 // ListChartOfAccounts returns the full chart of accounts.
 func (a *App) ListChartOfAccounts() ([]*AccountDTO, error) {
 	ctx := a.Context()
-	accounts, err := a.accountingSvc.ListChartOfAccounts(ctx, demoCompanyID)
+	accounts, err := a.accountingSvc.ListChartOfAccounts(ctx, a.companyID())
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +173,7 @@ func (a *App) CreateChartOfAccount(req CreateChartOfAccountRequest) (*AccountDTO
 		path = accountPath(parent, code.String())
 	}
 	acc, err := a.accountingSvc.CreateChartOfAccounts(ctx, accounting.CreateChartOfAccountsInput{
-		CompanyID:      demoCompanyID,
+		CompanyID:      a.companyID(),
 		Code:           code,
 		Name:           req.Name,
 		Type:           enums.AccountType(req.Type),
@@ -242,10 +253,10 @@ func (a *App) DeleteChartOfAccount(id string) error {
 	return a.accountingSvc.DeleteChartOfAccount(a.Context(), aid)
 }
 
-// ListFiscalPeriods returns the fiscal periods of the demo company.
+// ListFiscalPeriods returns the fiscal periods of the active company.
 func (a *App) ListFiscalPeriods() ([]*FiscalPeriodDTO, error) {
 	ctx := a.Context()
-	periods, err := a.accountingSvc.ListFiscalPeriods(ctx, demoCompanyID)
+	periods, err := a.accountingSvc.ListFiscalPeriods(ctx, a.companyID())
 	if err != nil {
 		return nil, err
 	}
@@ -256,8 +267,28 @@ func (a *App) ListFiscalPeriods() ([]*FiscalPeriodDTO, error) {
 	return items, nil
 }
 
+func (a *App) GetTrialBalance(fiscalPeriodID string) ([]*TrialBalanceRowDTO, error) {
+	periodID, err := uuid.Parse(fiscalPeriodID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := a.accountingSvc.TrialBalance(a.Context(), periodID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*TrialBalanceRowDTO, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, &TrialBalanceRowDTO{
+			AccountID: row.AccountID.String(), AccountCode: row.AccountCode, AccountName: row.AccountName,
+			AccountType: row.AccountType, OpeningBalance: row.OpeningBalance, DebitTotal: row.DebitTotal,
+			CreditTotal: row.CreditTotal, ClosingBalance: row.ClosingBalance,
+		})
+	}
+	return result, nil
+}
+
 // resolveChartParent returns the parent account for a given parent ID
-// (nil when the ID is empty). Lookups are scoped to the demo company.
+// (nil when the ID is empty). Lookups are scoped to the active company.
 func (a *App) resolveChartParent(ctx context.Context, parentID string) (*accounting.ChartOfAccount, error) {
 	if parentID == "" {
 		return nil, nil
@@ -291,7 +322,7 @@ type ListJournalEntriesRequest struct {
 func (a *App) ListJournalEntries(req ListJournalEntriesRequest) (PageResult, error) {
 	ctx := a.Context()
 	filter := accounting.JournalEntryFilter{
-		CompanyID:   &demoCompanyID,
+		CompanyID:   a.companyIDPtr(),
 		Status:      req.Status,
 		PageRequest: req.toPageRequest(),
 	}
@@ -338,7 +369,7 @@ func (a *App) CreateJournalEntry(req CreateJournalEntryRequest) (*JournalEntryDT
 			return nil, err
 		}
 	} else {
-		period, err := a.accountingSvc.EnsureOpenFiscalPeriod(ctx, demoCompanyID, entryDate)
+		period, err := a.accountingSvc.EnsureOpenFiscalPeriod(ctx, a.companyID(), entryDate)
 		if err != nil {
 			return nil, err
 		}
@@ -366,7 +397,7 @@ func (a *App) CreateJournalEntry(req CreateJournalEntryRequest) (*JournalEntryDT
 		})
 	}
 	in := accounting.EntryInput{
-		CompanyID:      demoCompanyID,
+		CompanyID:      a.companyID(),
 		FiscalPeriodID: periodID,
 		Number:         "",
 		EntryDate:      valueobjects.Date(entryDate),
@@ -388,7 +419,7 @@ func (a *App) PostJournalEntry(id string) (*JournalEntryDTO, error) {
 	if err != nil {
 		return nil, err
 	}
-	entry, err := a.accountingSvc.Post(ctx, eid, demoCompanyID)
+	entry, err := a.accountingSvc.Post(ctx, eid, a.companyID())
 	if err != nil {
 		return nil, err
 	}

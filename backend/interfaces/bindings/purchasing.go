@@ -26,18 +26,18 @@ type PurchaseItemDTO struct {
 
 // PurchaseOrderDTO is the serializable view of a purchase order.
 type PurchaseOrderDTO struct {
-	ID           string             `json:"id"`
-	Number       string             `json:"number"`
-	SupplierID   string             `json:"supplierId"`
-	OrderDate    string             `json:"orderDate"`
-	Status       string             `json:"status"`
-	Subtotal     string             `json:"subtotal"`
-	Discount     string             `json:"discount"`
-	Tax          string             `json:"tax"`
-	Total        string             `json:"total"`
-	Paid         string             `json:"paid"`
-	Notes        string             `json:"notes"`
-	Items        []*PurchaseItemDTO `json:"items"`
+	ID         string             `json:"id"`
+	Number     string             `json:"number"`
+	SupplierID string             `json:"supplierId"`
+	OrderDate  string             `json:"orderDate"`
+	Status     string             `json:"status"`
+	Subtotal   string             `json:"subtotal"`
+	Discount   string             `json:"discount"`
+	Tax        string             `json:"tax"`
+	Total      string             `json:"total"`
+	Paid       string             `json:"paid"`
+	Notes      string             `json:"notes"`
+	Items      []*PurchaseItemDTO `json:"items"`
 }
 
 func toPurchaseOrderDTO(po *purchasing.PurchaseOrder) *PurchaseOrderDTO {
@@ -82,7 +82,7 @@ type ListPurchaseOrdersRequest struct {
 func (a *App) ListPurchaseOrders(req ListPurchaseOrdersRequest) (PageResult, error) {
 	ctx := a.Context()
 	filter := purchasing.PurchaseFilter{
-		CompanyID:   &demoCompanyID,
+		CompanyID:   a.companyIDPtr(),
 		Status:      req.Status,
 		PageRequest: req.toPageRequest(),
 	}
@@ -193,7 +193,7 @@ func (a *App) CreatePurchaseOrder(req CreatePurchaseOrderRequest) (*PurchaseOrde
 		})
 	}
 	in := purchasing.CreateInput{
-		CompanyID:    demoCompanyID,
+		CompanyID:    a.companyID(),
 		Number:       "",
 		SupplierID:   supplierID,
 		CurrencyCode: cc,
@@ -241,7 +241,7 @@ func (a *App) RegisterPurchasePayment(req RegisterPurchasePaymentRequest) (*Purc
 		method = enums.PaymentMethodCash
 	}
 	po, err := a.purchasingSvc.MarkPaid(ctx, pid, purchasing.MarkPaidInput{
-		CompanyID:   demoCompanyID,
+		CompanyID:   a.companyID(),
 		PaymentDate: pd,
 		Method:      method,
 		Reference:   req.Reference,

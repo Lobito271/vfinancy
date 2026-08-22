@@ -1,4 +1,4 @@
-export { cn } from './cn';
+export { cx } from './cx';
 export * from './format';
 export * from './validators';
 export * from './debounce';

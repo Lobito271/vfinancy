@@ -42,7 +42,7 @@ export function CancelDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-2">
+        <div className="stack stack--sm">
           <Label htmlFor="cancel-reason">Motivo</Label>
           <Textarea
             id="cancel-reason"

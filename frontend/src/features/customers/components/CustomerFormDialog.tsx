@@ -87,7 +87,7 @@ export function CustomerFormDialog({ open, onOpenChange, customer }: CustomerFor
         <Form schema={CustomerFormSchema} defaultValues={defaults} onSubmit={handleSubmit}>
           {({ formState }) => (
             <>
-              <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-2">
+              <div className="dialog-body-scroll">
                 <Grid cols={2}>
                   <SelectField name="documentType" label="Tipo de documento" required options={documentOptions} clearable={false} />
                   <TextField name="documentNumber" label="Número de documento" required />

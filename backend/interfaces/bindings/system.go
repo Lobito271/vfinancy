@@ -68,7 +68,7 @@ var defaultModules = []moduleCatalog{
 	{"treasury", "Treasury", "Bank accounts, cards and exchange rates"},
 	{"accounting", "Accounting", "Chart of accounts and journal entries"},
 	{"reports", "Reports", "Financial and operational reports"},
-	{"administration", "Administration", "Users, roles and audit"},
+	{"administration", "Administration", "Companies, local profile and audit"},
 	{"settings", "Settings", "Application configuration"},
 }
 

@@ -162,17 +162,6 @@ func (a *App) Init() error {
 	a.workspaceSvc = workspace.NewService(workspacepostgres.NewRepository(db.DB))
 	if _, err := a.workspaceSvc.Initialize(ctx); err != nil && !errors.Is(err, workspace.ErrProfileNotFound) {
 		return fmt.Errorf("load local profile: %w", err)
-	} else if errors.Is(err, workspace.ErrProfileNotFound) {
-		companies, listErr := a.workspaceSvc.ListCompanies(ctx)
-		if listErr != nil {
-			return fmt.Errorf("load workspace companies: %w", listErr)
-		}
-		if len(companies) == 0 {
-			return fmt.Errorf("workspace: at least one company is required")
-		}
-		if _, err := a.workspaceSvc.CreateProfile(ctx, "Propietario", companies[0].ID); err != nil {
-			return fmt.Errorf("create local profile: %w", err)
-		}
 	}
 
 	a.settingsSvc = administration.NewSettingsService(settings, currencies, taxes, countries, a.log)

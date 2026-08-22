@@ -31,6 +31,9 @@ CREATE TABLE companies (
         CHECK (trade_name IS NULL OR length(trim(trade_name)) > 0)
 );
 
+INSERT INTO companies (id, code, legal_name, trade_name, tax_id)
+VALUES ('00000000-0000-0000-0000-000000000001', 'SETUP', 'setup placeholder', 'setup', '00000000000');
+
 CREATE UNIQUE INDEX uq_companies_code
     ON companies (code);
 
@@ -76,12 +79,6 @@ CREATE INDEX idx_branches_company_active
     ON branches (company_id, is_active)
     WHERE deleted_at IS NULL;
 
-INSERT INTO companies (id, code, legal_name, trade_name, tax_id)
-VALUES ('00000000-0000-0000-0000-000000000001', 'DEMO', 'vfinancy S.A.C.', 'vfinancy', '20600000001');
-
-INSERT INTO branches (id, company_id, code, name, is_default)
-VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'MAIN', 'Principal', TRUE);
-
 CREATE TABLE local_profiles (
     id TEXT PRIMARY KEY,
     name VARCHAR(200) NOT NULL CHECK (length(trim(name)) > 0),
@@ -101,6 +98,7 @@ CREATE TABLE local_profiles (
 );
 
 CREATE UNIQUE INDEX uq_local_profiles_singleton ON local_profiles ((1));
+
 
 
 CREATE TABLE audit_logs (
@@ -349,11 +347,6 @@ INSERT OR IGNORE INTO taxes (company_id, code, name, short_name, country_code, d
     (NULL, 'IVA_MX',   'Impuesto al Valor Agregado',    'IVA',     'MX', '0.1600', FALSE, TRUE, 'sales',    FALSE),
     (NULL, 'IVA_CO',   'Impuesto sobre las Ventas',     'IVA',     'CO', '0.1900', FALSE, TRUE, 'sales',    FALSE);
 
-INSERT OR IGNORE INTO taxes (company_id, code, name, short_name, country_code, default_rate, is_inclusive, is_percentage, category, is_active) VALUES
-    ('00000000-0000-0000-0000-000000000001', 'IGV',      'Impuesto General a las Ventas', 'IGV',     'PE', '0.1800', FALSE, TRUE, 'sales',    TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'IVAP',     'Impuesto de Promoción Municipal','IVAP',    'PE', '0.0200', FALSE, TRUE, 'municipal',TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'RENTA',    'Impuesto a la Renta',            'Renta',   'PE', '0.2950', FALSE, TRUE, 'income',   TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'EXONERADO','Exonerado del IGV',              'Exo',     'PE', '0.0000', FALSE, TRUE, 'sales',    TRUE);
 
 
 CREATE TABLE exchange_rates (
@@ -709,9 +702,6 @@ CREATE TABLE units_of_measure (
 
 CREATE UNIQUE INDEX uq_units_of_measure_code
     ON units_of_measure (company_id, code);
-
-INSERT INTO units_of_measure (id, company_id, code, name, symbol, allows_decimals)
-VALUES ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-000000000001', 'UND', 'Unidad', 'UND', FALSE);
 
 CREATE TABLE warehouses (
     id                TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
@@ -1612,16 +1602,6 @@ CREATE INDEX idx_supplier_payment_alloc_po
     ON supplier_payment_allocations (purchase_order_id);
 
 
-INSERT INTO warehouses (id, company_id, branch_id, code, name, address, is_default, allows_clearance, is_active)
-SELECT '00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'ALM-01', 'Almacén Principal', NULL, TRUE, FALSE, TRUE
-WHERE NOT EXISTS (
-    SELECT 1 FROM warehouses
-    WHERE company_id = '00000000-0000-0000-0000-000000000001'
-      AND code = 'ALM-01'
-      AND deleted_at IS NULL
-);
-
-
 
 
 PRAGMA defer_foreign_keys = ON;
@@ -1747,6 +1727,7 @@ CREATE INDEX idx_inventory_movements_reference
     ON inventory_movements (reference_type, reference_id);
 
 COMMIT;
+DELETE FROM companies WHERE id = '00000000-0000-0000-0000-000000000001';
 PRAGMA foreign_keys = ON;
 BEGIN;
 

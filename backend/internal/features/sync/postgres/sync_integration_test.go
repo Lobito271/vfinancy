@@ -30,6 +30,10 @@ func newTestDB(t *testing.T) *database.DB {
 	if err := migrations.NewRunner(migrationDir, db.DB, log, "sqlite").Up(context.Background()); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
+	if _, err := db.ExecContext(context.Background(), `INSERT INTO companies (id, code, legal_name, tax_id) VALUES (?, ?, ?, ?)`,
+		"00000000-0000-0000-0000-000000000001", "TEST", "Test Company", "20600000001"); err != nil {
+		t.Fatalf("seed company: %v", err)
+	}
 	return db
 }
 

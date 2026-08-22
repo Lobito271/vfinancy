@@ -1,6 +1,7 @@
 package bindings
 
 import (
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -80,6 +81,9 @@ func companyDTO(c *workspace.Company) *CompanyDTO {
 func (a *App) GetLocalAuthState() (LocalAuthStateDTO, error) {
 	p, err := a.workspaceSvc.Profile()
 	if err != nil {
+		if errors.Is(err, workspace.ErrProfileNotFound) {
+			return LocalAuthStateDTO{}, nil
+		}
 		return LocalAuthStateDTO{}, err
 	}
 	return LocalAuthStateDTO{Configured: true, PasswordEnabled: p.PasswordEnabled, Unlocked: a.workspaceSvc.IsUnlocked()}, nil
@@ -177,7 +181,7 @@ func (a *App) CreateCompany(req CompanyRequest) (*CompanyDTO, error) {
 		Email: req.Email, CountryCode: req.CountryCode, FunctionalCurrency: req.FunctionalCurrency,
 		Timezone: req.Timezone, FiscalYearStartMonth: req.FiscalYearStartMonth,
 		CreatedAt: time.Now().UTC()}
-	if err := a.workspaceSvc.CreateCompany(a.Context(), c); err != nil {
+	if err := a.workspaceSvc.CreateCompany(a.rawContext(), c); err != nil {
 		return nil, err
 	}
 	return companyDTO(c), nil

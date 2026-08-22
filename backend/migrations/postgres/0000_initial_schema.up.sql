@@ -47,6 +47,9 @@ CREATE TABLE companies (
     updated_by                 UUID
 );
 
+INSERT INTO companies (id, code, legal_name, trade_name, tax_id)
+VALUES ('00000000-0000-0000-0000-000000000001', 'SETUP', 'setup placeholder', 'setup', '00000000000');
+
 CREATE UNIQUE INDEX uq_companies_code
     ON companies (code);
 
@@ -96,12 +99,6 @@ CREATE UNIQUE INDEX uq_branches_company_default
 CREATE INDEX idx_branches_company_active
     ON branches (company_id, is_active)
     WHERE deleted_at IS NULL;
-
-INSERT INTO companies (id, code, legal_name, trade_name, tax_id)
-VALUES ('00000000-0000-0000-0000-000000000001', 'DEMO', 'vfinancy S.A.C.', 'vfinancy', '20600000001');
-
-INSERT INTO branches (id, company_id, code, name, is_default)
-VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'MAIN', 'Principal', TRUE);
 
 CREATE TRIGGER trg_branches_set_updated_at
     BEFORE UPDATE ON branches
@@ -401,12 +398,6 @@ INSERT INTO taxes (company_id, code, name, short_name, country_code, default_rat
     (NULL, 'IVA_CO',   'Impuesto sobre las Ventas',     'IVA',     'CO', 0.1900, FALSE, TRUE, 'sales',    FALSE)
 ON CONFLICT DO NOTHING;
 
-INSERT INTO taxes (company_id, code, name, short_name, country_code, default_rate, is_inclusive, is_percentage, category, is_active) VALUES
-    ('00000000-0000-0000-0000-000000000001', 'IGV',      'Impuesto General a las Ventas', 'IGV',     'PE', 0.1800, FALSE, TRUE, 'sales',    TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'IVAP',     'Impuesto de Promoción Municipal','IVAP',    'PE', 0.0200, FALSE, TRUE, 'municipal',TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'RENTA',    'Impuesto a la Renta',            'Renta',   'PE', 0.2950, FALSE, TRUE, 'income',   TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'EXONERADO','Exonerado del IGV',              'Exo',     'PE', 0.0000, FALSE, TRUE, 'sales',    TRUE)
-ON CONFLICT DO NOTHING;
 
 
 CREATE TABLE exchange_rates (
@@ -741,9 +732,6 @@ CREATE TABLE units_of_measure (
 
 CREATE UNIQUE INDEX uq_units_of_measure_code
     ON units_of_measure (company_id, code);
-
-INSERT INTO units_of_measure (id, company_id, code, name, symbol, allows_decimals)
-VALUES ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-000000000001', 'UND', 'Unidad', 'UND', FALSE);
 
 CREATE TABLE warehouses (
     id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1729,16 +1717,6 @@ CREATE TRIGGER trg_supplier_payments_set_updated_at
     EXECUTE FUNCTION set_updated_at();
 
 
-INSERT INTO warehouses (id, company_id, branch_id, code, name, address, is_default, allows_clearance, is_active)
-SELECT '00000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'ALM-01', 'Almacén Principal', NULL, TRUE, FALSE, TRUE
-WHERE NOT EXISTS (
-    SELECT 1 FROM warehouses
-    WHERE company_id = '00000000-0000-0000-0000-000000000001'
-      AND code = 'ALM-01'
-      AND deleted_at IS NULL
-);
-
-
 UPDATE taxes
 SET id = id::text::uuid
 WHERE id::text NOT LIKE '%-%';
@@ -1773,3 +1751,5 @@ ALTER TABLE inventory_movements
 ALTER TABLE inventory_movements
     ADD CONSTRAINT inventory_movements_type_check
         CHECK (type IN ('purchase', 'purchase_receipt', 'sale', 'void_sale', 'void_purchase', 'transfer_in', 'transfer_out', 'adjustment_in', 'adjustment_out', 'return_in', 'return_out', 'damage_out', 'void_out'));
+
+DELETE FROM companies WHERE id = '00000000-0000-0000-0000-000000000001';

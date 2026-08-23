@@ -21,7 +21,7 @@ import {
 } from '@/components/misc';
 import { TablePagination } from './TablePagination';
 import { downloadCSV } from '@/utils/download';
-import { cn } from '@/utils/cn';
+import { cx } from '@/utils/cx';
 import { persistJSON, readJSON } from '@/utils/storage';
 import {
   type Column,
@@ -257,17 +257,17 @@ export function DataTable<T>({
   const selectionRows = data.filter((r) => state.selected.includes(String(r[keyField])));
 
   return (
-    <div className={cn('flex flex-col gap-3', className)} aria-label={ariaLabel}>
+    <div className={cx('datatable', className)} aria-label={ariaLabel}>
       {(globalSearch || toolbarLeft || toolbarRight || exportable) && (
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-1 items-center gap-2">
+        <div className="datatable-toolbar">
+          <div className="datatable-toolbar__left">
             {toolbarLeft}
             {globalSearch && (
               <Input
                 value={state.search}
                 onChange={(e) => update({ search: e.target.value, page: 1 })}
                 placeholder="Buscar…"
-                className="max-w-sm"
+                className="datatable-search"
                 aria-label="Buscar en la tabla"
               />
             )}
@@ -277,12 +277,12 @@ export function DataTable<T>({
               </Button>
             )}
             {hasSelection && (
-              <span className="text-sm text-muted-foreground">
+              <span className="datatable-count">
                 {state.selected.length} seleccionado{state.selected.length > 1 ? 's' : ''}
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="datatable-toolbar__right">
             {bulkActions && hasSelection && bulkActions(selectionRows)}
             {toolbarRight}
             {exportable && (
@@ -299,12 +299,12 @@ export function DataTable<T>({
         </div>
       )}
 
-      <div className="relative w-full overflow-auto rounded-lg border" ref={parentRef}>
-        <table className="w-full caption-bottom text-sm">
-          <thead className="sticky top-0 z-20 bg-muted/95 backdrop-blur">
-            <tr className="border-b">
+      <div className="datatable-scroll" ref={parentRef}>
+        <table className="datatable-table">
+          <thead>
+            <tr>
               {onSelectionChange && (
-                <th className="w-10 px-4 py-2">
+                <th style={{ width: '2.5rem' }}>
                   <Checkbox
                     checked={allSelected ? true : someSelected ? 'indeterminate' : false}
                     onCheckedChange={toggleAll}
@@ -323,22 +323,21 @@ export function DataTable<T>({
                       minWidth: col.minWidth,
                       ...(sticky ? { position: 'sticky', left: 0, zIndex: 1 } : {}),
                     }}
-                    className={cn(
-                      'h-10 px-4 text-xs font-medium uppercase tracking-wider text-muted-foreground',
+                    className={cx(
                       getCellAlign(col.align),
-                      col.sortable && 'cursor-pointer select-none',
-                      sticky && 'bg-muted/95',
+                      col.sortable && 'sortable',
+                      sticky && 'sticky-cell',
                       col.headerClassName,
                     )}
                     onClick={() => col.sortable && handleSort(col.id)}
                   >
-                    <span className="inline-flex items-center gap-1">
+                    <span className="th-head">
                       {col.header}
                       {col.sortable && (
-                        <span className="text-muted-foreground/60">
-                          {!isSorted && <ChevronsUpDown className="h-3 w-3" />}
-                          {isSorted && state.sort?.direction === 'asc' && <ChevronUp className="h-3 w-3" />}
-                          {isSorted && state.sort?.direction === 'desc' && <ChevronDown className="h-3 w-3" />}
+                        <span className="th-sort-icon">
+                          {!isSorted && <ChevronsUpDown />}
+                          {isSorted && state.sort?.direction === 'asc' && <ChevronUp />}
+                          {isSorted && state.sort?.direction === 'desc' && <ChevronDown />}
                         </span>
                       )}
                     </span>
@@ -350,18 +349,18 @@ export function DataTable<T>({
           <tbody>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={`skel-${i}`} className="border-b">
-                  {onSelectionChange && <td className="px-4 py-2"><div className="h-4 w-4 animate-pulse rounded-sm bg-muted" /></td>}
+                <tr key={`skel-${i}`}>
+                  {onSelectionChange && <td><div className="skel-check" /></td>}
                   {visibleColumns.map((col) => (
-                    <td key={col.id} className="px-4 py-3">
-                      <div className="h-4 w-full max-w-[180px] animate-pulse rounded-md bg-muted" />
+                    <td key={col.id}>
+                      <div className="skel-cell" />
                     </td>
                   ))}
                 </tr>
               ))
             ) : pageRows.length === 0 ? (
               <tr>
-                <td colSpan={visibleColumns.length + (onSelectionChange ? 1 : 0)} className="p-0">
+                <td colSpan={visibleColumns.length + (onSelectionChange ? 1 : 0)} style={{ padding: 0 }}>
                   {empty ?? <EmptyState title="Sin resultados" description="Ajusta los filtros o la búsqueda." />}
                 </td>
               </tr>
@@ -373,15 +372,14 @@ export function DataTable<T>({
                   <tr
                     key={id}
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
-                    className={cn(
-                      'border-b transition-colors hover:bg-muted/30',
-                      onRowClick && 'cursor-pointer',
-                      isSelected && 'bg-accent/40',
+                    className={cx(
+                      onRowClick && 'clickable',
+                      isSelected && 'selected',
                       rowClassName?.(row),
                     )}
                   >
                     {onSelectionChange && (
-                      <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
+                      <td onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={isSelected}
                           onCheckedChange={() => toggleRow(row)}
@@ -395,10 +393,9 @@ export function DataTable<T>({
                         <td
                           key={col.id}
                           style={sticky ? { position: 'sticky', left: 0, zIndex: 1, background: 'inherit' } : undefined}
-                          className={cn(
-                            'px-4 py-3 text-sm',
+                          className={cx(
                             getCellAlign(col.align),
-                            sticky && 'bg-card',
+                            sticky && 'sticky-cell',
                             col.className,
                           )}
                         >
@@ -443,7 +440,7 @@ function ColumnVisibilityMenu<T>({
           <Settings2 /> Columnas
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" style={{ width: '14rem' }}>
         <DropdownMenuLabel>Mostrar columnas</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {columns.map((col) => (

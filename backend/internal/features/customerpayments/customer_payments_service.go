@@ -122,6 +122,75 @@ type MarkPaidInput struct {
 	Notes       string
 }
 
+type ApplyPaymentInput struct {
+	CompanyID   uuid.UUID
+	PaymentDate valueobjects.Date
+	Amount      valueobjects.Money
+	Method      enums.PaymentMethod
+	Reference   string
+	Notes       string
+}
+
+func (s *CustomerPaymentService) ApplyPayment(ctx context.Context, saleID uuid.UUID, in ApplyPaymentInput) (*sales.Sale, error) {
+	var out *sales.Sale
+	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		sale, err := s.sales.GetByID(ctx, saleID)
+		if err != nil {
+			return err
+		}
+		if sale.Status == enums.SaleStatusCancelled {
+			return derrors.New("INVALID_STATE_TRANSITION", "cannot collect a cancelled sale")
+		}
+		if !in.Amount.IsPositive() || in.Amount.GreaterThan(sale.Balance()) {
+			return derrors.New("INVALID_PAYMENT", "payment exceeds sale balance")
+		}
+		method := in.Method
+		if !method.Valid() {
+			method = enums.PaymentMethodCash
+		}
+		number, err := s.payments.GetNextNumber(ctx, in.CompanyID)
+		if err != nil {
+			return err
+		}
+		cp, err := sales.NewCustomerPayment(time.Now().UTC(), sales.NewCustomerPaymentOptions{
+			CompanyID: in.CompanyID, CustomerID: sale.CustomerID, Number: number, PaymentDate: in.PaymentDate,
+			Amount: in.Amount, CurrencyCode: sale.CurrencyCode, ExchangeRate: sale.ExchangeRate, Method: method,
+			Reference: in.Reference, Notes: in.Notes,
+		})
+		if err != nil {
+			return err
+		}
+		if err := cp.ApplyToSale(saleID, in.Amount); err != nil {
+			return err
+		}
+		if err := s.payments.Create(ctx, cp); err != nil {
+			return err
+		}
+		if _, err := sale.ApplyPayment(in.Amount); err != nil {
+			return err
+		}
+		if err := s.sales.Update(ctx, sale); err != nil {
+			return err
+		}
+		cust, err := s.customers.GetByID(ctx, sale.CustomerID)
+		if err != nil {
+			return err
+		}
+		if _, err := cust.RecordPayment(in.Amount); err != nil {
+			return err
+		}
+		if err := s.customers.Update(ctx, cust); err != nil {
+			return err
+		}
+		out = sale
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MarkPaid records a customer payment covering the sale's full
 // outstanding balance, applies it to the sale and reduces the
 // customer's debt — all in a single transaction.
@@ -227,6 +296,16 @@ func (s *CustomerPaymentService) ApplyToSale(ctx context.Context, paymentID, sal
 		if err := s.sales.Update(ctx, sale); err != nil {
 			return err
 		}
+		cust, err := s.customers.GetByID(ctx, sale.CustomerID)
+		if err != nil {
+			return err
+		}
+		if _, err := cust.RecordPayment(amount); err != nil {
+			return err
+		}
+		if err := s.customers.Update(ctx, cust); err != nil {
+			return err
+		}
 		return nil
 	})
 }
@@ -300,6 +379,16 @@ func (s *CustomerPaymentService) ApplyAdvanceToSale(ctx context.Context, advance
 		if err != nil {
 			return err
 		}
+		sale, err := s.sales.GetByID(ctx, saleID)
+		if err != nil {
+			return err
+		}
+		if a.CompanyID != sale.CompanyID || a.CustomerID != sale.CustomerID {
+			return derrors.New("INVALID_PAYMENT", "advance and sale customer do not match")
+		}
+		if !a.CurrencyCode.Equals(sale.CurrencyCode) {
+			return derrors.New("INVALID_CURRENCY", "advance and sale currencies do not match")
+		}
 		remaining, err = a.ApplyToSale(saleID, amount)
 		if err != nil {
 			return err
@@ -307,14 +396,20 @@ func (s *CustomerPaymentService) ApplyAdvanceToSale(ctx context.Context, advance
 		if err := s.advances.Update(ctx, a); err != nil {
 			return err
 		}
-		sale, err := s.sales.GetByID(ctx, saleID)
-		if err != nil {
-			return err
-		}
 		if _, err := sale.ApplyPayment(amount); err != nil {
 			return err
 		}
 		if err := s.sales.Update(ctx, sale); err != nil {
+			return err
+		}
+		cust, err := s.customers.GetByID(ctx, sale.CustomerID)
+		if err != nil {
+			return err
+		}
+		if _, err := cust.RecordPayment(amount); err != nil {
+			return err
+		}
+		if err := s.customers.Update(ctx, cust); err != nil {
 			return err
 		}
 		return nil

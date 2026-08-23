@@ -1,5 +1,5 @@
-import { cn } from '@/lib/utils';
-import { formatCurrency } from '@/lib/utils';
+import { cx } from '@/utils/cx';
+import { formatCurrency } from '@/utils/format';
 
 export interface MoneyDisplayProps {
   value: number;
@@ -14,10 +14,10 @@ export function MoneyDisplay({ value, currency = 'PEN', className, signed = fals
   const formatted = formatCurrency(Math.abs(value), currency);
   return (
     <span
-      className={cn(
-        'tabular-nums',
-        signed && isNeg && 'text-destructive',
-        signed && isPos && 'text-success',
+      className={cx(
+        'tabular',
+        signed && isNeg && 'color-destructive',
+        signed && isPos && 'color-success',
         className,
       )}
     >

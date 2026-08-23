@@ -45,24 +45,24 @@ export function TablePagination({
   }, [page, totalPages]);
 
   return (
-    <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+    <div className="table-pagination">
+      <div className="table-pagination__info">
         <span>{t('common.showing')}</span>
-        <span className="font-medium text-foreground">{start}</span>
+        <span className="table-pagination__num">{start}</span>
         <span>–</span>
-        <span className="font-medium text-foreground">{end}</span>
+        <span className="table-pagination__num">{end}</span>
         <span>{t('common.of')}</span>
-        <span className="font-medium text-foreground">{total}</span>
+        <span className="table-pagination__num">{total}</span>
         <span>{t('common.rows')}</span>
       </div>
-      <div className="flex items-center gap-6">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Por página</span>
+      <div className="table-pagination__controls">
+        <div className="table-pagination__per-page">
+          <span className="table-pagination__per-page-label">Por página</span>
           <Select
             value={String(pageSize)}
             onValueChange={(v) => onPageSizeChange(Number(v))}
           >
-            <SelectTrigger className="h-8 w-[72px]">
+            <SelectTrigger className="table-pagination__select">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -74,7 +74,7 @@ export function TablePagination({
             </SelectContent>
           </Select>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="table-pagination__pages">
           <Button
             variant="outline"
             size="icon-sm"
@@ -86,17 +86,17 @@ export function TablePagination({
           </Button>
           {pageNumbers.map((p, i) =>
             p === 'ellipsis' ? (
-              <span key={`e-${i}`} className="px-2 text-sm text-muted-foreground">
+              <span key={`e-${i}`} className="table-pagination__ellipsis">
                 …
               </span>
             ) : (
               <Button
                 key={p}
-                variant={p === page ? 'default' : 'ghost'}
+                variant={p === page ? 'primary' : 'ghost'}
                 size="icon-sm"
                 onClick={() => onPageChange(p)}
                 aria-current={p === page ? 'page' : undefined}
-                className="w-8"
+                className="table-pagination__page"
               >
                 {p}
               </Button>

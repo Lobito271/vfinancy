@@ -1,7 +1,7 @@
 package errors
 
 // Validation errors. These are produced by value object constructors and
-// by domain-level validators. The application layer maps them to user-
+// by domain-level validators. The application layer maps them to caller-
 // facing messages.
 
 var (

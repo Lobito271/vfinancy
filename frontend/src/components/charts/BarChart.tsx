@@ -52,7 +52,7 @@ export function BarChart({ data, height = 280, formatY, colors = defaultColors }
             borderRadius: 8,
             fontSize: 12,
           }}
-          formatter={formatY ? (v: number) => [formatY(v), 'Valor'] : undefined}
+          formatter={formatY ? (v) => [formatY(v as number), 'Valor'] : undefined}
         />
         <Bar dataKey="value" radius={[4, 4, 0, 0]}>
           {data.map((_, i) => (

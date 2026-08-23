@@ -28,7 +28,7 @@ const columnSet: Column<CatalogItem>[] = [
     header: 'Código',
     sortable: true,
     sticky: true,
-    cell: (row) => <span className="font-medium tabular-nums">{row.code}</span>,
+    cell: (row) => <span className="fw-medium tabular">{row.code}</span>,
   },
   {
     id: 'name',
@@ -70,7 +70,7 @@ function CatalogTable({ kind }: { kind: CatalogKind }) {
         width: 88,
         exportable: false,
         cell: (row) => (
-          <div className="flex items-center justify-end gap-1">
+          <div className="row-actions">
             {canEdit && (
               <Button
                 variant="ghost"
@@ -102,7 +102,7 @@ function CatalogTable({ kind }: { kind: CatalogKind }) {
 
   return (
     <>
-      <div className="mb-4 flex items-center justify-end">
+      <div className="row-end" style={{ marginBottom: "1rem" }}>
         <Can permission={Permissions.Products.Create}>
           <Button
             onClick={() => {

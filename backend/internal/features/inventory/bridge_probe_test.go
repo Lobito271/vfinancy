@@ -64,6 +64,22 @@ func newProbeEnv(t *testing.T) *probeEnv {
 	if err := runner.Up(ctx); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
+	_, err = db.ExecContext(ctx, `INSERT INTO companies (id, code, legal_name, trade_name, tax_id) VALUES (?, ?, ?, ?, ?)`, probeCompany, "PROBE", "Probe Company S.A.C.", "Probe Company", "20600000001")
+	if err == nil {
+		_, err = db.ExecContext(ctx, `INSERT INTO branches (id, company_id, code, name, is_default) VALUES (?, ?, ?, ?, TRUE)`, probeBranch, probeCompany, "MAIN", "Principal")
+	}
+	if err == nil {
+		_, err = db.ExecContext(ctx, `INSERT INTO taxes (id, company_id, code, name, short_name, country_code, default_rate) VALUES (?, ?, 'IGV', 'Impuesto General a las Ventas', 'IGV', 'PE', '0.18')`, uuid.New(), probeCompany)
+	}
+	if err == nil {
+		_, err = db.ExecContext(ctx, `INSERT INTO units_of_measure (id, company_id, code, name, symbol, allows_decimals) VALUES (?, ?, 'UND', 'Unidad', 'UND', FALSE)`, uuid.MustParse("00000000-0000-0000-0000-0000000000d1"), probeCompany)
+	}
+	if err == nil {
+		_, err = db.ExecContext(ctx, `INSERT INTO warehouses (id, company_id, branch_id, code, name, is_default, is_active) VALUES (?, ?, ?, 'ALM-01', 'Almacén Principal', TRUE, TRUE)`, probeWarehouse, probeCompany, probeBranch)
+	}
+	if err != nil {
+		t.Fatalf("seed probe references: %v", err)
+	}
 
 	txm := persistence.NewTxManager(db)
 	customers := customerpostgres.NewCustomerRepository(db.DB)

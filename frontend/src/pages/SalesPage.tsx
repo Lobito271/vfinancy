@@ -23,13 +23,13 @@ const columns: Column<Sale>[] = [
     header: 'Número',
     sortable: true,
     sticky: true,
-    cell: (row) => <span className="font-medium tabular-nums">{row.number}</span>,
+    cell: (row) => <span className="fw-medium tabular">{row.number}</span>,
   },
   { id: 'customerName', header: 'Cliente', sortable: true, cell: (row) => row.customerName || '—' },
   {
     id: 'date',
     header: 'Fecha',
-    cell: (row) => <span className="text-muted-foreground">{formatDate(row.date)}</span>,
+    cell: (row) => <span className="muted">{formatDate(row.date)}</span>,
   },
   {
     id: 'status',
@@ -41,7 +41,7 @@ const columns: Column<Sale>[] = [
     header: 'Total',
     align: 'right',
     sortable: true,
-    cell: (row) => <span className="font-medium tabular-nums">{formatCurrency(row.total)}</span>,
+    cell: (row) => <span className="fw-medium tabular">{formatCurrency(row.total)}</span>,
   },
   {
     id: 'profit',
@@ -86,7 +86,7 @@ export function SalesPage() {
           const collectable = row.status === 'pending' || row.status === 'partial';
           const cancellable = row.status !== 'cancelled';
           return (
-            <div className="flex items-center justify-end gap-1">
+            <div className="row-actions">
               {canCollect && collectable && (
                 <Button
                   variant="ghost"

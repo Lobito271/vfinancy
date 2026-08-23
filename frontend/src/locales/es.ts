@@ -39,16 +39,6 @@ const es = {
     required: 'Requerido',
     optional: 'Opcional',
   },
-  auth: {
-    login: 'Iniciar sesión',
-    logout: 'Cerrar sesión',
-    username: 'Usuario',
-    password: 'Contraseña',
-    rememberMe: 'Recordarme',
-    forgotPassword: '¿Olvidó su contraseña?',
-    welcomeBack: 'Bienvenido de vuelta',
-    loginSubtitle: 'Ingrese sus credenciales para continuar',
-  },
   nav: {
     dashboard: 'Inicio',
     customers: 'Clientes',

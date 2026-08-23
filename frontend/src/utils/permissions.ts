@@ -1,18 +1,17 @@
 import { getRolePermissions, type Role } from '@/constants/permissions';
-import type { SessionUser } from '@/stores/session';
 
 export type Permission = string;
 
 export const SUPERADMIN_PERMISSION = '*.*';
 
 export interface PermissionContext {
-  user: SessionUser | null;
+  user: unknown;
   roles: Role[];
   permissions: string[];
 }
 
-export function buildContext(user: SessionUser | null): PermissionContext {
-  const roles = (user?.roles ?? []) as Role[];
+export function buildContext(user: unknown): PermissionContext {
+  const roles: Role[] = [];
   const permissions = Array.from(new Set(roles.flatMap((r) => getRolePermissions(r))));
   if (roles.includes('admin')) {
     permissions.push(SUPERADMIN_PERMISSION);

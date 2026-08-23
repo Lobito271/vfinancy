@@ -2,6 +2,7 @@ package bindings
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
 	"time"
@@ -18,8 +19,6 @@ import (
 	accountingpostgres "vfinancy/backend/internal/features/accounting/postgres"
 	"vfinancy/backend/internal/features/administration"
 	adminpostgres "vfinancy/backend/internal/features/administration/postgres"
-	"vfinancy/backend/internal/features/auth"
-	authpostgres "vfinancy/backend/internal/features/auth/postgres"
 	"vfinancy/backend/internal/features/customer"
 	customerpostgres "vfinancy/backend/internal/features/customer/postgres"
 	"vfinancy/backend/internal/features/customerpayments"
@@ -37,9 +36,9 @@ import (
 	syncpostgres "vfinancy/backend/internal/features/sync/postgres"
 	"vfinancy/backend/internal/features/treasury"
 	treasurypostgres "vfinancy/backend/internal/features/treasury/postgres"
+	"vfinancy/backend/internal/features/workspace"
+	workspacepostgres "vfinancy/backend/internal/features/workspace/postgres"
 )
-
-var demoCompanyID = uuid.MustParse("00000000-0000-0000-0000-000000000001")
 
 type App struct {
 	ctx context.Context
@@ -49,25 +48,23 @@ type App struct {
 
 	migrationsFS fs.FS
 
-	authSvc     *auth.AuthenticationService
-	settingsSvc *administration.SettingsService
-	profileSvc  *auth.ProfileService
-	auditSvc    *administration.AuditService
-	sessionSvc  *auth.SessionService
+	settingsSvc  *administration.SettingsService
+	auditSvc     *administration.AuditService
+	workspaceSvc *workspace.Service
 
-	treasurySvc    *treasury.TreasuryService
-	salesSvc       *sales.SalesService
-	paymentSvc     *customerpayments.CustomerPaymentService
-	inventorySvc   *inventory.InventoryService
-	accountingSvc  *accounting.AccountingService
-	purchasingSvc  *purchasing.PurchasingService
-	customersSvc   *customer.CustomerService
-	productsSvc    *product.ProductService
-	suppliersSvc   *supplier.SupplierService
+	treasurySvc        *treasury.TreasuryService
+	salesSvc           *sales.SalesService
+	paymentSvc         *customerpayments.CustomerPaymentService
+	inventorySvc       *inventory.InventoryService
+	accountingSvc      *accounting.AccountingService
+	purchasingSvc      *purchasing.PurchasingService
+	customersSvc       *customer.CustomerService
+	productsSvc        *product.ProductService
+	suppliersSvc       *supplier.SupplierService
+	accountsReceivable sales.AccountsReceivableRepository
+	accountsPayable    purchasing.AccountsPayableRepository
 
 	syncCancel context.CancelFunc
-
-	users auth.UserRepository
 }
 
 func New(cfg *config.Config, log *logger.Logger, migrationsFS fs.FS) *App {
@@ -88,6 +85,16 @@ func (a *App) Shutdown(ctx context.Context) {
 }
 
 func (a *App) Context() context.Context {
+	ctx := a.rawContext()
+	if a.workspaceSvc != nil && !a.workspaceSvc.IsUnlocked() {
+		locked, cancel := context.WithCancel(ctx)
+		cancel()
+		return locked
+	}
+	return ctx
+}
+
+func (a *App) rawContext() context.Context {
 	if a.ctx == nil {
 		return context.Background()
 	}
@@ -117,10 +124,6 @@ func (a *App) Init() error {
 		return fmt.Errorf("migrate: %w", err)
 	}
 
-	users := authpostgres.NewUserRepository(db.DB)
-	sessions := authpostgres.NewSessionRepository(db.DB)
-	userRoles := authpostgres.NewUserRoleRepository(db.DB)
-	profiles := authpostgres.NewProfileRepository(db.DB)
 	settings := adminpostgres.NewSettingRepository(db.DB)
 	currencies := adminpostgres.NewCurrencyRepository(db.DB)
 	taxes := adminpostgres.NewTaxRepository(db.DB)
@@ -145,34 +148,34 @@ func (a *App) Init() error {
 	orders := salespostgres.NewSaleRepository(db.DB)
 	payments := salespostgres.NewCustomerPaymentRepository(db.DB)
 	advances := salespostgres.NewCustomerAdvanceRepository(db.DB)
+	a.accountsReceivable = salespostgres.NewAccountsReceivableRepository(db.DB)
 
 	purchaseOrders := purchasingpostgres.NewPurchaseRepository(db.DB)
 	supplierPayments := purchasingpostgres.NewSupplierPaymentRepository(db.DB)
+	a.accountsPayable = purchasingpostgres.NewAccountsPayableRepository(db.DB)
 
 	journalEntries := accountingpostgres.NewJournalRepository(db.DB)
 	chartOfAccounts := accountingpostgres.NewChartOfAccountRepository(db.DB)
 	ledger := accountingpostgres.NewLedgerRepository(db.DB)
 	fiscalPeriods := accountingpostgres.NewFiscalPeriodRepository(db.DB)
 
-	a.users = users
-
-	argonParams := &auth.Argon2Params{
-		Memory:      a.cfg.Auth.ArgonMemory,
-		Iterations:  a.cfg.Auth.ArgonIterations,
-		Parallelism: a.cfg.Auth.ArgonParallelism,
-		SaltLength:  a.cfg.Auth.ArgonSaltLength,
-		KeyLength:   a.cfg.Auth.ArgonKeyLength,
+	a.workspaceSvc = workspace.NewService(workspacepostgres.NewRepository(db.DB))
+	if _, err := a.workspaceSvc.Initialize(ctx); err != nil && !errors.Is(err, workspace.ErrProfileNotFound) {
+		return fmt.Errorf("load local profile: %w", err)
 	}
 
-	a.sessionSvc = auth.NewSessionService(sessions, a.cfg.Auth.SessionTTL, a.log)
 	a.settingsSvc = administration.NewSettingsService(settings, currencies, taxes, countries, a.log)
-	a.profileSvc = auth.NewProfileService(profiles, users, a.log)
 	a.auditSvc = administration.NewAuditService(auditEvents, a.log)
-
-	a.authSvc = auth.NewAuthenticationService(users, userRoles, a.sessionSvc, a.auditSvc, argonParams, a.log, a.cfg.Auth.MaxLoginAttempts, a.cfg.Auth.LockoutTTL)
 
 	a.treasurySvc = treasury.New(bankAccounts, creditCards, bankTransactions, exchangeRates, txm, a.log)
 	a.inventorySvc = inventory.New(batches, movements, warehouseResolver, productClassifier, txm, a.log)
+	a.inventorySvc.SetClearanceSettings(func(ctx context.Context, companyID uuid.UUID) (int, int) {
+		prefs, err := a.settingsSvc.GetPreferences(ctx, companyID)
+		if err != nil {
+			return inventory.ClearanceDays, 3
+		}
+		return prefs.ClearanceDays, prefs.ClearanceWarningDays
+	})
 	a.salesSvc = sales.New(orders, customers, a.inventorySvc, productClassifier, txm, a.log)
 	a.paymentSvc = customerpayments.New(payments, advances, orders, customers, txm, a.log)
 	a.accountingSvc = accounting.New(journalEntries, chartOfAccounts, ledger, fiscalPeriods, txm, a.log)
@@ -181,14 +184,26 @@ func (a *App) Init() error {
 	a.productsSvc = product.New(products, txm, a.log)
 	a.suppliersSvc = supplier.New(suppliers, txm, a.log)
 
-	if err := a.seedAuthData(ctx, users, userRoles); err != nil {
-		a.log.Warn("auth seeder failed; continuing without demo admin", "error", err.Error())
-	}
-
 	a.startSyncWorker(ctx)
 
 	a.log.Info("bindings initialized")
 	return nil
+}
+
+func (a *App) companyID() uuid.UUID {
+	if a.workspaceSvc == nil {
+		return uuid.Nil
+	}
+	id, err := a.workspaceSvc.CurrentCompanyID()
+	if err != nil {
+		return uuid.Nil
+	}
+	return id
+}
+
+func (a *App) companyIDPtr() *uuid.UUID {
+	id := a.companyID()
+	return &id
 }
 
 // startSyncWorker launches the background replication loop when sync is

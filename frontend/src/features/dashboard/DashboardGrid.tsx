@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { cn } from '@/utils/cn';
+import { cx } from '@/utils/cx';
 
 export type WidgetSize = 'sm' | 'md' | 'lg' | 'xl' | 'full';
 
@@ -14,19 +14,19 @@ interface DashboardGridProps {
   className?: string;
 }
 
-const sizeToCol: Record<WidgetSize, string> = {
-  sm: 'col-span-12 sm:col-span-6 lg:col-span-3',
-  md: 'col-span-12 sm:col-span-6 lg:col-span-4',
-  lg: 'col-span-12 lg:col-span-6',
-  xl: 'col-span-12 lg:col-span-8',
-  full: 'col-span-12',
+const sizeClass: Record<WidgetSize, string> = {
+  sm: 'widget--sm',
+  md: 'widget--md',
+  lg: 'widget--lg',
+  xl: 'widget--xl',
+  full: '',
 };
 
 export function DashboardGrid({ items, className }: DashboardGridProps) {
   return (
-    <div className={cn('grid grid-cols-12 gap-4', className)}>
+    <div className={cx('widget-grid', className)}>
       {items.map((item) => (
-        <div key={item.id} className={cn(sizeToCol[item.size ?? 'md'])}>
+        <div key={item.id} className={cx(sizeClass[item.size ?? 'md'])}>
           {item.content}
         </div>
       ))}

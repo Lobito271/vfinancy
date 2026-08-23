@@ -18,24 +18,15 @@ type TableMeta struct {
 	Decimals    []string
 }
 
-// SyncedTables is the authoritative list of replicated tables. audit_logs,
-// audit_events and login_history are intentionally excluded: they are
-// append-only forensic records of the local device and would flood the
-// watermark scan. exchange_rates is excluded until its repository exists.
+// SyncedTables is the authoritative list of replicated business and master
+// data tables. Local profiles and audit records stay on the device.
 var SyncedTables = []*TableMeta{
 	{Name: "companies", PKColumns: []string{"id"}, TimeColumn: "updated_at", TimeColumns: []string{"created_at", "updated_at", "deleted_at"}},
 	{Name: "branches", PKColumns: []string{"id"}, TimeColumn: "updated_at", TimeColumns: []string{"created_at", "updated_at", "deleted_at"}},
-	{Name: "roles", PKColumns: []string{"id"}, TimeColumn: "updated_at", TimeColumns: []string{"created_at", "updated_at", "deleted_at"}},
-	{Name: "users", PKColumns: []string{"id"}, TimeColumn: "updated_at", TimeColumns: []string{"created_at", "updated_at", "deleted_at", "locked_until", "last_login_at"}},
-	{Name: "user_roles", PKColumns: []string{"id"}, TimeColumn: "assigned_at", TimeColumns: []string{"assigned_at", "expires_at"}},
-	{Name: "user_profiles", PKColumns: []string{"id"}, TimeColumn: "updated_at", TimeColumns: []string{"created_at", "updated_at"}},
-	{Name: "user_sessions", PKColumns: []string{"id"}, TimeColumn: "last_activity_at", TimeColumns: []string{"created_at", "last_activity_at", "locked_at", "expires_at"}},
 	{Name: "application_settings", PKColumns: []string{"id"}, TimeColumn: "updated_at", TimeColumns: []string{"created_at", "updated_at"}},
 	{Name: "taxes", PKColumns: []string{"id"}, TimeColumn: "updated_at", TimeColumns: []string{"created_at", "updated_at", "deleted_at"}, Decimals: []string{"default_rate"}},
 	{Name: "currencies", PKColumns: []string{"code"}, TimeColumn: "updated_at", TimeColumns: []string{"created_at", "updated_at"}},
 	{Name: "countries", PKColumns: []string{"code"}, TimeColumn: "created_at", TimeColumns: []string{"created_at"}},
-	{Name: "permissions", PKColumns: []string{"code"}, TimeColumn: "created_at", TimeColumns: []string{"created_at"}},
-	{Name: "role_permissions", PKColumns: []string{"role_id", "permission_code"}, TimeColumn: "created_at", TimeColumns: []string{"created_at"}},
 }
 
 // LookupTable returns the metadata for a replicated table name.

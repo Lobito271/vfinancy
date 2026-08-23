@@ -24,7 +24,7 @@ const columns: Column<InventoryItem>[] = [
     header: 'SKU',
     sortable: true,
     sticky: true,
-    cell: (row) => <span className="font-medium tabular-nums">{row.productSku}</span>,
+    cell: (row) => <span className="fw-medium tabular">{row.productSku}</span>,
   },
   {
     id: 'productDescription',
@@ -38,7 +38,7 @@ const columns: Column<InventoryItem>[] = [
     header: 'Cantidad',
     align: 'right',
     sortable: true,
-    cell: (row) => <span className="tabular-nums">{formatNumber(row.quantity)}</span>,
+    cell: (row) => <span className="tabular">{formatNumber(row.quantity)}</span>,
   },
   {
     id: 'unitCost',
@@ -46,7 +46,7 @@ const columns: Column<InventoryItem>[] = [
     align: 'right',
     sortable: true,
     exportable: true,
-    cell: (row) => <span className="tabular-nums">{formatCurrency(row.unitCost, row.currencyCode)}</span>,
+    cell: (row) => <span className="tabular">{formatCurrency(row.unitCost, row.currencyCode)}</span>,
   },
   {
     id: 'totalCost',
@@ -55,24 +55,24 @@ const columns: Column<InventoryItem>[] = [
     sortable: true,
     exportable: true,
     accessor: (row) => row.quantity * row.unitCost,
-    cell: (row) => <span className="tabular-nums">{formatCurrency(row.quantity * row.unitCost, row.currencyCode)}</span>,
+    cell: (row) => <span className="tabular">{formatCurrency(row.quantity * row.unitCost, row.currencyCode)}</span>,
   },
   {
     id: 'arrivalDate',
     header: 'Ingreso',
-    cell: (row) => <span className="text-muted-foreground">{row.arrivalDate ? formatDate(row.arrivalDate) : '—'}</span>,
+    cell: (row) => <span className="muted">{row.arrivalDate ? formatDate(row.arrivalDate) : '—'}</span>,
   },
   {
     id: 'maxSaleDate',
     header: 'Venta máxima',
-    cell: (row) => <span className="text-muted-foreground">{row.maxSaleDate ? formatDate(row.maxSaleDate) : '—'}</span>,
+    cell: (row) => <span className="muted">{row.maxSaleDate ? formatDate(row.maxSaleDate) : '—'}</span>,
   },
   {
     id: 'daysRemaining',
     header: 'Días restantes',
     align: 'right',
     sortable: true,
-    cell: (row) => <span className="tabular-nums">{row.daysRemaining}</span>,
+    cell: (row) => <span className="tabular">{row.daysRemaining}</span>,
   },
   {
     id: 'status',
@@ -116,7 +116,7 @@ export function InventoryPage() {
         width: 88,
         exportable: false,
         cell: (row) => (
-          <div className="flex items-center justify-end gap-1">
+          <div className="row-actions">
             {canEdit && row.status !== 'voided' && (
               <Button
                 variant="ghost"

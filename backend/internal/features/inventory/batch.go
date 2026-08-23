@@ -28,7 +28,7 @@ const ClearanceDays = 25
 
 // Batch statuses. "active" is sellable; "depleted" has no remaining
 // stock; "written_off" was zeroed by damage/expiry; "voided" was a
-// mistaken receipt cancelled by the user (the row is kept for audit).
+// mistaken receipt cancelled by the operator (the row is kept for audit).
 const (
 	InventoryBatchStatusActive     = "active"
 	InventoryBatchStatusDepleted   = "depleted"
@@ -40,25 +40,25 @@ const (
 // the same arrival date, lot and (optionally) supplier. Each batch
 // tracks its own quantity and its clearance deadline.
 type InventoryBatch struct {
-	ID               uuid.UUID
-	CompanyID        uuid.UUID
-	ProductID        uuid.UUID
-	WarehouseID      uuid.UUID
-	SupplierID       *uuid.UUID
-	PurchaseLineID   *uuid.UUID
-	LotNumber        valueobjects.LotNumber
-	SerialNumber     string
-	ArrivalDate      valueobjects.Date
-	ExpiryDate       *valueobjects.Date
-	InitialQuantity  valueobjects.Quantity
-	CurrentQuantity  valueobjects.Quantity
-	UnitCost         valueobjects.Money
-	CurrencyCode     valueobjects.CurrencyCode
-	Status           string
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
-	CreatedBy        *uuid.UUID
-	UpdatedBy        *uuid.UUID
+	ID              uuid.UUID
+	CompanyID       uuid.UUID
+	ProductID       uuid.UUID
+	WarehouseID     uuid.UUID
+	SupplierID      *uuid.UUID
+	PurchaseLineID  *uuid.UUID
+	LotNumber       valueobjects.LotNumber
+	SerialNumber    string
+	ArrivalDate     valueobjects.Date
+	ExpiryDate      *valueobjects.Date
+	InitialQuantity valueobjects.Quantity
+	CurrentQuantity valueobjects.Quantity
+	UnitCost        valueobjects.Money
+	CurrencyCode    valueobjects.CurrencyCode
+	Status          string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	CreatedBy       *uuid.UUID
+	UpdatedBy       *uuid.UUID
 }
 
 // NewInventoryBatchOptions is the input to NewInventoryBatch.
@@ -110,10 +110,16 @@ func NewInventoryBatch(now time.Time, opts NewInventoryBatchOptions) (*Inventory
 	}, nil
 }
 
-// MaximumSaleDate is arrival_date + 25 days. This is the boundary
-// beyond which a batch is sold as clearance.
+// maximum sale date uses the default clearance period.
 func (b *InventoryBatch) MaximumSaleDate() valueobjects.Date {
-	return valueobjects.AddDays(b.ArrivalDate, ClearanceDays)
+	return b.MaximumSaleDateAfter(ClearanceDays)
+}
+
+func (b *InventoryBatch) MaximumSaleDateAfter(days int) valueobjects.Date {
+	if days < 0 {
+		days = ClearanceDays
+	}
+	return valueobjects.AddDays(b.ArrivalDate, days)
 }
 
 // DaysInStock returns the number of days between the arrival date and
@@ -122,28 +128,35 @@ func (b *InventoryBatch) DaysInStock(today valueobjects.Date) int {
 	return int(today.Sub(b.ArrivalDate).Hours() / 24)
 }
 
-// DaysUntilClearance returns the number of days remaining before the
-// batch hits its clearance date. Negative if already clearance.
+// days until clearance returns the remaining days before clearance.
 func (b *InventoryBatch) DaysUntilClearance(today valueobjects.Date) int {
 	return int(b.MaximumSaleDate().Sub(today).Hours() / 24)
 }
 
-// IsClearance reports whether the batch is past its clearance date.
-// A batch with zero quantity is NOT clearance (it is depleted).
+// is clearance reports whether a stocked batch passed its clearance date.
 func (b *InventoryBatch) IsClearance(today valueobjects.Date) bool {
-	if b.CurrentQuantity.IsZero() {
-		return false
-	}
-	return today.After(b.MaximumSaleDate()) || today.Equal(b.MaximumSaleDate())
+	return b.IsClearanceAfter(today, ClearanceDays)
 }
 
-// NeedsClearanceSoon reports whether the batch is within 3 days of
-// its clearance date. Used by the dashboard to surface early warnings.
-func (b *InventoryBatch) NeedsClearanceSoon(today valueobjects.Date) bool {
+func (b *InventoryBatch) IsClearanceAfter(today valueobjects.Date, days int) bool {
 	if b.CurrentQuantity.IsZero() {
 		return false
 	}
-	return b.DaysUntilClearance(today) <= 3 && !b.IsClearance(today)
+	date := b.MaximumSaleDateAfter(days)
+	return today.After(date) || today.Equal(date)
+}
+
+// needs clearance soon reports whether a stocked batch is near clearance.
+func (b *InventoryBatch) NeedsClearanceSoon(today valueobjects.Date) bool {
+	return b.NeedsClearanceSoonAfter(today, ClearanceDays, 3)
+}
+
+func (b *InventoryBatch) NeedsClearanceSoonAfter(today valueobjects.Date, days, warningDays int) bool {
+	if b.CurrentQuantity.IsZero() {
+		return false
+	}
+	until := int(b.MaximumSaleDateAfter(days).Sub(today).Hours() / 24)
+	return until <= warningDays && !b.IsClearanceAfter(today, days)
 }
 
 // Consume reduces current_quantity by a positive amount. Used by sales

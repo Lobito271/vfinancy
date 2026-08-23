@@ -39,7 +39,7 @@ export function Form<T extends FieldValues>({ schema, onSubmit, children, ...pro
   const form = useForm<T, any, T>({ ...props, resolver: schema ? makeResolver(schema) : undefined });
   return (
     <FormProvider {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="form" noValidate>
         {typeof children === 'function' ? children(form) : children}
       </form>
     </FormProvider>

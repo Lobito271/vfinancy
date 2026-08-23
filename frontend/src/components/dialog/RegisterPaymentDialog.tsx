@@ -61,12 +61,12 @@ export function RegisterPaymentDialog({
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
-        <div className="rounded-lg border bg-muted/40 p-4">
-          <div className="flex items-baseline justify-between gap-4">
-            <div className="text-sm text-muted-foreground">
-              {amountLabel} · <span className="font-medium text-foreground">{documentNumber}</span>
+        <div className="doc-summary">
+          <div className="doc-summary__row">
+            <div className="doc-summary__meta">
+              {amountLabel} · <span className="doc-summary__doc-number">{documentNumber}</span>
             </div>
-            <div className="text-lg font-semibold tabular-nums">{formatCurrency(amount)}</div>
+            <div className="doc-summary__amount">{formatCurrency(amount)}</div>
           </div>
         </div>
 
@@ -84,8 +84,8 @@ export function RegisterPaymentDialog({
         >
           {({ formState }) => (
             <>
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="stack stack--lg">
+                <div className="grid-2">
                   <DateField name="paymentDate" label="Fecha de pago" required />
                   <SelectField name="method" label="Método de pago" required placeholder="Seleccione…" options={PaymentMethodOptions} />
                 </div>

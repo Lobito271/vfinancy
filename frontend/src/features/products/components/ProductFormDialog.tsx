@@ -127,7 +127,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
         <Form<ProductFormValues> schema={ProductSchema} defaultValues={defaults} onSubmit={handleSubmit}>
           {({ formState }) => (
             <>
-              <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-2">
+              <div className="dialog-body-scroll">
                 <Grid cols={2}>
                   <TextField name="sku" label="SKU" required />
                   <TextField name="barcode" label="Código de barras" />

@@ -96,13 +96,13 @@ type WarehouseDTO struct {
 	IsActive        bool   `json:"isActive"`
 }
 
-// ListWarehouses returns the warehouses of the demo company.
+// ListWarehouses returns the warehouses of the active company.
 func (a *App) ListWarehouses() ([]WarehouseDTO, error) {
 	rows, err := a.db.QueryContext(a.Context(),
 		`SELECT id, code, name, is_default, allows_clearance, is_active
 		   FROM warehouses
 		  WHERE company_id = $1 AND deleted_at IS NULL
-		  ORDER BY is_default DESC, name`, demoCompanyID)
+		  ORDER BY is_default DESC, name`, a.companyID())
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +125,7 @@ func (a *App) ListWarehouses() ([]WarehouseDTO, error) {
 func (a *App) ListInventoryBatches(req ListInventoryBatchesRequest) (PageResult, error) {
 	ctx := a.Context()
 	filter := inventory.InventoryBatchFilter{
-		CompanyID:     &demoCompanyID,
+		CompanyID:     a.companyIDPtr(),
 		OnlyClearance: req.OnlyClearance,
 		PageRequest:   req.toPageRequest(),
 	}
@@ -151,7 +151,7 @@ type ListInventoryMovementsRequest struct {
 func (a *App) ListInventoryMovements(req ListInventoryMovementsRequest) (PageResult, error) {
 	ctx := a.Context()
 	filter := inventory.InventoryMovementFilter{
-		CompanyID:   &demoCompanyID,
+		CompanyID:   a.companyIDPtr(),
 		PageRequest: req.toPageRequest(),
 	}
 	productID, err := parseOptionalUUID(req.ProductID)
@@ -174,7 +174,7 @@ func (a *App) ListInventoryMovements(req ListInventoryMovementsRequest) (PageRes
 func (a *App) GetClearanceCandidates() ([]*InventoryBatchDTO, error) {
 	ctx := a.Context()
 	now := time.Now().UTC()
-	batches, err := a.inventorySvc.GenerateClearanceCandidates(ctx, demoCompanyID, now)
+	batches, err := a.inventorySvc.GenerateClearanceCandidates(ctx, a.companyID(), now)
 	if err != nil {
 		return nil, err
 	}
@@ -229,7 +229,7 @@ func (a *App) ReceiveStock(req ReceiveStockRequest) (*InventoryBatchDTO, error) 
 		return nil, err
 	}
 	batch, err := a.inventorySvc.Receive(ctx, inventory.ReceiveInput{
-		CompanyID:    demoCompanyID,
+		CompanyID:    a.companyID(),
 		ProductID:    productID,
 		WarehouseID:  warehouseID,
 		LotNumber:    lot,
@@ -276,9 +276,9 @@ func (a *App) IssueStock(req IssueStockRequest) error {
 // AdjustStockRequest corrects the stock level of a batch. Delta is
 // signed: positive adds stock, negative removes it.
 type AdjustStockRequest struct {
-	BatchID  string `json:"batchId"`
-	Delta    string `json:"delta"`
-	Reason   string `json:"reason"`
+	BatchID string `json:"batchId"`
+	Delta   string `json:"delta"`
+	Reason  string `json:"reason"`
 }
 
 // AdjustStock records a manual inventory adjustment.

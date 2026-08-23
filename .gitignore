@@ -27,7 +27,9 @@ coverage.out
 # =========================
 # Local runtime data
 # =========================
-data/*.db*
+data/*.db
+data/*.db-wal
+data/*.db-shm
 
 # =========================
 # Logs

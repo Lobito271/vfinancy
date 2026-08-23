@@ -22,13 +22,12 @@ export function SearchField<T extends FieldValues>({ name, label, description, p
   const value = (watch(name) as string) ?? '';
   return (
     <Field label={label} description={description} error={error} className={className} htmlFor={String(name)}>
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+      <div className="search-box">
+        <Search className="search-box__icon" aria-hidden="true" />
         <Input
           id={String(name)}
           type="search"
           placeholder={placeholder}
-          className="pl-9 pr-9"
           invalid={!!error}
           {...register(name)}
           onChange={(e) => {
@@ -42,10 +41,10 @@ export function SearchField<T extends FieldValues>({ name, label, description, p
             variant="ghost"
             size="icon-sm"
             onClick={() => setValue(name, '' as never)}
-            className="absolute right-1 top-1/2 -translate-y-1/2"
+            className="search-box__clear"
             aria-label="Limpiar"
           >
-            <EyeOff className="h-4 w-4" />
+            <EyeOff />
           </Button>
         )}
       </div>
@@ -68,22 +67,21 @@ export function PasswordField<T extends FieldValues>({ name, label, description,
   const [show, setShow] = useState(false);
   return (
     <Field label={label} required={required} description={description} error={error} className={className} htmlFor={String(name)}>
-      <div className="relative">
+      <div className="input-affix input-affix--suffix">
         <Input
           id={String(name)}
           type={show ? 'text' : 'password'}
           autoComplete={autoComplete}
           invalid={!!error}
-          className="pr-10"
           {...register(name)}
         />
         <button
           type="button"
           onClick={() => setShow((s) => !s)}
-          className="absolute right-1 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+          className="input-affix__action"
           aria-label={show ? 'Ocultar contraseña' : 'Mostrar contraseña'}
         >
-          {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          {show ? <EyeOff /> : <Eye />}
         </button>
       </div>
     </Field>
@@ -115,8 +113,8 @@ export function PhoneField<T extends FieldValues>({ name, label, description, re
   const error = formState.errors[name]?.message as string | undefined;
   return (
     <Field label={label} required={required} description={description} error={error} className={className} htmlFor={String(name)}>
-      <div className="relative">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">+51</span>
+      <div className="input-affix input-affix--prefix">
+        <span className="input-affix__prefix">+51</span>
         <Input
           id={String(name)}
           type="tel"
@@ -124,7 +122,7 @@ export function PhoneField<T extends FieldValues>({ name, label, description, re
           maxLength={9}
           placeholder="999 999 999"
           invalid={!!error}
-          className="pl-12 tabular-nums"
+          className="tabular"
           {...register(name, {
             validate: (v) => !v || validators.isPhonePE(String(v)) || 'Teléfono inválido (9 dígitos)',
           })}

@@ -30,13 +30,13 @@ export class ErrorBoundary extends Component<Props, State> {
     if (!error) return this.props.children;
     if (this.props.fallback) return this.props.fallback(error, this.reset);
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
-          <AlertTriangle className="h-6 w-6 text-destructive" />
+      <div className="crash-screen">
+        <div className="crash-screen__icon">
+          <AlertTriangle />
         </div>
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold">Algo salió mal</h2>
-          <p className="max-w-md text-sm text-muted-foreground">
+        <div className="stack stack--xs">
+          <h2 className="crash-screen__title">Algo salió mal</h2>
+          <p className="crash-screen__message">
             {error.message || 'Ha ocurrido un error inesperado. Intente nuevamente.'}
           </p>
         </div>

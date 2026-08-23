@@ -5,15 +5,13 @@ import { DashboardPage } from '@/pages/DashboardPage';
 import { CustomersPage } from '@/pages/CustomersPage';
 import { SuppliersPage } from '@/pages/SuppliersPage';
 import { ProductsPage } from '@/pages/ProductsPage';
+import { CatalogSettingsPage } from '@/pages/CatalogSettingsPage';
 import { InventoryPage } from '@/pages/InventoryPage';
 import { PurchasesPage } from '@/pages/PurchasesPage';
 import { SalesPage } from '@/pages/SalesPage';
 import { TreasuryPage } from '@/pages/TreasuryPage';
 import { AccountingPage } from '@/pages/AccountingPage';
-import { ReportsPage } from '@/pages/ReportsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
-import { AdministrationPage } from '@/pages/AdministrationPage';
-import { LoginPage } from '@/pages/LoginPage';
 import { useThemeStore } from '@/stores/theme';
 
 export default function App() {
@@ -25,20 +23,18 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
       <Route element={<AppLayout />}>
         <Route index element={<DashboardPage />} />
         <Route path="clientes" element={<CustomersPage />} />
         <Route path="proveedores" element={<SuppliersPage />} />
         <Route path="productos" element={<ProductsPage />} />
+        <Route path="configuracion-catalogo" element={<CatalogSettingsPage />} />
         <Route path="inventario" element={<InventoryPage />} />
         <Route path="compras" element={<PurchasesPage />} />
         <Route path="ventas" element={<SalesPage />} />
         <Route path="tesoreria" element={<TreasuryPage />} />
         <Route path="contabilidad" element={<AccountingPage />} />
-        <Route path="reportes" element={<ReportsPage />} />
         <Route path="configuracion" element={<SettingsPage />} />
-        <Route path="administracion" element={<AdministrationPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

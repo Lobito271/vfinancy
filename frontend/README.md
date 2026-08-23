@@ -39,14 +39,14 @@ src/
   layouts/           # AppLayout (sidebar + topbar + breadcrumbs)
   stores/            # Zustand: theme, session, sidebar, ui, notification
   locales/           # es-PE translation dictionary + t() helper
-  lib/               # cn(), formatCurrency, formatDate, nav routes
+  lib/               # nav routes
   hooks/             # (reserved)
   services/          # one folder per business domain, all wired to the Wails bindings (no mocks)
   types/             # shared domain types (Customer, Product, Supplier, Sale, ...)
   assets/            # static files
   main.tsx           # Vite entrypoint
   App.tsx            # router config
-  index.css          # plain CSS3 design system (tokens + utilities) + Inter font
+  index.css          # plain CSS3 design system (tokens + semantic component classes) + Inter font
 ```
 
 Every `components/<category>/` has an `index.ts` barrel — **import from `@/components/<category>`**, not from individual files.
@@ -71,10 +71,10 @@ wails build         # produce desktop binary in build/bin/
 
 - The frontend **must not** access the database directly. All calls go through Wails bindings exposed by the Go `App` and `bindings.App` structs.
 - All UI text is in **Spanish (es-PE)** via `t('key')` from `@/locales`. No hardcoded strings in components.
-- All numbers / dates / currency use `Intl.*` helpers in `@/lib/utils`. **Never** use `toFixed` for money or `toLocaleString` ad-hoc.
+- All numbers / dates / currency use `Intl.*` helpers in `@/utils/format`. **Never** use `toFixed` for money or `toLocaleString` ad-hoc.
 - Path alias `@/*` resolves to `src/*`.
-- All style tokens (CSS variables) and utility classes live in `src/index.css`. Use `bg-primary`, `text-muted-foreground`, etc. — never hardcode colors. This is the only stylesheet.
-- Use `cn()` for class composition. Don't write raw string concatenation.
+- All style tokens (CSS variables) and semantic component classes live in `src/index.css`. Use the component classes (`.btn`, `.card`, `.input`, …) — never hardcode colors. This is the only stylesheet.
+- Use `cx()` from `@/utils/cx` for conditional class composition. Don't write raw string concatenation.
 - Destructive actions go through `<AlertDialog variant="destructive">` or `<ConfirmDialog>`.
 - Forms use `react-hook-form` + `zod` (when forms are added in later phases).
 - After running `wails dev`/`wails build`, real generated Wails types appear in `src/wailsjs/go/main/` — import from those, not from the placeholder `AppBindings` interface in `src/vite-env.d.ts`.

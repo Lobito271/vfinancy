@@ -1,5 +1,4 @@
-import type { ReactNode } from 'react';
-import { cn } from '@/utils/cn';
+import type { CSSProperties, ReactNode } from 'react';
 
 export interface Column<T> {
   id: string;
@@ -59,9 +58,9 @@ export const DataTableDefaults = {
 export type CellAlign = NonNullable<Column<unknown>['align']>;
 
 export function getCellAlign(align: CellAlign | undefined): string {
-  if (align === 'right') return 'text-right tabular-nums';
-  if (align === 'center') return 'text-center';
-  return 'text-left';
+  if (align === 'right') return 'ta-right';
+  if (align === 'center') return 'ta-center';
+  return '';
 }
 
 export function resolveWidth(width: number | string | undefined): string | undefined {
@@ -69,8 +68,6 @@ export function resolveWidth(width: number | string | undefined): string | undef
   return typeof width === 'number' ? `${width}px` : width;
 }
 
-export function defaultStickyStyle(side: 'left' | 'right', offset: number): React.CSSProperties {
+export function defaultStickyStyle(side: 'left' | 'right', offset: number): CSSProperties {
   return { position: 'sticky', [side]: offset, zIndex: 1 };
 }
-
-export { cn };

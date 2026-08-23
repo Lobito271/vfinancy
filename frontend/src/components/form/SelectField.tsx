@@ -9,7 +9,6 @@ import {
   SelectValue,
 } from '@/components/select';
 import { Spinner } from '@/components/feedback';
-import { cn } from '@/utils/cn';
 
 export interface SelectOption {
   value: string;
@@ -53,7 +52,7 @@ export function SelectField<T extends FieldValues>({
         control={control}
         name={name}
         render={({ field }) => (
-          <div className="relative">
+          <div className="select-wrap">
             <Select
               value={field.value ?? ''}
               onValueChange={(v) => {
@@ -62,7 +61,7 @@ export function SelectField<T extends FieldValues>({
               }}
               disabled={disabled || loading}
             >
-              <SelectTrigger invalid={!!error} className={cn(loading && 'opacity-60')}>
+              <SelectTrigger invalid={!!error}>
                 <SelectValue placeholder={loading ? 'Cargando…' : placeholder} />
               </SelectTrigger>
               <SelectContent>
@@ -72,18 +71,18 @@ export function SelectField<T extends FieldValues>({
                   </SelectItem>
                 ))}
                 {options.length === 0 && !loading && (
-                  <div className="p-2 text-center text-sm text-muted-foreground">Sin opciones</div>
+                  <div className="select-empty">Sin opciones</div>
                 )}
               </SelectContent>
             </Select>
             {loading && (
-              <Spinner size="sm" className="absolute right-10 top-1/2 -translate-y-1/2" />
+              <Spinner size="sm" className="select-spinner" />
             )}
             {clearable && field.value && !disabled && (
               <button
                 type="button"
                 onClick={() => field.onChange('')}
-                className="absolute right-9 top-1/2 -translate-y-1/2 rounded p-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                className="select-clear"
                 aria-label="Limpiar selección"
               >
                 ×

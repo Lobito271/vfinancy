@@ -32,9 +32,9 @@ const columns: Column<Supplier>[] = [
     sortable: true,
     sticky: true,
     cell: (row) => (
-      <div className="flex flex-col">
-        <span className="font-medium">{row.businessName}</span>
-        <span className="text-xs text-muted-foreground">
+      <div className="vstack">
+        <span className="fw-medium">{row.businessName}</span>
+        <span className="subtle-text">
           {row.documentType} · {row.documentNumber}
         </span>
       </div>
@@ -49,7 +49,7 @@ const columns: Column<Supplier>[] = [
     align: 'right',
     sortable: true,
     cell: (row) => (
-      <span className={row.currentDebt > 0 ? 'font-medium tabular-nums' : 'tabular-nums text-muted-foreground'}>
+      <span className={row.currentDebt > 0 ? 'fw-medium tabular' : 'tabular muted'}>
         {formatCurrency(row.currentDebt)}
       </span>
     ),
@@ -89,7 +89,7 @@ export function SuppliersPage() {
         width: 88,
         exportable: false,
         cell: (row) => (
-          <div className="flex items-center justify-end gap-1">
+          <div className="row-actions">
             {canEdit && (
               <Button
                 variant="ghost"
@@ -125,8 +125,8 @@ export function SuppliersPage() {
         title="Proveedores"
         subtitle="Gestión de proveedores y cuentas por pagar"
         actions={
-          <div className="flex items-center gap-2">
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar proveedor…" className="w-64" aria-label="Buscar proveedor" />
+          <div className="hstack hstack--sm">
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar proveedor…" style={{ width: "16rem" }} aria-label="Buscar proveedor" />
             <Can permission={Permissions.Suppliers.Create}>
               <Button
                 onClick={() => {
@@ -159,7 +159,7 @@ export function SuppliersPage() {
         exportFilename="proveedores.csv"
         toolbarLeft={
           <Select value={status} onValueChange={(v) => setStatus(v === 'all' ? '' : v)}>
-            <SelectTrigger className="w-44" aria-label="Filtrar por estado">
+            <SelectTrigger style={{ width: "11rem" }} aria-label="Filtrar por estado">
               <SelectValue placeholder="Estado: todos" />
             </SelectTrigger>
             <SelectContent>

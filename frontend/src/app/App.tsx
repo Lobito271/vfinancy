@@ -42,7 +42,8 @@ function SetupState({ children, setup }: { children: React.ReactNode; setup: boo
   const state = useQuery({ queryKey: ['setup'], queryFn: () => wailsClient.getLocalAuthState() });
   if (state.isLoading) return <PageLoader />;
   if (state.isError) return <div className="page-loader">No se pudo comprobar la configuración.</div>;
-  if (state.data?.configured !== setup) return <Navigate to={setup ? '/' : '/configuracion-inicial'} replace />;
+  if (state.data?.configured !== setup)
+    return <Navigate to={setup ? '/configuracion-inicial' : '/'} replace />;
   return <>{children}</>;
 }
 

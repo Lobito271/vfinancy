@@ -39,7 +39,7 @@ type CreateInput struct {
 	BrandID      *uuid.UUID
 	UnitID       uuid.UUID
 	TaxID        uuid.UUID
-	Cost         valueobjects.Money
+	CostUSD      valueobjects.Money
 	SalePrice    valueobjects.Money
 	SaleCurrency valueobjects.CurrencyCode
 	MinStock     valueobjects.Quantity
@@ -62,7 +62,7 @@ func (s *ProductService) Create(ctx context.Context, in CreateInput) (*Product, 
 			BrandID:      in.BrandID,
 			UnitID:       in.UnitID,
 			TaxID:        in.TaxID,
-			Cost:         in.Cost,
+			CostUSD:       in.CostUSD,
 			SalePrice:    in.SalePrice,
 			SaleCurrency: in.SaleCurrency,
 			MinStock:     in.MinStock,
@@ -86,14 +86,14 @@ func (s *ProductService) Create(ctx context.Context, in CreateInput) (*Product, 
 	return out, nil
 }
 
-// UpdateCost changes the product's standard cost.
-func (s *ProductService) UpdateCost(ctx context.Context, id uuid.UUID, cost valueobjects.Money) error {
+// UpdateCostUSD changes the product's standard cost in USD.
+func (s *ProductService) UpdateCostUSD(ctx context.Context, id uuid.UUID, cost valueobjects.Money) error {
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
 		p, err := s.repo.GetByID(ctx, id)
 		if err != nil {
 			return err
 		}
-		if err := p.ChangeCost(cost); err != nil {
+		if err := p.ChangeCostUSD(cost); err != nil {
 			return err
 		}
 		return s.repo.Update(ctx, p)
@@ -101,7 +101,7 @@ func (s *ProductService) UpdateCost(ctx context.Context, id uuid.UUID, cost valu
 	if err != nil {
 		return err
 	}
-	s.log.Info("product cost updated", "product_id", id, "new_cost", cost)
+	s.log.Info("product cost usd updated", "product_id", id, "new_cost_usd", cost)
 	return nil
 }
 
@@ -204,7 +204,7 @@ type UpdateInput struct {
 	CategoryID  *uuid.UUID
 	BrandID     *uuid.UUID
 	UnitID      *uuid.UUID
-	Cost        *valueobjects.Money
+	CostUSD     *valueobjects.Money
 	SalePrice   *valueobjects.Money
 	MinStock    *valueobjects.Quantity
 	MaxStock    *valueobjects.Quantity
@@ -224,8 +224,8 @@ func (s *ProductService) Update(ctx context.Context, in UpdateInput) (*Product, 
 				return err
 			}
 		}
-		if in.Cost != nil {
-			if err := p.ChangeCost(*in.Cost); err != nil {
+		if in.CostUSD != nil {
+			if err := p.ChangeCostUSD(*in.CostUSD); err != nil {
 				return err
 			}
 		}

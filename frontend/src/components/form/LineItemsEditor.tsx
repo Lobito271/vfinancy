@@ -45,7 +45,9 @@ export function LineItemsEditor({ products, isSale = false, currency = DefaultCu
   const handleProductChange = (index: number, productId: string) => {
     const product = products.find((p) => p.value === productId);
     if (!product) return;
-    setValue(`items.${index}.unitPrice` as Path<LineForm>, (isSale ? product.salePrice : product.unitCost) as never);
+    if (!isSale) {
+      setValue(`items.${index}.unitPrice` as Path<LineForm>, product.unitCost as never);
+    }
     setValue(`items.${index}.taxRate` as Path<LineForm>, product.taxRate as never);
   };
 

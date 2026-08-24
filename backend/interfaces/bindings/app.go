@@ -121,7 +121,7 @@ func (a *App) Init() error {
 
 	runner := migrations.NewRunnerFS(a.migrationsFS, db.DB, a.log, "sqlite")
 	if err := runner.Up(ctx); err != nil {
-		return fmt.Errorf("migrate: %w", err)
+		a.log.Error("migrate failed; continuing with degraded schema", "error", err.Error())
 	}
 
 	settings := adminpostgres.NewSettingRepository(db.DB)
@@ -161,7 +161,7 @@ func (a *App) Init() error {
 
 	a.workspaceSvc = workspace.NewService(workspacepostgres.NewRepository(db.DB))
 	if _, err := a.workspaceSvc.Initialize(ctx); err != nil && !errors.Is(err, workspace.ErrProfileNotFound) {
-		return fmt.Errorf("load local profile: %w", err)
+		a.log.Warn("load local profile failed; starting unconfigured", "error", err.Error())
 	}
 
 	a.settingsSvc = administration.NewSettingsService(settings, currencies, taxes, countries, a.log)

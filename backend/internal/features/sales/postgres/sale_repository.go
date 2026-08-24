@@ -50,7 +50,7 @@ func (r *saleRepository) Create(ctx context.Context, s *sales.Sale) error {
 	) VALUES ($1, $2, COALESCE($3, (SELECT id FROM branches WHERE company_id = $2 AND is_default = 1 AND deleted_at IS NULL LIMIT 1)), $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
 		$16, $17, $18, $19, $20, $21, $22, $23, $24, $25)`
 	_, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
-		s.ID, s.CompanyID, s.BranchID, s.CustomerID, s.Number, s.CreatedAt,
+		s.ID, s.CompanyID, s.BranchID, s.CustomerID, s.Number, s.SaleDate,
 		persistence.NullIfZeroTime(s.DueDate), s.Status.String(),
 		s.Subtotal.String(), s.TaxAmount.String(), s.Total.String(), s.Paid.String(),
 		s.DiscountAmount.String(), s.CostTotal.String(), s.Profit.String(),
@@ -275,6 +275,7 @@ func scanSale(row *sql.Row) (*sales.Sale, error) {
 	if err := decodeSale(s, branchID, createdBy, updatedBy, dueDate, cancelledAt, notes, reason, status, currency, rate, subtotal, taxAmount, total, paid, discount, cost, profit); err != nil {
 		return nil, err
 	}
+	s.SaleDate = saleDate
 	return s, nil
 }
 
@@ -301,6 +302,7 @@ func scanSaleFromRows(rows *sql.Rows) (*sales.Sale, error) {
 	if err := decodeSale(s, branchID, createdBy, updatedBy, dueDate, cancelledAt, notes, reason, status, currency, rate, subtotal, taxAmount, total, paid, discount, cost, profit); err != nil {
 		return nil, err
 	}
+	s.SaleDate = saleDate
 	return s, nil
 }
 

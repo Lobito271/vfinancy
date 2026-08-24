@@ -137,8 +137,11 @@ func (c *Customer) RecordPayment(amount valueobjects.Money) (valueobjects.Money,
 }
 
 // AvailableCredit returns credit limit minus current debt. Never
-// negative.
+// negative. Returns zero when no limit is set (CreditLimit == 0).
 func (c *Customer) AvailableCredit() valueobjects.Money {
+	if c.CreditLimit.IsZero() {
+		return valueobjects.Zero()
+	}
 	avail := c.CreditLimit.Sub(c.CurrentDebt)
 	if avail.IsNegative() {
 		return valueobjects.Zero()
@@ -147,7 +150,11 @@ func (c *Customer) AvailableCredit() valueobjects.Money {
 }
 
 // IsOverLimit reports whether current debt exceeds the credit limit.
+// Always false when no limit is set (CreditLimit == 0).
 func (c *Customer) IsOverLimit() bool {
+	if c.CreditLimit.IsZero() {
+		return false
+	}
 	return c.CurrentDebt.GreaterThan(c.CreditLimit)
 }
 
@@ -164,6 +171,9 @@ func (c *Customer) CanPlaceSale(amount valueobjects.Money) error {
 	}
 	if amount.IsNegative() || amount.IsZero() {
 		return errors.Wrap(errors.ErrInvalidPayment, errField("sale amount must be positive"))
+	}
+	if c.CreditLimit.IsZero() {
+		return nil
 	}
 	resulting := c.CurrentDebt.Add(amount)
 	if resulting.GreaterThan(c.CreditLimit) {

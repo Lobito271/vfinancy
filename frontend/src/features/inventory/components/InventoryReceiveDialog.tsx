@@ -1,4 +1,6 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useFormContext } from 'react-hook-form';
 import { z } from 'zod';
 import {
   Form,
@@ -12,6 +14,7 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { useReceiveStock } from '@/features/inventory/hooks/useInventory';
+import { wailsClient } from '@/services/bindings';
 import { useNotificationStore } from '@/stores/notification';
 
 const ReceiveSchema = z.object({
@@ -33,6 +36,22 @@ function today(): string {
 interface InventoryReceiveDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+function DefaultWarehouseSeed() {
+  const { setValue } = useFormContext();
+  const { data: warehouses } = useQuery({
+    queryKey: ['inventory', 'warehouses'],
+    queryFn: () => wailsClient.listWarehouses(),
+    staleTime: 5 * 60 * 1000,
+  });
+  useEffect(() => {
+    const list = warehouses ?? [];
+    if (list.length === 0) return;
+    const def = list.find((w) => w.isDefault && w.isActive) ?? list.find((w) => w.isActive);
+    if (def) setValue('warehouseId', def.id, { shouldValidate: true });
+  }, [warehouses, setValue]);
+  return null;
 }
 
 export function InventoryReceiveDialog({ open, onOpenChange }: InventoryReceiveDialogProps) {
@@ -79,6 +98,7 @@ export function InventoryReceiveDialog({ open, onOpenChange }: InventoryReceiveD
           {({ formState }) => (
             <>
               <div className="dialog-body-scroll">
+                <DefaultWarehouseSeed />
                 <ProductSelectField name="productId" label="Producto" required />
                 <WarehouseSelectField name="warehouseId" label="Almacén" required />
                 <div className="form-grid">

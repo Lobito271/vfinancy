@@ -1,8 +1,10 @@
 import type {
   BankAccountDTO,
   BankTransactionDTO,
+  CardProjectionDTO,
   CreateBankAccountRequest,
   CreateBankTransactionRequest,
+  CreditCardDTO,
   UpdateBankAccountRequest,
 } from '../wails-types';
 import { wailsClient } from '../bindings';
@@ -55,6 +57,32 @@ export interface BankTransactionInput {
   reference?: string;
 }
 
+export interface CreditCard {
+  id: string;
+  issuer: string;
+  lastFour: string;
+  cardHolder: string;
+  expirationMonth: number;
+  expirationYear: number;
+  creditLimit: number;
+  currentBalance: number;
+  cutOffDay: number;
+  paymentDueDay: number;
+  currencyCode: string;
+  isActive: boolean;
+}
+
+export interface CardProjection {
+  cardId: string;
+  issuer: string;
+  lastFour: string;
+  cardHolder: string;
+  projectedUSD: number;
+  cycleStart: string;
+  nextCutOffDate: string;
+  nextPaymentDate: string;
+}
+
 function toAccount(dto: BankAccountDTO): BankAccount {
   return {
     id: dto.id,
@@ -79,6 +107,36 @@ function toTransaction(dto: BankTransactionDTO): BankTransaction {
     balanceAfter: Number(dto.balanceAfter),
     reference: dto.reference,
     isReconciled: dto.isReconciled,
+  };
+}
+
+function toCreditCard(dto: CreditCardDTO): CreditCard {
+  return {
+    id: dto.id,
+    issuer: dto.issuer,
+    lastFour: dto.lastFour,
+    cardHolder: dto.cardHolder,
+    expirationMonth: dto.expirationMonth,
+    expirationYear: dto.expirationYear,
+    creditLimit: Number(dto.creditLimit),
+    currentBalance: Number(dto.currentBalance),
+    cutOffDay: dto.cutOffDay,
+    paymentDueDay: dto.paymentDueDay,
+    currencyCode: dto.currencyCode,
+    isActive: dto.isActive,
+  };
+}
+
+function toCardProjection(dto: CardProjectionDTO): CardProjection {
+  return {
+    cardId: dto.cardId,
+    issuer: dto.issuer,
+    lastFour: dto.lastFour,
+    cardHolder: dto.cardHolder,
+    projectedUSD: dto.projectedUSD,
+    cycleStart: dto.cycleStart,
+    nextCutOffDate: dto.nextCutOffDate,
+    nextPaymentDate: dto.nextPaymentDate,
   };
 }
 
@@ -125,6 +183,15 @@ export const treasuryService = {
       pageSize: 200,
     });
     return res.items.map(toTransaction);
+  },
+  async listCreditCards(): Promise<CreditCard[]> {
+    return (await wailsClient.listCreditCards()).map(toCreditCard);
+  },
+  async getCardProjections(): Promise<CardProjection[]> {
+    return (await wailsClient.getCardProjections()).map(toCardProjection);
+  },
+  async payCard(cardId: string, amount: number): Promise<void> {
+    await wailsClient.payCreditCard(cardId, amount);
   },
   async createTransaction(input: BankTransactionInput): Promise<BankTransaction> {
     const req: CreateBankTransactionRequest = {

@@ -59,7 +59,7 @@ export function MoneyField<T extends FieldValues>({
             setRaw(next);
             const n = Number(next);
             if (!Number.isNaN(n)) {
-              setValue(name, n as never, { shouldDirty: true, shouldValidate: false });
+              setValue(name, n as never, { shouldDirty: true, shouldValidate: true });
             }
           }}
           onBlur={() => {

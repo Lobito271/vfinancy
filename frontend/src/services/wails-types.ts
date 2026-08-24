@@ -213,7 +213,7 @@ export interface ProductDTO {
   category: string;
   brand: string;
   unit: string;
-  cost: string;
+  costUSD: string;
   salePrice: string;
   saleCurrency: string;
   minStock: string;
@@ -274,7 +274,7 @@ export interface CreateProductRequest {
   brandId: string;
   unitId: string;
   taxId: string;
-  cost: string;
+  costUSD: string;
   salePrice: string;
   saleCurrency: string;
   minStock: string;
@@ -289,7 +289,7 @@ export interface UpdateProductRequest {
   categoryId: string;
   brandId: string;
   unitId: string;
-  cost: string;
+  costUSD: string;
   salePrice: string;
   minStock: string;
   maxStock: string;
@@ -398,6 +398,7 @@ export interface CreateSaleRequest {
   customerId: string;
   currencyCode: string;
   exchangeRate: string;
+  date: string;
   dueDate: string;
   notes: string;
   items: CreateSaleItemRequest[];
@@ -439,6 +440,37 @@ export interface BankAccountDTO {
   currentBalance: string;
   isDefault: boolean;
   isActive: boolean;
+}
+
+export interface CreditCardDTO {
+  id: string;
+  issuer: string;
+  lastFour: string;
+  cardHolder: string;
+  expirationMonth: number;
+  expirationYear: number;
+  creditLimit: string;
+  currentBalance: string;
+  cutOffDay: number;
+  paymentDueDay: number;
+  currencyCode: string;
+  isActive: boolean;
+}
+
+export interface CardProjectionDTO {
+  cardId: string;
+  issuer: string;
+  lastFour: string;
+  cardHolder: string;
+  projectedUSD: number;
+  cycleStart: string;
+  nextCutOffDate: string;
+  nextPaymentDate: string;
+}
+
+export interface PayCreditCardRequest {
+  cardId: string;
+  amount: string;
 }
 
 export interface BankTransactionDTO {
@@ -564,86 +596,6 @@ export interface VoidStockRequest {
   reason: string;
 }
 
-export interface AccountDTO {
-  id: string;
-  code: string;
-  name: string;
-  type: string;
-  parentId: string;
-  path: string;
-  depth: number;
-  isActive: boolean;
-  allowsMovement: boolean;
-  description: string;
-}
-
-export interface FiscalPeriodDTO {
-  id: string;
-  name: string;
-  periodStart: string;
-  periodEnd: string;
-  status: string;
-}
-
-export interface CreateChartOfAccountRequest {
-  code: string;
-  name: string;
-  type: string;
-  parentId: string;
-  allowsMovement: boolean;
-  description: string;
-}
-
-export interface UpdateChartOfAccountRequest {
-  id: string;
-  code: string;
-  name: string;
-  type: string;
-  parentId: string;
-  allowsMovement: boolean;
-  isActive: boolean;
-  description: string;
-}
-
-export interface JournalEntryLineDTO {
-  id: string;
-  lineNumber: number;
-  accountId: string;
-  description: string;
-  debit: string;
-  credit: string;
-}
-
-export interface JournalEntryDTO {
-  id: string;
-  number: string;
-  entryDate: string;
-  description: string;
-  source: string;
-  sourceId: string;
-  status: string;
-  lines: JournalEntryLineDTO[];
-  createdAt: string;
-}
-
-export interface ListJournalEntriesRequest extends PaginationRequest {
-  status: string;
-}
-
-export interface CreateJournalEntryLineRequest {
-  accountId: string;
-  description: string;
-  debit: string;
-  credit: string;
-}
-
-export interface CreateJournalEntryRequest {
-  fiscalPeriodId: string;
-  entryDate: string;
-  description: string;
-  lines: CreateJournalEntryLineRequest[];
-}
-
 export interface PurchaseItemDTO {
   id: string;
   productId: string;
@@ -661,6 +613,9 @@ export interface PurchaseOrderDTO {
   id: string;
   number: string;
   supplierId: string;
+  customerId: string;
+  creditCardId: string;
+  orderType: string;
   orderDate: string;
   status: string;
   subtotal: string;
@@ -668,12 +623,27 @@ export interface PurchaseOrderDTO {
   tax: string;
   total: string;
   paid: string;
+  costUSD: string;
+  salePricePEN: string;
+  realCostPEN: string;
+  projectedProfitPEN: string;
+  anticipo: string;
+  anticipoDate: string;
+  porCobrar: string;
+  faulty: boolean;
+  faultyReason: string;
+  refundedAmount: string;
+  arrivalDate: string;
+  supplierOrderNumber: string;
   notes: string;
   items: PurchaseItemDTO[];
+  payments: CustomerOrderPaymentDTO[];
 }
 
 export interface ListPurchaseOrdersRequest extends PaginationRequest {
   status: string;
+  orderType: string;
+  search: string;
 }
 
 export interface CreatePurchaseOrderItemRequest {
@@ -689,9 +659,17 @@ export interface CreatePurchaseOrderItemRequest {
 
 export interface CreatePurchaseOrderRequest {
   supplierId: string;
+  customerId: string;
+  creditCardId: string;
+  orderType: string;
   currencyCode: string;
   exchangeRate: string;
   orderDate: string;
+  supplierOrderNumber: string;
+  costUSD: string;
+  salePricePEN: string;
+  anticipo: string;
+  anticipoDate: string;
   notes: string;
   items: CreatePurchaseOrderItemRequest[];
 }
@@ -699,6 +677,45 @@ export interface CreatePurchaseOrderRequest {
 export interface CancelPurchaseOrderRequest {
   id: string;
   reason: string;
+}
+
+export interface MarkPurchaseFaultyRequest {
+  id: string;
+  arrivalDate: string;
+  reason: string;
+}
+
+export interface MarkPurchaseReceivedRequest {
+  id: string;
+  arrivalDate: string;
+}
+
+export interface RegisterCustomerOrderPaymentRequest {
+  purchaseId: string;
+  paymentDate: string;
+  amount: string;
+  currencyCode: string;
+  exchangeRate: string;
+  method: string;
+  reference: string;
+  notes: string;
+}
+
+export interface CustomerOrderPaymentDTO {
+  id: string;
+  purchaseOrderId: string;
+  number: string;
+  paymentDate: string;
+  amount: string;
+  method: string;
+  currencyCode: string;
+  exchangeRate: string;
+  reference: string;
+  notes: string;
+  status: string;
+  refundedAmount: string;
+  refundedAt: string;
+  refundReason: string;
 }
 
 export interface RegisterPurchasePaymentRequest {
@@ -795,6 +812,9 @@ export interface AppBindings {
   CreateBankAccount(req: CreateBankAccountRequest): Promise<BankAccountDTO>;
   UpdateBankAccount(req: UpdateBankAccountRequest): Promise<BankAccountDTO>;
   DeleteBankAccount(id: string): Promise<void>;
+  ListCreditCards(): Promise<CreditCardDTO[]>;
+  GetCardProjections(): Promise<CardProjectionDTO[]>;
+  PayCreditCard(req: PayCreditCardRequest): Promise<void>;
   ListBankTransactions(req: ListBankTransactionsRequest): Promise<PageResult<BankTransactionDTO>>;
   CreateBankTransaction(req: CreateBankTransactionRequest): Promise<BankTransactionDTO>;
   ReconcileBankTransaction(id: string): Promise<BankTransactionDTO>;
@@ -810,18 +830,12 @@ export interface AppBindings {
   VoidStock(req: VoidStockRequest): Promise<void>;
   ListWarehouses(): Promise<WarehouseDTO[]>;
 
-  ListChartOfAccounts(): Promise<AccountDTO[]>;
-  CreateChartOfAccount(req: CreateChartOfAccountRequest): Promise<AccountDTO>;
-  UpdateChartOfAccount(req: UpdateChartOfAccountRequest): Promise<AccountDTO>;
-  DeleteChartOfAccount(id: string): Promise<void>;
-  ListFiscalPeriods(): Promise<FiscalPeriodDTO[]>;
-  ListJournalEntries(req: ListJournalEntriesRequest): Promise<PageResult<JournalEntryDTO>>;
-  CreateJournalEntry(req: CreateJournalEntryRequest): Promise<JournalEntryDTO>;
-  PostJournalEntry(id: string): Promise<JournalEntryDTO>;
-
   ListPurchaseOrders(req: ListPurchaseOrdersRequest): Promise<PageResult<PurchaseOrderDTO>>;
   GetPurchaseOrder(id: string): Promise<PurchaseOrderDTO>;
   CreatePurchaseOrder(req: CreatePurchaseOrderRequest): Promise<PurchaseOrderDTO>;
   CancelPurchaseOrder(req: CancelPurchaseOrderRequest): Promise<void>;
   RegisterPurchasePayment(req: RegisterPurchasePaymentRequest): Promise<PurchaseOrderDTO>;
+  MarkPurchaseFaulty(req: MarkPurchaseFaultyRequest): Promise<PurchaseOrderDTO>;
+  MarkPurchaseReceived(req: MarkPurchaseReceivedRequest): Promise<PurchaseOrderDTO>;
+  RegisterCustomerOrderPayment(req: RegisterCustomerOrderPaymentRequest): Promise<CustomerOrderPaymentDTO>;
 }

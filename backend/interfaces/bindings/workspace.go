@@ -79,6 +79,9 @@ func companyDTO(c *workspace.Company) *CompanyDTO {
 }
 
 func (a *App) GetLocalAuthState() (LocalAuthStateDTO, error) {
+	if a.workspaceSvc == nil {
+		return LocalAuthStateDTO{}, nil
+	}
 	p, err := a.workspaceSvc.Profile()
 	if err != nil {
 		if errors.Is(err, workspace.ErrProfileNotFound) {

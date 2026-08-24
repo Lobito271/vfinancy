@@ -6,17 +6,11 @@ export const Routes = {
   CatalogSettings: '/configuracion-catalogo',
   Inventory: '/inventario',
   Purchases: '/compras',
+  CustomerOrders: '/pedidos-cliente',
   Sales: '/ventas',
   Treasury: '/tesoreria',
-  Accounting: '/contabilidad',
+  Reports: '/reportes',
   Settings: '/configuracion',
 } as const;
 
 export type RouteKey = keyof typeof Routes;
-
-export function isProtectedRoute(path: string): boolean {
-  if (path === Routes.Dashboard) return true;
-  return Object.values(Routes).some(
-    (r) => r !== Routes.Dashboard && path.startsWith(r),
-  );
-}

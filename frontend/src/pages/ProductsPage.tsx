@@ -48,11 +48,11 @@ const columns: Column<Product>[] = [
   { id: 'brand', header: 'Marca', cell: (row) => row.brand || '—' },
   { id: 'unit', header: 'Unidad', cell: (row) => row.unit || '—' },
   {
-    id: 'cost',
-    header: 'Costo',
+    id: 'costUSD',
+    header: 'Costo (USD)',
     align: 'right',
     sortable: true,
-    cell: (row) => <span className="tabular">{formatCurrency(row.cost)}</span>,
+    cell: (row) => <span className="tabular-nums">{formatCurrency(row.costUSD, 'USD')}</span>,
   },
   {
     id: 'salePrice',
@@ -66,8 +66,8 @@ const columns: Column<Product>[] = [
     header: 'Margen',
     align: 'right',
     cell: (row) => (
-      <span className="tabular muted">
-        {row.cost > 0 ? formatPercent((row.salePrice - row.cost) / row.cost) : '—'}
+      <span className="tabular-nums muted">
+        {row.costUSD > 0 ? formatPercent((row.salePrice - row.costUSD) / row.costUSD) : '—'}
       </span>
     ),
   },
@@ -96,7 +96,7 @@ export function ProductsPage() {
   const total = data?.total ?? 0;
   const active = products.filter((p) => p.isActive).length;
   const avgMargin = products.length
-    ? products.reduce((s, p) => s + (p.salePrice - p.cost) / Math.max(p.cost, 0.01), 0) / products.length
+    ? products.reduce((s, p) => s + (p.salePrice - p.costUSD) / Math.max(p.costUSD, 0.01), 0) / products.length
     : 0;
 
   const tableColumns = useMemo<Column<Product>[]>(() => {

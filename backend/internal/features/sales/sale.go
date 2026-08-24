@@ -32,6 +32,7 @@ type Sale struct {
 	Paid            valueobjects.Money
 	DueDate         *valueobjects.Date
 	Notes           string
+	SaleDate        time.Time
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 	CancelledAt     *time.Time
@@ -48,6 +49,7 @@ type NewSaleOptions struct {
 	CustomerID   uuid.UUID
 	CurrencyCode valueobjects.CurrencyCode
 	ExchangeRate valueobjects.ExchangeRate
+	SaleDate     time.Time
 	DueDate      *valueobjects.Date
 	Notes        string
 }
@@ -82,6 +84,7 @@ func NewSale(now time.Time, opts NewSaleOptions) (*Sale, error) {
 		Paid:           valueobjects.Zero(),
 		DueDate:        opts.DueDate,
 		Notes:          opts.Notes,
+		SaleDate:       opts.SaleDate,
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}, nil

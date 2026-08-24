@@ -34,6 +34,12 @@ func MustCurrencyCode(s string) CurrencyCode {
 	return c
 }
 
+// PEN is the Peruvian Sol, the company's functional currency.
+var PEN = MustCurrencyCode("PEN")
+
+// USD is the US Dollar, the import order currency.
+var USD = MustCurrencyCode("USD")
+
 func (c CurrencyCode) String() string { return c.code }
 
 func (c CurrencyCode) IsZero() bool { return c.code == "" }

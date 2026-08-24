@@ -29,6 +29,8 @@ export const queryKeys = {
   purchasing: {
     all: ['purchasing'] as const,
     list: ['purchasing', 'list'] as const,
+    customerOrders: ['purchasing', 'customerOrders'] as const,
+    customerOrder: (id: string) => ['purchasing', 'customerOrder', id] as const,
   },
   inventory: {
     all: ['inventory'] as const,
@@ -39,13 +41,10 @@ export const queryKeys = {
   treasury: {
     all: ['treasury'] as const,
     accounts: ['treasury', 'accounts'] as const,
+    creditCards: ['treasury', 'creditCards'] as const,
+    cardProjections: ['treasury', 'cardProjections'] as const,
     transactions: (id?: string) => ['treasury', 'transactions', id] as const,
     exchangeRate: (from: string, to: string) => ['treasury', 'exchange', from, to] as const,
-  },
-  accounting: {
-    all: ['accounting'] as const,
-    chart: ['accounting', 'chart'] as const,
-    entries: ['accounting', 'entries'] as const,
   },
   reports: { all: ['reports'] as const, list: ['reports', 'list'] as const },
   administration: { all: ['administration'] as const, users: ['administration', 'users'] as const, audit: ['administration', 'audit'] as const },

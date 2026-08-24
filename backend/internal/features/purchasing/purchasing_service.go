@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"vfinancy/backend/internal/domain/enums"
 	derrors "vfinancy/backend/internal/domain/errors"
@@ -57,21 +58,51 @@ func New(
 	}
 }
 
+// importSurcharge is the fixed per-dollar overhead (customs, freight,
+// logistics) added to the official exchange rate when computing the
+// real landed cost of an import in PEN.
+const importSurcharge = 0.07
+
+// RealCostPEN computes the landed cost in PEN for an order bought in
+// USD: cost_usd * (exchange_rate + importSurcharge).
+func RealCostPEN(costUSD valueobjects.Money, rate valueobjects.ExchangeRate) valueobjects.Money {
+	m, _ := valueobjects.MoneyFromDecimal(
+		costUSD.Decimal().Mul(rate.Decimal().Add(decimal.NewFromFloat(importSurcharge))),
+	)
+	return m
+}
+
+// ProjectedProfitPEN is the expected profit for a customer order:
+// sale_price_pen - real_cost_pen.
+func ProjectedProfitPEN(salePricePEN, realCostPEN valueobjects.Money) valueobjects.Money {
+	return salePricePEN.Sub(realCostPEN)
+}
+
 // CreateInput is the payload for CreatePurchaseOrder. CurrencyCode is
 // the transactional currency (often USD for international suppliers).
-// Conversion to the company's functional currency is the responsibility
-// of the application layer.
+// CostUSD is the order cost in dollars and SalePricePEN the expected
+// PEN sale price; both are used for the landed-cost / profit math on
+// customer orders.
 type CreateInput struct {
-	CompanyID    uuid.UUID
-	BranchID     *uuid.UUID
-	Number       string
-	SupplierID   uuid.UUID
-	CurrencyCode valueobjects.CurrencyCode
-	ExchangeRate valueobjects.ExchangeRate
-	OrderDate    valueobjects.Date
-	ExpectedDate *valueobjects.Date
-	Notes        string
-	Items        []CreateItemInput
+	CompanyID           uuid.UUID
+	BranchID            *uuid.UUID
+	Number              string
+	SupplierID          uuid.UUID
+	CustomerID          *uuid.UUID
+	CreditCardID        *uuid.UUID
+	OrderType           enums.OrderType
+	CurrencyCode        valueobjects.CurrencyCode
+	ExchangeRate        valueobjects.ExchangeRate
+	OrderDate           valueobjects.Date
+	ExpectedDate        *valueobjects.Date
+	ArrivalDate         *valueobjects.Date
+	SupplierOrderNumber string
+	CostUSD             valueobjects.Money
+	SalePricePEN        valueobjects.Money
+	Anticipo            valueobjects.Money
+	AnticipoDate        *valueobjects.Date
+	Notes               string
+	Items               []CreateItemInput
 }
 
 // CreateItemInput is one line of the order.
@@ -118,13 +149,61 @@ func (s *PurchasingService) receiveStock(ctx context.Context, po *PurchaseOrder)
 	return nil
 }
 
+// paySupplierWithCard pays the full order total with the credit card
+// recorded on the purchase order. It persists the supplier payment, its
+// allocation to the order, and advances the order's paid amount — all
+// in the caller's transaction.
+func (s *PurchasingService) paySupplierWithCard(ctx context.Context, po *PurchaseOrder) error {
+	number, err := s.payments.GetNextNumber(ctx, po.CompanyID)
+	if err != nil {
+		return err
+	}
+	amount := po.CalculateTotal()
+	if !amount.IsPositive() {
+		return nil
+	}
+	sp, err := NewSupplierPayment(time.Now().UTC(), NewSupplierPaymentOptions{
+		CompanyID:    po.CompanyID,
+		SupplierID:   po.SupplierID,
+		Number:       number,
+		PaymentDate:  po.OrderDate,
+		Amount:       amount,
+		CurrencyCode: po.CurrencyCode,
+		ExchangeRate: po.ExchangeRate,
+		Method:       enums.PaymentMethodCard,
+		CreditCardID: po.CreditCardID,
+		Reference:    "Pago automático con tarjeta",
+		Notes:        "Pago automático del pedido " + po.Number,
+	})
+	if err != nil {
+		return err
+	}
+	if err := sp.ApplyToPurchase(po.ID, amount); err != nil {
+		return err
+	}
+	if err := s.payments.Create(ctx, sp); err != nil {
+		return err
+	}
+	_, err = po.ApplyPayment(amount)
+	return err
+}
+
 // CreatePurchaseOrder validates the input, builds the purchase order
 // aggregate, and persists it. The order starts in "pending" status and
-// its goods are injected into inventory immediately (idempotently).
+// the supplier is paid in full with the credit card in the same
+// transaction (no receivables or inventory movements are created here).
+// Customer orders also record the initial anticipo (down payment) as
+// the first row of the customer-payment ledger.
 func (s *PurchasingService) Create(ctx context.Context, in CreateInput) (*PurchaseOrder, error) {
 	if len(in.Items) == 0 {
 		return nil, derrors.New("EMPTY_DOCUMENT", "purchase order must have at least one line")
 	}
+	orderType := in.OrderType
+	if orderType == "" {
+		orderType = enums.OrderTypeGeneral
+	}
+	realCost := RealCostPEN(in.CostUSD, in.ExchangeRate)
+	profit := ProjectedProfitPEN(in.SalePricePEN, realCost)
 	var out *PurchaseOrder
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
 		number := in.Number
@@ -136,15 +215,26 @@ func (s *PurchasingService) Create(ctx context.Context, in CreateInput) (*Purcha
 			number = n
 		}
 		opts := NewPurchaseOrderOptions{
-			CompanyID:    in.CompanyID,
-			BranchID:     in.BranchID,
-			Number:       number,
-			SupplierID:   in.SupplierID,
-			CurrencyCode: in.CurrencyCode,
-			ExchangeRate: in.ExchangeRate,
-			OrderDate:    in.OrderDate,
-			ExpectedDate: in.ExpectedDate,
-			Notes:        in.Notes,
+			CompanyID:           in.CompanyID,
+			BranchID:            in.BranchID,
+			Number:              number,
+			SupplierID:          in.SupplierID,
+			CurrencyCode:        in.CurrencyCode,
+			ExchangeRate:        in.ExchangeRate,
+			OrderDate:           in.OrderDate,
+			ExpectedDate:        in.ExpectedDate,
+			ArrivalDate:         in.ArrivalDate,
+			Notes:               in.Notes,
+			OrderType:           orderType,
+			CustomerID:          in.CustomerID,
+			CreditCardID:        in.CreditCardID,
+			SupplierOrderNumber: in.SupplierOrderNumber,
+			CostUSD:             in.CostUSD,
+			SalePricePEN:       in.SalePricePEN,
+			RealCostPEN:        realCost,
+			ProjectedProfitPEN: profit,
+			Anticipo:           in.Anticipo,
+			AnticipoDate:       in.AnticipoDate,
 		}
 		po, err := NewPurchaseOrder(time.Now().UTC(), opts)
 		if err != nil {
@@ -168,10 +258,33 @@ func (s *PurchasingService) Create(ctx context.Context, in CreateInput) (*Purcha
 				return err
 			}
 		}
+		if po.Anticipo.IsPositive() && po.CustomerID != nil {
+			number, err := s.orders.GetNextCustomerPaymentNumber(ctx, po.CompanyID)
+			if err != nil {
+				return err
+			}
+			pm, err := NewCustomerOrderPayment(time.Now().UTC(), NewCustomerOrderPaymentOptions{
+				CompanyID:       po.CompanyID,
+				PurchaseOrderID: po.ID,
+				CustomerID:      *po.CustomerID,
+				Number:          number,
+				PaymentDate:     *po.AnticipoDate,
+				Amount:          po.Anticipo,
+				Method:          enums.PaymentMethodCash,
+				CurrencyCode:    valueobjects.PEN,
+				ExchangeRate:    valueobjects.One(),
+				Reference:       "Anticipo inicial",
+				Notes:           "Anticipo inicial del pedido",
+			})
+			if err != nil {
+				return err
+			}
+			po.CustomerPayments = append(po.CustomerPayments, pm)
+		}
 		if err := s.orders.Create(ctx, po); err != nil {
 			return err
 		}
-		if err := s.receiveStock(ctx, po); err != nil {
+		if err := s.paySupplierWithCard(ctx, po); err != nil {
 			return err
 		}
 		out = po
@@ -184,6 +297,7 @@ func (s *PurchasingService) Create(ctx context.Context, in CreateInput) (*Purcha
 		"po_id", out.ID,
 		"number", out.Number,
 		"supplier_id", out.SupplierID,
+		"order_type", out.OrderType,
 		"total", out.CalculateTotal(),
 	)
 	return out, nil
@@ -220,8 +334,10 @@ func (s *PurchasingService) Approve(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// MarkAsReceived sets the receipt date. Called by the warehouse module
-// once the goods are physically received.
+// MarkAsReceived sets the receipt date (and the arrival date used for
+// the inventory aging rule). Called by the warehouse module once the
+// goods are physically received; this is what injects the goods into
+// inventory as batches.
 func (s *PurchasingService) MarkAsReceived(ctx context.Context, id uuid.UUID, at valueobjects.Date) error {
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
 		po, err := s.orders.GetByID(ctx, id)
@@ -231,6 +347,7 @@ func (s *PurchasingService) MarkAsReceived(ctx context.Context, id uuid.UUID, at
 		if err := po.MarkAsReceived(at); err != nil {
 			return err
 		}
+		po.ArrivalDate = &at
 		if err := s.orders.Update(ctx, po); err != nil {
 			return err
 		}
@@ -243,7 +360,9 @@ func (s *PurchasingService) MarkAsReceived(ctx context.Context, id uuid.UUID, at
 	return nil
 }
 
-// Cancel marks the purchase as cancelled with a reason.
+// Cancel marks the purchase as cancelled with a reason. Inventory is
+// restored (compensating movements) and, for customer orders, every
+// recorded down payment is refunded automatically.
 func (s *PurchasingService) Cancel(ctx context.Context, id uuid.UUID, reason string) error {
 	if reason == "" {
 		return derrors.New("REQUIRED", "cancel reason is required")
@@ -256,7 +375,55 @@ func (s *PurchasingService) Cancel(ctx context.Context, id uuid.UUID, reason str
 		if err := po.Cancel(reason); err != nil {
 			return err
 		}
+		if s.stock != nil {
+			lineIDs := make([]uuid.UUID, 0, len(po.Items))
+			for _, li := range po.Items {
+				lineIDs = append(lineIDs, li.ID)
+			}
+			if err := s.stock.VoidPurchaseReceipt(ctx, po.CompanyID, lineIDs); err != nil {
+				return err
+			}
+		}
+		if po.OrderType == enums.OrderTypeCustomer {
+			refunded, err := s.refundCustomerPayments(ctx, po)
+			if err != nil {
+				return err
+			}
+			po.RefundedAmount = po.RefundedAmount.Add(refunded)
+		}
 		if err := s.orders.Update(ctx, po); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	s.log.Info("purchase cancelled", "po_id", id, "reason", reason)
+	return nil
+}
+
+// FaultyInput is the payload for MarkFaulty.
+type FaultyInput struct {
+	ID          uuid.UUID
+	ArrivalDate valueobjects.Date
+	Reason      string
+}
+
+// MarkFaulty runs the "Llegó en mal estado" workflow: it records the
+// arrival date, voids the order (restoring inventory) and automatically
+// registers a 100% refund of every down payment made by the customer.
+func (s *PurchasingService) MarkFaulty(ctx context.Context, in FaultyInput) (*PurchaseOrder, error) {
+	if in.ID == uuid.Nil {
+		return nil, derrors.New("REQUIRED", "purchase id is required")
+	}
+	var out *PurchaseOrder
+	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		po, err := s.orders.GetByID(ctx, in.ID)
+		if err != nil {
+			return err
+		}
+		if err := po.MarkFaulty(in.ArrivalDate, in.Reason); err != nil {
 			return err
 		}
 		if s.stock != nil {
@@ -268,13 +435,127 @@ func (s *PurchasingService) Cancel(ctx context.Context, id uuid.UUID, reason str
 				return err
 			}
 		}
+		refunded, err := s.refundCustomerPayments(ctx, po)
+		if err != nil {
+			return err
+		}
+		po.RefundedAmount = po.RefundedAmount.Add(refunded)
+		if err := s.orders.Update(ctx, po); err != nil {
+			return err
+		}
+		out = po
 		return nil
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	s.log.Info("purchase cancelled", "po_id", id, "reason", reason)
-	return nil
+	s.log.Info("purchase marked faulty",
+		"po_id", in.ID,
+		"arrival_date", in.ArrivalDate,
+		"refunded", out.RefundedAmount,
+	)
+	return out, nil
+}
+
+// refundCustomerPayments marks every active customer down payment of
+// the order as refunded and returns the total refunded amount.
+func (s *PurchasingService) refundCustomerPayments(ctx context.Context, po *PurchaseOrder) (valueobjects.Money, error) {
+	var total valueobjects.Money
+	now := time.Now().UTC()
+	for _, pm := range po.CustomerPayments {
+		if pm.IsRefunded() {
+			continue
+		}
+		if err := pm.MarkRefunded(now, "Devolución por anulación del pedido"); err != nil {
+			return total, err
+		}
+		if err := s.orders.UpdateCustomerPayment(ctx, pm); err != nil {
+			return total, err
+		}
+		total = total.Add(pm.Amount)
+	}
+	return total, nil
+}
+
+// CustomerPaymentInput is the payload for RegisterCustomerOrderPayment.
+type CustomerPaymentInput struct {
+	CompanyID    uuid.UUID
+	Number       string
+	PaymentDate  valueobjects.Date
+	Amount       valueobjects.Money
+	CurrencyCode valueobjects.CurrencyCode
+	ExchangeRate valueobjects.ExchangeRate
+	Method       enums.PaymentMethod
+	Reference    string
+	Notes        string
+}
+
+// RegisterCustomerOrderPayment records a partial down payment
+// (anticipo) from the customer against a customer order. The payment is
+// persisted to the customer-payment ledger and the order's anticipo is
+// advanced in the same transaction.
+func (s *PurchasingService) RegisterCustomerOrderPayment(ctx context.Context, purchaseID uuid.UUID, in CustomerPaymentInput) (*CustomerOrderPayment, error) {
+	if in.CompanyID == uuid.Nil {
+		return nil, derrors.New("REQUIRED", "company is required")
+	}
+	var out *CustomerOrderPayment
+	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		po, err := s.orders.GetByID(ctx, purchaseID)
+		if err != nil {
+			return err
+		}
+		if po.IsCancelled() {
+			return derrors.Wrap(derrors.ErrPurchaseCancelled, errField("cannot pay a cancelled purchase"))
+		}
+		if err := po.RecordCustomerPayment(in.Amount); err != nil {
+			return err
+		}
+		number := in.Number
+		if number == "" {
+			n, err := s.orders.GetNextCustomerPaymentNumber(ctx, in.CompanyID)
+			if err != nil {
+				return err
+			}
+			number = n
+		}
+		method := in.Method
+		if !method.Valid() {
+			method = enums.PaymentMethodCash
+		}
+		pm, err := NewCustomerOrderPayment(time.Now().UTC(), NewCustomerOrderPaymentOptions{
+			CompanyID:       in.CompanyID,
+			PurchaseOrderID: po.ID,
+			CustomerID:      *po.CustomerID,
+			Number:          number,
+			PaymentDate:     in.PaymentDate,
+			Amount:          in.Amount,
+			Method:          method,
+			CurrencyCode:    in.CurrencyCode,
+			ExchangeRate:    in.ExchangeRate,
+			Reference:       in.Reference,
+			Notes:           in.Notes,
+		})
+		if err != nil {
+			return err
+		}
+		if err := s.orders.SaveCustomerPayment(ctx, pm); err != nil {
+			return err
+		}
+		if err := s.orders.Update(ctx, po); err != nil {
+			return err
+		}
+		out = pm
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.log.Info("customer order payment registered",
+		"payment_id", out.ID,
+		"purchase_id", purchaseID,
+		"amount", out.Amount,
+	)
+	return out, nil
 }
 
 // PayInput is the payload for RegisterSupplierPayment. The payment is

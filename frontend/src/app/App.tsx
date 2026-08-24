@@ -16,9 +16,9 @@ const ProductsPage = lazy(() => import('@/pages/ProductsPage').then((m) => ({ de
 const CatalogSettingsPage = lazy(() => import('@/pages/CatalogSettingsPage').then((m) => ({ default: m.CatalogSettingsPage })));
 const InventoryPage = lazy(() => import('@/pages/InventoryPage').then((m) => ({ default: m.InventoryPage })));
 const PurchasesPage = lazy(() => import('@/pages/PurchasesPage').then((m) => ({ default: m.PurchasesPage })));
+const CustomerOrdersPage = lazy(() => import('@/pages/CustomerOrdersPage').then((m) => ({ default: m.CustomerOrdersPage })));
 const SalesPage = lazy(() => import('@/pages/SalesPage').then((m) => ({ default: m.SalesPage })));
 const TreasuryPage = lazy(() => import('@/pages/TreasuryPage').then((m) => ({ default: m.TreasuryPage })));
-const AccountingPage = lazy(() => import('@/pages/AccountingPage').then((m) => ({ default: m.AccountingPage })));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 const SetupWizardPage = lazy(() => import('@/pages/SetupWizardPage').then((m) => ({ default: m.SetupWizardPage })));
 
@@ -62,9 +62,9 @@ export function App() {
             <Route path="configuracion-catalogo" element={<CatalogSettingsPage />} />
             <Route path="inventario" element={<InventoryPage />} />
             <Route path="compras" element={<PurchasesPage />} />
+            <Route path="pedidos-cliente" element={<CustomerOrdersPage />} />
             <Route path="ventas" element={<SalesPage />} />
             <Route path="tesoreria" element={<TreasuryPage />} />
-            <Route path="contabilidad" element={<AccountingPage />} />
             <Route path="configuracion" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

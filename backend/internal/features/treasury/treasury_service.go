@@ -5,6 +5,8 @@ package treasury
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,6 +26,7 @@ type TreasuryService struct {
 	rates        ExchangeRateRepository
 	txm          repositories.TransactionManager
 	log          *logger.Logger
+	live         *liveRateProvider
 }
 
 // New returns a TreasuryService ready for use.
@@ -42,6 +45,7 @@ func New(
 		rates:        rates,
 		txm:          txm,
 		log:          log,
+		live:         newLiveRateProvider(),
 	}
 }
 
@@ -235,12 +239,16 @@ type IssueCardInput struct {
 
 // IssueCard creates a new card with zero opening balance.
 func (s *TreasuryService) IssueCard(ctx context.Context, in IssueCardInput) (*CreditCard, error) {
+	issuer := enums.CardIssuer(in.Issuer)
+	if !issuer.Valid() {
+		return nil, derrors.Wrap(derrors.ErrInvalidEnum, errField("card issuer must be Visa or Diners"))
+	}
 	var out *CreditCard
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
 		card, err := NewCreditCard(time.Now().UTC(), NewCreditCardOptions{
 			CompanyID:       in.CompanyID,
 			BranchID:        in.BranchID,
-			Issuer:          in.Issuer,
+			Issuer:          issuer.String(),
 			LastFour:        in.LastFour,
 			CardHolder:      in.CardHolder,
 			ExpirationMonth: in.ExpirationMonth,
@@ -265,6 +273,11 @@ func (s *TreasuryService) IssueCard(ctx context.Context, in IssueCardInput) (*Cr
 	}
 	s.log.Info("credit card issued", "card_id", out.ID, "issuer", out.Issuer)
 	return out, nil
+}
+
+// ListCards returns the company's active credit cards, ordered by issuer.
+func (s *TreasuryService) ListCards(ctx context.Context, companyID uuid.UUID) ([]*CreditCard, error) {
+	return s.cards.List(ctx, companyID)
 }
 
 // ChargeCardInput records a purchase on a credit card. The amount is
@@ -307,6 +320,44 @@ func (s *TreasuryService) PayCard(ctx context.Context, cardID uuid.UUID, amount 
 	return nil
 }
 
+// ProjectPayments returns the projected USD debt for each active credit
+// card in its current billing cycle. The projection sums cost_usd from
+// all purchase_orders charged to each card within its own cycle window.
+func (s *TreasuryService) ProjectPayments(ctx context.Context, companyID uuid.UUID) ([]CardPaymentProjection, error) {
+	cards, err := s.cards.List(ctx, companyID)
+	if err != nil {
+		return nil, err
+	}
+	if len(cards) == 0 {
+		return []CardPaymentProjection{}, nil
+	}
+	now := time.Now().UTC()
+	projections := make([]CardPaymentProjection, 0, len(cards))
+	for _, card := range cards {
+		cardCycleStart := card.CurrentCycleStart(now)
+		cardCutOff := monthDay(now, card.CutOffDay)
+		if dateAfter(now, cardCutOff) || now.Equal(cardCutOff) {
+			cardCutOff = monthDay(addMonth(cardCutOff), card.CutOffDay)
+		}
+		due := monthDay(addMonth(cardCutOff), card.PaymentDueDay)
+		costs, err := s.cards.SumCostsByCard(ctx, companyID, cardCycleStart, cardCutOff)
+		if err != nil {
+			return nil, err
+		}
+		projections = append(projections, CardPaymentProjection{
+			CardID:          card.ID.String(),
+			Issuer:          card.Issuer,
+			LastFour:        card.LastFour,
+			CardHolder:      card.CardHolder,
+			ProjectedUSD:    costs[card.ID],
+			CycleStart:      cardCycleStart.Format("2006-01-02"),
+			NextCutOffDate:  cardCutOff.Format("2006-01-02"),
+			NextPaymentDate: due.Format("2006-01-02"),
+		})
+	}
+	return projections, nil
+}
+
 // UpsertExchangeRateInput creates or updates the (from, to, date) rate.
 type UpsertExchangeRateInput struct {
 	From          valueobjects.CurrencyCode
@@ -335,21 +386,58 @@ func (s *TreasuryService) UpsertExchangeRate(ctx context.Context, in UpsertExcha
 // LatestExchangeRate returns the most recent rate for a currency pair.
 // Used by callers to convert transactional amounts to the company's
 // functional currency.
+//
+// Resolution order: stored snapshot first (manual overrides stay
+// authoritative), then live public APIs, then — for USD→PEN only — a
+// hardcoded fallback. This method never fails for USD→PEN: if every
+// source is down it logs and degrades to FallbackUSDPEN so callers
+// (and therefore forms) keep working.
 func (s *TreasuryService) LatestExchangeRate(ctx context.Context, from, to valueobjects.CurrencyCode) (valueobjects.Money, error) {
-	rate, err := s.rates.GetLatest(ctx, from.String(), to.String())
-	if err != nil {
-		return valueobjects.Money{}, err
+	rate, dbErr := s.rates.GetLatest(ctx, from.String(), to.String())
+	if dbErr == nil {
+		return valueobjects.MoneyFromString(rate)
 	}
-	return valueobjects.MoneyFromString(rate)
+	if !errors.Is(dbErr, repositories.ErrNotFound) {
+		s.log.Warn("exchange rate lookup failed",
+			"from", from.String(), "to", to.String(), "error", dbErr,
+		)
+	}
+
+	isUSDPEN := strings.EqualFold(from.String(), "USD") && strings.EqualFold(to.String(), "PEN")
+	if !isUSDPEN {
+		return valueobjects.Money{}, dbErr
+	}
+
+	liveRate, source, err := s.live.Fetch(ctx, from.String(), to.String())
+	if err == nil {
+		parsed, perr := valueobjects.MoneyFromString(liveRate)
+		if perr == nil {
+			today := time.Now().UTC().Format("2006-01-02")
+			if cerr := s.rates.Upsert(ctx, from.String(), to.String(), parsed.String(), today, source); cerr != nil {
+				s.log.Warn("could not cache live exchange rate", "error", cerr)
+			}
+			s.log.Info("live exchange rate fetched",
+				"from", from.String(), "to", to.String(),
+				"rate", liveRate, "source", source,
+			)
+			return parsed, nil
+		}
+		err = perr
+	}
+	s.log.Warn("live exchange rate fetch failed, using fallback",
+		"from", from.String(), "to", to.String(), "error", err,
+	)
+
+	fallback, ferr := valueobjects.MoneyFromString(FallbackUSDPEN)
+	if ferr != nil {
+		return valueobjects.Money{}, dbErr
+	}
+	return fallback, nil
 }
 
 // ListAccounts returns bank accounts matching the filter.
 func (s *TreasuryService) ListAccounts(ctx context.Context, filter BankAccountFilter) (repositories.Page[*BankAccount], error) {
 	return s.accounts.List(ctx, filter)
-}
-
-func (s *TreasuryService) ListCards(ctx context.Context, companyID uuid.UUID) ([]*CreditCard, error) {
-	return s.cards.List(ctx, companyID)
 }
 
 // GetAccount returns a single bank account by ID.

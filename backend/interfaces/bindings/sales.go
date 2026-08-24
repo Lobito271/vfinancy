@@ -99,7 +99,7 @@ func toSaleDTO(ctx context.Context, customers *customer.CustomerService, s *sale
 		Number:       s.Number,
 		CustomerID:   s.CustomerID.String(),
 		CustomerName: customerName,
-		Date:         s.CreatedAt.Format(time.RFC3339),
+		Date:         s.SaleDate.Format("2006-01-02"),
 		Status:       s.Status.String(),
 		Subtotal:     s.Subtotal.String(),
 		Tax:          s.TaxAmount.String(),
@@ -176,6 +176,7 @@ type CreateSaleRequest struct {
 	CustomerID   string                  `json:"customerId"`
 	CurrencyCode string                  `json:"currencyCode"`
 	ExchangeRate string                  `json:"exchangeRate"`
+	Date         string                  `json:"date"`
 	DueDate      string                  `json:"dueDate"`
 	Notes        string                  `json:"notes"`
 	Items        []CreateSaleItemRequest `json:"items"`
@@ -195,6 +196,16 @@ func (a *App) CreateSale(req CreateSaleRequest) (*SaleDTO, error) {
 	rate, err := valueobjects.ExchangeRateFromString(req.ExchangeRate)
 	if err != nil {
 		return nil, err
+	}
+	var saleDate valueobjects.Date
+	if req.Date != "" {
+		d, err := time.Parse("2006-01-02", req.Date)
+		if err != nil {
+			return nil, err
+		}
+		saleDate = d
+	} else {
+		saleDate = valueobjects.NewDateFromTime(time.Now().UTC())
 	}
 	var dueDate *valueobjects.Date
 	if req.DueDate != "" {
@@ -257,6 +268,7 @@ func (a *App) CreateSale(req CreateSaleRequest) (*SaleDTO, error) {
 		CustomerID:   cid,
 		CurrencyCode: cc,
 		ExchangeRate: rate,
+		Date:         saleDate,
 		DueDate:      dueDate,
 		Notes:        req.Notes,
 		Items:        items,

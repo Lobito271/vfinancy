@@ -46,7 +46,7 @@ export interface Product {
   unit: string;
   unitId?: string;
   taxId?: string;
-  cost: number;
+  costUSD: number;
   salePrice: number;
   minStock: number;
   maxStock: number;
@@ -93,6 +93,77 @@ export interface Purchase {
   date: string;
   status: string;
   total: number;
+  creditCardId: string;
+  costUSD: number;
+  realCostPEN: number;
+  projectedProfitPEN: number;
+  arrivalDate: string;
+  supplierOrderNumber: string;
+  faulty: boolean;
+  faultyReason: string;
+  refundedAmount: number;
+}
+
+export interface CustomerOrderPayment {
+  id: string;
+  purchaseOrderId: string;
+  number: string;
+  paymentDate: string;
+  amount: number;
+  method: string;
+  currencyCode: string;
+  exchangeRate: number;
+  reference: string;
+  notes: string;
+  status: 'active' | 'refunded';
+  refundedAmount: number;
+  refundedAt: string;
+  refundReason: string;
+}
+
+export interface CustomerOrderItem {
+  id: string;
+  productId: string;
+  lineNumber: number;
+  quantity: number;
+  unitPrice: number;
+  discountPercent: number;
+  discountAmount: number;
+  taxRate: number;
+  taxAmount: number;
+  description: string;
+}
+
+export interface CustomerOrder {
+  id: string;
+  number: string;
+  supplierId: string;
+  customerId: string;
+  customerName: string;
+  creditCardId: string;
+  orderType: string;
+  date: string;
+  status: string;
+  subtotal: number;
+  discount: number;
+  tax: number;
+  total: number;
+  paid: number;
+  costUSD: number;
+  salePricePEN: number;
+  realCostPEN: number;
+  projectedProfitPEN: number;
+  anticipo: number;
+  anticipoDate: string;
+  porCobrar: number;
+  supplierOrderNumber: string;
+  faulty: boolean;
+  faultyReason: string;
+  refundedAmount: number;
+  arrivalDate: string;
+  notes: string;
+  items: CustomerOrderItem[];
+  payments: CustomerOrderPayment[];
 }
 
 export interface ActivityItem {

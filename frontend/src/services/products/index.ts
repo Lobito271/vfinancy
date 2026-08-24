@@ -17,7 +17,7 @@ export interface ProductCreateInput {
   brandId?: string;
   unitId?: string;
   taxId?: string;
-  cost: number;
+  costUSD: number;
   salePrice: number;
   minStock: number;
   maxStock: number;
@@ -28,7 +28,7 @@ export interface ProductUpdateInput {
   description?: string;
   categoryId?: string;
   brandId?: string;
-  cost?: number;
+  costUSD?: number;
   salePrice?: number;
   minStock?: number;
   maxStock?: number;
@@ -48,7 +48,7 @@ function toProduct(dto: ProductDTO): Product {
     unit: dto.unit || dto.unitId,
     unitId: dto.unitId || undefined,
     taxId: dto.taxId || undefined,
-    cost: Number(dto.cost),
+    costUSD: Number(dto.costUSD),
     salePrice: Number(dto.salePrice),
     minStock: Number(dto.minStock),
     maxStock: Number(dto.maxStock),
@@ -88,7 +88,7 @@ export const productsService = {
       brandId: input.brandId ?? '',
       unitId: input.unitId ?? '',
       taxId: input.taxId ?? '',
-      cost: money(input.cost),
+      costUSD: money(input.costUSD),
       salePrice: money(input.salePrice),
       saleCurrency: 'PEN',
       minStock: (input.minStock ?? 0).toFixed(4),
@@ -106,7 +106,7 @@ export const productsService = {
       categoryId: input.categoryId ?? '',
       brandId: input.brandId ?? '',
       unitId: '',
-      cost: money(input.cost),
+      costUSD: money(input.costUSD),
       salePrice: money(input.salePrice),
       minStock: input.minStock != null ? input.minStock.toFixed(4) : '',
       maxStock: input.maxStock != null ? input.maxStock.toFixed(4) : '',

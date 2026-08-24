@@ -9,11 +9,9 @@ import type {
   CancelSaleRequest,
   ConnectionConfigDTO,
   CreateCustomerRequest,
-  CreateJournalEntryRequest,
   CreateLocalProfileRequest,
   CreateBankAccountRequest,
   CreateBankTransactionRequest,
-  CreateChartOfAccountRequest,
   CreateProductRequest,
   CreatePurchaseOrderRequest,
   CreateSaleRequest,
@@ -26,18 +24,19 @@ import type {
   ListCustomersRequest,
   ListInventoryBatchesRequest,
   ListInventoryMovementsRequest,
-  ListJournalEntriesRequest,
   ListProductsRequest,
   ListPurchaseOrdersRequest,
   ListSalesRequest,
   ListSuppliersRequest,
+  MarkPurchaseFaultyRequest,
+  MarkPurchaseReceivedRequest,
   ReceiveStockRequest,
+  RegisterCustomerOrderPaymentRequest,
   RegisterPurchasePaymentRequest,
   RegisterSalePaymentRequest,
   UpdateBankAccountRequest,
   UpdateCategoryRequest,
   UpdateBrandRequest,
-  UpdateChartOfAccountRequest,
   UpdateCustomerRequest,
   UpdateLocalProfileRequest,
   UpdateProductRequest,
@@ -330,6 +329,18 @@ export const wailsClient = {
     const b = await resolveBindings();
     return b.ListBankTransactions(req);
   },
+  async listCreditCards() {
+    const b = await resolveBindings();
+    return b.ListCreditCards();
+  },
+  async getCardProjections() {
+    const b = await resolveBindings();
+    return b.GetCardProjections();
+  },
+  async payCreditCard(cardId: string, amount: number) {
+    const b = await resolveBindings();
+    return b.PayCreditCard({ cardId, amount: amount.toFixed(2) });
+  },
   async createBankTransaction(req: CreateBankTransactionRequest) {
     const b = await resolveBindings();
     return b.CreateBankTransaction(req);
@@ -380,39 +391,6 @@ export const wailsClient = {
     return b.ListWarehouses();
   },
 
-  async listChartOfAccounts() {
-    const b = await resolveBindings();
-    return b.ListChartOfAccounts();
-  },
-  async createChartOfAccount(req: CreateChartOfAccountRequest) {
-    const b = await resolveBindings();
-    return b.CreateChartOfAccount(req);
-  },
-  async updateChartOfAccount(req: UpdateChartOfAccountRequest) {
-    const b = await resolveBindings();
-    return b.UpdateChartOfAccount(req);
-  },
-  async deleteChartOfAccount(id: string) {
-    const b = await resolveBindings();
-    return b.DeleteChartOfAccount(id);
-  },
-  async listFiscalPeriods() {
-    const b = await resolveBindings();
-    return b.ListFiscalPeriods();
-  },
-  async listJournalEntries(req: ListJournalEntriesRequest) {
-    const b = await resolveBindings();
-    return b.ListJournalEntries(req);
-  },
-  async createJournalEntry(req: CreateJournalEntryRequest) {
-    const b = await resolveBindings();
-    return b.CreateJournalEntry(req);
-  },
-  async postJournalEntry(id: string) {
-    const b = await resolveBindings();
-    return b.PostJournalEntry(id);
-  },
-
   async listPurchaseOrders(req: ListPurchaseOrdersRequest) {
     const b = await resolveBindings();
     return b.ListPurchaseOrders(req);
@@ -432,5 +410,17 @@ export const wailsClient = {
   async registerPurchasePayment(req: RegisterPurchasePaymentRequest) {
     const b = await resolveBindings();
     return b.RegisterPurchasePayment(req);
+  },
+  async markPurchaseFaulty(req: MarkPurchaseFaultyRequest) {
+    const b = await resolveBindings();
+    return b.MarkPurchaseFaulty(req);
+  },
+  async markPurchaseReceived(req: MarkPurchaseReceivedRequest) {
+    const b = await resolveBindings();
+    return b.MarkPurchaseReceived(req);
+  },
+  async registerCustomerOrderPayment(req: RegisterCustomerOrderPaymentRequest) {
+    const b = await resolveBindings();
+    return b.RegisterCustomerOrderPayment(req);
   },
 };

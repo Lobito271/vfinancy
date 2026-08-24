@@ -57,6 +57,7 @@ type CreateInput struct {
 	CustomerID   uuid.UUID
 	CurrencyCode valueobjects.CurrencyCode
 	ExchangeRate valueobjects.ExchangeRate
+	Date         valueobjects.Date
 	DueDate      *valueobjects.Date
 	Notes        string
 	SellerID     *uuid.UUID
@@ -76,21 +77,6 @@ type CreateItemInput struct {
 	TaxAmount       valueobjects.Money
 	CostSnapshot    valueobjects.Money
 	Description     string
-}
-
-// endOfDay interprets a date-only due date as the last moment of its
-// calendar day (UTC). The sales table enforces due_date >= sale_date,
-// and sale_date is the sale's creation timestamp; without this
-// normalization a sale due "today" would compare its midnight due date
-// against the current time and fail the ck_sales_dates CHECK constraint.
-func endOfDay(d *valueobjects.Date) *valueobjects.Date {
-	if d == nil {
-		return nil
-	}
-	t := d.UTC()
-	eod := time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 999999000, time.UTC)
-	out := valueobjects.Date(eod)
-	return &out
 }
 
 // CreateResult bundles the persisted sale plus the customer's updated
@@ -142,7 +128,8 @@ func (s *SalesService) Create(ctx context.Context, in CreateInput) (*CreateResul
 			CustomerID:   in.CustomerID,
 			CurrencyCode: in.CurrencyCode,
 			ExchangeRate: in.ExchangeRate,
-			DueDate:      endOfDay(in.DueDate),
+			SaleDate:     in.Date,
+			DueDate:      in.DueDate,
 			Notes:        in.Notes,
 		}
 		if opts.Number == "" {
@@ -188,16 +175,16 @@ func (s *SalesService) Create(ctx context.Context, in CreateInput) (*CreateResul
 				if isService {
 					continue
 				}
-				cost, err := s.stock.ReserveForSale(ctx, inventory.ReserveForSaleInput{
-					CompanyID: sale.CompanyID,
-					ProductID: li.ProductID,
-					Quantity:  li.Quantity,
-					SaleID:    sale.ID,
-				})
-				if err != nil {
-					return err
-				}
-				li.CostSnapshot = cost
+			cost, err := s.stock.ReserveForSale(ctx, inventory.ReserveForSaleInput{
+				CompanyID: sale.CompanyID,
+				ProductID: li.ProductID,
+				Quantity:  li.Quantity,
+				SaleID:    sale.ID,
+			})
+			if err != nil {
+				return err
+			}
+			li.CostSnapshot = cost.MulByDecimal(sale.ExchangeRate.Decimal())
 			}
 			if err := sale.Recalculate(); err != nil {
 				return err

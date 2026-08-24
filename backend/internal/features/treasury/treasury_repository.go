@@ -1,11 +1,12 @@
 package treasury
 
 import (
-	"vfinancy/backend/internal/domain/repositories"
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
+	"vfinancy/backend/internal/domain/repositories"
 )
 
 // BankAccountFilter is the input to BankAccountRepository.List.
@@ -55,6 +56,10 @@ type CreditCardRepository interface {
 
 	GetByID(ctx context.Context, id uuid.UUID) (*CreditCard, error)
 	List(ctx context.Context, companyID uuid.UUID) ([]*CreditCard, error)
+
+	// SumCostsByCard sums cost_usd from purchase_orders for each card
+	// within the given date range. Returns a map of card_id → total cost.
+	SumCostsByCard(ctx context.Context, companyID uuid.UUID, from, to time.Time) (map[uuid.UUID]float64, error)
 }
 
 // ExchangeRateRepository persists daily exchange rates (one row per

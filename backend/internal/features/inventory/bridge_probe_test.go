@@ -35,6 +35,7 @@ var (
 	probeCompany   = uuid.MustParse("00000000-0000-0000-0000-000000000001")
 	probeBranch    = uuid.MustParse("00000000-0000-0000-0000-000000000001")
 	probeWarehouse = uuid.MustParse("00000000-0000-0000-0000-0000000000c1")
+	probeCard      = uuid.MustParse("00000000-0000-0000-0000-00000000ca11")
 )
 
 type probeEnv struct {
@@ -262,7 +263,7 @@ func TestBridgeEndToEnd(t *testing.T) {
 		Description:  "Café Probe",
 		UnitID:       unitID,
 		TaxID:        taxID,
-		Cost:         money("9.80"),
+		CostUSD:      money("9.80"),
 		SalePrice:    money("15.00"),
 		SaleCurrency: pen("PEN"),
 		MinStock:     qty("0"),
@@ -276,6 +277,7 @@ func TestBridgeEndToEnd(t *testing.T) {
 	po1, err := env.purchSvc.Create(ctx, purchasing.CreateInput{
 		CompanyID:    probeCompany,
 		SupplierID:   sup.ID,
+		CreditCardID: &probeCard,
 		CurrencyCode: pen("PEN"),
 		ExchangeRate: valueobjects.One(),
 		OrderDate:    yesterday,
@@ -294,6 +296,9 @@ func TestBridgeEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create purchase 1: %v", err)
 	}
+	if err := env.purchSvc.MarkAsReceived(ctx, po1.ID, yesterday); err != nil {
+		t.Fatalf("receive purchase 1: %v", err)
+	}
 	line1 := po1.Items[0].ID
 	batchA := env.batchForLine(t, line1)
 	if !batchA.CurrentQuantity.Equals(qty("125.0000")) {
@@ -309,6 +314,7 @@ func TestBridgeEndToEnd(t *testing.T) {
 	po2, err := env.purchSvc.Create(ctx, purchasing.CreateInput{
 		CompanyID:    probeCompany,
 		SupplierID:   sup.ID,
+		CreditCardID: &probeCard,
 		CurrencyCode: pen("PEN"),
 		ExchangeRate: valueobjects.One(),
 		OrderDate:    today,
@@ -327,6 +333,9 @@ func TestBridgeEndToEnd(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("create purchase 2: %v", err)
+	}
+	if err := env.purchSvc.MarkAsReceived(ctx, po2.ID, today); err != nil {
+		t.Fatalf("receive purchase 2: %v", err)
 	}
 	line2 := po2.Items[0].ID
 	batchB := env.batchForLine(t, line2)
@@ -349,11 +358,6 @@ func TestBridgeEndToEnd(t *testing.T) {
 	if !recv[0].Quantity.Equals(qty("50.0000")) {
 		t.Fatalf("purchase_receipt qty = %s, want 50.0000", recv[0].Quantity)
 	}
-
-	if err := env.purchSvc.Approve(ctx, po2.ID); err != nil {
-		t.Fatalf("approve purchase 2: %v", err)
-	}
-	env.batchForLine(t, line2)
 
 	res, err := env.salesSvc.Create(ctx, sales.CreateInput{
 		CompanyID:    probeCompany,

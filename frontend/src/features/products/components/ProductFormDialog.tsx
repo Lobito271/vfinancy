@@ -7,6 +7,7 @@ import { Button } from '@/components/button';
 import { Grid } from '@/components/layout';
 import { useCreateProduct, useUpdateProduct, useCategories, useBrands } from '@/features/products/hooks/useProducts';
 import type { Product } from '@/types/domain';
+import type { UnitDTO } from '@/services/wails-types';
 import { catalogService } from '@/services/catalog';
 import { settingsService } from '@/services/settings';
 import { useNotificationStore } from '@/stores/notification';
@@ -17,9 +18,8 @@ const ProductSchema = z.object({
   description: z.string().min(1, 'Requerido'),
   categoryId: z.string().optional(),
   brandId: z.string().optional(),
-  unitId: z.string().min(1, 'Seleccione una unidad'),
   taxId: z.string().min(1, 'Seleccione un impuesto'),
-  cost: z.number().min(0, 'Debe ser >= 0'),
+  costUSD: z.number().min(0, 'Debe ser >= 0'),
   salePrice: z.number().min(0, 'Debe ser >= 0'),
   minStock: z.number().min(0, 'Debe ser >= 0'),
   maxStock: z.number().min(0, 'Debe ser >= 0'),
@@ -33,6 +33,17 @@ const statusOptions = [
   { value: 'inactive', label: 'Inactivo' },
 ];
 
+function defaultUnitId(units: UnitDTO[]): string {
+  const byCode = (code: string) => units.find((u) => u.code.toUpperCase() === code);
+  return (
+    byCode('NIU')?.id ??
+    byCode('UND')?.id ??
+    units.find((u) => /unidad/i.test(u.name))?.id ??
+    units[0]?.id ??
+    ''
+  );
+}
+
 interface ProductFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -44,7 +55,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
   const update = useUpdateProduct();
   const push = useNotificationStore((s) => s.push);
 
-  const unitsQuery = useQuery({ queryKey: ['catalog', 'units'], queryFn: () => catalogService.getUnitOptions(), staleTime: 5 * 60 * 1000 });
+  const unitsQuery = useQuery({ queryKey: ['catalog', 'units'], queryFn: () => catalogService.listUnits(), staleTime: 5 * 60 * 1000 });
   const taxesQuery = useQuery({ queryKey: ['catalog', 'taxes'], queryFn: () => settingsService.getTaxes(), staleTime: 5 * 60 * 1000 });
   const categoriesQuery = useCategories();
   const brandsQuery = useBrands();
@@ -56,9 +67,8 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
       description: product?.description ?? '',
       categoryId: product?.categoryId ?? '',
       brandId: product?.brandId ?? '',
-      unitId: product?.unitId ?? '',
       taxId: product?.taxId ?? '',
-      cost: product?.cost ?? 0,
+      costUSD: product?.costUSD ?? 0,
       salePrice: product?.salePrice ?? 0,
       minStock: product?.minStock ?? 0,
       maxStock: product?.maxStock ?? 0,
@@ -83,7 +93,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
           description: values.description,
           categoryId: values.categoryId || undefined,
           brandId: values.brandId || undefined,
-          cost: values.cost,
+          costUSD: values.costUSD,
           salePrice: values.salePrice,
           minStock: values.minStock,
           maxStock: values.maxStock,
@@ -101,9 +111,9 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
         description: values.description,
         categoryId: values.categoryId || undefined,
         brandId: values.brandId || undefined,
-        unitId: values.unitId,
+        unitId: defaultUnitId(unitsQuery.data ?? []),
         taxId: values.taxId,
-        cost: values.cost,
+        costUSD: values.costUSD,
         salePrice: values.salePrice,
         minStock: values.minStock,
         maxStock: values.maxStock,
@@ -138,19 +148,16 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
                   <SelectField name="brandId" label="Marca" options={brandsQuery.data ?? []} loading={brandsQuery.isLoading} />
                 </Grid>
                 {!product && (
-                  <Grid cols={2}>
-                    <SelectField name="unitId" label="Unidad de medida" required options={unitsQuery.data ?? []} loading={unitsQuery.isLoading} />
-                    <SelectField
-                      name="taxId"
-                      label="Impuesto"
-                      required
-                      options={(taxesQuery.data ?? []).map((t) => ({ value: t.id, label: `${t.code} — ${t.name} (${t.defaultRate}%)` }))}
-                      loading={taxesQuery.isLoading}
-                    />
-                  </Grid>
+                  <SelectField
+                    name="taxId"
+                    label="Impuesto"
+                    required
+                    options={(taxesQuery.data ?? []).map((t) => ({ value: t.id, label: `${t.code} — ${t.name} (${t.defaultRate}%)` }))}
+                    loading={taxesQuery.isLoading}
+                  />
                 )}
                 <Grid cols={2}>
-                  <MoneyField name="cost" label="Costo" />
+                  <MoneyField name="costUSD" label="Costo Base (USD)" currency="USD" />
                   <MoneyField name="salePrice" label="Precio de venta" />
                 </Grid>
                 <Grid cols={2}>

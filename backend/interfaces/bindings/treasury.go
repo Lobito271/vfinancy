@@ -124,7 +124,7 @@ func (a *App) IssueCreditCard(req IssueCreditCardRequest) (*CreditCardDTO, error
 	if err != nil {
 		return nil, err
 	}
-	gl, err := a.ensureBankGLAccount(a.Context())
+	gl, err := a.ensureCardGLAccount(a.Context())
 	if err != nil {
 		return nil, err
 	}
@@ -154,18 +154,6 @@ func (a *App) ChargeCreditCard(req CreditCardAmountRequest) error {
 		return err
 	}
 	return a.treasurySvc.ChargeCard(a.Context(), id, amount)
-}
-
-func (a *App) PayCreditCard(req CreditCardAmountRequest) error {
-	id, err := uuid.Parse(req.ID)
-	if err != nil {
-		return err
-	}
-	amount, err := valueobjects.MoneyFromString(req.Amount)
-	if err != nil {
-		return err
-	}
-	return a.treasurySvc.PayCard(a.Context(), id, amount)
 }
 
 // ListBankAccounts returns all active bank accounts.
@@ -451,4 +439,93 @@ func (a *App) LatestExchangeRate(from, to string) (string, error) {
 		return "", err
 	}
 	return rate.String(), nil
+}
+
+// ensureCardGLAccount returns the GL account used for card payables,
+// creating the standard 165.01 when the chart of accounts is empty.
+func (a *App) ensureCardGLAccount(ctx context.Context) (uuid.UUID, error) {
+	accounts, err := a.accountingSvc.ListChartOfAccounts(ctx, a.companyID())
+	if err != nil {
+		return uuid.Nil, err
+	}
+	for _, acc := range accounts {
+		if strings.HasPrefix(acc.Code.String(), "165") {
+			return acc.ID, nil
+		}
+	}
+	code, err := valueobjects.NewChartOfAccountsCode("165.01")
+	if err != nil {
+		return uuid.Nil, err
+	}
+	acc, err := a.accountingSvc.CreateChartOfAccounts(ctx, accounting.CreateChartOfAccountsInput{
+		CompanyID:      a.companyID(),
+		Code:           code,
+		Name:           "Tarjetas de crédito por pagar",
+		Type:           enums.AccountTypeLiability,
+		Depth:          2,
+		AllowsMovement: true,
+		Description:    "Cuentas por pagar a tarjetas de crédito corporativas (creada automáticamente por Tesorería)",
+	})
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return acc.ID, nil
+}
+
+// CardProjectionDTO is the serializable view of a credit card payment projection.
+type CardProjectionDTO struct {
+	CardID          string  `json:"cardId"`
+	Issuer          string  `json:"issuer"`
+	LastFour        string  `json:"lastFour"`
+	CardHolder      string  `json:"cardHolder"`
+	ProjectedUSD    float64 `json:"projectedUSD"`
+	CycleStart      string  `json:"cycleStart"`
+	NextCutOffDate  string  `json:"nextCutOffDate"`
+	NextPaymentDate string  `json:"nextPaymentDate"`
+}
+
+func toCardProjectionDTO(p treasury.CardPaymentProjection) *CardProjectionDTO {
+	return &CardProjectionDTO{
+		CardID:          p.CardID,
+		Issuer:          p.Issuer,
+		LastFour:        p.LastFour,
+		CardHolder:      p.CardHolder,
+		ProjectedUSD:    p.ProjectedUSD,
+		CycleStart:      p.CycleStart,
+		NextCutOffDate:  p.NextCutOffDate,
+		NextPaymentDate: p.NextPaymentDate,
+	}
+}
+
+// GetCardProjections returns the projected USD debt for each credit card.
+func (a *App) GetCardProjections() ([]*CardProjectionDTO, error) {
+	projections, err := a.treasurySvc.ProjectPayments(a.Context(), a.companyID())
+	if err != nil {
+		return nil, err
+	}
+	items := make([]*CardProjectionDTO, 0, len(projections))
+	for _, p := range projections {
+		items = append(items, toCardProjectionDTO(p))
+	}
+	return items, nil
+}
+
+// PayCreditCardRequest records a payment against a credit card.
+type PayCreditCardRequest struct {
+	CardID string `json:"cardId"`
+	Amount string `json:"amount"`
+}
+
+// PayCreditCard pays the given amount against a credit card, reducing
+// its outstanding balance.
+func (a *App) PayCreditCard(req PayCreditCardRequest) error {
+	cardID, err := uuid.Parse(req.CardID)
+	if err != nil {
+		return err
+	}
+	amount, err := valueobjects.MoneyFromString(req.Amount)
+	if err != nil {
+		return err
+	}
+	return a.treasurySvc.PayCard(a.Context(), cardID, amount)
 }

@@ -11,8 +11,19 @@ import { Can } from '@/components/auth';
 import { Icons } from '@/design-system/icons';
 import { Permissions } from '@/constants/permissions';
 import { usePermission } from '@/hooks/usePermission';
-import { usePurchases, useCancelPurchase, useMarkPurchasePaid } from '@/features/purchasing/hooks/usePurchases';
+import { useDebounce } from '@/utils/debounce';
+import {
+  usePurchases,
+  useCancelPurchase,
+  useMarkPurchasePaid,
+  useMarkPurchaseReceived,
+  useMarkPurchaseFaulty,
+} from '@/features/purchasing/hooks/usePurchases';
+import { useCreditCards } from '@/features/treasury/hooks/useTreasury';
+import type { SelectOption } from '@/components/form';
 import { PurchaseFormDialog } from '@/features/purchasing/components/PurchaseFormDialog';
+import { MarkReceivedDialog } from '@/features/purchasing/components/MarkReceivedDialog';
+import { MarkFaultyDialog, type MarkFaultyInput } from '@/features/purchasing/components/MarkFaultyDialog';
 import type { Purchase } from '@/types/domain';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { useNotificationStore } from '@/stores/notification';
@@ -35,16 +46,43 @@ const columns: Column<Purchase>[] = [
   },
   { id: 'supplierName', header: 'Proveedor', sortable: true, cell: (row) => row.supplierName || '—' },
   {
+    id: 'supplierOrderNumber',
+    header: 'Orden Proveedor',
+    cell: (row) => <span className="text-muted-foreground">{row.supplierOrderNumber || '—'}</span>,
+  },
+  {
     id: 'date',
     header: 'Fecha',
     cell: (row) => <span className="muted">{formatDate(row.date)}</span>,
+  },
+  {
+    id: 'realCostPEN',
+    header: 'Costo real (PEN)',
+    sortable: true,
+    align: 'right',
+    cell: (row) => <span className="tabular-nums">{formatCurrency(row.realCostPEN)}</span>,
+  },
+  {
+    id: 'projectedProfitPEN',
+    header: 'Utilidad proy.',
+    align: 'right',
+    cell: (row) => (
+      <span className={`tabular-nums ${row.projectedProfitPEN < 0 ? 'text-destructive' : 'text-success'}`}>
+        {formatCurrency(row.projectedProfitPEN)}
+      </span>
+    ),
   },
   {
     id: 'status',
     header: 'Estado',
     cell: (row) => {
       const cfg = statusMap[row.status] ?? { variant: 'muted' as const, label: row.status };
-      return <Badge variant={cfg.variant}>{cfg.label}</Badge>;
+      return (
+        <div className="flex flex-wrap items-center gap-1">
+          <Badge variant={cfg.variant}>{cfg.label}</Badge>
+          {row.faulty && <Badge variant="destructive">Defectuoso</Badge>}
+        </div>
+      );
     },
   },
   {
@@ -57,17 +95,36 @@ const columns: Column<Purchase>[] = [
 ];
 
 export function PurchasesPage() {
-  const { data, isLoading, isError, error, refetch } = usePurchases();
+  const [searchInput, setSearchInput] = useState('');
+  const search = useDebounce(searchInput);
+  const { data, isLoading, isError, error, refetch } = usePurchases(search);
   const cancel = useCancelPurchase();
   const markPaid = useMarkPurchasePaid();
+  const markReceived = useMarkPurchaseReceived();
+  const markFaulty = useMarkPurchaseFaulty();
+  const cardsQuery = useCreditCards();
   const push = useNotificationStore((s) => s.push);
+
+  const cardOptions = useMemo<SelectOption[]>(
+    () =>
+      (cardsQuery.data ?? [])
+        .filter((c) => c.isActive && c.currencyCode === 'USD')
+        .map((c) => ({
+          value: c.id,
+          label: `${c.issuer} •••• ${c.lastFour} (${c.currencyCode})`,
+        })),
+    [cardsQuery.data],
+  );
 
   const [formOpen, setFormOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Purchase | null>(null);
   const [payTarget, setPayTarget] = useState<Purchase | null>(null);
+  const [receivedTarget, setReceivedTarget] = useState<Purchase | null>(null);
+  const [faultyTarget, setFaultyTarget] = useState<Purchase | null>(null);
 
   const canDelete = usePermission(Permissions.Purchases.Delete);
-  const canPay = usePermission(Permissions.Purchases.Edit);
+  const canEdit = usePermission(Permissions.Purchases.Edit);
+  const canPay = canEdit;
 
   const purchases = data ?? [];
   const totalAmount = purchases.reduce((s, p) => s + p.total, 0);
@@ -81,13 +138,34 @@ export function PurchasesPage() {
       {
         id: 'actions',
         header: '',
-        width: 120,
+        width: 280,
         exportable: false,
         cell: (row) => {
+          const open = row.status !== 'cancelled';
+          const receivable = !row.arrivalDate && !row.faulty && row.status !== 'cancelled';
           const payable = row.status === 'pending' || row.status === 'received';
-          const cancellable = row.status !== 'cancelled';
           return (
             <div className="row-actions">
+              {canEdit && receivable && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setReceivedTarget(row)}
+                  title="Confirma la llegada de la mercadería e ingresa al inventario"
+                >
+                  <Icons.Action.Download /> Marcar como Recibido
+                </Button>
+              )}
+              {canEdit && open && !row.faulty && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setFaultyTarget(row)}
+                  title="Anula el pedido y reembolsa el anticipo"
+                >
+                  <Icons.Status.Warning /> Mal estado
+                </Button>
+              )}
               {canPay && payable && (
                 <Button
                   variant="ghost"
@@ -98,7 +176,7 @@ export function PurchasesPage() {
                   <Icons.Action.Payment />
                 </Button>
               )}
-              {canDelete && cancellable && (
+              {canDelete && open && (
                 <Button
                   variant="ghost"
                   size="icon-sm"
@@ -113,7 +191,7 @@ export function PurchasesPage() {
         },
       },
     ];
-  }, [canDelete, canPay]);
+  }, [canEdit, canDelete, canPay]);
 
   return (
     <PageContainer>
@@ -136,6 +214,16 @@ export function PurchasesPage() {
         <StatCard label="Anuladas" value={String(cancelled)} />
       </Grid>
 
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          placeholder="Buscar por número o orden del proveedor…"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          className="h-9 w-full max-w-sm rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+        />
+      </div>
+
       <DataTable
         columns={tableColumns}
         data={purchases}
@@ -155,18 +243,77 @@ export function PurchasesPage() {
 
       <PurchaseFormDialog open={formOpen} onOpenChange={setFormOpen} />
 
+      <MarkReceivedDialog
+        open={!!receivedTarget}
+        onOpenChange={(open) => {
+          if (!open) setReceivedTarget(null);
+        }}
+        documentNumber={receivedTarget?.number ?? ''}
+        loading={markReceived.isPending}
+        onConfirm={({ arrivalDate }) => {
+          if (!receivedTarget) return;
+          markReceived.mutate(
+            { id: receivedTarget.id, arrivalDate },
+            {
+              onSuccess: () => {
+                push({ title: 'Pedido marcado como recibido', variant: 'success' });
+                setReceivedTarget(null);
+              },
+              onError: (err: unknown) => {
+                push({
+                  title: 'No se pudo marcar el pedido',
+                  description: err instanceof Error ? err.message : undefined,
+                  variant: 'destructive',
+                });
+              },
+            },
+          );
+        }}
+      />
+
+      <MarkFaultyDialog
+        open={!!faultyTarget}
+        onOpenChange={(open) => {
+          if (!open) setFaultyTarget(null);
+        }}
+        documentNumber={faultyTarget?.number ?? ''}
+        loading={markFaulty.isPending}
+        onConfirm={(input: MarkFaultyInput) => {
+          if (!faultyTarget) return;
+          markFaulty.mutate(
+            { id: faultyTarget.id, input },
+            {
+              onSuccess: () => {
+                push({ title: 'Pedido marcado como defectuoso', variant: 'success' });
+                setFaultyTarget(null);
+              },
+              onError: (err: unknown) => {
+                push({
+                  title: 'No se pudo marcar el pedido',
+                  description: err instanceof Error ? err.message : undefined,
+                  variant: 'destructive',
+                });
+              },
+            },
+          );
+        }}
+      />
+
       <RegisterPaymentDialog
         open={!!payTarget}
         onOpenChange={(open) => {
           if (!open) setPayTarget(null);
         }}
         title="Registrar pago"
-        description="Registra el pago total de la orden de compra."
+        description="Registra el pago de la orden de compra al proveedor."
         documentNumber={payTarget?.number ?? ''}
         amount={payTarget?.total ?? 0}
         amountLabel="Total de la orden"
         confirmLabel="Registrar pago"
         loading={markPaid.isPending}
+        currencyCode="USD"
+        creditCardOptions={cardOptions}
+        creditCardLoading={cardsQuery.isLoading}
         onConfirm={(input: RegisterPaymentInput) => {
           if (!payTarget) return;
           markPaid.mutate(

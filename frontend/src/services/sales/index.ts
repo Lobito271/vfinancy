@@ -18,6 +18,7 @@ export interface SaleCreateInput {
   customerId: string;
   date: string;
   dueDate?: string;
+  exchangeRate: number;
   notes?: string;
   items: SaleLineInput[];
 }
@@ -55,8 +56,9 @@ export const salesService = {
     const created = await wailsClient.createSale({
       customerId: input.customerId,
       currencyCode: 'PEN',
-      exchangeRate: '1.000000',
-      dueDate: input.dueDate ?? input.date,
+      exchangeRate: (input.exchangeRate ?? 1).toFixed(6),
+      date: input.date,
+      dueDate: input.dueDate ?? '',
       notes: input.notes ?? '',
       items: input.items.map((it) => ({
         productId: it.productId,

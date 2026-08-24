@@ -24,7 +24,7 @@ type ProductDTO struct {
 	Category     string `json:"category"`
 	Brand        string `json:"brand"`
 	Unit         string `json:"unit"`
-	Cost         string `json:"cost"`
+	CostUSD      string `json:"costUSD"`
 	SalePrice    string `json:"salePrice"`
 	SaleCurrency string `json:"saleCurrency"`
 	MinStock     string `json:"minStock"`
@@ -48,7 +48,7 @@ func toProductDTO(p *product.Product) *ProductDTO {
 		Category:     p.CategoryName,
 		Brand:        p.BrandName,
 		Unit:         p.UnitName,
-		Cost:         p.Cost.String(),
+		CostUSD:      p.CostUSD.String(),
 		SalePrice:    p.SalePrice.String(),
 		SaleCurrency: p.SaleCurrency.String(),
 		MinStock:     p.MinStock.String(),
@@ -117,7 +117,7 @@ type CreateProductRequest struct {
 	BrandID      string `json:"brandId"`
 	UnitID       string `json:"unitId"`
 	TaxID        string `json:"taxId"`
-	Cost         string `json:"cost"`
+	CostUSD      string `json:"costUSD"`
 	SalePrice    string `json:"salePrice"`
 	SaleCurrency string `json:"saleCurrency"`
 	MinStock     string `json:"minStock"`
@@ -158,7 +158,7 @@ func (a *App) CreateProduct(req CreateProductRequest) (*ProductDTO, error) {
 	if err != nil {
 		return nil, err
 	}
-	cost, err := moneyOrZero(req.Cost)
+	cost, err := moneyOrZero(req.CostUSD)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +191,7 @@ func (a *App) CreateProduct(req CreateProductRequest) (*ProductDTO, error) {
 		BrandID:      brandID,
 		UnitID:       *unitID,
 		TaxID:        *taxID,
-		Cost:         cost,
+		CostUSD:       cost,
 		SalePrice:    salePrice,
 		SaleCurrency: currency,
 		MinStock:     minStock,
@@ -213,8 +213,8 @@ type UpdateProductRequest struct {
 	CategoryID  string `json:"categoryId"`
 	BrandID     string `json:"brandId"`
 	UnitID      string `json:"unitId"`
-	Cost        string `json:"cost"`
-	SalePrice   string `json:"salePrice"`
+	CostUSD      string `json:"costUSD"`
+	SalePrice    string `json:"salePrice"`
 	MinStock    string `json:"minStock"`
 	MaxStock    string `json:"maxStock"`
 	IsActive    *bool  `json:"isActive"`
@@ -248,12 +248,12 @@ func (a *App) UpdateProduct(req UpdateProductRequest) (*ProductDTO, error) {
 		}
 		in.UnitID = id
 	}
-	if req.Cost != "" {
-		cost, err := valueobjects.MoneyFromString(req.Cost)
+	if req.CostUSD != "" {
+		cost, err := valueobjects.MoneyFromString(req.CostUSD)
 		if err != nil {
 			return nil, err
 		}
-		in.Cost = &cost
+		in.CostUSD = &cost
 	}
 	if req.SalePrice != "" {
 		price, err := valueobjects.MoneyFromString(req.SalePrice)

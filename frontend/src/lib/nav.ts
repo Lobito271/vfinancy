@@ -20,9 +20,15 @@ export const navRoutes: NavRoute[] = [
   { to: Routes.CatalogSettings, label: 'Catálogo', icon: Icons.Navigation.Catalog, permission: Permissions.Products.View },
   { to: Routes.Inventory, label: 'Inventario', icon: Icons.Navigation.Inventory, permission: Permissions.Inventory.View },
   { to: Routes.Purchases, label: 'Compras', icon: Icons.Navigation.Purchases, permission: Permissions.Purchases.View },
+  {
+    to: Routes.CustomerOrders,
+    label: 'Pedidos de cliente',
+    icon: Icons.Navigation.CustomerOrders,
+    permission: Permissions.Purchases.View,
+  },
   { to: Routes.Sales, label: 'Ventas', icon: Icons.Navigation.Sales, permission: Permissions.Sales.View },
   { to: Routes.Treasury, label: 'Tesorería', icon: Icons.Navigation.Treasury, permission: Permissions.Treasury.View },
-  { to: Routes.Accounting, label: 'Contabilidad', icon: Icons.Navigation.Accounting, permission: Permissions.Accounting.View },
+  { to: Routes.Reports, label: 'Reportes', icon: Icons.Navigation.Reports, permission: Permissions.Reports.View },
   { to: Routes.Settings, label: 'Configuración', icon: Icons.Navigation.Settings, permission: Permissions.Settings.View },
 ];
 

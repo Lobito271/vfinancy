@@ -23,7 +23,7 @@ type Product struct {
 	BrandID      *uuid.UUID
 	UnitID       uuid.UUID
 	TaxID        uuid.UUID
-	Cost         valueobjects.Money
+	CostUSD      valueobjects.Money
 	SalePrice    valueobjects.Money
 	SaleCurrency valueobjects.CurrencyCode
 	MinStock     valueobjects.Quantity
@@ -54,7 +54,7 @@ type NewProductOptions struct {
 	BrandID      *uuid.UUID
 	UnitID       uuid.UUID
 	TaxID        uuid.UUID
-	Cost         valueobjects.Money
+	CostUSD      valueobjects.Money
 	SalePrice    valueobjects.Money
 	SaleCurrency valueobjects.CurrencyCode
 	MinStock     valueobjects.Quantity
@@ -74,8 +74,8 @@ func NewProduct(now time.Time, opts NewProductOptions) (*Product, error) {
 	if opts.TaxID == uuid.Nil {
 		return nil, errors.Wrap(errors.ErrRequired, errField("tax id is required"))
 	}
-	if opts.Cost.IsNegative() {
-		return nil, errors.Wrap(errors.ErrNegativeMoney, errField("cost cannot be negative"))
+	if opts.CostUSD.IsNegative() {
+		return nil, errors.Wrap(errors.ErrNegativeMoney, errField("cost usd cannot be negative"))
 	}
 	if opts.SalePrice.IsNegative() {
 		return nil, errors.Wrap(errors.ErrNegativeMoney, errField("sale price cannot be negative"))
@@ -96,7 +96,7 @@ func NewProduct(now time.Time, opts NewProductOptions) (*Product, error) {
 		BrandID:      opts.BrandID,
 		UnitID:       opts.UnitID,
 		TaxID:        opts.TaxID,
-		Cost:         opts.Cost,
+		CostUSD:       opts.CostUSD,
 		SalePrice:    opts.SalePrice,
 		SaleCurrency: opts.SaleCurrency,
 		MinStock:     opts.MinStock,
@@ -123,18 +123,20 @@ func (p *Product) ChangeSalePrice(price valueobjects.Money) error {
 	return nil
 }
 
-// ChangeCost updates the standard cost. Negative is rejected.
-func (p *Product) ChangeCost(cost valueobjects.Money) error {
+// ChangeCostUSD updates the standard cost in USD. Negative is rejected.
+func (p *Product) ChangeCostUSD(cost valueobjects.Money) error {
 	if cost.IsNegative() {
-		return errors.Wrap(errors.ErrNegativeMoney, errField("cost cannot be negative"))
+		return errors.Wrap(errors.ErrNegativeMoney, errField("cost usd cannot be negative"))
 	}
-	p.Cost = cost
+	p.CostUSD = cost
 	return nil
 }
 
 // CalculateMargin returns the unit margin (sale price - cost) as Money.
+// Note: CostUSD is in dollars and SalePrice in PEN; this is approximate
+// and used only for product-listing display.
 func (p *Product) CalculateMargin() valueobjects.Money {
-	return p.SalePrice.Sub(p.Cost)
+	return p.SalePrice.Sub(p.CostUSD)
 }
 
 // MarginPercent returns the margin as a percentage of the sale price.
@@ -143,7 +145,7 @@ func (p *Product) MarginPercent() float64 {
 	if p.SalePrice.IsZero() {
 		return 0
 	}
-	margin := p.SalePrice.Decimal().Sub(p.Cost.Decimal()).
+	margin := p.SalePrice.Decimal().Sub(p.CostUSD.Decimal()).
 		Div(p.SalePrice.Decimal()).
 		Mul(decimal.NewFromInt(100))
 	f, _ := margin.Float64()

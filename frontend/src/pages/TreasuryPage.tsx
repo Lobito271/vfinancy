@@ -1,382 +1,141 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { PageContainer, PageHeader, Grid, Section } from '@/components/layout';
-import { StatCard } from '@/components/card';
-import { DataTable, type Column } from '@/components/table';
-import { Badge } from '@/components/badge';
 import { Button } from '@/components/button';
-import { EmptyState } from '@/components/feedback';
+import { Card, CardHeader, CardContent } from '@/components/card';
+import { EmptyState, Spinner } from '@/components/feedback';
 import { ConfirmDialog } from '@/components/dialog';
 import { Can } from '@/components/auth';
 import { Icons } from '@/design-system/icons';
 import { Permissions } from '@/constants/permissions';
-import { usePermission } from '@/hooks/usePermission';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/select';
-import {
-  useBankAccounts,
-  useBankTransactions,
-  useDeleteBankAccount,
-  useReconcileBankTransaction,
-} from '@/features/treasury/hooks/useTreasury';
-import { BankAccountFormDialog } from '@/features/treasury/components/BankAccountFormDialog';
-import { BankTransactionFormDialog } from '@/features/treasury/components/BankTransactionFormDialog';
-import type { BankAccount, BankTransaction, BankTxType } from '@/services/treasury';
+import { useCreditCards, useCardProjections, usePayCard } from '@/features/treasury/hooks/useTreasury';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { useNotificationStore } from '@/stores/notification';
 
-const TxTypeBadge = ({ type }: { type: BankTxType }) => {
-  switch (type) {
-    case 'deposit':
-      return <Badge variant="success">Depósito</Badge>;
-    case 'withdrawal':
-      return <Badge variant="destructive">Retiro</Badge>;
-    case 'fee':
-      return <Badge variant="warning">Comisión</Badge>;
-    case 'interest':
-      return <Badge variant="info">Interés</Badge>;
-    case 'transfer':
-      return <Badge variant="info">Transferencia</Badge>;
-    default:
-      return <Badge variant="muted">Otro</Badge>;
-  }
-};
-
-function signedAmount(tx: BankTransaction): number {
-  if (tx.type === 'withdrawal' || tx.type === 'fee' || tx.type === 'transfer') {
-    return -tx.amount;
-  }
-  return tx.amount;
-}
-
 export function TreasuryPage() {
-  const [accountFormOpen, setAccountFormOpen] = useState(false);
-  const [editing, setEditing] = useState<BankAccount | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<BankAccount | null>(null);
-  const [txFormOpen, setTxFormOpen] = useState(false);
-  const [txAccountId, setTxAccountId] = useState('');
-  const [txFilter, setTxFilter] = useState('');
+  const [payTarget, setPayTarget] = useState<{ cardId: string; issuer: string; lastFour: string; amount: number } | null>(null);
 
-  const { data: accounts = [], isLoading: accountsLoading, isError: accountsError, error: accountsErrorObj, refetch: refetchAccounts } = useBankAccounts();
-  const transactionsQuery = useBankTransactions(txFilter || undefined);
-  const deleteMutation = useDeleteBankAccount();
-  const reconcileMutation = useReconcileBankTransaction();
+  const { data: creditCards = [], isLoading: cardsLoading } = useCreditCards();
+  const { data: projections = [], isLoading: projectionsLoading } = useCardProjections();
+  const payCardMutation = usePayCard();
   const push = useNotificationStore((s) => s.push);
 
-  const canEdit = usePermission(Permissions.Treasury.Edit);
-  const canDelete = usePermission(Permissions.Treasury.Delete);
-  const canConciliate = usePermission(Permissions.Treasury.Conciliate);
-
-  const totalBalancePen = accounts.filter((a) => a.currency === 'PEN').reduce((s, a) => s + a.balance, 0);
-  const totalBalanceUsd = accounts.filter((a) => a.currency === 'USD').reduce((s, a) => s + a.balance, 0);
-  const activeCount = accounts.filter((a) => a.isActive).length;
-
-  const currencyOf = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const a of accounts) map.set(a.id, a.currency);
-    return map;
-  }, [accounts]);
-
-  const accountColumns = useMemo<Column<BankAccount>[]>(() => {
-    const base: Column<BankAccount>[] = [
-      {
-        id: 'bank',
-        header: 'Banco',
-        sortable: true,
-        sticky: true,
-        cell: (row) => <span className="fw-medium">{row.bank}</span>,
-      },
-      {
-        id: 'accountNumber',
-        header: 'N.º de cuenta',
-        cell: (row) => <span className="tabular">{row.accountNumber}</span>,
-      },
-      {
-        id: 'accountType',
-        header: 'Tipo',
-        cell: (row) => (row.accountType === 'checking' ? 'Cuenta corriente' : 'Cuenta de ahorros'),
-      },
-      { id: 'currency', header: 'Moneda', cell: (row) => <span className="fw-medium">{row.currency}</span> },
-      {
-        id: 'balance',
-        header: 'Saldo',
-        align: 'right',
-        sortable: true,
-        cell: (row) => <span className="tabular">{formatCurrency(row.balance, row.currency)}</span>,
-      },
-      {
-        id: 'isDefault',
-        header: 'Principal',
-        cell: (row) => (row.isDefault ? <Badge variant="info">Principal</Badge> : '—'),
-      },
-      {
-        id: 'isActive',
-        header: 'Estado',
-        cell: (row) =>
-          row.isActive ? <Badge variant="success">Activa</Badge> : <Badge variant="muted">Inactiva</Badge>,
-      },
-    ];
-    if (!canEdit && !canDelete) return base;
-    return [
-      ...base,
-      {
-        id: 'actions',
-        header: '',
-        width: 88,
-        exportable: false,
-        cell: (row) => (
-          <div className="row-actions">
-            {canEdit && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Editar ${row.bank}`}
-                onClick={() => {
-                  setEditing(row);
-                  setAccountFormOpen(true);
-                }}
-              >
-                <Icons.Action.Edit />
-              </Button>
-            )}
-            {canDelete && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Eliminar ${row.bank}`}
-                onClick={() => setDeleteTarget(row)}
-              >
-                <Icons.Action.Delete />
-              </Button>
-            )}
-          </div>
-        ),
-      },
-    ];
-  }, [canEdit, canDelete]);
-
-  const txColumns = useMemo<Column<BankTransaction>[]>(() => {
-    const base: Column<BankTransaction>[] = [
-      {
-        id: 'date',
-        header: 'Fecha',
-        sortable: true,
-        sticky: true,
-        cell: (row) => <span className="tabular">{formatDate(row.date)}</span>,
-      },
-      {
-        id: 'description',
-        header: 'Descripción',
-        cell: (row) => (
-          <div className="vstack">
-            <span>{row.description}</span>
-            {row.reference && <span className="subtle-text">Ref. {row.reference}</span>}
-          </div>
-        ),
-      },
-      { id: 'type', header: 'Tipo', cell: (row) => <TxTypeBadge type={row.type} /> },
-      {
-        id: 'amount',
-        header: 'Monto',
-        align: 'right',
-        sortable: true,
-        cell: (row) => {
-          const currency = currencyOf.get(row.accountId) ?? 'PEN';
-          const value = signedAmount(row);
-          return (
-            <span className={`tabular ${value >= 0 ? 'color-success' : 'color-destructive'}`}>
-              {formatCurrency(value, currency)}
-            </span>
-          );
-        },
-      },
-      {
-        id: 'balanceAfter',
-        header: 'Saldo después',
-        align: 'right',
-        cell: (row) => {
-          const currency = currencyOf.get(row.accountId) ?? 'PEN';
-          return <span className="tabular">{formatCurrency(row.balanceAfter, currency)}</span>;
-        },
-      },
-      {
-        id: 'isReconciled',
-        header: 'Estado',
-        cell: (row) => (row.isReconciled ? <Badge variant="success">Conciliado</Badge> : <Badge variant="muted">Pendiente</Badge>),
-      },
-    ];
-    if (!canConciliate) return base;
-    return [
-      ...base,
-      {
-        id: 'actions',
-        header: '',
-        width: 88,
-        exportable: false,
-        cell: (row) =>
-          !row.isReconciled ? (
-            <div className="row-end">
-              <Button
-                variant="ghost"
-                size="sm"
-                loading={reconcileMutation.isPending}
-                onClick={() => {
-                  reconcileMutation.mutate(row.id, {
-                    onSuccess: () => push({ title: 'Movimiento conciliado', variant: 'success' }),
-                    onError: (err: unknown) =>
-                      push({ title: 'No se pudo conciliar', description: err instanceof Error ? err.message : undefined, variant: 'destructive' }),
-                  });
-                }}
-              >
-                Conciliar
-              </Button>
-            </div>
-          ) : null,
-      },
-    ];
-  }, [canConciliate, currencyOf, reconcileMutation, push]);
-
-  const transactions = transactionsQuery.data ?? [];
-  const txAccountOptions = [
-    { value: '', label: 'Todas las cuentas' },
-    ...accounts.map((a) => ({ value: a.id, label: `${a.bank} — ${a.accountNumber}` })),
-  ];
+  const loading = cardsLoading || projectionsLoading;
 
   return (
     <PageContainer>
       <PageHeader
         title="Tesorería"
-        subtitle="Cuentas bancarias, movimientos y conciliaciones"
-        actions={
-          <>
-            <Can permission={Permissions.Treasury.Create}>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setTxAccountId(txFilter);
-                  setTxFormOpen(true);
-                }}
-              >
-                <Icons.Action.Create /> Registrar movimiento
-              </Button>
-              <Button
-                onClick={() => {
-                  setEditing(null);
-                  setAccountFormOpen(true);
-                }}
-              >
-                <Icons.Action.Create /> Nueva cuenta
-              </Button>
-            </Can>
-          </>
-        }
+        subtitle="Tarjetas de crédito, ciclos de facturación y proyección de pagos"
       />
 
-      <Grid cols={4}>
-        <StatCard label="Total de cuentas" value={String(accounts.length)} icon={Icons.Navigation.Treasury} />
-        <StatCard label="Cuentas activas" value={String(activeCount)} />
-        <StatCard label="Saldo PEN" value={formatCurrency(totalBalancePen, 'PEN')} />
-        <StatCard label="Saldo USD" value={formatCurrency(totalBalanceUsd, 'USD')} />
-      </Grid>
-
-      <Section title="Cuentas bancarias" description="Cuentas bancarias de la empresa y sus saldos actuales.">
-        <DataTable
-          columns={accountColumns}
-          data={accounts}
-          keyField="id"
-          loading={accountsLoading}
-          error={accountsError ? (accountsErrorObj as Error) : null}
-          onRetry={() => refetchAccounts()}
-          globalSearch
-          exportFilename="cuentas-bancarias.csv"
-          empty={
-            <EmptyState
-              title="No hay cuentas bancarias"
-              description="Crea una cuenta para empezar a registrar movimientos de tesorería."
-            />
-          }
-        />
-      </Section>
-
       <Section
-        title="Movimientos"
-        description="Depósitos, retiros, comisiones e intereses registrados contra las cuentas."
-        actions={
-          <Can permission={Permissions.Treasury.Create}>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setTxAccountId(txFilter);
-                setTxFormOpen(true);
-              }}
-            >
-              <Icons.Action.Create /> Registrar movimiento
-            </Button>
-          </Can>
-        }
+        title="Tarjetas de Crédito"
+        description="Deuda proyectada por ciclo de facturación. El monto mostrado es lo que debes separar para cancelar al banco en la fecha de pago sin generar intereses."
       >
-        <DataTable
-          columns={txColumns}
-          data={transactions}
-          keyField="id"
-          loading={transactionsQuery.isLoading}
-          error={transactionsQuery.isError ? (transactionsQuery.error as Error) : null}
-          onRetry={() => transactionsQuery.refetch()}
-          globalSearch={false}
-          exportFilename="movimientos-bancarios.csv"
-          toolbarLeft={
-            <Select value={txFilter} onValueChange={(v) => setTxFilter(v)}>
-              <SelectTrigger style={{ width: "14rem" }} aria-label="Filtrar por cuenta">
-                <SelectValue placeholder="Todas las cuentas" />
-              </SelectTrigger>
-              <SelectContent>
-                {txAccountOptions.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          }
-          empty={
-            <EmptyState
-              title="No hay movimientos"
-              description="Registra un depósito o retiro para verlo aquí."
-            />
-          }
-        />
+        {loading ? (
+          <div className="page-loader">
+            <Spinner />
+          </div>
+        ) : creditCards.length === 0 ? (
+          <EmptyState
+            title="No hay tarjetas de crédito"
+            description="Registra una tarjeta de crédito para ver la proyección de pagos."
+          />
+        ) : (
+          <Grid cols={2}>
+            {creditCards.map((card) => {
+              const projection = projections.find((p) => p.cardId === card.id);
+              const projectedUSD = projection?.projectedUSD ?? 0;
+              return (
+                <Card key={card.id}>
+                  <CardHeader className="flex-row items-center justify-between">
+                    <div>
+                      <p className="text-base font-semibold">
+                        {card.issuer === 'visa' ? 'Visa' : 'Diners'} •••• {card.lastFour}
+                      </p>
+                      <p className="text-sm muted">{card.cardHolder}</p>
+                    </div>
+                    <Can permission={Permissions.Treasury.Create}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={projectedUSD <= 0 || payCardMutation.isPending}
+                        onClick={() =>
+                          setPayTarget({
+                            cardId: card.id,
+                            issuer: card.issuer,
+                            lastFour: card.lastFour,
+                            amount: projectedUSD,
+                          })
+                        }
+                      >
+                        <Icons.Action.Payment /> Registrar pago
+                      </Button>
+                    </Can>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="form-grid">
+                      <div>
+                        <p className="muted">Fecha de corte</p>
+                        <p className="font-medium tabular-nums">
+                          {projection?.nextCutOffDate ? formatDate(projection.nextCutOffDate) : '—'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="muted">Fecha de pago</p>
+                        <p className="font-medium tabular-nums">
+                          {projection?.nextPaymentDate ? formatDate(projection.nextPaymentDate) : '—'}
+                        </p>
+                      </div>
+                      <div className="col-span-2 pt-2 border-top">
+                        <p className="muted">Deuda proyectada (USD)</p>
+                        <p className="text-lg font-bold tabular-nums" style={{ color: 'hsl(var(--primary))' }}>
+                          {formatCurrency(projectedUSD, 'USD')}
+                        </p>
+                      </div>
+                      <div className="col-span-2 pt-2 border-top">
+                        <div className="hstack" style={{ justifyContent: 'space-between' }}>
+                          <span className="text-sm muted">Límite: {formatCurrency(card.creditLimit, 'USD')}</span>
+                          <span className="text-sm muted">Disponible: {formatCurrency(card.creditLimit - card.currentBalance, 'USD')}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </Grid>
+        )}
       </Section>
-
-      <BankAccountFormDialog open={accountFormOpen} onOpenChange={setAccountFormOpen} account={editing} />
-
-      <BankTransactionFormDialog open={txFormOpen} onOpenChange={setTxFormOpen} accountId={txAccountId} />
 
       <ConfirmDialog
-        open={!!deleteTarget}
+        open={!!payTarget}
         onOpenChange={(open) => {
-          if (!open) setDeleteTarget(null);
+          if (!open) setPayTarget(null);
         }}
-        title="Eliminar cuenta bancaria"
-        description={`¿Eliminar la cuenta ${deleteTarget?.bank ?? 'esta cuenta'} — ${deleteTarget?.accountNumber ?? ''}? La cuenta quedará desactivada. Esta acción no se puede deshacer.`}
-        confirmLabel="Eliminar"
-        loading={deleteMutation.isPending}
+        title="Registrar pago de tarjeta"
+        description={`¿Confirmar pago de ${payTarget ? formatCurrency(payTarget.amount, 'USD') : ''} para la tarjeta ${payTarget?.issuer === 'visa' ? 'Visa' : 'Diners'} •••• ${payTarget?.lastFour ?? ''}? Esta acción registrará el pago y reiniciará la proyección del ciclo actual.`}
+        confirmLabel="Confirmar pago"
+        loading={payCardMutation.isPending}
         onConfirm={() => {
-          if (!deleteTarget) return;
-          deleteMutation.mutate(deleteTarget.id, {
-            onSuccess: () => {
-              push({ title: 'Cuenta eliminada', variant: 'success' });
-              setDeleteTarget(null);
+          if (!payTarget) return;
+          payCardMutation.mutate(
+            { cardId: payTarget.cardId, amount: payTarget.amount },
+            {
+              onSuccess: () => {
+                push({ title: 'Pago registrado', variant: 'success' });
+                setPayTarget(null);
+              },
+              onError: (err: unknown) => {
+                push({
+                  title: 'No se pudo registrar el pago',
+                  description: err instanceof Error ? err.message : undefined,
+                  variant: 'destructive',
+                });
+                setPayTarget(null);
+              },
             },
-            onError: (err: unknown) => {
-              push({ title: 'No se pudo eliminar la cuenta', description: err instanceof Error ? err.message : undefined, variant: 'destructive' });
-              setDeleteTarget(null);
-            },
-          });
+          );
         }}
       />
     </PageContainer>

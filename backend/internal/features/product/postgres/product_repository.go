@@ -31,7 +31,7 @@ func NewProductRepository(db *sql.DB) *productRepository {
 const productColumns = `
 	p.id, p.company_id, p.sku, p.barcode, p.description,
 	p.category_id, p.brand_id, p.unit_id, p.tax_id,
-	p.cost, p.sale_price, p.sale_currency,
+	p.cost_usd, p.sale_price, p.sale_currency,
 	p.min_stock, p.max_stock, p.weight,
 	p.is_active, p.is_service,
 	p.created_at, p.updated_at, p.deleted_at, p.created_by, p.updated_by,
@@ -49,7 +49,7 @@ func (r *productRepository) Create(ctx context.Context, p *product.Product) erro
 	const q = `INSERT INTO products (
 		id, company_id, sku, barcode, description,
 		category_id, brand_id, unit_id, tax_id,
-		cost, sale_price, sale_currency,
+		cost_usd, sale_price, sale_currency,
 		min_stock, max_stock, weight,
 		is_active, is_service,
 		created_at, updated_at, deleted_at, created_by, updated_by
@@ -59,7 +59,7 @@ func (r *productRepository) Create(ctx context.Context, p *product.Product) erro
 		p.Description,
 		persistence.NullIfEmptyUUID(p.CategoryID), persistence.NullIfEmptyUUID(p.BrandID),
 		p.UnitID, p.TaxID,
-		p.Cost.String(), p.SalePrice.String(), p.SaleCurrency.String(),
+		p.CostUSD.String(), p.SalePrice.String(), p.SaleCurrency.String(),
 		p.MinStock.String(), p.MaxStock.String(), p.Weight.String(),
 		p.IsActive, p.IsService,
 		p.CreatedAt, p.UpdatedAt, persistence.NullIfZeroTime(p.DeletedAt), p.CreatedBy, p.UpdatedBy,
@@ -70,7 +70,7 @@ func (r *productRepository) Create(ctx context.Context, p *product.Product) erro
 func (r *productRepository) Update(ctx context.Context, p *product.Product) error {
 	const q = `UPDATE products SET
 		description = $1, category_id = $2, brand_id = $3, unit_id = $4, tax_id = $5,
-		cost = $6, sale_price = $7, sale_currency = $8,
+		cost_usd = $6, sale_price = $7, sale_currency = $8,
 		min_stock = $9, max_stock = $10, weight = $11,
 		is_active = $12, is_service = $13, updated_at = $14, updated_by = $15
 	 WHERE id = $16 AND deleted_at IS NULL`
@@ -78,7 +78,7 @@ func (r *productRepository) Update(ctx context.Context, p *product.Product) erro
 		p.Description,
 		persistence.NullIfEmptyUUID(p.CategoryID), persistence.NullIfEmptyUUID(p.BrandID),
 		p.UnitID, p.TaxID,
-		p.Cost.String(), p.SalePrice.String(), p.SaleCurrency.String(),
+		p.CostUSD.String(), p.SalePrice.String(), p.SaleCurrency.String(),
 		p.MinStock.String(), p.MaxStock.String(), p.Weight.String(),
 		p.IsActive, p.IsService,
 		time.Now().UTC(), p.UpdatedBy, p.ID,
@@ -513,13 +513,13 @@ func scanProduct(row *sql.Row) (*product.Product, error) {
 		deletedAt                                 sql.NullTime
 		categoryName, brandName, unitName         sql.NullString
 		sku, description, currency                string
-		cost, salePrice, minStock, maxStock, weight string
+		costUSD, salePrice, minStock, maxStock, weight string
 		isActive, isService                       bool
 	)
 	err := persistence.ScanRow(row,
 		&p.ID, &p.CompanyID, &sku, &barcode, &description,
 		&categoryID, &brandID, &p.UnitID, &p.TaxID,
-		&cost, &salePrice, &currency,
+		&costUSD, &salePrice, &currency,
 		&minStock, &maxStock, &weight,
 		&isActive, &isService,
 		&p.CreatedAt, &p.UpdatedAt, &deletedAt, &createdBy, &updatedBy,
@@ -528,7 +528,7 @@ func scanProduct(row *sql.Row) (*product.Product, error) {
 	if err != nil {
 		return nil, err
 	}
-	fillProduct(p, sku, barcode, description, categoryID, brandID, categoryName, brandName, unitName, currency, cost, salePrice, minStock, maxStock, weight, isActive, isService, deletedAt, createdBy, updatedBy)
+	fillProduct(p, sku, barcode, description, categoryID, brandID, categoryName, brandName, unitName, currency, costUSD, salePrice, minStock, maxStock, weight, isActive, isService, deletedAt, createdBy, updatedBy)
 	return p, nil
 }
 
@@ -541,13 +541,13 @@ func scanProductFromRows(rows *sql.Rows) (*product.Product, error) {
 		deletedAt                                 sql.NullTime
 		categoryName, brandName, unitName         sql.NullString
 		sku, description, currency                string
-		cost, salePrice, minStock, maxStock, weight string
+		costUSD, salePrice, minStock, maxStock, weight string
 		isActive, isService                       bool
 	)
 	if err := rows.Scan(
 		&p.ID, &p.CompanyID, &sku, &barcode, &description,
 		&categoryID, &brandID, &p.UnitID, &p.TaxID,
-		&cost, &salePrice, &currency,
+		&costUSD, &salePrice, &currency,
 		&minStock, &maxStock, &weight,
 		&isActive, &isService,
 		&p.CreatedAt, &p.UpdatedAt, &deletedAt, &createdBy, &updatedBy,
@@ -555,7 +555,7 @@ func scanProductFromRows(rows *sql.Rows) (*product.Product, error) {
 	); err != nil {
 		return nil, persistence.Translate(err)
 	}
-	fillProduct(p, sku, barcode, description, categoryID, brandID, categoryName, brandName, unitName, currency, cost, salePrice, minStock, maxStock, weight, isActive, isService, deletedAt, createdBy, updatedBy)
+	fillProduct(p, sku, barcode, description, categoryID, brandID, categoryName, brandName, unitName, currency, costUSD, salePrice, minStock, maxStock, weight, isActive, isService, deletedAt, createdBy, updatedBy)
 	return p, nil
 }
 
@@ -564,7 +564,7 @@ func scanProductFromRows(rows *sql.Rows) (*product.Product, error) {
 func fillProduct(p *product.Product,
 	sku string, barcode sql.NullString, description string,
 	categoryID, brandID, categoryName, brandName, unitName sql.NullString,
-	currency, cost, salePrice, minStock, maxStock, weight string,
+	currency, costUSD, salePrice, minStock, maxStock, weight string,
 	isActive, isService bool,
 	deletedAt sql.NullTime, createdBy, updatedBy sql.NullString,
 ) {
@@ -600,8 +600,8 @@ func fillProduct(p *product.Product,
 	p.IsActive = isActive
 	p.IsService = isService
 	p.Description = description
-	if v, err := persistence.ParseMoney(cost); err == nil {
-		p.Cost = v
+	if v, err := persistence.ParseMoney(costUSD); err == nil {
+		p.CostUSD = v
 	}
 	if v, err := persistence.ParseMoney(salePrice); err == nil {
 		p.SalePrice = v

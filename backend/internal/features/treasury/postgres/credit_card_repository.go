@@ -191,4 +191,35 @@ func decodeCreditCard(c *treasury.CreditCard, branchID, createdBy, updatedBy sql
 	return nil
 }
 
+func (r *creditCardRepository) SumCostsByCard(ctx context.Context, companyID uuid.UUID, from, to time.Time) (map[uuid.UUID]float64, error) {
+	fromStr := from.Format("2006-01-02")
+	toStr := to.Format("2006-01-02")
+	q := `SELECT credit_card_id, COALESCE(SUM(cost_usd), 0)
+		FROM purchase_orders
+		WHERE company_id = $1
+		  AND credit_card_id IS NOT NULL
+		  AND deleted_at IS NULL
+		  AND status != 'cancelled'
+		  AND order_date >= $2
+		  AND order_date <= $3
+		GROUP BY credit_card_id`
+	rows, err := persistence.Q(ctx, r.q).QueryContext(ctx, q, companyID, fromStr, toStr)
+	if err != nil {
+		return nil, persistence.Translate(err)
+	}
+	out := make(map[uuid.UUID]float64)
+	if err := persistence.ScanRows(rows, func(rows *sql.Rows) error {
+		var cardID uuid.UUID
+		var total float64
+		if err := rows.Scan(&cardID, &total); err != nil {
+			return persistence.Translate(err)
+		}
+		out[cardID] = total
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 var _ treasury.CreditCardRepository = (*creditCardRepository)(nil)

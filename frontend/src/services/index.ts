@@ -13,6 +13,5 @@ export {
   type BankTransaction,
   type BankTransactionInput,
 } from './treasury';
-export { accountingService, type Account, type JournalEntry, type JournalEntryLine } from './accounting';
 export { reportsService, type ReportType, type ReportRunInput, type ReportResult } from './reports';
 export { settingsService } from './settings';

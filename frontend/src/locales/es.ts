@@ -149,13 +149,6 @@ const es = {
     reconciliation: 'Conciliación',
     exchangeRate: 'Tipo de cambio',
   },
-  reports: {
-    title: 'Reportes',
-    subtitle: 'Reportes financieros y operativos',
-    exportPdf: 'Exportar PDF',
-    exportExcel: 'Exportar Excel',
-    exportCsv: 'Exportar CSV',
-  },
   settings: {
     title: 'Configuración',
     subtitle: 'Preferencias generales del sistema',

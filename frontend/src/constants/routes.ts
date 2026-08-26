@@ -9,7 +9,6 @@ export const Routes = {
   CustomerOrders: '/pedidos-cliente',
   Sales: '/ventas',
   Treasury: '/tesoreria',
-  Reports: '/reportes',
   Settings: '/configuracion',
 } as const;
 

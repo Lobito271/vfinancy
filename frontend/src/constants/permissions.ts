@@ -61,12 +61,6 @@ export const Permissions = {
     Close: 'treasury.close',
     Export: 'treasury.export',
   },
-  Reports: {
-    View: 'reports.view',
-    Export: 'reports.export',
-    Print: 'reports.print',
-    Schedule: 'reports.schedule',
-  },
   Settings: {
     View: 'settings.view',
     Edit: 'settings.edit',
@@ -88,7 +82,6 @@ export type PermissionKey =
   | `Purchases.${keyof typeof Permissions.Purchases}`
   | `Sales.${keyof typeof Permissions.Sales}`
   | `Treasury.${keyof typeof Permissions.Treasury}`
-  | `Reports.${keyof typeof Permissions.Reports}`
   | `Settings.${keyof typeof Permissions.Settings}`
   | `Administration.${keyof typeof Permissions.Administration}`;
 
@@ -123,8 +116,6 @@ export const RolePermissions: Record<Role, string[]> = {
     Permissions.Sales.View,
     Permissions.Sales.Approve,
     Permissions.Sales.Cancel,
-    Permissions.Reports.View,
-    Permissions.Reports.Export,
   ],
   accountant: [
     Permissions.Customers.View,
@@ -135,8 +126,6 @@ export const RolePermissions: Record<Role, string[]> = {
     Permissions.Sales.View,
     Permissions.Treasury.View,
     Permissions.Treasury.Conciliate,
-    Permissions.Reports.View,
-    Permissions.Reports.Export,
   ],
   seller: [
     Permissions.Customers.View,

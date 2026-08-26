@@ -68,3 +68,9 @@ func IsAnyCode(err error, codes ...string) bool {
 	}
 	return false
 }
+
+type FieldErr string
+
+func (e FieldErr) Error() string { return string(e) }
+
+func ErrField(s string) error { return FieldErr(s) }

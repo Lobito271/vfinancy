@@ -18,16 +18,4 @@ export function Can({ permission, anyPermission, role, fallback = null, children
   return <>{children}</>;
 }
 
-interface PermissionGateProps {
-  permission: Permission | Permission[];
-  children: ReactNode;
-  fallback?: ReactNode;
-}
 
-export function PermissionGate({ permission, children, fallback = null }: PermissionGateProps) {
-  return (
-    <Can permission={permission} fallback={fallback}>
-      {children}
-    </Can>
-  );
-}

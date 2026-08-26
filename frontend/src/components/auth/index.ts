@@ -1,1 +1,1 @@
-export { Can, PermissionGate } from './Can';
+export { Can } from './Can';

@@ -26,12 +26,3 @@ function fallbackCopy(text: string): boolean {
     return false;
   }
 }
-
-export async function readFromClipboard(): Promise<string | null> {
-  if (typeof navigator === 'undefined' || !navigator.clipboard) return null;
-  try {
-    return await navigator.clipboard.readText();
-  } catch {
-    return null;
-  }
-}

@@ -22,7 +22,7 @@ import {
 import { TablePagination } from './TablePagination';
 import { downloadCSV } from '@/utils/download';
 import { cx } from '@/utils/cx';
-import { persistJSON, readJSON } from '@/utils/storage';
+import { writeJSON, readJSON } from '@/utils/storage';
 import {
   type Column,
   type SortState,
@@ -135,7 +135,7 @@ export function DataTable<T>({
 
   useEffect(() => {
     if (preferencesKey) {
-      persistJSON(`vfinancy.dt.${preferencesKey}`, {
+      writeJSON(`vfinancy.dt.${preferencesKey}`, {
         pageSize: state.pageSize,
         sort: state.sort,
         visibleColumns: state.visibleColumns,

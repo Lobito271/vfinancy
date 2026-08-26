@@ -24,10 +24,6 @@ export function formatCurrency(value: number, currency: string = 'PEN'): string 
   return getCurrencyFormatter(currency).format(value);
 }
 
-export function formatMoney(value: number, currency: string = 'PEN'): string {
-  return formatCurrency(value, currency);
-}
-
 const dateFormatter = new Intl.DateTimeFormat(locale, {
   year: 'numeric',
   month: '2-digit',
@@ -46,12 +42,6 @@ const longDateFormatter = new Intl.DateTimeFormat(locale, {
   year: 'numeric',
   month: 'long',
   day: 'numeric',
-});
-
-const timeFormatter = new Intl.DateTimeFormat(locale, {
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
 });
 
 // Matches a plain "YYYY-MM-DD" date string with no time component.
@@ -87,11 +77,6 @@ export function formatLongDate(value: string | Date | null | undefined, fallback
   return d ? longDateFormatter.format(d) : fallback;
 }
 
-export function formatTime(value: string | Date | null | undefined, fallback = '—'): string {
-  const d = toDate(value);
-  return d ? timeFormatter.format(d) : fallback;
-}
-
 export function formatNumber(value: number, decimals = 0): string {
   return new Intl.NumberFormat(locale, {
     minimumFractionDigits: decimals,
@@ -107,18 +92,15 @@ export function formatPercent(value: number, decimals = 1): string {
   }).format(value);
 }
 
+export function toFixed2(value: number | undefined): string {
+  return (value ?? 0).toFixed(2);
+}
+
 export function daysBetween(from: Date | string, to: Date | string): number {
   const a = toDate(from);
   const b = toDate(to);
   if (!a || !b) return 0;
   return Math.floor((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24));
-}
-
-export function addDays(value: Date | string, days: number): Date {
-  const d = toDate(value);
-  if (!d) return new Date();
-  d.setDate(d.getDate() + days);
-  return d;
 }
 
 export function formatRelative(value: string | Date | null | undefined): string {

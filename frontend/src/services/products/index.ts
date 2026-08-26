@@ -1,6 +1,7 @@
 import type { Product } from '@/types/domain';
 import type { ProductDTO } from '../wails-types';
 import { wailsClient } from '../bindings';
+import { toFixed2 } from '@/utils/format';
 
 export interface ProductQuery {
   search?: string;
@@ -56,10 +57,6 @@ function toProduct(dto: ProductDTO): Product {
   };
 }
 
-function money(value: number | undefined): string {
-  return (value ?? 0).toFixed(2);
-}
-
 export const productsService = {
   async list(q: ProductQuery = {}): Promise<{ items: Product[]; total: number }> {
     const res = await wailsClient.listProducts({
@@ -88,8 +85,8 @@ export const productsService = {
       brandId: input.brandId ?? '',
       unitId: input.unitId ?? '',
       taxId: input.taxId ?? '',
-      costUSD: money(input.costUSD),
-      salePrice: money(input.salePrice),
+      costUSD: toFixed2(input.costUSD),
+      salePrice: toFixed2(input.salePrice),
       saleCurrency: 'PEN',
       minStock: (input.minStock ?? 0).toFixed(4),
       maxStock: (input.maxStock ?? 0).toFixed(4),
@@ -106,8 +103,8 @@ export const productsService = {
       categoryId: input.categoryId ?? '',
       brandId: input.brandId ?? '',
       unitId: '',
-      costUSD: money(input.costUSD),
-      salePrice: money(input.salePrice),
+      costUSD: toFixed2(input.costUSD),
+      salePrice: toFixed2(input.salePrice),
       minStock: input.minStock != null ? input.minStock.toFixed(4) : '',
       maxStock: input.maxStock != null ? input.maxStock.toFixed(4) : '',
       isActive: input.isActive ?? null,

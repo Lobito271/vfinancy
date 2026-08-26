@@ -3,6 +3,7 @@ import type { InventoryMovementTypeCode } from '@/constants/status';
 import type { InventoryBatchDTO, InventoryMovementDTO } from '../wails-types';
 import { wailsClient } from '../bindings';
 import { productsService } from '../products';
+import { daysBetween } from '@/utils/format';
 
 export interface InventoryMovement {
   id: string;
@@ -14,11 +15,6 @@ export interface InventoryMovement {
   quantity: number;
   reference?: string;
   notes?: string;
-}
-
-function daysBetween(from: string, to: string): number {
-  const ms = new Date(to).getTime() - new Date(from).getTime();
-  return Math.floor(ms / 86_400_000);
 }
 
 function toInventoryItem(

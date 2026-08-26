@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { cx } from '@/utils/cx';
 import { findRouteLabel } from '@/lib/nav';
-import { Icons } from '@/design-system/icons';
+import { ChevronRight } from 'lucide-react';
 
 interface BreadcrumbsProps {
   path: string;
@@ -28,7 +28,7 @@ export function Breadcrumbs({ path, className }: BreadcrumbsProps) {
         const last = i === items.length - 1;
         return (
           <span key={it.to} className="breadcrumbs__item">
-            {i > 0 && <Icons.Direction.ChevronRight className="breadcrumbs__sep" aria-hidden="true" />}
+            {i > 0 && <ChevronRight className="breadcrumbs__sep" aria-hidden="true" />}
             {last ? (
               <span className="breadcrumbs__current">{it.label}</span>
             ) : (

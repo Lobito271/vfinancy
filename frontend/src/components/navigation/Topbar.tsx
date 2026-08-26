@@ -1,9 +1,9 @@
+import { Sun, Moon, Monitor, Bell } from 'lucide-react';
 import { useThemeStore, type Theme } from '@/stores/theme';
 import { useUIStore } from '@/stores/ui';
 import { Button } from '@/components/button';
 import { SearchInput } from '@/components/input';
 import { Badge } from '@/components/badge';
-import { Icons } from '@/design-system/icons';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,10 +14,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/misc';
 
-const themeIcons: Record<Theme, typeof Icons.Theme.Sun> = {
-  light: Icons.Theme.Sun,
-  dark: Icons.Theme.Moon,
-  system: Icons.Theme.System,
+const themeIcons: Record<Theme, typeof Sun> = {
+  light: Sun,
+  dark: Moon,
+  system: Monitor,
 };
 
 export function Topbar() {
@@ -54,13 +54,13 @@ export function Topbar() {
               onValueChange={(v) => setTheme(v as Theme)}
             >
               <DropdownMenuRadioItem value="light">
-                <Icons.Theme.Sun className="menu-item-icon" /> Claro
+                <Sun className="menu-item-icon" /> Claro
               </DropdownMenuRadioItem>
               <DropdownMenuRadioItem value="dark">
-                <Icons.Theme.Moon className="menu-item-icon" /> Oscuro
+                <Moon className="menu-item-icon" /> Oscuro
               </DropdownMenuRadioItem>
               <DropdownMenuRadioItem value="system">
-                <Icons.Theme.System className="menu-item-icon" /> Sistema
+                <Monitor className="menu-item-icon" /> Sistema
               </DropdownMenuRadioItem>
             </DropdownMenuRadioGroup>
           </DropdownMenuContent>
@@ -69,7 +69,7 @@ export function Topbar() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" aria-label="Notificaciones">
-              <Icons.Bell />
+              <Bell />
               <Badge variant="destructive" className="badge--count">
                 3
               </Badge>

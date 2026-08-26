@@ -154,8 +154,6 @@ const es = {
     subtitle: 'Preferencias generales del sistema',
     company: 'Empresa',
     users: 'Usuarios',
-    roles: 'Roles',
-    permissions: 'Permisos',
     appearance: 'Apariencia',
     theme: 'Tema',
     themeLight: 'Claro',

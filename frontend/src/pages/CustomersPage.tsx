@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Pencil, Trash2, Plus, Users } from 'lucide-react';
 import { PageContainer, PageHeader, Grid } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
@@ -7,10 +8,6 @@ import { Input } from '@/components/input';
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/feedback';
 import { ConfirmDialog } from '@/components/dialog';
-import { Can } from '@/components/auth';
-import { Icons } from '@/design-system/icons';
-import { Permissions } from '@/constants/permissions';
-import { usePermission } from '@/hooks/usePermission';
 import {
   Select,
   SelectContent,
@@ -83,8 +80,6 @@ export function CustomersPage() {
   const { data, isLoading, isError, error, refetch } = useCustomers({ search, status: status || undefined });
   const deleteMutation = useDeleteCustomer();
   const push = useNotificationStore((s) => s.push);
-  const canEdit = usePermission(Permissions.Customers.Edit);
-  const canDelete = usePermission(Permissions.Customers.Delete);
 
   const customers = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -92,45 +87,38 @@ export function CustomersPage() {
   const active = customers.filter((c) => c.status === 'active').length;
   const withDebt = customers.filter((c) => c.currentDebt > 0).length;
 
-  const tableColumns = useMemo<Column<Customer>[]>(() => {
-    if (!canEdit && !canDelete) return columns;
-    return [
-      ...columns,
-      {
-        id: 'actions',
-        header: '',
-        width: 88,
-        exportable: false,
-        cell: (row) => (
-          <div className="row-actions">
-            {canEdit && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Editar ${row.businessName}`}
-                onClick={() => {
-                  setEditing(row);
-                  setFormOpen(true);
-                }}
-              >
-                <Icons.Action.Edit />
-              </Button>
-            )}
-            {canDelete && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Eliminar ${row.businessName}`}
-                onClick={() => setDeleteTarget(row)}
-              >
-                <Icons.Action.Delete />
-              </Button>
-            )}
-          </div>
-        ),
-      },
-    ];
-  }, [canEdit, canDelete]);
+  const tableColumns = useMemo<Column<Customer>[]>(() => [
+    ...columns,
+    {
+      id: 'actions',
+      header: '',
+      width: 88,
+      exportable: false,
+      cell: (row) => (
+        <div className="row-actions">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Editar ${row.businessName}`}
+            onClick={() => {
+              setEditing(row);
+              setFormOpen(true);
+            }}
+          >
+            <Pencil />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Eliminar ${row.businessName}`}
+            onClick={() => setDeleteTarget(row)}
+          >
+            <Trash2 />
+          </Button>
+        </div>
+      ),
+    },
+  ], []);
 
   return (
     <PageContainer>
@@ -140,22 +128,20 @@ export function CustomersPage() {
         actions={
           <div className="hstack hstack--sm">
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar cliente…" style={{ width: "16rem" }} aria-label="Buscar cliente" />
-            <Can permission={Permissions.Customers.Create}>
-              <Button
-                onClick={() => {
-                  setEditing(null);
-                  setFormOpen(true);
-                }}
-              >
-                <Icons.Action.Create /> Nuevo cliente
-              </Button>
-            </Can>
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setFormOpen(true);
+              }}
+            >
+              <Plus /> Nuevo cliente
+            </Button>
           </div>
         }
       />
 
       <Grid cols={4}>
-        <StatCard label="Total clientes" value={String(total)} icon={Icons.Navigation.Customers} />
+        <StatCard label="Total clientes" value={String(total)} icon={Users} />
         <StatCard label="Clientes activos" value={String(active)} />
         <StatCard label="Con deuda" value={String(withDebt)} />
         <StatCard label="Deuda total" value={formatCurrency(totalDebt)} />

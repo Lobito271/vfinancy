@@ -1,14 +1,11 @@
 import { useMemo, useState } from 'react';
+import { Pencil, Trash2, Plus } from 'lucide-react';
 import { PageContainer, PageHeader } from '@/components/layout';
 import { DataTable, type Column } from '@/components/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs';
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/feedback';
 import { AlertDialog } from '@/components/dialog';
-import { Can } from '@/components/auth';
-import { Icons } from '@/design-system/icons';
-import { Permissions } from '@/constants/permissions';
-import { usePermission } from '@/hooks/usePermission';
 import {
   useCatalogBrands,
   useCatalogCategories,
@@ -50,8 +47,6 @@ function CatalogTable({ kind }: { kind: CatalogKind }) {
   const [deleteTarget, setDeleteTarget] = useState<CatalogItem | null>(null);
 
   const push = useNotificationStore((s) => s.push);
-  const canEdit = usePermission(Permissions.Products.Edit);
-  const canDelete = usePermission(Permissions.Products.Delete);
 
   const query = isCategory ? categoriesQuery : brandsQuery;
   const data = query.data ?? [];
@@ -61,7 +56,6 @@ function CatalogTable({ kind }: { kind: CatalogKind }) {
   const deleteMutation = isCategory ? deleteCategory : deleteBrand;
 
   const columns = useMemo<Column<CatalogItem>[]>(() => {
-    if (!canEdit && !canDelete) return columnSet;
     return [
       ...columnSet,
       {
@@ -71,48 +65,42 @@ function CatalogTable({ kind }: { kind: CatalogKind }) {
         exportable: false,
         cell: (row) => (
           <div className="row-actions">
-            {canEdit && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Editar ${singular} ${row.name}`}
-                onClick={() => {
-                  setEditing(row);
-                  setFormOpen(true);
-                }}
-              >
-                <Icons.Action.Edit />
-              </Button>
-            )}
-            {canDelete && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Eliminar ${singular} ${row.name}`}
-                onClick={() => setDeleteTarget(row)}
-              >
-                <Icons.Action.Delete />
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Editar ${singular} ${row.name}`}
+              onClick={() => {
+                setEditing(row);
+                setFormOpen(true);
+              }}
+            >
+              <Pencil />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Eliminar ${singular} ${row.name}`}
+              onClick={() => setDeleteTarget(row)}
+            >
+              <Trash2 />
+            </Button>
           </div>
         ),
       },
     ];
-  }, [canEdit, canDelete, singular]);
+  }, [singular]);
 
   return (
     <>
       <div className="row-end" style={{ marginBottom: "1rem" }}>
-        <Can permission={Permissions.Products.Create}>
-          <Button
+        <Button
             onClick={() => {
               setEditing(null);
               setFormOpen(true);
             }}
           >
-            <Icons.Action.Create /> Nueva {singular}
+            <Plus /> Nueva {singular}
           </Button>
-        </Can>
       </div>
 
       <DataTable

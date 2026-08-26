@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, CreditCard, Trash2, Plus } from 'lucide-react';
 import { PageContainer, PageHeader, Grid } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
@@ -7,10 +7,6 @@ import { SaleStatusBadge } from '@/components/badge';
 import { EmptyState } from '@/components/feedback';
 import { Button } from '@/components/button';
 import { CancelDialog, RegisterPaymentDialog, type RegisterPaymentInput } from '@/components/dialog';
-import { Can } from '@/components/auth';
-import { Icons } from '@/design-system/icons';
-import { Permissions } from '@/constants/permissions';
-import { usePermission } from '@/hooks/usePermission';
 import { useSales, useCancelSale, useCollectSalePayment } from '@/features/sales/hooks/useSales';
 import { SaleFormDialog } from '@/features/sales/components/SaleFormDialog';
 import type { Sale } from '@/types/domain';
@@ -65,8 +61,8 @@ export function SalesPage() {
   const [cancelTarget, setCancelTarget] = useState<Sale | null>(null);
   const [collectTarget, setCollectTarget] = useState<Sale | null>(null);
 
-  const canDelete = usePermission(Permissions.Sales.Delete);
-  const canCollect = usePermission(Permissions.Sales.Edit);
+  const canDelete = true;
+  const canCollect = true;
 
   const sales = data ?? [];
   const totalAmount = sales.reduce((s, x) => s + x.total, 0);
@@ -74,7 +70,6 @@ export function SalesPage() {
   const pending = sales.filter((x) => x.status === 'pending' || x.status === 'partial').length;
 
   const tableColumns = useMemo<Column<Sale>[]>(() => {
-    if (!canDelete && !canCollect) return columns;
     return [
       ...columns,
       {
@@ -94,7 +89,7 @@ export function SalesPage() {
                   aria-label={`Cobrar ${row.number}`}
                   onClick={() => setCollectTarget(row)}
                 >
-                  <Icons.Action.Payment />
+                  <CreditCard />
                 </Button>
               )}
               {canDelete && cancellable && (
@@ -104,7 +99,7 @@ export function SalesPage() {
                   aria-label={`Anular ${row.number}`}
                   onClick={() => setCancelTarget(row)}
                 >
-                  <Icons.Action.Delete />
+                  <Trash2 />
                 </Button>
               )}
             </div>
@@ -120,11 +115,9 @@ export function SalesPage() {
         title="Ventas"
         subtitle="Documentos de venta y estado de cobranza"
         actions={
-          <Can permission={Permissions.Sales.Create}>
-            <Button onClick={() => setFormOpen(true)}>
-              <Icons.Action.Create /> Nueva venta
-            </Button>
-          </Can>
+          <Button onClick={() => setFormOpen(true)}>
+            <Plus /> Nueva venta
+          </Button>
         }
       />
 

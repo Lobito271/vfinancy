@@ -1,7 +1,7 @@
 import { useFieldArray, useFormContext, type Path } from 'react-hook-form';
 import { Button } from '@/components/button';
 import { Grid } from '@/components/layout';
-import { Icons } from '@/design-system/icons';
+import { Trash2, Plus } from 'lucide-react';
 import { DefaultCurrency, type CurrencyCode } from '@/constants/currencies';
 import { formatCurrency } from '@/utils/format';
 import { NumberField, MoneyField, PercentageField, SelectField } from './';
@@ -94,7 +94,7 @@ export function LineItemsEditor({ products, isSale = false, currency = DefaultCu
                 aria-label={`Quitar línea ${index + 1}`}
                 onClick={() => remove(index)}
               >
-                <Icons.Action.Delete />
+                <Trash2 />
               </Button>
             </div>
             <Grid cols={4}>
@@ -108,7 +108,7 @@ export function LineItemsEditor({ products, isSale = false, currency = DefaultCu
       </div>
 
       <Button type="button" variant="outline" size="sm" onClick={() => append(newRow())}>
-        <Icons.Action.Create /> Agregar línea
+        <Plus /> Agregar línea
       </Button>
 
       <div className="line-items-totals">

@@ -4,7 +4,6 @@ import { Check, ChevronDown, ChevronUp } from 'lucide-react';
 import { cx } from '@/utils/cx';
 
 export const Select = SelectPrimitive.Root;
-export const SelectGroup = SelectPrimitive.Group;
 export const SelectValue = SelectPrimitive.Value;
 
 export interface SelectTriggerProps extends React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger> {

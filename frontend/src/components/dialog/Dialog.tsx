@@ -4,9 +4,8 @@ import { X } from 'lucide-react';
 import { cx } from '@/utils/cx';
 
 export const Dialog = DialogPrimitive.Root;
-export const DialogTrigger = DialogPrimitive.Trigger;
-export const DialogPortal = DialogPrimitive.Portal;
-export const DialogClose = DialogPrimitive.Close;
+
+const DialogPortal = DialogPrimitive.Portal;
 
 export const DialogOverlay = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Overlay>,

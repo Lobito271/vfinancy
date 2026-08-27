@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { z } from 'zod';
 import { Form, DateField } from '@/components/form';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
@@ -26,8 +27,10 @@ function today(): string {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 }
 
+const todayString = today();
+
 export function MarkReceivedDialog({ open, onOpenChange, documentNumber, loading, onConfirm }: MarkReceivedDialogProps) {
-  const defaults: ReceivedValues = { arrivalDate: today() };
+  const defaults = useMemo<ReceivedValues>(() => ({ arrivalDate: todayString }), []);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

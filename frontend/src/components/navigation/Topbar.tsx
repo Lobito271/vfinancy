@@ -83,8 +83,8 @@ export function Topbar() {
                 { t: 'Stock bajo', d: 'Detergente Nordic kg está bajo el mínimo', time: 'Hace 5 min' },
                 { t: 'Pago recibido', d: 'Distribuidora García S.A.C. pagó S/ 3,400.00', time: 'Hace 1 h' },
                 { t: 'Producto en remate', d: '5 productos pasaron los 25 días', time: 'Hace 3 h' },
-              ].map((n, i) => (
-                <div key={i} className="notif-item">
+              ].map((n) => (
+                <div key={n.t} className="notif-item">
                   <div className="notif-item__head">
                     <p className="notif-item__title">{n.t}</p>
                     <span className="notif-item__time">{n.time}</span>

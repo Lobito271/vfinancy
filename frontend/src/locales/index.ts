@@ -22,6 +22,3 @@ export function t(key: TranslationKey, vars?: Vars): string {
   if (!vars) return cur;
   return cur.replace(/\{(\w+)\}/g, (_, name) => String(vars[name] ?? `{${name}}`));
 }
-
-export const locale = 'es-PE';
-export const translations = es;

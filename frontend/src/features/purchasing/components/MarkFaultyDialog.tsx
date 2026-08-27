@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { z } from 'zod';
 import { Form, DateField, TextareaField } from '@/components/form';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
@@ -28,8 +29,10 @@ function today(): string {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 }
 
+const todayString = today();
+
 export function MarkFaultyDialog({ open, onOpenChange, documentNumber, loading, onConfirm }: MarkFaultyDialogProps) {
-  const defaults: FaultyValues = { arrivalDate: today(), reason: '' };
+  const defaults = useMemo<FaultyValues>(() => ({ arrivalDate: todayString, reason: '' }), []);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

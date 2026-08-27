@@ -14,14 +14,6 @@ export function useCustomers(query: CustomerQuery = {}) {
   });
 }
 
-export function useCustomer(id: string | undefined) {
-  return useQuery({
-    queryKey: id ? queryKeys.customers.detail(id) : ['noop'],
-    queryFn: () => customersService.get(id!),
-    enabled: !!id,
-  });
-}
-
 export function useCreateCustomer() {
   const qc = useQueryClient();
   return useMutation({
@@ -43,13 +35,5 @@ export function useDeleteCustomer() {
   return useMutation({
     mutationFn: (id: string) => customersService.remove(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.customers.all }),
-  });
-}
-
-export function useCustomerOptions() {
-  return useQuery({
-    queryKey: queryKeys.customers.options,
-    queryFn: () => customersService.getOptions(),
-    staleTime: 5 * 60 * 1000,
   });
 }

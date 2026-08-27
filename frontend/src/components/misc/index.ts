@@ -9,9 +9,6 @@ export {
   DropdownMenuRadioItem,
   DropdownMenuCheckboxItem,
   DropdownMenuShortcut,
-  DropdownMenuGroup,
-  DropdownMenuPortal,
-  DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from './DropdownMenu';

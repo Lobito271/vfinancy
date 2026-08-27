@@ -4,7 +4,9 @@ import { Grid } from '@/components/layout';
 import { Trash2, Plus } from 'lucide-react';
 import { DefaultCurrency, type CurrencyCode } from '@/constants/currencies';
 import { formatCurrency } from '@/utils/format';
-import { NumberField, MoneyField, PercentageField, SelectField } from './';
+import { NumberField } from './BasicFields';
+import { MoneyField, PercentageField } from './MoneyFields';
+import { SelectField } from './SelectField';
 
 export interface LineItemFormValues {
   productId: string;
@@ -37,6 +39,17 @@ interface LineItemsEditorProps {
   currency?: CurrencyCode;
 }
 
+const emptyRow: LineItemFormValues = {
+  productId: '',
+  quantity: 1,
+  unitPrice: 0,
+  discountPercent: 0,
+  discountAmount: 0,
+  taxRate: 0,
+  taxAmount: 0,
+  description: '',
+};
+
 export function LineItemsEditor({ products, isSale = false, currency = DefaultCurrency }: LineItemsEditorProps) {
   const { control, watch, setValue } = useFormContext<LineForm>();
   const { fields, append, remove } = useFieldArray<LineForm, 'items', 'id'>({ control, name: 'items' });
@@ -50,17 +63,6 @@ export function LineItemsEditor({ products, isSale = false, currency = DefaultCu
     }
     setValue(`items.${index}.taxRate` as Path<LineForm>, product.taxRate as never);
   };
-
-  const newRow = (): LineItemFormValues => ({
-    productId: '',
-    quantity: 1,
-    unitPrice: 0,
-    discountPercent: 0,
-    discountAmount: 0,
-    taxRate: 0,
-    taxAmount: 0,
-    description: '',
-  });
 
   const subtotal = rows?.reduce((s, r) => s + (r.unitPrice ?? 0) * (r.quantity ?? 0), 0) ?? 0;
   const discount = rows?.reduce((s, r) => s + (r.unitPrice ?? 0) * (r.quantity ?? 0) * ((r.discountPercent ?? 0) / 100), 0) ?? 0;
@@ -107,7 +109,7 @@ export function LineItemsEditor({ products, isSale = false, currency = DefaultCu
         ))}
       </div>
 
-      <Button type="button" variant="outline" size="sm" onClick={() => append(newRow())}>
+      <Button type="button" variant="outline" size="sm" onClick={() => append({ ...emptyRow })}>
         <Plus /> Agregar línea
       </Button>
 

@@ -36,16 +36,3 @@ export function Field({ label, required, description, error, children, className
     </div>
   );
 }
-
-export function FieldDescription({ children }: { children: ReactNode }) {
-  return <p className="field-hint">{children}</p>;
-}
-
-export function FieldError({ children }: { children?: ReactNode }) {
-  if (!children) return null;
-  return (
-    <p role="alert" className="field-error">
-      {children}
-    </p>
-  );
-}

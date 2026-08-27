@@ -9,14 +9,6 @@ export function useSales() {
   });
 }
 
-export function useSale(id: string | undefined) {
-  return useQuery({
-    queryKey: queryKeys.sales.detail(id!),
-    queryFn: () => salesService.get(id!),
-    enabled: !!id,
-  });
-}
-
 export function useCreateSale() {
   const qc = useQueryClient();
   return useMutation({

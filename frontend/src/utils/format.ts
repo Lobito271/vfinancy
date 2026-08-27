@@ -1,5 +1,5 @@
 import { Currencies, type CurrencyCode } from '@/constants/currencies';
-import { Languages, type LanguageCode, DefaultLanguage } from '@/constants/languages';
+import { type LanguageCode, DefaultLanguage } from '@/constants/languages';
 
 const locale: LanguageCode = DefaultLanguage;
 
@@ -30,20 +30,6 @@ const dateFormatter = new Intl.DateTimeFormat(locale, {
   day: '2-digit',
 });
 
-const dateTimeFormatter = new Intl.DateTimeFormat(locale, {
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-});
-
-const longDateFormatter = new Intl.DateTimeFormat(locale, {
-  year: 'numeric',
-  month: 'long',
-  day: 'numeric',
-});
-
 // Matches a plain "YYYY-MM-DD" date string with no time component.
 const isoDateOnly = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -65,16 +51,6 @@ function toDate(value: string | Date | null | undefined): Date | null {
 export function formatDate(value: string | Date | null | undefined, fallback = '—'): string {
   const d = toDate(value);
   return d ? dateFormatter.format(d) : fallback;
-}
-
-export function formatDateTime(value: string | Date | null | undefined, fallback = '—'): string {
-  const d = toDate(value);
-  return d ? dateTimeFormatter.format(d) : fallback;
-}
-
-export function formatLongDate(value: string | Date | null | undefined, fallback = '—'): string {
-  const d = toDate(value);
-  return d ? longDateFormatter.format(d) : fallback;
 }
 
 export function formatNumber(value: number, decimals = 0): string {
@@ -118,5 +94,3 @@ export function formatRelative(value: string | Date | null | undefined): string 
   if (day < 7) return `hace ${day} d`;
   return formatDate(d);
 }
-
-void Languages;

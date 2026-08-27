@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useFormContext, type FieldPath, type FieldValues } from 'react-hook-form';
 import { Field } from './Field';
 import { Input } from '@/components/input';
@@ -29,11 +29,8 @@ export function MoneyField<T extends FieldValues>({
   const { register, formState, watch, setValue } = useFormContext<T>();
   const error = formState.errors[name]?.message as string | undefined;
   const value = watch(name) as number | undefined;
-  const [raw, setRaw] = useState<string>(value != null ? String(value) : '');
-
-  useEffect(() => {
-    setRaw(value != null ? String(value) : '');
-  }, [value]);
+  const [userInput, setUserInput] = useState<string | null>(null);
+  const raw = userInput ?? (value != null ? String(value) : '');
 
   const cur = Currencies[currency] ?? Currencies[DefaultCurrency];
 
@@ -56,13 +53,14 @@ export function MoneyField<T extends FieldValues>({
           value={raw}
           onChange={(e) => {
             const next = e.target.value.replace(/[^0-9.,-]/g, '').replace(',', '.');
-            setRaw(next);
+            setUserInput(next);
             const n = Number(next);
             if (!Number.isNaN(n)) {
               setValue(name, n as never, { shouldDirty: true, shouldValidate: true });
             }
           }}
           onBlur={() => {
+            setUserInput(null);
             void register(name);
           }}
         />
@@ -108,34 +106,6 @@ export function PercentageField<T extends FieldValues>({
         />
         <span className="input-affix__suffix" aria-hidden="true">%</span>
       </div>
-    </Field>
-  );
-}
-
-interface CurrencyFieldProps<T extends FieldValues> {
-  name: FieldPath<T>;
-  label?: string;
-  description?: string;
-  required?: boolean;
-  className?: string;
-}
-
-export function CurrencyField<T extends FieldValues>({ name, label, description, required, className }: CurrencyFieldProps<T>) {
-  const { register, formState } = useFormContext<T>();
-  const error = formState.errors[name]?.message as string | undefined;
-  return (
-    <Field label={label} required={required} description={description} error={error} className={className} htmlFor={String(name)}>
-      <select
-        id={String(name)}
-        className="input"
-        {...register(name)}
-      >
-        {Object.values(Currencies).map((c) => (
-          <option key={c.code} value={c.code}>
-            {c.code} — {c.name}
-          </option>
-        ))}
-      </select>
     </Field>
   );
 }

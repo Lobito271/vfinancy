@@ -181,6 +181,7 @@ export function SalesPage() {
       />
 
       <CancelDialog
+        key={cancelTarget?.id ?? 'cancel'}
         open={!!cancelTarget}
         onOpenChange={(open) => {
           if (!open) setCancelTarget(null);

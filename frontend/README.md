@@ -4,7 +4,7 @@ React + TypeScript desktop UI. Built with Vite, styled with a hand-rolled plain 
 
 ## Stack
 
-- **React 18** + **TypeScript 5**
+- **React 19** + **TypeScript 5**
 - **Vite 5** for dev server / build
 - **Plain CSS3** styling system in `src/index.css` (tokens + utilities + responsive variants, no Tailwind/PostCSS)
 - **Radix primitives** + `class-variance-authority` for accessible components
@@ -54,10 +54,10 @@ Every `components/<category>/` has an `index.ts` barrel — **import from `@/com
 ## Commands
 
 ```bash
-npm install         # install dependencies
-npm run dev         # Vite dev server (frontend only)
-npm run build       # production build → dist/ (Wails embeds this)
-npm run check       # tsc --noEmit (type check)
+pnpm install         # install dependencies
+pnpm dev             # Vite dev server (frontend only)
+pnpm build           # production build → dist/ (Wails embeds this)
+pnpm check           # tsc --noEmit (type check)
 ```
 
 Wails-specific:

@@ -101,16 +101,13 @@ export function PurchasesPage() {
   const cardsQuery = useCreditCards();
   const push = useNotificationStore((s) => s.push);
 
-  const cardOptions = useMemo<SelectOption[]>(
-    () =>
-      (cardsQuery.data ?? [])
-        .filter((c) => c.isActive && c.currencyCode === 'USD')
-        .map((c) => ({
-          value: c.id,
-          label: `${c.issuer} •••• ${c.lastFour} (${c.currencyCode})`,
-        })),
-    [cardsQuery.data],
-  );
+  const cardOptions = useMemo<SelectOption[]>(() => {
+    const opts: SelectOption[] = [];
+    for (const c of cardsQuery.data ?? []) {
+      if (c.isActive && c.currencyCode === 'USD') opts.push({ value: c.id, label: `${c.issuer} •••• ${c.lastFour} (${c.currencyCode})` });
+    }
+    return opts;
+  }, [cardsQuery.data]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Purchase | null>(null);
@@ -329,6 +326,7 @@ export function PurchasesPage() {
       />
 
       <CancelDialog
+        key={cancelTarget?.id ?? 'cancel'}
         open={!!cancelTarget}
         onOpenChange={(open) => {
           if (!open) setCancelTarget(null);

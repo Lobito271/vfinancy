@@ -118,16 +118,13 @@ export function CustomerOrdersPage() {
   const cardsQuery = useCreditCards();
   const push = useNotificationStore((s) => s.push);
 
-  const cardOptions = useMemo<SelectOption[]>(
-    () =>
-      (cardsQuery.data ?? [])
-        .filter((c) => c.isActive)
-        .map((c) => ({
-          value: c.id,
-          label: `${c.issuer} •••• ${c.lastFour} (${c.currencyCode})`,
-        })),
-    [cardsQuery.data],
-  );
+  const cardOptions = useMemo<SelectOption[]>(() => {
+    const opts: SelectOption[] = [];
+    for (const c of cardsQuery.data ?? []) {
+      if (c.isActive) opts.push({ value: c.id, label: `${c.issuer} •••• ${c.lastFour} (${c.currencyCode})` });
+    }
+    return opts;
+  }, [cardsQuery.data]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [detailOrder, setDetailOrder] = useState<CustomerOrder | null>(null);
@@ -383,6 +380,7 @@ export function CustomerOrdersPage() {
       />
 
       <CancelDialog
+        key={cancelTarget?.id ?? 'cancel'}
         open={!!cancelTarget}
         onOpenChange={(open) => {
           if (!open) setCancelTarget(null);

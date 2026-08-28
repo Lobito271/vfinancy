@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Package, TrendingUp } from 'lucide-react';
+import { Package, TrendingUp, Eye, Download, AlertTriangle, Trash2, Plus } from 'lucide-react';
 import { PageContainer, PageHeader, Grid } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
@@ -7,10 +7,6 @@ import { Badge } from '@/components/badge';
 import { EmptyState } from '@/components/feedback';
 import { Button } from '@/components/button';
 import { CancelDialog } from '@/components/dialog';
-import { Can } from '@/components/auth';
-import { Icons } from '@/design-system/icons';
-import { Permissions } from '@/constants/permissions';
-import { usePermission } from '@/hooks/usePermission';
 import { useDebounce } from '@/utils/debounce';
 import {
   useCustomerOrders,
@@ -122,16 +118,13 @@ export function CustomerOrdersPage() {
   const cardsQuery = useCreditCards();
   const push = useNotificationStore((s) => s.push);
 
-  const cardOptions = useMemo<SelectOption[]>(
-    () =>
-      (cardsQuery.data ?? [])
-        .filter((c) => c.isActive)
-        .map((c) => ({
-          value: c.id,
-          label: `${c.issuer} •••• ${c.lastFour} (${c.currencyCode})`,
-        })),
-    [cardsQuery.data],
-  );
+  const cardOptions = useMemo<SelectOption[]>(() => {
+    const opts: SelectOption[] = [];
+    for (const c of cardsQuery.data ?? []) {
+      if (c.isActive) opts.push({ value: c.id, label: `${c.issuer} •••• ${c.lastFour} (${c.currencyCode})` });
+    }
+    return opts;
+  }, [cardsQuery.data]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [detailOrder, setDetailOrder] = useState<CustomerOrder | null>(null);
@@ -139,8 +132,8 @@ export function CustomerOrdersPage() {
   const [faultyTarget, setFaultyTarget] = useState<CustomerOrder | null>(null);
   const [arrivalPayTarget, setArrivalPayTarget] = useState<CustomerOrder | null>(null);
 
-  const canEdit = usePermission(Permissions.Purchases.Edit);
-  const canDelete = usePermission(Permissions.Purchases.Delete);
+  const canEdit = true;
+  const canDelete = true;
 
   const orders = useMemo(() => {
     const all = data ?? [];
@@ -154,7 +147,6 @@ export function CustomerOrdersPage() {
   const totalProfit = orders.reduce((s, o) => s + o.projectedProfitPEN, 0);
 
   const tableColumns = useMemo<Column<CustomerOrder>[]>(() => {
-    if (!canEdit && !canDelete) return columns;
     return [
       ...columns,
       {
@@ -174,7 +166,7 @@ export function CustomerOrdersPage() {
                 aria-label={`Ver ${row.number}`}
                 onClick={() => setDetailOrder(row)}
               >
-                <Icons.Visibility.Show />
+                <Eye />
               </Button>
               {canEdit && receivable && (
                 <Button
@@ -183,7 +175,7 @@ export function CustomerOrdersPage() {
                   onClick={() => setArrivalPayTarget(row)}
                   title="Registra la llegada y cobra el saldo pendiente en un solo paso"
                 >
-                  <Icons.Action.Download /> Llegada y Cobro
+                  <Download /> Llegada y Cobro
                 </Button>
               )}
               {canEdit && canMarkFaulty && (
@@ -194,7 +186,7 @@ export function CustomerOrdersPage() {
                   onClick={() => setFaultyTarget(row)}
                   title="Anula el pedido y reembolsa el anticipo"
                 >
-                  <Icons.Status.Warning /> Mal estado
+                  <AlertTriangle /> Mal estado
                 </Button>
               )}
               {canDelete && open && (
@@ -204,7 +196,7 @@ export function CustomerOrdersPage() {
                   aria-label={`Anular ${row.number}`}
                   onClick={() => setCancelTarget(row)}
                 >
-                  <Icons.Action.Delete />
+                  <Trash2 />
                 </Button>
               )}
             </div>
@@ -212,7 +204,7 @@ export function CustomerOrdersPage() {
         },
       },
     ];
-  }, [canEdit, canDelete]);
+  }, []);
 
   const handleArrivalAndPayment = (input: ArrivalAndPaymentInput) => {
     if (!arrivalPayTarget) return;
@@ -305,11 +297,9 @@ export function CustomerOrdersPage() {
         title="Pedidos de cliente"
         subtitle="Órdenes de importación para clientes con anticipos y utilidad proyectada"
         actions={
-          <Can permission={Permissions.Purchases.Create}>
-            <Button onClick={() => setFormOpen(true)}>
-              <Icons.Action.Create /> Nuevo pedido
-            </Button>
-          </Can>
+          <Button onClick={() => setFormOpen(true)}>
+            <Plus /> Nuevo pedido
+          </Button>
         }
       />
 
@@ -390,6 +380,7 @@ export function CustomerOrdersPage() {
       />
 
       <CancelDialog
+        key={cancelTarget?.id ?? 'cancel'}
         open={!!cancelTarget}
         onOpenChange={(open) => {
           if (!open) setCancelTarget(null);

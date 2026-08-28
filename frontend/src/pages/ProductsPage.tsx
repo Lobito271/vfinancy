@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Package } from 'lucide-react';
+import { Package, Pencil, Trash2, Plus } from 'lucide-react';
 import { PageContainer, PageHeader, Grid } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
@@ -8,10 +8,6 @@ import { Input } from '@/components/input';
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/feedback';
 import { ConfirmDialog } from '@/components/dialog';
-import { Can } from '@/components/auth';
-import { Icons } from '@/design-system/icons';
-import { Permissions } from '@/constants/permissions';
-import { usePermission } from '@/hooks/usePermission';
 import {
   Select,
   SelectContent,
@@ -89,8 +85,6 @@ export function ProductsPage() {
   const { data, isLoading, isError, error, refetch } = useProducts({ search, status });
   const deleteMutation = useDeleteProduct();
   const push = useNotificationStore((s) => s.push);
-  const canEdit = usePermission(Permissions.Products.Edit);
-  const canDelete = usePermission(Permissions.Products.Delete);
 
   const products = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -99,45 +93,38 @@ export function ProductsPage() {
     ? products.reduce((s, p) => s + (p.salePrice - p.costUSD) / Math.max(p.costUSD, 0.01), 0) / products.length
     : 0;
 
-  const tableColumns = useMemo<Column<Product>[]>(() => {
-    if (!canEdit && !canDelete) return columns;
-    return [
-      ...columns,
-      {
-        id: 'actions',
-        header: '',
-        width: 88,
-        exportable: false,
-        cell: (row) => (
-          <div className="row-actions">
-            {canEdit && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Editar ${row.sku}`}
-                onClick={() => {
-                  setEditing(row);
-                  setFormOpen(true);
-                }}
-              >
-                <Icons.Action.Edit />
-              </Button>
-            )}
-            {canDelete && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Eliminar ${row.sku}`}
-                onClick={() => setDeleteTarget(row)}
-              >
-                <Icons.Action.Delete />
-              </Button>
-            )}
-          </div>
-        ),
-      },
-    ];
-  }, [canEdit, canDelete]);
+  const tableColumns = useMemo<Column<Product>[]>(() => [
+    ...columns,
+    {
+      id: 'actions',
+      header: '',
+      width: 88,
+      exportable: false,
+      cell: (row) => (
+        <div className="row-actions">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Editar ${row.sku}`}
+            onClick={() => {
+              setEditing(row);
+              setFormOpen(true);
+            }}
+          >
+            <Pencil />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Eliminar ${row.sku}`}
+            onClick={() => setDeleteTarget(row)}
+          >
+            <Trash2 />
+          </Button>
+        </div>
+      ),
+    },
+  ], []);
 
   return (
     <PageContainer>
@@ -147,16 +134,14 @@ export function ProductsPage() {
         actions={
           <div className="hstack hstack--sm">
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar producto…" style={{ width: "16rem" }} aria-label="Buscar producto" />
-            <Can permission={Permissions.Products.Create}>
-              <Button
-                onClick={() => {
-                  setEditing(null);
-                  setFormOpen(true);
-                }}
-              >
-                <Icons.Action.Create /> Nuevo producto
-              </Button>
-            </Can>
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setFormOpen(true);
+              }}
+            >
+              <Plus /> Nuevo producto
+            </Button>
           </div>
         }
       />

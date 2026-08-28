@@ -1,12 +1,10 @@
 import { useState } from 'react';
+import { CreditCard } from 'lucide-react';
 import { PageContainer, PageHeader, Grid, Section } from '@/components/layout';
 import { Button } from '@/components/button';
 import { Card, CardHeader, CardContent } from '@/components/card';
 import { EmptyState, Spinner } from '@/components/feedback';
 import { ConfirmDialog } from '@/components/dialog';
-import { Can } from '@/components/auth';
-import { Icons } from '@/design-system/icons';
-import { Permissions } from '@/constants/permissions';
 import { useCreditCards, useCardProjections, usePayCard } from '@/features/treasury/hooks/useTreasury';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { useNotificationStore } from '@/stores/notification';
@@ -55,8 +53,7 @@ export function TreasuryPage() {
                       </p>
                       <p className="text-sm muted">{card.cardHolder}</p>
                     </div>
-                    <Can permission={Permissions.Treasury.Create}>
-                      <Button
+                    <Button
                         variant="outline"
                         size="sm"
                         disabled={projectedUSD <= 0 || payCardMutation.isPending}
@@ -69,9 +66,8 @@ export function TreasuryPage() {
                           })
                         }
                       >
-                        <Icons.Action.Payment /> Registrar pago
+                        <CreditCard /> Registrar pago
                       </Button>
-                    </Can>
                   </CardHeader>
                   <CardContent>
                     <div className="form-grid">

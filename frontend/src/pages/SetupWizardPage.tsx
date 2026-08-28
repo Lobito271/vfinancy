@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { Button } from '@/components/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card';
 import { Form, TextField, NumberField, PasswordField, SelectField } from '@/components/form';
-import { Icons } from '@/design-system/icons';
+import { AlertCircle, ArrowLeft, ArrowRight, Plus } from 'lucide-react';
 import { wailsClient } from '@/services/bindings';
 import type { CompanyRequest } from '@/services/wails-types';
 
@@ -132,13 +132,13 @@ export function SetupWizardPage() {
                     <TextField name="profileName" label="Nombre del perfil" required className="setup-form-grid__wide" autoComplete="name" />
                     <PasswordField name="password" label="Contraseña (opcional)" description="Podrás agregarla después desde Configuración." autoComplete="new-password" className="setup-form-grid__wide" />
                   </div>}
-                  {error && <p className="setup-error" role="alert"><Icons.Status.Error />{error}</p>}
+                  {error && <p className="setup-error" role="alert"><AlertCircle />{error}</p>}
                   <div className="setup-card__footer">
-                    {step > 0 ? <Button type="button" variant="ghost" onClick={() => setStep((current) => current - 1)}><Icons.Action.Back /> Atrás</Button> : <span />}
+                    {step > 0 ? <Button type="button" variant="ghost" onClick={() => setStep((current) => current - 1)}><ArrowLeft /> Atrás</Button> : <span />}
                     {step < steps.length - 1 ? <Button type="button" onClick={async () => {
                       const fields = step === 0 ? ['legalName', 'tradeName', 'code', 'taxId', 'address', 'phone', 'email'] : ['countryCode', 'functionalCurrency', 'timezone', 'fiscalYearStartMonth'];
                       if (await form.trigger(fields as Array<keyof SetupValues>)) setStep((current) => current + 1);
-                    }}>Continuar <Icons.Action.Next /></Button> : <Button type="submit" loading={saving}>Crear empresa <Icons.Action.Create /></Button>}
+                    }}>Continuar <ArrowRight /></Button> : <Button type="submit" loading={saving}>Crear empresa <Plus /></Button>}
                   </div>
                 </CardContent>
               </Card>

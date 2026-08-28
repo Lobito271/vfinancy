@@ -1,4 +1,4 @@
-import { ShoppingCart, TrendingUp, TrendingDown, Wallet, Users, AlertTriangle, Trophy, Activity, type LucideIcon } from 'lucide-react';
+import { ShoppingCart, TrendingUp, Wallet, Users, AlertTriangle, type LucideIcon } from 'lucide-react';
 import { WidgetShell } from './WidgetShell';
 import { StatCard } from '@/components/card';
 import { EmptyState } from '@/components/feedback';
@@ -8,31 +8,6 @@ import { LineChart, BarChart } from '@/components/charts';
 import { DataTable, type Column } from '@/components/table';
 import { formatRelative } from '@/utils/format';
 import type { ActivityItem, ChartPoint } from '@/types/domain';
-
-export interface WidgetMeta<P = unknown> {
-  id: string;
-  component: React.ComponentType<P>;
-  title: string;
-  defaultSize?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
-  icon?: LucideIcon;
-}
-
-export const WIDGET_REGISTRY = {
-  'kpi.monthSales': MonthSalesWidget,
-  'kpi.monthPurchases': MonthPurchasesWidget,
-  'kpi.profit': ProfitWidget,
-  'kpi.accountsReceivable': AccountsReceivableWidget,
-  'kpi.accountsPayable': AccountsPayableWidget,
-  'kpi.clearance': ClearanceWidget,
-  'kpi.customersWithDebt': CustomersWithDebtWidget,
-  'kpi.lowStock': LowStockWidget,
-  'chart.salesLast7Days': SalesLast7DaysWidget,
-  'chart.salesByStatus': SalesByStatusWidget,
-  'list.topProducts': TopProductsWidget,
-  'list.recentActivity': RecentActivityWidget,
-} as const;
-
-export type WidgetId = keyof typeof WIDGET_REGISTRY;
 
 interface KpiWidgetProps {
   label: string;
@@ -189,7 +164,3 @@ export function RecentActivityWidget() {
   );
 }
 
-void WIDGET_REGISTRY;
-void Trophy;
-void Activity;
-void TrendingDown;

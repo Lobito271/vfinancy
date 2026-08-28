@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -30,10 +30,6 @@ export function CancelDialog({
   onConfirm,
 }: CancelDialogProps) {
   const [reason, setReason] = useState('');
-
-  useEffect(() => {
-    if (open) setReason('');
-  }, [open]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

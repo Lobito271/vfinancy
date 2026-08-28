@@ -14,14 +14,6 @@ export function useSuppliers(query: SupplierQuery = {}) {
   });
 }
 
-export function useSupplier(id: string | undefined) {
-  return useQuery({
-    queryKey: ['suppliers', 'detail', id],
-    queryFn: () => suppliersService.get(id!),
-    enabled: !!id,
-  });
-}
-
 export function useCreateSupplier() {
   const qc = useQueryClient();
   return useMutation({

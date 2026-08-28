@@ -11,7 +11,7 @@ Reemplaza los procesos manuales del negocio con una plataforma centralizada, mul
 | Desktop    | Wails v2 (Go 1.23)                                                         |
 | Backend    | Go — Clean Architecture + DDD, vertical slices (Service + Repository)  |
 | DB         | PostgreSQL (pgx v5), migraciones SQL versionadas                           |
-| Frontend   | React 18 + TypeScript + Vite 5                                             |
+| Frontend   | React 19 + TypeScript + Vite 5                                             |
 | Estado     | Zustand, TanStack Query, React Hook Form, Zod                              |
 | Estilos    | Plain CSS3 en `src/index.css` (sin Tailwind/PostCSS)                       |
 
@@ -39,7 +39,7 @@ backend/migrations/ # SQL versionado (0000_init … 0019_audit_events)
 ## Requisitos
 
 - Go 1.23+
-- Node.js 20+ (npm)
+- Node.js 20+ (pnpm)
 - Wails v2 CLI
 - PostgreSQL 16+
 
@@ -50,7 +50,7 @@ backend/migrations/ # SQL versionado (0000_init … 0019_audit_events)
 go run ./backend/cmd/cli migrate
 
 # Frontend (solo Vite, sin backend)
-cd frontend && npm install && npm run dev
+cd frontend && pnpm install && pnpm dev
 
 # Aplicación completa (Wails)
 wails dev
@@ -63,7 +63,7 @@ Variables de entorno clave: `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_
 
 ```bash
 go test ./backend/...
-cd frontend && npm run check && npm run build
+cd frontend && pnpm check && pnpm build
 ```
 
 ## Documentación

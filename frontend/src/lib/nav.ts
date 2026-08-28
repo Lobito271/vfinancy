@@ -1,35 +1,25 @@
-import type { LucideIcon } from 'lucide-react';
-import { Icons } from '@/design-system/icons';
+import { LayoutDashboard, Users, Truck, Package, Warehouse, ShoppingCart, ShoppingBag, Receipt, Landmark, Settings, Tags } from 'lucide-react';
 import { Routes } from '@/constants/routes';
-import { Permissions } from '@/constants/permissions';
-import type { Permission } from '@/utils/permissions';
 
 export interface NavRoute {
   to: string;
   label: string;
-  icon: LucideIcon;
-  permission?: Permission;
+  icon: React.ComponentType<{ className?: string }>;
   end?: boolean;
 }
 
 export const navRoutes: NavRoute[] = [
-  { to: Routes.Dashboard, label: 'Inicio', icon: Icons.Navigation.Dashboard, end: true },
-  { to: Routes.Customers, label: 'Clientes', icon: Icons.Navigation.Customers, permission: Permissions.Customers.View },
-  { to: Routes.Suppliers, label: 'Proveedores', icon: Icons.Navigation.Suppliers, permission: Permissions.Suppliers.View },
-  { to: Routes.Products, label: 'Productos', icon: Icons.Navigation.Products, permission: Permissions.Products.View },
-  { to: Routes.CatalogSettings, label: 'Catálogo', icon: Icons.Navigation.Catalog, permission: Permissions.Products.View },
-  { to: Routes.Inventory, label: 'Inventario', icon: Icons.Navigation.Inventory, permission: Permissions.Inventory.View },
-  { to: Routes.Purchases, label: 'Compras', icon: Icons.Navigation.Purchases, permission: Permissions.Purchases.View },
-  {
-    to: Routes.CustomerOrders,
-    label: 'Pedidos de cliente',
-    icon: Icons.Navigation.CustomerOrders,
-    permission: Permissions.Purchases.View,
-  },
-  { to: Routes.Sales, label: 'Ventas', icon: Icons.Navigation.Sales, permission: Permissions.Sales.View },
-  { to: Routes.Treasury, label: 'Tesorería', icon: Icons.Navigation.Treasury, permission: Permissions.Treasury.View },
-  { to: Routes.Reports, label: 'Reportes', icon: Icons.Navigation.Reports, permission: Permissions.Reports.View },
-  { to: Routes.Settings, label: 'Configuración', icon: Icons.Navigation.Settings, permission: Permissions.Settings.View },
+  { to: Routes.Dashboard, label: 'Inicio', icon: LayoutDashboard, end: true },
+  { to: Routes.Customers, label: 'Clientes', icon: Users },
+  { to: Routes.Suppliers, label: 'Proveedores', icon: Truck },
+  { to: Routes.Products, label: 'Productos', icon: Package },
+  { to: Routes.CatalogSettings, label: 'Catálogo', icon: Tags },
+  { to: Routes.Inventory, label: 'Inventario', icon: Warehouse },
+  { to: Routes.Purchases, label: 'Compras', icon: ShoppingCart },
+  { to: Routes.CustomerOrders, label: 'Pedidos de cliente', icon: ShoppingBag },
+  { to: Routes.Sales, label: 'Ventas', icon: Receipt },
+  { to: Routes.Treasury, label: 'Tesorería', icon: Landmark },
+  { to: Routes.Settings, label: 'Configuración', icon: Settings },
 ];
 
 export function findRouteLabel(path: string): string {

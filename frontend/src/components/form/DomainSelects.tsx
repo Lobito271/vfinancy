@@ -5,9 +5,6 @@ import { customersService } from '@/services/customers';
 import { suppliersService } from '@/services/suppliers';
 import { productsService } from '@/services/products';
 import { wailsClient } from '@/services/bindings';
-import { Currencies } from '@/constants/currencies';
-import { Taxes } from '@/constants/taxes';
-import { DocumentTypes } from '@/constants/countries';
 
 interface CustomerSelectFieldProps<T extends FieldValues> {
   name: FieldPath<T>;
@@ -55,43 +52,6 @@ export function WarehouseSelectField<T extends FieldValues>(props: Omit<Paramete
   const load = useCallback(async (): Promise<SelectOption[]> => {
     const warehouses = await wailsClient.listWarehouses();
     return warehouses.map((w) => ({ value: w.id, label: `${w.code} — ${w.name}` }));
-  }, []);
-  return <AsyncSelectField {...props} loadOptions={load} />;
-}
-
-export function CategorySelectField<T extends FieldValues>(props: Omit<Parameters<typeof AsyncSelectField<T>>[0], 'loadOptions'>) {
-  const load = useCallback(async (): Promise<SelectOption[]> => {
-    const categories = await wailsClient.listCategories();
-    return categories.map((c) => ({ value: c.id, label: c.name }));
-  }, []);
-  return <AsyncSelectField {...props} loadOptions={load} />;
-}
-
-export function BrandSelectField<T extends FieldValues>(props: Omit<Parameters<typeof AsyncSelectField<T>>[0], 'loadOptions'>) {
-  const load = useCallback(async (): Promise<SelectOption[]> => {
-    const brands = await wailsClient.listBrands();
-    return brands.map((b) => ({ value: b.id, label: b.name }));
-  }, []);
-  return <AsyncSelectField {...props} loadOptions={load} />;
-}
-
-export function TaxSelectField<T extends FieldValues>(props: Omit<Parameters<typeof AsyncSelectField<T>>[0], 'loadOptions'>) {
-  const load = useCallback(async (): Promise<SelectOption[]> => {
-    return Object.values(Taxes).map((t) => ({ value: t.code, label: `${t.shortName} (${(t.rate * 100).toFixed(0)}%)` }));
-  }, []);
-  return <AsyncSelectField {...props} loadOptions={load} />;
-}
-
-export function CurrencySelectField<T extends FieldValues>(props: Omit<Parameters<typeof AsyncSelectField<T>>[0], 'loadOptions'>) {
-  const load = useCallback(async (): Promise<SelectOption[]> => {
-    return Object.values(Currencies).map((c) => ({ value: c.code, label: `${c.code} — ${c.name}` }));
-  }, []);
-  return <AsyncSelectField {...props} loadOptions={load} />;
-}
-
-export function DocumentTypeSelectField<T extends FieldValues>(props: Omit<Parameters<typeof AsyncSelectField<T>>[0], 'loadOptions'>) {
-  const load = useCallback(async (): Promise<SelectOption[]> => {
-    return Object.values(DocumentTypes).map((d) => ({ value: d.code, label: d.name }));
   }, []);
   return <AsyncSelectField {...props} loadOptions={load} />;
 }

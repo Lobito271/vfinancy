@@ -56,35 +56,6 @@ export function Section({
   );
 }
 
-const gapRem: Record<number, string> = {
-  1: '0.25rem',
-  2: '0.5rem',
-  3: '0.75rem',
-  4: '1rem',
-  6: '1.5rem',
-  8: '2rem',
-};
-
-export function Stack({
-  direction = 'col',
-  gap = 4,
-  className,
-  style,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement> & { direction?: 'row' | 'col'; gap?: 1 | 2 | 3 | 4 | 6 | 8 }) {
-  return (
-    <div
-      className={cx('stack', className)}
-      style={{
-        flexDirection: direction === 'row' ? 'row' : 'column',
-        gap: gapRem[gap],
-        ...style,
-      }}
-      {...props}
-    />
-  );
-}
-
 export function Grid({
   cols = 3,
   className,

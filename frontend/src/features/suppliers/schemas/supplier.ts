@@ -9,7 +9,7 @@ export const SupplierSchema = z.object({
   businessName: z.string().min(1, 'Requerido').max(200),
   contactName: z.string().optional(),
   phone: z.string().optional(),
-  email: z.string().email('Correo inválido').optional().or(z.literal('')),
+  email: z.email('Correo inválido').optional().or(z.literal('')),
   address: z.string().optional(),
   paymentTermDays: z.number().min(0, 'Debe ser >= 0').max(365, 'Máximo 365 días').optional(),
 });

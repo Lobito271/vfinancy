@@ -1,5 +1,3 @@
-type ExportFormat = 'csv' | 'json' | 'txt';
-
 export function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -37,28 +35,9 @@ export function downloadCSV<T>(rows: T[], filename: string, columns?: { key: key
   downloadText(content, filename, 'text/csv;charset=utf-8');
 }
 
-export function downloadJSON<T>(data: T, filename: string): void {
-  const content = JSON.stringify(data, null, 2);
-  downloadText(content, filename, 'application/json;charset=utf-8');
-}
-
 function escapeCSV(v: string): string {
   if (/[",\n\r]/.test(v)) {
     return `"${v.replace(/"/g, '""')}"`;
   }
   return v;
-}
-
-export function exportData<T>(data: T[], format: ExportFormat, filename: string, columns?: { key: keyof T; header: string }[]): void {
-  switch (format) {
-    case 'csv':
-      downloadCSV(data, filename, columns);
-      break;
-    case 'json':
-      downloadJSON(data, filename);
-      break;
-    case 'txt':
-      downloadText(data.map((r) => JSON.stringify(r)).join('\n'), filename, 'text/plain;charset=utf-8');
-      break;
-  }
 }

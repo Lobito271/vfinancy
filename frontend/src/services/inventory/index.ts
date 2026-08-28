@@ -3,6 +3,7 @@ import type { InventoryMovementTypeCode } from '@/constants/status';
 import type { InventoryBatchDTO, InventoryMovementDTO } from '../wails-types';
 import { wailsClient } from '../bindings';
 import { productsService } from '../products';
+import { daysBetween } from '@/utils/format';
 
 export interface InventoryMovement {
   id: string;
@@ -14,11 +15,6 @@ export interface InventoryMovement {
   quantity: number;
   reference?: string;
   notes?: string;
-}
-
-function daysBetween(from: string, to: string): number {
-  const ms = new Date(to).getTime() - new Date(from).getTime();
-  return Math.floor(ms / 86_400_000);
 }
 
 function toInventoryItem(
@@ -80,25 +76,29 @@ export const inventoryService = {
     for (const batch of batches) {
       stockByProduct.set(batch.productId, (stockByProduct.get(batch.productId) ?? 0) + batch.quantity);
     }
-    return products
-      .filter((p) => (stockByProduct.get(p.id) ?? 0) < p.minStock)
-      .map((p) => ({
-        id: p.id,
-        productId: p.id,
-        productSku: p.sku,
-        productDescription: p.description,
-        warehouse: '',
-        quantity: stockByProduct.get(p.id) ?? 0,
-        unitCost: 0,
-        currencyCode: 'PEN',
-        arrivalDate: '',
-        maxSaleDate: '',
-        ageDays: 0,
-        daysRemaining: 0,
-        isClearance: false,
-        status: 'active',
-        minStock: p.minStock,
-      }));
+    const lowStock: Array<InventoryItem & { minStock: number }> = [];
+    for (const p of products) {
+      if ((stockByProduct.get(p.id) ?? 0) < p.minStock) {
+        lowStock.push({
+          id: p.id,
+          productId: p.id,
+          productSku: p.sku,
+          productDescription: p.description,
+          warehouse: '',
+          quantity: stockByProduct.get(p.id) ?? 0,
+          unitCost: 0,
+          currencyCode: 'PEN',
+          arrivalDate: '',
+          maxSaleDate: '',
+          ageDays: 0,
+          daysRemaining: 0,
+          isClearance: false,
+          status: 'active',
+          minStock: p.minStock,
+        });
+      }
+    }
+    return lowStock;
   },
   async getMovements(productId?: string): Promise<InventoryMovement[]> {
     const [res, products] = await Promise.all([

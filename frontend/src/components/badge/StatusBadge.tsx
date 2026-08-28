@@ -24,17 +24,3 @@ export function CustomerStatusBadge({ status }: { status: 'active' | 'inactive' 
   const cfg = customerStatusMap[status];
   return <Badge variant={cfg.variant}>{cfg.label}</Badge>;
 }
-
-const stockMap = {
-  inStock: { variant: 'success' as const, label: 'En Stock' },
-  lowStock: { variant: 'warning' as const, label: t('status.lowStock') },
-  outOfStock: { variant: 'destructive' as const, label: t('status.outOfStock') },
-  clearance: { variant: 'destructive' as const, label: t('status.clearance') },
-};
-
-export function StockBadge({ stock, minStock, isClearance }: { stock: number; minStock: number; isClearance?: boolean }) {
-  if (isClearance) return <Badge variant={stockMap.clearance.variant}>{stockMap.clearance.label}</Badge>;
-  if (stock === 0) return <Badge variant={stockMap.outOfStock.variant}>{stockMap.outOfStock.label}</Badge>;
-  if (stock < minStock) return <Badge variant={stockMap.lowStock.variant}>{stockMap.lowStock.label}</Badge>;
-  return <Badge variant={stockMap.inStock.variant}>{stockMap.inStock.label}</Badge>;
-}

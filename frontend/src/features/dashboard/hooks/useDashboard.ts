@@ -43,13 +43,14 @@ function dayKey(iso: string): string {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 }
 
+const dayFormatter = new Intl.DateTimeFormat('es-PE', { weekday: 'short' });
+
 function last7Days(): Array<{ key: string; label: string }> {
   const out: Array<{ key: string; label: string }> = [];
-  const fmt = new Intl.DateTimeFormat('es-PE', { weekday: 'short' });
   const now = new Date();
   for (let i = 6; i >= 0; i -= 1) {
     const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-    out.push({ key: dayKey(d.toISOString()), label: fmt.format(d) });
+    out.push({ key: dayKey(d.toISOString()), label: dayFormatter.format(d) });
   }
   return out;
 }
@@ -111,9 +112,10 @@ export function useDashboardData() {
       for (const sale of sales) {
         statusCounts.set(sale.status, (statusCounts.get(sale.status) ?? 0) + 1);
       }
-      const salesByStatus: ChartPoint[] = Array.from(statusCounts.entries())
-        .filter(([, count]) => count > 0)
-        .map(([status, count]) => ({ label: statusLabels[status] ?? status, value: count }));
+      const salesByStatus: ChartPoint[] = [];
+      for (const [status, count] of statusCounts.entries()) {
+        if (count > 0) salesByStatus.push({ label: statusLabels[status] ?? status, value: count });
+      }
 
       const activity: ActivityItem[] = [
         ...sales.map<ActivityItem>((s) => ({

@@ -4,7 +4,7 @@ import { Badge } from '@/components/badge';
 import { DataTable, type Column } from '@/components/table';
 import { Grid } from '@/components/layout';
 import { Button } from '@/components/button';
-import { Icons } from '@/design-system/icons';
+import { AlertTriangle, Download } from 'lucide-react';
 import { useCustomerOrder } from '@/features/purchasing/hooks/usePurchases';
 import type { CustomerOrder, CustomerOrderItem, CustomerOrderPayment } from '@/types/domain';
 import { formatCurrency, formatDate } from '@/utils/format';
@@ -189,10 +189,10 @@ export function CustomerOrderDetailDialog({ order, onOpenChange, onMarkReceived,
               {receivable && (
                 <>
                   <Button variant="outline" onClick={handleFaulty}>
-                    <Icons.Status.Warning /> Llegó en mal estado
+                    <AlertTriangle /> Llegó en mal estado
                   </Button>
                   <Button onClick={handleReceived}>
-                    <Icons.Action.Download /> Llegada y Cobro
+                    <Download /> Llegada y Cobro
                   </Button>
                 </>
               )}

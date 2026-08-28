@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Truck } from 'lucide-react';
+import { Truck, Pencil, Trash2, Plus } from 'lucide-react';
 import { PageContainer, PageHeader, Grid } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
@@ -8,10 +8,6 @@ import { Input } from '@/components/input';
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/feedback';
 import { ConfirmDialog } from '@/components/dialog';
-import { Can } from '@/components/auth';
-import { Icons } from '@/design-system/icons';
-import { Permissions } from '@/constants/permissions';
-import { usePermission } from '@/hooks/usePermission';
 import {
   Select,
   SelectContent,
@@ -71,53 +67,44 @@ export function SuppliersPage() {
   const { data, isLoading, isError, error, refetch } = useSuppliers({ search, status });
   const deleteMutation = useDeleteSupplier();
   const push = useNotificationStore((s) => s.push);
-  const canEdit = usePermission(Permissions.Suppliers.Edit);
-  const canDelete = usePermission(Permissions.Suppliers.Delete);
 
   const suppliers = data?.items ?? [];
   const total = data?.total ?? 0;
   const totalDebt = suppliers.reduce((s, c) => s + c.currentDebt, 0);
   const active = suppliers.filter((s) => s.status === 'active').length;
 
-  const tableColumns = useMemo<Column<Supplier>[]>(() => {
-    if (!canEdit && !canDelete) return columns;
-    return [
-      ...columns,
-      {
-        id: 'actions',
-        header: '',
-        width: 88,
-        exportable: false,
-        cell: (row) => (
-          <div className="row-actions">
-            {canEdit && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Editar ${row.businessName}`}
-                onClick={() => {
-                  setEditing(row);
-                  setFormOpen(true);
-                }}
-              >
-                <Icons.Action.Edit />
-              </Button>
-            )}
-            {canDelete && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Eliminar ${row.businessName}`}
-                onClick={() => setDeleteTarget(row)}
-              >
-                <Icons.Action.Delete />
-              </Button>
-            )}
-          </div>
-        ),
-      },
-    ];
-  }, [canEdit, canDelete]);
+  const tableColumns = useMemo<Column<Supplier>[]>(() => [
+    ...columns,
+    {
+      id: 'actions',
+      header: '',
+      width: 88,
+      exportable: false,
+      cell: (row) => (
+        <div className="row-actions">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Editar ${row.businessName}`}
+            onClick={() => {
+              setEditing(row);
+              setFormOpen(true);
+            }}
+          >
+            <Pencil />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Eliminar ${row.businessName}`}
+            onClick={() => setDeleteTarget(row)}
+          >
+            <Trash2 />
+          </Button>
+        </div>
+      ),
+    },
+  ], []);
 
   return (
     <PageContainer>
@@ -127,16 +114,14 @@ export function SuppliersPage() {
         actions={
           <div className="hstack hstack--sm">
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar proveedor…" style={{ width: "16rem" }} aria-label="Buscar proveedor" />
-            <Can permission={Permissions.Suppliers.Create}>
-              <Button
-                onClick={() => {
-                  setEditing(null);
-                  setFormOpen(true);
-                }}
-              >
-                <Icons.Action.Create /> Nuevo proveedor
-              </Button>
-            </Can>
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setFormOpen(true);
+              }}
+            >
+              <Plus /> Nuevo proveedor
+            </Button>
           </div>
         }
       />

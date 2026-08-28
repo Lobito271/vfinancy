@@ -1,6 +1,7 @@
 import type { Customer } from '@/types/domain';
 import type { CustomerDTO } from '../wails-types';
 import { wailsClient } from '../bindings';
+import { toFixed2 } from '@/utils/format';
 
 export interface CustomerQuery {
   search?: string;
@@ -45,10 +46,6 @@ function toCustomer(dto: CustomerDTO): Customer {
   };
 }
 
-function money(value: number): string {
-  return value.toFixed(2);
-}
-
 export const customersService = {
   async list(q: CustomerQuery = {}): Promise<{ items: Customer[]; total: number }> {
     const res = await wailsClient.listCustomers({
@@ -84,7 +81,7 @@ export const customersService = {
       documentNumber: input.documentNumber,
       businessName: input.businessName,
       tradeName: input.contactName ?? '',
-      creditLimit: money(input.creditLimit),
+      creditLimit: toFixed2(input.creditLimit),
       paymentTermDays: 0,
       email: input.email ?? '',
       phone: input.phone ?? '',
@@ -98,7 +95,7 @@ export const customersService = {
       id: input.id,
       businessName: input.businessName ?? '',
       tradeName: input.contactName ?? '',
-      creditLimit: money(input.creditLimit ?? 0),
+      creditLimit: toFixed2(input.creditLimit ?? 0),
       paymentTermDays: 0,
       email: input.email ?? '',
       phone: input.phone ?? '',

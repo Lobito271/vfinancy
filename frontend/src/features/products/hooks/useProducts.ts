@@ -31,14 +31,6 @@ export function useBrands() {
   });
 }
 
-export function useProduct(id: string | undefined) {
-  return useQuery({
-    queryKey: ['products', 'detail', id],
-    queryFn: () => productsService.get(id!),
-    enabled: !!id,
-  });
-}
-
 export function useCreateProduct() {
   const qc = useQueryClient();
   return useMutation({

@@ -10,7 +10,3 @@ export const Currencies = {
 
 export type CurrencyCode = keyof typeof Currencies;
 export const DefaultCurrency: CurrencyCode = 'PEN';
-
-export function getCurrency(code: string) {
-  return Currencies[code as CurrencyCode] ?? Currencies[DefaultCurrency];
-}

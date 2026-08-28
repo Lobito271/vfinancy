@@ -12,27 +12,6 @@ export function useInventory() {
   });
 }
 
-export function useClearance() {
-  return useQuery({
-    queryKey: queryKeys.inventory.clearance,
-    queryFn: () => inventoryService.getClearance(),
-  });
-}
-
-export function useLowStock() {
-  return useQuery({
-    queryKey: queryKeys.inventory.lowStock,
-    queryFn: () => inventoryService.getLowStock(),
-  });
-}
-
-export function useInventoryMovements(productId?: string) {
-  return useQuery({
-    queryKey: ['inventory', 'movements', productId],
-    queryFn: () => inventoryService.getMovements(productId),
-  });
-}
-
 function useInvalidateInventory() {
   const qc = useQueryClient();
   return () => {
@@ -54,15 +33,6 @@ export function useAdjustStock() {
   return useMutation({
     mutationFn: ({ batchId, delta, reason }: { batchId: string; delta: number; reason: string }) =>
       inventoryService.adjust(batchId, delta, reason),
-    onSuccess: invalidate,
-  });
-}
-
-export function useIssueStock() {
-  const invalidate = useInvalidateInventory();
-  return useMutation({
-    mutationFn: ({ batchId, quantity }: { batchId: string; quantity: number }) =>
-      inventoryService.issue(batchId, quantity),
     onSuccess: invalidate,
   });
 }

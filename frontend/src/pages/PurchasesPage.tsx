@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Package } from 'lucide-react';
+import { Package, CreditCard, AlertTriangle, Trash2, Plus, Download } from 'lucide-react';
 import { PageContainer, PageHeader, Grid } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
@@ -7,10 +7,6 @@ import { Badge } from '@/components/badge';
 import { EmptyState } from '@/components/feedback';
 import { Button } from '@/components/button';
 import { CancelDialog, RegisterPaymentDialog, type RegisterPaymentInput } from '@/components/dialog';
-import { Can } from '@/components/auth';
-import { Icons } from '@/design-system/icons';
-import { Permissions } from '@/constants/permissions';
-import { usePermission } from '@/hooks/usePermission';
 import { useDebounce } from '@/utils/debounce';
 import {
   usePurchases,
@@ -105,16 +101,13 @@ export function PurchasesPage() {
   const cardsQuery = useCreditCards();
   const push = useNotificationStore((s) => s.push);
 
-  const cardOptions = useMemo<SelectOption[]>(
-    () =>
-      (cardsQuery.data ?? [])
-        .filter((c) => c.isActive && c.currencyCode === 'USD')
-        .map((c) => ({
-          value: c.id,
-          label: `${c.issuer} •••• ${c.lastFour} (${c.currencyCode})`,
-        })),
-    [cardsQuery.data],
-  );
+  const cardOptions = useMemo<SelectOption[]>(() => {
+    const opts: SelectOption[] = [];
+    for (const c of cardsQuery.data ?? []) {
+      if (c.isActive && c.currencyCode === 'USD') opts.push({ value: c.id, label: `${c.issuer} •••• ${c.lastFour} (${c.currencyCode})` });
+    }
+    return opts;
+  }, [cardsQuery.data]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Purchase | null>(null);
@@ -122,8 +115,8 @@ export function PurchasesPage() {
   const [receivedTarget, setReceivedTarget] = useState<Purchase | null>(null);
   const [faultyTarget, setFaultyTarget] = useState<Purchase | null>(null);
 
-  const canDelete = usePermission(Permissions.Purchases.Delete);
-  const canEdit = usePermission(Permissions.Purchases.Edit);
+  const canDelete = true;
+  const canEdit = true;
   const canPay = canEdit;
 
   const purchases = data ?? [];
@@ -132,7 +125,6 @@ export function PurchasesPage() {
   const cancelled = purchases.filter((p) => p.status === 'cancelled').length;
 
   const tableColumns = useMemo<Column<Purchase>[]>(() => {
-    if (!canDelete && !canPay) return columns;
     return [
       ...columns,
       {
@@ -153,7 +145,7 @@ export function PurchasesPage() {
                   onClick={() => setReceivedTarget(row)}
                   title="Confirma la llegada de la mercadería e ingresa al inventario"
                 >
-                  <Icons.Action.Download /> Marcar como Recibido
+                  <Download /> Marcar como Recibido
                 </Button>
               )}
               {canEdit && open && !row.faulty && (
@@ -163,7 +155,7 @@ export function PurchasesPage() {
                   onClick={() => setFaultyTarget(row)}
                   title="Anula el pedido y reembolsa el anticipo"
                 >
-                  <Icons.Status.Warning /> Mal estado
+                  <AlertTriangle /> Mal estado
                 </Button>
               )}
               {canPay && payable && (
@@ -173,7 +165,7 @@ export function PurchasesPage() {
                   aria-label={`Registrar pago de ${row.number}`}
                   onClick={() => setPayTarget(row)}
                 >
-                  <Icons.Action.Payment />
+                  <CreditCard />
                 </Button>
               )}
               {canDelete && open && (
@@ -183,7 +175,7 @@ export function PurchasesPage() {
                   aria-label={`Anular ${row.number}`}
                   onClick={() => setCancelTarget(row)}
                 >
-                  <Icons.Action.Delete />
+                  <Trash2 />
                 </Button>
               )}
             </div>
@@ -199,11 +191,9 @@ export function PurchasesPage() {
         title="Compras"
         subtitle="Órdenes de compra a proveedores"
         actions={
-          <Can permission={Permissions.Purchases.Create}>
-            <Button onClick={() => setFormOpen(true)}>
-              <Icons.Action.Create /> Nueva compra
-            </Button>
-          </Can>
+          <Button onClick={() => setFormOpen(true)}>
+            <Plus /> Nueva compra
+          </Button>
         }
       />
 
@@ -336,6 +326,7 @@ export function PurchasesPage() {
       />
 
       <CancelDialog
+        key={cancelTarget?.id ?? 'cancel'}
         open={!!cancelTarget}
         onOpenChange={(open) => {
           if (!open) setCancelTarget(null);

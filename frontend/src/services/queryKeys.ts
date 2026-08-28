@@ -46,7 +46,6 @@ export const queryKeys = {
     transactions: (id?: string) => ['treasury', 'transactions', id] as const,
     exchangeRate: (from: string, to: string) => ['treasury', 'exchange', from, to] as const,
   },
-  reports: { all: ['reports'] as const, list: ['reports', 'list'] as const },
   administration: { all: ['administration'] as const, users: ['administration', 'users'] as const, audit: ['administration', 'audit'] as const },
   settings: {
     business: ['settings', 'business'] as const,

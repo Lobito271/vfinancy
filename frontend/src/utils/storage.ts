@@ -18,15 +18,4 @@ export function writeJSON<T>(key: string, value: T): void {
   }
 }
 
-export function persistJSON<T>(key: string, value: T): void {
-  writeJSON(key, value);
-}
 
-export function removeItem(key: string): void {
-  if (typeof localStorage === 'undefined') return;
-  try {
-    localStorage.removeItem(key);
-  } catch {
-    // ignore
-  }
-}

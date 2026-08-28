@@ -6,7 +6,7 @@ import { EmailField, Form, NumberField, TextField, TextareaField } from '@/compo
 import { Label } from '@/components/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select';
 import { PageContainer, PageHeader, Section } from '@/components/layout';
-import { Icons } from '@/design-system/icons';
+import { Save } from 'lucide-react';
 import { wailsClient } from '@/services/bindings';
 import { useThemeStore, type Theme } from '@/stores/theme';
 
@@ -80,7 +80,7 @@ export function SettingsPage() {
                 <TextField name="phone" label="Teléfono" type="tel" />
                 <TextareaField name="address" label="Dirección" className="form-grid__wide" />
               </div>
-              <div className="form-actions"><Button type="submit" loading={saveBusiness.isPending}><Icons.Action.Save /> Guardar empresa</Button></div>
+              <div className="form-actions"><Button type="submit" loading={saveBusiness.isPending}><Save /> Guardar empresa</Button></div>
             </Form>
           </CardContent>
         </Card>}
@@ -101,7 +101,7 @@ export function SettingsPage() {
                 <TextField name="purchaseNumberPrefix" label="Prefijo de compras" required />
                 <TextField name="journalNumberPrefix" label="Prefijo de asientos" required />
               </div>
-              <div className="form-actions"><Button type="submit" loading={savePreferences.isPending}><Icons.Action.Save /> Guardar reglas</Button></div>
+              <div className="form-actions"><Button type="submit" loading={savePreferences.isPending}><Save /> Guardar reglas</Button></div>
             </Form>
           </CardContent>
         </Card>}

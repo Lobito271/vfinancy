@@ -22,7 +22,7 @@ import {
 import { TablePagination } from './TablePagination';
 import { downloadCSV } from '@/utils/download';
 import { cx } from '@/utils/cx';
-import { persistJSON, readJSON } from '@/utils/storage';
+import { writeJSON, readJSON } from '@/utils/storage';
 import {
   type Column,
   type SortState,
@@ -45,7 +45,6 @@ export interface DataTableProps<T> {
   onSelectionChange?: (rows: T[]) => void;
   rowClassName?: (row: T) => string | undefined;
   state?: Partial<DataTableState>;
-  onStateChange?: (state: DataTableState) => void;
   preferencesKey?: string;
   defaultPreferences?: DataTablePreferences;
   bulkActions?: (rows: T[]) => ReactNode;
@@ -86,7 +85,6 @@ export function DataTable<T>({
   onSelectionChange,
   rowClassName,
   state: externalState,
-  onStateChange,
   preferencesKey,
   defaultPreferences,
   bulkActions,
@@ -102,40 +100,39 @@ export function DataTable<T>({
   ariaLabel,
   onRetry,
 }: DataTableProps<T>) {
-  const initial = useMemo<DataTableState>(
-    () => ({
+  const initial = useMemo<DataTableState>(() => {
+    const visibleColumnIds: string[] = [];
+    for (const c of columns) if (c.defaultVisible !== false) visibleColumnIds.push(c.id);
+    let base: DataTableState = {
       sort: null,
       filters: [],
-      visibleColumns: columns.filter((c) => c.defaultVisible !== false).map((c) => c.id),
+      visibleColumns: visibleColumnIds,
       search: '',
       page: 1,
       pageSize: defaultPreferences?.pageSize ?? DataTableDefaults.pageSize,
       selected: [],
       ...externalState,
-    }),
+    };
+    if (preferencesKey) {
+      const saved = readJSON<DataTablePreferences>(`vfinancy.dt.${preferencesKey}`);
+      if (saved) {
+        base = {
+          ...base,
+          pageSize: saved.pageSize ?? base.pageSize,
+          sort: saved.sort ?? base.sort,
+          visibleColumns: saved.visibleColumns ?? base.visibleColumns,
+        };
+      }
+    }
+    return base;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
+  }, []);
 
   const [state, setStateInternal] = useState<DataTableState>(initial);
 
   useEffect(() => {
     if (preferencesKey) {
-      const saved = readJSON<DataTablePreferences>(`vfinancy.dt.${preferencesKey}`);
-      if (saved) {
-        setStateInternal((s) => ({
-          ...s,
-          pageSize: saved.pageSize ?? s.pageSize,
-          sort: saved.sort ?? s.sort,
-          visibleColumns: saved.visibleColumns ?? s.visibleColumns,
-        }));
-      }
-    }
-  }, [preferencesKey]);
-
-  useEffect(() => {
-    if (preferencesKey) {
-      persistJSON(`vfinancy.dt.${preferencesKey}`, {
+      writeJSON(`vfinancy.dt.${preferencesKey}`, {
         pageSize: state.pageSize,
         sort: state.sort,
         visibleColumns: state.visibleColumns,
@@ -143,22 +140,18 @@ export function DataTable<T>({
     }
   }, [preferencesKey, state.pageSize, state.sort, state.visibleColumns]);
 
-  useEffect(() => {
-    if (externalState) {
-      setStateInternal((s) => ({ ...s, ...externalState }));
-    }
-  }, [externalState]);
-
   const update = useCallback(
     (patch: Partial<DataTableState>) => {
-      setStateInternal((s) => {
-        const next = { ...s, ...patch };
-        onStateChange?.(next);
-        return next;
-      });
+      setStateInternal((s) => ({ ...s, ...patch }));
     },
-    [onStateChange],
+    [],
   );
+
+  const columnsById = useMemo(() => {
+    const map = new Map<string, Column<T>>();
+    for (const c of columns) map.set(c.id, c);
+    return map;
+  }, [columns]);
 
   const visibleColumns = useMemo(
     () => columns.filter((c) => state.visibleColumns.includes(c.id)),
@@ -177,7 +170,7 @@ export function DataTable<T>({
       );
     }
     for (const f of state.filters) {
-      const col = columns.find((c) => c.id === f.id);
+      const col = columnsById.get(f.id);
       if (!col) continue;
       rows = rows.filter((row) => {
         const v = getValue(row, col);
@@ -192,14 +185,14 @@ export function DataTable<T>({
       });
     }
     if (state.sort) {
-      const col = visibleColumns.find((c) => c.id === state.sort!.id);
+      const col = columnsById.get(state.sort.id);
       if (col) {
         const dir = state.sort.direction === 'asc' ? 1 : -1;
         rows = [...rows].sort((a, b) => compare(getValue(a, col), getValue(b, col)) * dir);
       }
     }
     return rows;
-  }, [data, state.search, state.filters, state.sort, visibleColumns, columns, globalSearch]);
+  }, [data, state.search, state.filters, state.sort, visibleColumns, columnsById, globalSearch]);
 
   const total = filteredData.length;
   const totalPages = Math.max(1, Math.ceil(total / state.pageSize));
@@ -207,33 +200,45 @@ export function DataTable<T>({
   const pageStart = (state.page - 1) * state.pageSize;
   const pageRows = useMemo(() => filteredData.slice(pageStart, pageStart + state.pageSize), [filteredData, pageStart, state.pageSize]);
 
-  const allSelected = pageRows.length > 0 && pageRows.every((r) => state.selected.includes(String(r[keyField])));
-  const someSelected = pageRows.some((r) => state.selected.includes(String(r[keyField]))) && !allSelected;
+  const selectedSet = useMemo(() => new Set(state.selected), [state.selected]);
 
-  const toggleAll = () => {
+  const allSelected = pageRows.length > 0 && pageRows.every((r) => selectedSet.has(String(r[keyField])));
+  const someSelected = pageRows.some((r) => selectedSet.has(String(r[keyField]))) && !allSelected;
+
+  const toggleAll = useCallback(() => {
     const ids = pageRows.map((r) => String(r[keyField]));
-    const next = allSelected ? state.selected.filter((id) => !ids.includes(id)) : Array.from(new Set([...state.selected, ...ids]));
+    const next = allSelected
+      ? state.selected.filter((id) => !ids.includes(id))
+      : Array.from(new Set([...state.selected, ...ids]));
     update({ selected: next });
     onSelectionChange?.(pageRows.filter((r) => next.includes(String(r[keyField]))));
-  };
+  }, [pageRows, keyField, allSelected, state.selected, update, onSelectionChange]);
 
-  const toggleRow = (row: T) => {
-    const id = String(row[keyField]);
-    const next = state.selected.includes(id) ? state.selected.filter((x) => x !== id) : [...state.selected, id];
-    update({ selected: next });
-    onSelectionChange?.(pageRows.filter((r) => next.includes(String(r[keyField]))));
-  };
+  const toggleRow = useCallback(
+    (row: T) => {
+      const id = String(row[keyField]);
+      const next = state.selected.includes(id)
+        ? state.selected.filter((x) => x !== id)
+        : [...state.selected, id];
+      update({ selected: next });
+      onSelectionChange?.(pageRows.filter((r) => next.includes(String(r[keyField]))));
+    },
+    [keyField, state.selected, update, pageRows, onSelectionChange],
+  );
 
-  const handleSort = (id: string) => {
-    const next: SortState | null = !state.sort || state.sort.id !== id
-      ? { id, direction: 'asc' }
-      : state.sort.direction === 'asc'
-        ? { id, direction: 'desc' }
-        : null;
-    update({ sort: next });
-  };
+  const handleSort = useCallback(
+    (id: string) => {
+      const next: SortState | null = !state.sort || state.sort.id !== id
+        ? { id, direction: 'asc' }
+        : state.sort.direction === 'asc'
+          ? { id, direction: 'desc' }
+          : null;
+      update({ sort: next });
+    },
+    [state.sort, update],
+  );
 
-  const handleExport = () => {
+  const handleExport = useCallback(() => {
     const cols = visibleColumns.filter((c) => c.exportable !== false);
     const rows = filteredData.map((row) => {
       const out: Record<string, unknown> = {};
@@ -243,18 +248,21 @@ export function DataTable<T>({
       return out;
     });
     downloadCSV(rows, exportFilename, cols.map((c) => ({ key: c.id, header: typeof c.header === 'string' ? c.header : c.id })));
-  };
+  }, [visibleColumns, filteredData, exportFilename]);
 
   const parentRef = useRef<HTMLDivElement>(null);
   void rowHeight;
   void _virtualized;
 
+  const hasSelection = state.selected.length > 0;
+  const selectionRows = useMemo(
+    () => data.filter((r) => selectedSet.has(String(r[keyField]))),
+    [data, selectedSet, keyField],
+  );
+
   if (error) {
     return <ErrorState title="Error al cargar" description={error.message} onRetry={onRetry} />;
   }
-
-  const hasSelection = state.selected.length > 0;
-  const selectionRows = data.filter((r) => state.selected.includes(String(r[keyField])));
 
   return (
     <div className={cx('datatable', className)} aria-label={ariaLabel}>
@@ -301,112 +309,30 @@ export function DataTable<T>({
 
       <div className="datatable-scroll" ref={parentRef}>
         <table className="datatable-table">
-          <thead>
-            <tr>
-              {onSelectionChange && (
-                <th style={{ width: '2.5rem' }}>
-                  <Checkbox
-                    checked={allSelected ? true : someSelected ? 'indeterminate' : false}
-                    onCheckedChange={toggleAll}
-                    aria-label="Seleccionar todas las filas"
-                  />
-                </th>
-              )}
-              {visibleColumns.map((col, i) => {
-                const isSorted = state.sort?.id === col.id;
-                const sticky = col.sticky === true || (stickyFirstColumn && col.sticky !== false && i === 0);
-                return (
-                  <th
-                    key={col.id}
-                    style={{
-                      width: resolveWidth(col.width),
-                      minWidth: col.minWidth,
-                      ...(sticky ? { position: 'sticky', left: 0, zIndex: 1 } : {}),
-                    }}
-                    className={cx(
-                      getCellAlign(col.align),
-                      col.sortable && 'sortable',
-                      sticky && 'sticky-cell',
-                      col.headerClassName,
-                    )}
-                    onClick={() => col.sortable && handleSort(col.id)}
-                  >
-                    <span className="th-head">
-                      {col.header}
-                      {col.sortable && (
-                        <span className="th-sort-icon">
-                          {!isSorted && <ChevronsUpDown />}
-                          {isSorted && state.sort?.direction === 'asc' && <ChevronUp />}
-                          {isSorted && state.sort?.direction === 'desc' && <ChevronDown />}
-                        </span>
-                      )}
-                    </span>
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
+          <DataTableHeader
+            hasSelectionColumn={!!onSelectionChange}
+            allSelected={allSelected}
+            someSelected={someSelected}
+            toggleAll={toggleAll}
+            visibleColumns={visibleColumns}
+            sort={state.sort}
+            stickyFirstColumn={stickyFirstColumn}
+            handleSort={handleSort}
+          />
           <tbody>
-            {loading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <tr key={`skel-${i}`}>
-                  {onSelectionChange && <td><div className="skel-check" /></td>}
-                  {visibleColumns.map((col) => (
-                    <td key={col.id}>
-                      <div className="skel-cell" />
-                    </td>
-                  ))}
-                </tr>
-              ))
-            ) : pageRows.length === 0 ? (
-              <tr>
-                <td colSpan={visibleColumns.length + (onSelectionChange ? 1 : 0)} style={{ padding: 0 }}>
-                  {empty ?? <EmptyState title="Sin resultados" description="Ajusta los filtros o la búsqueda." />}
-                </td>
-              </tr>
-            ) : (
-              pageRows.map((row, rowIndex) => {
-                const id = String(row[keyField]);
-                const isSelected = state.selected.includes(id);
-                return (
-                  <tr
-                    key={id}
-                    onClick={onRowClick ? () => onRowClick(row) : undefined}
-                    className={cx(
-                      onRowClick && 'clickable',
-                      isSelected && 'selected',
-                      rowClassName?.(row),
-                    )}
-                  >
-                    {onSelectionChange && (
-                      <td onClick={(e) => e.stopPropagation()}>
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={() => toggleRow(row)}
-                          aria-label="Seleccionar fila"
-                        />
-                      </td>
-                    )}
-                    {visibleColumns.map((col, colIndex) => {
-                      const sticky = col.sticky === true || (stickyFirstColumn && col.sticky !== false && colIndex === 0);
-                      return (
-                        <td
-                          key={col.id}
-                          style={sticky ? { position: 'sticky', left: 0, zIndex: 1, background: 'inherit' } : undefined}
-                          className={cx(
-                            getCellAlign(col.align),
-                            sticky && 'sticky-cell',
-                            col.className,
-                          )}
-                        >
-                          {col.cell(row, { rowIndex, value: getValue(row, col) })}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })
-            )}
+            <DataTableBody
+              loading={loading}
+              pageRows={pageRows}
+              visibleColumns={visibleColumns}
+              keyField={keyField}
+              selectedSet={selectedSet}
+              onRowClick={onRowClick}
+              rowClassName={rowClassName}
+              hasSelectionColumn={!!onSelectionChange}
+              toggleRow={toggleRow}
+              stickyFirstColumn={stickyFirstColumn}
+              empty={empty}
+            />
           </tbody>
         </table>
       </div>
@@ -421,6 +347,171 @@ export function DataTable<T>({
         />
       )}
     </div>
+  );
+}
+
+function DataTableHeader<T>({
+  hasSelectionColumn,
+  allSelected,
+  someSelected,
+  toggleAll,
+  visibleColumns,
+  sort,
+  stickyFirstColumn,
+  handleSort,
+}: {
+  hasSelectionColumn: boolean;
+  allSelected: boolean;
+  someSelected: boolean;
+  toggleAll: () => void;
+  visibleColumns: Column<T>[];
+  sort: SortState | null;
+  stickyFirstColumn: boolean;
+  handleSort: (id: string) => void;
+}) {
+  return (
+    <thead>
+      <tr>
+        {hasSelectionColumn && (
+          <th style={{ width: '2.5rem' }}>
+            <Checkbox
+              checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+              onCheckedChange={toggleAll}
+              aria-label="Seleccionar todas las filas"
+            />
+          </th>
+        )}
+        {visibleColumns.map((col, i) => {
+          const isSorted = sort?.id === col.id;
+          const sticky = col.sticky === true || (stickyFirstColumn && col.sticky !== false && i === 0);
+          return (
+            <th
+              key={col.id}
+              style={{
+                width: resolveWidth(col.width),
+                minWidth: col.minWidth,
+                ...(sticky ? { position: 'sticky', left: 0, zIndex: 1 } : {}),
+              }}
+              className={cx(
+                getCellAlign(col.align),
+                col.sortable && 'sortable',
+                sticky && 'sticky-cell',
+                col.headerClassName,
+              )}
+              onClick={() => col.sortable && handleSort(col.id)}
+            >
+              <span className="th-head">
+                {col.header}
+                {col.sortable && (
+                  <span className="th-sort-icon">
+                    {!isSorted && <ChevronsUpDown />}
+                    {isSorted && sort?.direction === 'asc' && <ChevronUp />}
+                    {isSorted && sort?.direction === 'desc' && <ChevronDown />}
+                  </span>
+                )}
+              </span>
+            </th>
+          );
+        })}
+      </tr>
+    </thead>
+  );
+}
+
+function DataTableBody<T>({
+  loading,
+  pageRows,
+  visibleColumns,
+  keyField,
+  selectedSet,
+  onRowClick,
+  rowClassName,
+  hasSelectionColumn,
+  toggleRow,
+  stickyFirstColumn,
+  empty,
+}: {
+  loading: boolean;
+  pageRows: T[];
+  visibleColumns: Column<T>[];
+  keyField: keyof T;
+  selectedSet: Set<string>;
+  onRowClick?: (row: T) => void;
+  rowClassName?: (row: T) => string | undefined;
+  hasSelectionColumn: boolean;
+  toggleRow: (row: T) => void;
+  stickyFirstColumn: boolean;
+  empty?: ReactNode;
+}) {
+  if (loading) {
+    return (
+      <>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <tr key={`skel-${i}`}>
+            {hasSelectionColumn && <td><div className="skel-check" /></td>}
+            {visibleColumns.map((col) => (
+              <td key={col.id}><div className="skel-cell" /></td>
+            ))}
+          </tr>
+        ))}
+      </>
+    );
+  }
+
+  if (pageRows.length === 0) {
+    return (
+      <tr>
+        <td colSpan={visibleColumns.length + (hasSelectionColumn ? 1 : 0)} style={{ padding: 0 }}>
+          {empty ?? <EmptyState title="Sin resultados" description="Ajusta los filtros o la búsqueda." />}
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <>
+      {pageRows.map((row, rowIndex) => {
+        const id = String(row[keyField]);
+        const isSelected = selectedSet.has(id);
+        return (
+          <tr
+            key={id}
+            onClick={onRowClick ? () => onRowClick(row) : undefined}
+            className={cx(
+              onRowClick && 'clickable',
+              isSelected && 'selected',
+              rowClassName?.(row),
+            )}
+          >
+            {hasSelectionColumn && (
+              <td onClick={(e) => e.stopPropagation()}>
+                <Checkbox
+                  checked={isSelected}
+                  onCheckedChange={() => toggleRow(row)}
+                  aria-label="Seleccionar fila"
+                />
+              </td>
+            )}
+            {visibleColumns.map((col, colIndex) => {
+              const sticky = col.sticky === true || (stickyFirstColumn && col.sticky !== false && colIndex === 0);
+              return (
+                <td
+                  key={col.id}
+                  style={sticky ? { position: 'sticky', left: 0, zIndex: 1, background: 'inherit' } : undefined}
+                  className={cx(
+                    getCellAlign(col.align),
+                    sticky && 'sticky-cell',
+                    col.className,
+                  )}
+                >
+                  {col.cell(row, { rowIndex, value: getValue(row, col) })}
+                </td>
+              );
+            })}
+          </tr>
+        );
+      })}
+    </>
   );
 }
 

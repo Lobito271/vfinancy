@@ -1,11 +1,10 @@
 import { Link, NavLink } from 'react-router-dom';
+import { ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { cx } from '@/utils/cx';
 import { navRoutes } from '@/lib/nav';
 import { useSidebarStore } from '@/stores/sidebar';
 import { Button } from '@/components/button';
-import { Can } from '@/components/auth';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/misc';
-import { Icons } from '@/design-system/icons';
 
 export function Sidebar() {
   const collapsed = useSidebarStore((s) => s.collapsed);
@@ -30,35 +29,30 @@ export function Sidebar() {
             const Icon = item.icon;
             return (
               <li key={item.to}>
-                <Can
-                  permission={item.permission}
-                  fallback={null}
-                >
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <NavLink
-                        to={item.to}
-                        end={item.end}
-                        className={({ isActive }) =>
-                          cx('sidebar__link', isActive && 'active')
-                        }
-                      >
-                        {({ isActive }) => (
-                          <>
-                            <Icon aria-hidden="true" />
-                            {!collapsed && <span className="truncate">{item.label}</span>}
-                            {isActive && !collapsed && (
-                              <span className="sidebar__dot" aria-hidden="true" />
-                            )}
-                          </>
-                        )}
-                      </NavLink>
-                    </TooltipTrigger>
-                    {collapsed && (
-                      <TooltipContent side="right">{item.label}</TooltipContent>
-                    )}
-                  </Tooltip>
-                </Can>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <NavLink
+                      to={item.to}
+                      end={item.end}
+                      className={({ isActive }) =>
+                        cx('sidebar__link', isActive && 'active')
+                      }
+                    >
+                      {({ isActive }) => (
+                        <>
+                          <Icon aria-hidden="true" />
+                          {!collapsed && <span className="truncate">{item.label}</span>}
+                          {isActive && !collapsed && (
+                            <span className="sidebar__dot" aria-hidden="true" />
+                          )}
+                        </>
+                      )}
+                    </NavLink>
+                  </TooltipTrigger>
+                  {collapsed && (
+                    <TooltipContent side="right">{item.label}</TooltipContent>
+                  )}
+                </Tooltip>
               </li>
             );
           })}
@@ -74,10 +68,10 @@ export function Sidebar() {
           className={cx('sidebar__toggle', !collapsed && 'btn--justify-start')}
         >
           {collapsed ? (
-            <Icons.Direction.ChevronsRight />
+            <ChevronsRight />
           ) : (
             <>
-              <Icons.Direction.ChevronsLeft />
+              <ChevronsLeft />
               <span>Colapsar</span>
             </>
           )}

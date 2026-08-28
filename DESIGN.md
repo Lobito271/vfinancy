@@ -491,7 +491,7 @@ The signature is **functional radius**: controls are subtly rounded (6px), big s
 ### Navigation
 
 **`sidebar`** — Primary navigation rail
-- Card token fill with right border hairline; collapses 256px → 64px with a 200ms width transition and a ghost toggle button at the foot. Brand wordmark link in a 56px header. Nav rows: `{typography.table}` `{colors.muted-foreground}`, 6px radius, 12px/8px padding; active row = accent wash, accent-foreground text, medium weight, with a 6px primary dot at the rail end; hover = accent wash at 50%. Items without the user's `*.view` permission are hidden via `<Can>`. Collapsed rows show a right-side Radix tooltip on hover.
+- Card token fill with right border hairline; collapses 256px → 64px with a 200ms width transition and a ghost toggle button at the foot. Brand wordmark link in a 56px header. Nav rows: `{typography.table}` `{colors.muted-foreground}`, 6px radius, 12px/8px padding; active row = accent wash, accent-foreground text, medium weight, with a 6px primary dot at the rail end; hover = accent wash at 50%. Collapsed rows show a right-side Radix tooltip on hover.
 
 **`topbar`** — Global command strip
 - Sticky 56px translucent background wash with bottom hairline; 16px horizontal padding. Left: `SearchInput` (global search, max-width 36rem). Right: theme dropdown (light/dark/system with radio items), notification bell (badge counter, 20rem dropdown), a 1px vertical divider, and the user menu — 28px round initials avatar + name/company + logout in destructive color. `z-30`.
@@ -598,5 +598,4 @@ Sizes: `sm` 32px · `md` 40px · `lg` 44px · `icon` 40×40 · `icon-sm` 32×32 
 - Don't use badges as solid color blocks that compete with buttons; the 15% tints are the badge voice.
 - Don't add utility-style class names (`bg-*`, `text-sm`, `p-4`, `flex items-center gap-2`) — use the semantic component classes and layout helpers (`.stack`, `.hstack`, `.grid-N`); one-off values go in `style={{...}}`.
 - Don't soften the system into uniformly rounded cards; radius is functional (controls 6px, surfaces 8px, pills only for badges/avatars/toggles).
-- Don't hide permission-lacking buttons — **disable them**; the sidebar hides items without `*.view`, but in-page actions stay visible-but-disabled.
 - Don't render emojis or non-localized strings; all UI text goes through `t('key')` (es-PE) and icons come from `@/design-system/icons`, never imported ad-hoc from `lucide-react`.

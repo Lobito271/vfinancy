@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
 export interface Column<T> {
   id: string;
@@ -66,8 +66,4 @@ export function getCellAlign(align: CellAlign | undefined): string {
 export function resolveWidth(width: number | string | undefined): string | undefined {
   if (width === undefined) return undefined;
   return typeof width === 'number' ? `${width}px` : width;
-}
-
-export function defaultStickyStyle(side: 'left' | 'right', offset: number): CSSProperties {
-  return { position: 'sticky', [side]: offset, zIndex: 1 };
 }

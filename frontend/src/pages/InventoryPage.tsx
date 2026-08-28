@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Boxes } from 'lucide-react';
+import { Boxes, Pencil, Trash2, Plus } from 'lucide-react';
 import { PageContainer, PageHeader, Grid } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
@@ -7,10 +7,6 @@ import { Badge } from '@/components/badge';
 import { EmptyState } from '@/components/feedback';
 import { Button } from '@/components/button';
 import { ConfirmDialog } from '@/components/dialog';
-import { Can } from '@/components/auth';
-import { Icons } from '@/design-system/icons';
-import { Permissions } from '@/constants/permissions';
-import { usePermission } from '@/hooks/usePermission';
 import { useInventory, useVoidStock } from '@/features/inventory/hooks/useInventory';
 import { InventoryReceiveDialog } from '@/features/inventory/components/InventoryReceiveDialog';
 import { InventoryAdjustDialog } from '@/features/inventory/components/InventoryAdjustDialog';
@@ -96,9 +92,6 @@ export function InventoryPage() {
   const [adjustTarget, setAdjustTarget] = useState<InventoryItem | null>(null);
   const [voidTarget, setVoidTarget] = useState<InventoryItem | null>(null);
 
-  const canEdit = usePermission(Permissions.Inventory.Edit);
-  const canDelete = usePermission(Permissions.Inventory.Delete);
-
   const items = data ?? [];
   const live = items.filter((i) => i.status !== 'voided');
   const totalUnits = live.reduce((s, i) => s + i.quantity, 0);
@@ -106,42 +99,39 @@ export function InventoryPage() {
   const clearance = items.filter((i) => i.isClearance).length;
   const expiringSoon = live.filter((i) => i.daysRemaining >= 0 && i.daysRemaining < 5).length;
 
-  const tableColumns = useMemo<Column<InventoryItem>[]>(() => {
-    if (!canEdit && !canDelete) return columns;
-    return [
-      ...columns,
-      {
-        id: 'actions',
-        header: '',
-        width: 88,
-        exportable: false,
-        cell: (row) => (
-          <div className="row-actions">
-            {canEdit && row.status !== 'voided' && (
+  const tableColumns = useMemo<Column<InventoryItem>[]>(() => [
+    ...columns,
+    {
+      id: 'actions',
+      header: '',
+      width: 88,
+      exportable: false,
+      cell: (row) => (
+        <div className="row-actions">
+          {row.status !== 'voided' && (
+            <>
               <Button
                 variant="ghost"
                 size="icon-sm"
                 aria-label={`Ajustar ${row.productDescription}`}
                 onClick={() => setAdjustTarget(row)}
               >
-                <Icons.Action.Edit />
+                <Pencil />
               </Button>
-            )}
-            {canDelete && row.status !== 'voided' && (
               <Button
                 variant="ghost"
                 size="icon-sm"
                 aria-label={`Anular ${row.productDescription}`}
                 onClick={() => setVoidTarget(row)}
               >
-                <Icons.Action.Delete />
+                <Trash2 />
               </Button>
-            )}
-          </div>
-        ),
-      },
-    ];
-  }, [canEdit, canDelete]);
+            </>
+          )}
+        </div>
+      ),
+    },
+  ], []);
 
   return (
     <PageContainer>
@@ -149,11 +139,9 @@ export function InventoryPage() {
         title="Inventario"
         subtitle="Lotes, existencias y control de remate"
         actions={
-          <Can permission={Permissions.Inventory.Create}>
-            <Button onClick={() => setReceiveOpen(true)}>
-              <Icons.Action.Create /> Nuevo ingreso
-            </Button>
-          </Can>
+          <Button onClick={() => setReceiveOpen(true)}>
+            <Plus /> Nuevo ingreso
+          </Button>
         }
       />
 

@@ -6,6 +6,7 @@ import { DataTable, type Column } from '@/components/table';
 import { Badge } from '@/components/badge';
 import { EmptyState } from '@/components/feedback';
 import { Button } from '@/components/button';
+import { Label } from '@/components/input';
 import { CancelDialog, RegisterPaymentDialog, type RegisterPaymentInput } from '@/components/dialog';
 import { useDebounce } from '@/utils/debounce';
 import {
@@ -205,9 +206,11 @@ export function PurchasesPage() {
       </Grid>
 
       <div className="flex items-center gap-2">
+        <Label htmlFor="purchases-search">Buscar</Label>
         <input
           type="text"
-          placeholder="Buscar por número o orden del proveedor…"
+          id="purchases-search"
+          placeholder="Número u orden del proveedor…"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
           className="h-9 w-full max-w-sm rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"

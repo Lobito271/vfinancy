@@ -33,7 +33,7 @@ import {
   resolveWidth,
 } from './types';
 
-export interface DataTableProps<T> {
+interface DataTableProps<T> {
   columns: Column<T>[];
   data: T[];
   keyField: keyof T;

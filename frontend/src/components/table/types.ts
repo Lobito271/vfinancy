@@ -19,14 +19,14 @@ export interface Column<T> {
   exportable?: boolean;
 }
 
-export type SortDirection = 'asc' | 'desc';
+type SortDirection = 'asc' | 'desc';
 
 export interface SortState {
   id: string;
   direction: SortDirection;
 }
 
-export interface FilterState {
+interface FilterState {
   id: string;
   value: unknown;
 }
@@ -55,7 +55,7 @@ export const DataTableDefaults = {
   stickyFirstColumn: true,
 };
 
-export type CellAlign = NonNullable<Column<unknown>['align']>;
+type CellAlign = NonNullable<Column<unknown>['align']>;
 
 export function getCellAlign(align: CellAlign | undefined): string {
   if (align === 'right') return 'ta-right';

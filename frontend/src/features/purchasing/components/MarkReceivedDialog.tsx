@@ -10,7 +10,7 @@ const ReceivedSchema = z.object({
 
 type ReceivedValues = z.infer<typeof ReceivedSchema>;
 
-export interface MarkReceivedInput {
+interface MarkReceivedInput {
   arrivalDate: string;
 }
 

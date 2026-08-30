@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { purchasingService, type CustomerOrderCreateInput, type PurchaseCreateInput } from '@/services/purchasing';
 import { queryKeys } from '@/services/queryKeys';
 
-export interface MarkPaidInput {
+interface MarkPaidInput {
   paymentDate: string;
   method: string;
   creditCardId: string;

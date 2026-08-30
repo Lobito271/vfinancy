@@ -2,7 +2,7 @@ import type { Sale, SaleStatus } from '@/types/domain';
 import type { SaleDTO } from '../wails-types';
 import { wailsClient } from '../bindings';
 
-export interface SaleLineInput {
+interface SaleLineInput {
   productId: string;
   quantity: number;
   unitPrice: number;

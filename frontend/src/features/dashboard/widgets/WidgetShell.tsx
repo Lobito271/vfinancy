@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Spinner } from '@/components/feedback';
 import { cx } from '@/utils/cx';
 
-export interface WidgetShellProps {
+interface WidgetShellProps {
   title: string;
   description?: string;
   loading?: boolean;

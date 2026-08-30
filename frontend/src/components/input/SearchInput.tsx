@@ -4,7 +4,7 @@ import { cx } from '@/utils/cx';
 import { Input } from './Input';
 import { Button } from '@/components/button';
 
-export interface SearchInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'> {
+interface SearchInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'> {
   onClear?: () => void;
 }
 

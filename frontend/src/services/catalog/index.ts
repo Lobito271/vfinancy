@@ -1,7 +1,7 @@
 import type { BrandDTO, CategoryDTO, CreateBrandRequest, CreateCategoryRequest, UnitDTO, UpdateBrandRequest, UpdateCategoryRequest } from '../wails-types';
 import { wailsClient } from '../bindings';
 
-export interface SelectOptionLike {
+interface SelectOptionLike {
   value: string;
   label: string;
 }

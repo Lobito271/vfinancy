@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { cx } from '@/utils/cx';
 
-export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   invalid?: boolean;
 }
 

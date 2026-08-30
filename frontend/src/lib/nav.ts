@@ -1,7 +1,7 @@
 import { LayoutDashboard, Users, Truck, Package, Warehouse, ShoppingCart, ShoppingBag, Receipt, Landmark, Settings, Tags } from 'lucide-react';
 import { Routes } from '@/constants/routes';
 
-export interface NavRoute {
+interface NavRoute {
   to: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;

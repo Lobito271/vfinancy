@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/button';
 import { Label, Textarea } from '@/components/input';
 
-export interface CancelDialogProps {
+interface CancelDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title?: string;

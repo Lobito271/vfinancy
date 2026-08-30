@@ -643,19 +643,6 @@ table {
   height: 1rem;
 }
 
-.select-label {
-  padding: 0.375rem 0.5rem 0.375rem 2rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-}
-
-.select-separator {
-  margin-inline: -0.25rem;
-  margin-block: 0.25rem;
-  height: 1px;
-  background-color: hsl(var(--muted));
-}
-
 .select-empty {
   padding: 0.5rem;
   text-align: center;
@@ -688,7 +675,7 @@ table {
 }
 
 /* ============================================================
-   Checkbox / RadioGroup / Switch (Radix)
+   Checkbox (Radix)
    ============================================================ */
 
 .checkbox {
@@ -719,82 +706,6 @@ table {
 .checkbox-indicator svg {
   width: 0.875rem;
   height: 0.875rem;
-}
-
-.radio-group {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.radio-item {
-  aspect-ratio: 1 / 1;
-  height: 1rem;
-  width: 1rem;
-  border-radius: 9999px;
-  border: 1px solid hsl(var(--primary));
-  color: hsl(var(--primary));
-  box-shadow: var(--shadow-sm);
-  outline: none;
-}
-.radio-item:focus-visible {
-  box-shadow: var(--focus-ring-tight);
-}
-.radio-item:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-.radio-item-indicator {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.radio-item-indicator svg {
-  width: 0.5rem;
-  height: 0.5rem;
-  fill: currentColor;
-}
-
-.switch {
-  display: inline-flex;
-  height: 1.25rem;
-  width: 2.25rem;
-  flex-shrink: 0;
-  align-items: center;
-  border-radius: 9999px;
-  border: 2px solid transparent;
-  box-shadow: var(--shadow-sm);
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-  outline: none;
-}
-.switch:focus-visible {
-  box-shadow: var(--focus-ring-tight);
-}
-.switch:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-}
-.switch[data-state='checked'] {
-  background-color: hsl(var(--primary));
-}
-.switch[data-state='unchecked'] {
-  background-color: hsl(var(--input));
-}
-.switch__thumb {
-  display: block;
-  height: 1rem;
-  width: 1rem;
-  border-radius: 9999px;
-  background-color: hsl(var(--background));
-  box-shadow: var(--shadow-lg);
-  pointer-events: none;
-  transition: transform 0.15s ease;
-}
-.switch[data-state='checked'] .switch__thumb {
-  transform: translateX(1rem);
-}
-.switch[data-state='unchecked'] .switch__thumb {
-  transform: translateX(0);
 }
 
 /* ============================================================
@@ -930,12 +841,6 @@ table {
   flex-shrink: 0;
   border-radius: 9999px;
   background-color: hsl(var(--primary));
-}
-
-.card-footer {
-  display: flex;
-  align-items: center;
-  padding: 0 1.5rem 1.5rem;
 }
 
 .card-header--row {
@@ -1331,22 +1236,9 @@ table {
   --vf-enter-y: 0.5rem;
 }
 
-.menu-sub-content {
-  z-index: 50;
-  min-width: 8rem;
-  overflow: hidden;
-  border-radius: var(--radius-sm);
-  border: 1px solid hsl(var(--border));
-  background-color: hsl(var(--popover));
-  padding: 0.25rem;
-  color: hsl(var(--popover-foreground));
-  box-shadow: var(--shadow-lg);
-}
-
 .menu-item,
 .menu-checkbox-item,
-.menu-radio-item,
-.menu-sub-trigger {
+.menu-radio-item {
   position: relative;
   display: flex;
   align-items: center;
@@ -1359,23 +1251,19 @@ table {
   outline: none;
   transition: color 0.15s ease, background-color 0.15s ease;
 }
-.menu-item,
-.menu-sub-trigger {
+.menu-item {
   gap: 0.5rem;
 }
 .menu-item svg,
 .menu-checkbox-item svg,
-.menu-radio-item svg,
-.menu-sub-trigger svg {
+.menu-radio-item svg {
   width: 1rem;
   height: 1rem;
   flex-shrink: 0;
 }
 .menu-item:focus,
 .menu-checkbox-item:focus,
-.menu-radio-item:focus,
-.menu-sub-trigger:focus,
-.menu-sub-trigger[data-state='open'] {
+.menu-radio-item:focus {
   background-color: hsl(var(--accent));
   color: hsl(var(--accent-foreground));
 }
@@ -1426,19 +1314,8 @@ table {
   background-color: hsl(var(--muted));
 }
 
-.menu-shortcut {
-  margin-left: auto;
-  font-size: 0.75rem;
-  letter-spacing: 0.1em;
-  color: hsl(var(--muted-foreground));
-}
-
 .menu-item-icon {
   margin-right: 0.5rem;
-}
-
-.menu-sub-chevron {
-  margin-left: auto;
 }
 
 /* ============================================================
@@ -1470,23 +1347,6 @@ table {
 }
 .tooltip-content[data-side='top'] {
   --vf-enter-y: 0.5rem;
-}
-
-/* ============================================================
-   Separator (Radix)
-   ============================================================ */
-
-.separator {
-  flex-shrink: 0;
-  background-color: hsl(var(--border));
-}
-.separator[data-orientation='horizontal'] {
-  height: 1px;
-  width: 100%;
-}
-.separator[data-orientation='vertical'] {
-  height: 100%;
-  width: 1px;
 }
 
 /* ============================================================

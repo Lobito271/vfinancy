@@ -3,7 +3,7 @@ import { Slot } from '@radix-ui/react-slot';
 import { Loader2 } from 'lucide-react';
 import { cx } from '@/utils/cx';
 
-export type ButtonVariant =
+type ButtonVariant =
   | 'primary'
   | 'secondary'
   | 'outline'
@@ -12,9 +12,9 @@ export type ButtonVariant =
   | 'destructive'
   | 'success';
 
-export type ButtonSize = 'sm' | 'md' | 'lg' | 'icon' | 'icon-sm';
+type ButtonSize = 'sm' | 'md' | 'lg' | 'icon' | 'icon-sm';
 
-export interface ButtonProps
+interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;

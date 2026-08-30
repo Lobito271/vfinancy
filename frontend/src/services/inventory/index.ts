@@ -5,7 +5,7 @@ import { wailsClient } from '../bindings';
 import { productsService } from '../products';
 import { daysBetween } from '@/utils/format';
 
-export interface InventoryMovement {
+interface InventoryMovement {
   id: string;
   date: string;
   type: InventoryMovementTypeCode;

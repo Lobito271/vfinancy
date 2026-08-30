@@ -4,7 +4,7 @@ import { wailsClient } from '../bindings';
 import { customersService } from '../customers';
 import { suppliersService } from '../suppliers';
 
-export interface PurchaseLineInput {
+interface PurchaseLineInput {
   productId: string;
   quantity: number;
   unitPrice: number;

@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 export type ToastVariant = 'success' | 'info' | 'warning' | 'destructive';
 
-export interface Toast {
+interface Toast {
   id: string;
   title: string;
   description?: string;

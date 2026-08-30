@@ -8,9 +8,5 @@ export {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuCheckboxItem,
-  DropdownMenuShortcut,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
 } from './DropdownMenu';
-export { Separator } from './Separator';
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './Tooltip';

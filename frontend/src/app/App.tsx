@@ -73,5 +73,3 @@ export function App() {
     </Providers>
   );
 }
-
-export default App;

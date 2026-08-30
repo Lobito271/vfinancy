@@ -99,8 +99,8 @@ backend/
       <feature>/postgres/# concrete repository implementations
       sync/              # replication engine: device registry, cursors, LWW conflicts, tombstones
   migrations/
-    sqlite/              # SQLite migration pairs (0000_xxx.up.sql / .down.sql) — local runtime DB
-    postgres/            # PostgreSQL pairs — cloud mirror (moved via git mv)
+    sqlite/              # SQLite schema migrations (up.sql only) — local runtime DB
+    postgres/            # PostgreSQL mirror (same version set/order as sqlite)
   pkg/                   # reusable packages
 ```
 
@@ -239,10 +239,10 @@ Cada carpeta tiene su `index.ts` barrel — importar de `@/components/<categorí
 
 ## Migrations
 
-- Files live in `backend/migrations/` under two dialect directories: `sqlite/` (the local runtime DB) and `postgres/` (the cloud mirror). Both contain the same versions; keep every pair in sync.
-- Filenames follow the pattern `0001_create_users.up.sql` / `0001_create_users.down.sql`.
-- Each pair is a version. Runner records applied versions in `schema_migrations(version, name, applied_at)`.
-- Filename must be `VERSION_NAME.up.sql` or `VERSION_NAME.down.sql` (single underscore between version and name; name may contain underscores but no dots).
+- Files live in `backend/migrations/` under two dialect directories: `sqlite/` (the local runtime DB) and `postgres/` (the cloud mirror). Both contain the same versions in the same creation order; keep them in sync.
+- Only `.up.sql` exists today: this is a pre-release app with no production data, so rollback scripts were intentionally dropped and the runner exposes no rollback command (the `cli` has only `migrate` and `status`).
+- Filename must be `VERSION_name.up.sql` (single underscore between version and name; name may contain underscores but no dots). The initial schema is written in FK-safe creation order (companies/branches first, then reference data, then purchasing → inventory → sales). FKs must never reference a table created later in the file: PostgreSQL rejects forward references at CREATE time, while SQLite silently tolerates them.
+- Each file is a version. Runner records applied versions in `schema_migrations(version, name, applied_at)`.
 - Apply with `go run ./backend/cmd/cli migrate` (default: local SQLite; add `--postgres` for the cloud). Status with `go run ./backend/cmd/cli status`.
 - The Wails app also auto-runs pending migrations on `OnStartup`.
 - SQLite dialect notes: `gen_random_uuid()` → `lower(hex(randomblob(16)))`, `NOW()` → `(CAST(unixepoch('subsec') * 1000 AS INTEGER))`, `TIMESTAMPTZ`/`JSONB`/`TEXT[]`/`INET` → `TIMESTAMP`/`TEXT`/`TEXT`/`TEXT`. Timestamps are INTEGER ms; `ALTER TABLE ADD CONSTRAINT` is a no-op (FKs are declared inline in `CREATE TABLE`). SQLite requires all columns before table-level `CONSTRAINT`s, and triggers cannot be `BEFORE UPDATE OR DELETE`.
@@ -250,7 +250,7 @@ Cada carpeta tiene su `index.ts` barrel — importar de `@/components/<categorí
 ## Sync architecture
 
 - **Local SQLite is the runtime DB.** The background worker in `interfaces/bindings/app.go` (`startSyncWorker`, gated on `SYNC_ENABLED`) pushes/pulls changes to the self-hosted sync server (`backend/cmd/syncserver`, cloud PostgreSQL mirror).
-- **Model:** watermark-diff replication with last-writer-wins. Rows travel as "all rows whose time column > per-table cursor" in both directions; hard deletes are captured by the `AFTER DELETE` triggers in `migrations/sqlite/0020` into `sync_tombstones`. The postgres 0020 has no triggers — the server records tombstones explicitly. There are no INSERT/UPDATE triggers (no outbox echo).
+- **Model:** watermark-diff replication with last-writer-wins. Rows travel as "all rows whose time column > per-table cursor" in both directions; hard deletes are captured by the `AFTER DELETE` triggers in `migrations/sqlite/0000_initial_schema` into `sync_tombstones`. The postgres 0000 has no triggers — the server records tombstones explicitly. There are no INSERT/UPDATE triggers (no outbox echo).
 - The generic engine lives in `internal/features/sync` (entities, registry of 13 replicated tables, `Repository` interface, `HTTPClient`) and `internal/features/sync/postgres` (dialect-safe implementation). `internal/features/sync/server.go` is the server-side handler.
 - Replicated tables are the master-data/auth set: `companies`, `branches`, `roles`, `users`, `user_roles`, `user_profiles`, `user_sessions`, `application_settings`, `taxes`, `currencies`, `countries`. `audit_logs`, `audit_events`, `login_history`, `exchange_rates` are intentionally excluded.
 - Config: `SYNC_ENABLED=true`, `SYNC_SERVER_URL`, `SYNC_API_KEY`, `SYNC_POLL_INTERVAL_SEC=30`.

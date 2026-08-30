@@ -153,9 +153,11 @@ export function DataTable<T>({
     return map;
   }, [columns]);
 
+  const visibleColumnsSet = useMemo(() => new Set(state.visibleColumns), [state.visibleColumns]);
+
   const visibleColumns = useMemo(
-    () => columns.filter((c) => state.visibleColumns.includes(c.id)),
-    [columns, state.visibleColumns],
+    () => columns.filter((c) => visibleColumnsSet.has(c.id)),
+    [columns, visibleColumnsSet],
   );
 
   const filteredData = useMemo(() => {
@@ -207,11 +209,13 @@ export function DataTable<T>({
 
   const toggleAll = useCallback(() => {
     const ids = pageRows.map((r) => String(r[keyField]));
+    const idsSet = new Set(ids);
     const next = allSelected
-      ? state.selected.filter((id) => !ids.includes(id))
+      ? state.selected.filter((id) => !idsSet.has(id))
       : Array.from(new Set([...state.selected, ...ids]));
     update({ selected: next });
-    onSelectionChange?.(pageRows.filter((r) => next.includes(String(r[keyField]))));
+    const nextSet = new Set(next);
+    onSelectionChange?.(pageRows.filter((r) => nextSet.has(String(r[keyField]))));
   }, [pageRows, keyField, allSelected, state.selected, update, onSelectionChange]);
 
   const toggleRow = useCallback(
@@ -221,7 +225,8 @@ export function DataTable<T>({
         ? state.selected.filter((x) => x !== id)
         : [...state.selected, id];
       update({ selected: next });
-      onSelectionChange?.(pageRows.filter((r) => next.includes(String(r[keyField]))));
+      const nextSet = new Set(next);
+      onSelectionChange?.(pageRows.filter((r) => nextSet.has(String(r[keyField]))));
     },
     [keyField, state.selected, update, pageRows, onSelectionChange],
   );
@@ -398,7 +403,15 @@ function DataTableHeader<T>({
                 sticky && 'sticky-cell',
                 col.headerClassName,
               )}
+              tabIndex={col.sortable ? 0 : undefined}
+              role={col.sortable ? 'button' : undefined}
               onClick={() => col.sortable && handleSort(col.id)}
+              onKeyDown={(e) => {
+                if (col.sortable && (e.key === 'Enter' || e.key === ' ')) {
+                  e.preventDefault();
+                  handleSort(col.id);
+                }
+              }}
             >
               <span className="th-head">
                 {col.header}
@@ -477,6 +490,14 @@ function DataTableBody<T>({
           <tr
             key={id}
             onClick={onRowClick ? () => onRowClick(row) : undefined}
+            onKeyDown={onRowClick ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onRowClick(row);
+              }
+            } : undefined}
+            tabIndex={onRowClick ? 0 : undefined}
+            role={onRowClick ? 'button' : undefined}
             className={cx(
               onRowClick && 'clickable',
               isSelected && 'selected',
@@ -524,6 +545,7 @@ function ColumnVisibilityMenu<T>({
   visible: string[];
   onChange: (v: string[]) => void;
 }) {
+  const visibleSet = new Set(visible);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -537,7 +559,7 @@ function ColumnVisibilityMenu<T>({
         {columns.map((col) => (
           <DropdownMenuCheckboxItem
             key={col.id}
-            checked={visible.includes(col.id)}
+            checked={visibleSet.has(col.id)}
             onCheckedChange={(checked) => {
               const next = checked ? Array.from(new Set([...visible, col.id])) : visible.filter((id) => id !== col.id);
               onChange(next);

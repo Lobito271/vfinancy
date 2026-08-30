@@ -24,6 +24,8 @@ import (
 	"vfinancy/backend/internal/features/customerpayments"
 	"vfinancy/backend/internal/features/inventory"
 	inventorypostgres "vfinancy/backend/internal/features/inventory/postgres"
+	"vfinancy/backend/internal/features/notifications"
+	notificationspostgres "vfinancy/backend/internal/features/notifications/postgres"
 	"vfinancy/backend/internal/features/product"
 	productpostgres "vfinancy/backend/internal/features/product/postgres"
 	"vfinancy/backend/internal/features/purchasing"
@@ -61,10 +63,12 @@ type App struct {
 	customersSvc       *customer.CustomerService
 	productsSvc        *product.ProductService
 	suppliersSvc       *supplier.SupplierService
+	notificationsSvc   *notifications.NotificationsService
 	accountsReceivable sales.AccountsReceivableRepository
 	accountsPayable    purchasing.AccountsPayableRepository
 
-	syncCancel context.CancelFunc
+	syncCancel          context.CancelFunc
+	notificationsCancel context.CancelFunc
 }
 
 func New(cfg *config.Config, log *logger.Logger, migrationsFS fs.FS) *App {
@@ -78,6 +82,9 @@ func (a *App) Startup(ctx context.Context) {
 func (a *App) Shutdown(ctx context.Context) {
 	if a.syncCancel != nil {
 		a.syncCancel()
+	}
+	if a.notificationsCancel != nil {
+		a.notificationsCancel()
 	}
 	if a.db != nil {
 		_ = a.db.Close()
@@ -169,13 +176,14 @@ func (a *App) Init() error {
 
 	a.treasurySvc = treasury.New(bankAccounts, creditCards, bankTransactions, exchangeRates, txm, a.log)
 	a.inventorySvc = inventory.New(batches, movements, warehouseResolver, productClassifier, txm, a.log)
-	a.inventorySvc.SetClearanceSettings(func(ctx context.Context, companyID uuid.UUID) (int, int) {
+	clearanceSettings := func(ctx context.Context, companyID uuid.UUID) (int, int) {
 		prefs, err := a.settingsSvc.GetPreferences(ctx, companyID)
 		if err != nil {
 			return inventory.ClearanceDays, 3
 		}
 		return prefs.ClearanceDays, prefs.ClearanceWarningDays
-	})
+	}
+	a.inventorySvc.SetClearanceSettings(clearanceSettings)
 	a.salesSvc = sales.New(orders, customers, a.inventorySvc, productClassifier, txm, a.log)
 	a.paymentSvc = customerpayments.New(payments, advances, orders, customers, txm, a.log)
 	a.accountingSvc = accounting.New(journalEntries, chartOfAccounts, ledger, fiscalPeriods, txm, a.log)
@@ -184,7 +192,26 @@ func (a *App) Init() error {
 	a.productsSvc = product.New(products, txm, a.log)
 	a.suppliersSvc = supplier.New(suppliers, txm, a.log)
 
+	a.notificationsSvc = notifications.New(
+		notificationspostgres.NewNotificationRepository(db.DB),
+		a.log,
+	)
+	a.notificationsSvc.SetClearanceSource(a.inventorySvc)
+	a.notificationsSvc.SetClearanceDays(func(ctx context.Context, companyID uuid.UUID) int {
+		days, _ := clearanceSettings(ctx, companyID)
+		return days
+	})
+	a.notificationsSvc.SetProductInfo(func(ctx context.Context, productID uuid.UUID) (string, string, error) {
+		p, err := a.productsSvc.GetByID(ctx, productID)
+		if err != nil {
+			return "", "", err
+		}
+		return p.Description, p.SKU.String(), nil
+	})
+	a.notificationsSvc.SetActiveCompany(a.companyID)
+
 	a.startSyncWorker(ctx)
+	a.startNotificationsWorker(ctx)
 
 	a.log.Info("bindings initialized")
 	return nil
@@ -240,5 +267,48 @@ func (a *App) startSyncWorker(ctx context.Context) {
 	a.log.Info("sync worker started",
 		"server", a.cfg.Sync.ServerURL,
 		"interval", a.cfg.Sync.PollInterval.String(),
+	)
+}
+
+// startNotificationsWorker runs the clearance scan on a background
+// ticker and feeds the device-local notification bell. It is
+// best-effort: failures are logged and retried on the next tick so the
+// app keeps working offline.
+func (a *App) startNotificationsWorker(ctx context.Context) {
+	if !a.cfg.Notifications.Enabled {
+		return
+	}
+	wctx, cancel := context.WithCancel(ctx)
+	a.notificationsCancel = cancel
+	go func() {
+		run := func() {
+			if a.workspaceSvc == nil || !a.workspaceSvc.IsUnlocked() {
+				return
+			}
+			companyID := a.companyID()
+			if companyID == uuid.Nil {
+				return
+			}
+			if _, err := a.inventorySvc.RefreshClearanceFlags(wctx, companyID, time.Now().UTC()); err != nil {
+				a.log.Warn("notifications: refresh clearance flags failed", "error", err.Error())
+			}
+			if _, err := a.notificationsSvc.Generate(wctx); err != nil {
+				a.log.Warn("notifications: generate failed", "error", err.Error())
+			}
+		}
+		run()
+		ticker := time.NewTicker(a.cfg.Notifications.PollInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-wctx.Done():
+				return
+			case <-ticker.C:
+				run()
+			}
+		}
+	}()
+	a.log.Info("notifications worker started",
+		"interval", a.cfg.Notifications.PollInterval.String(),
 	)
 }

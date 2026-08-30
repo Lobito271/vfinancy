@@ -10,10 +10,11 @@ import (
 )
 
 type Config struct {
-	App      AppConfig
-	Database DatabaseConfig
-	Logger   LoggerConfig
-	Sync     SyncConfig
+	App           AppConfig
+	Database      DatabaseConfig
+	Logger        LoggerConfig
+	Sync          SyncConfig
+	Notifications NotificationsConfig
 }
 
 type AppConfig struct {
@@ -61,6 +62,14 @@ type SyncConfig struct {
 	PollInterval time.Duration
 }
 
+// NotificationsConfig configures the background worker that scans the
+// inventory for clearance batches and feeds the device-local
+// notification bell.
+type NotificationsConfig struct {
+	Enabled      bool
+	PollInterval time.Duration
+}
+
 func Load() (*Config, error) {
 	godotenv.Load() // ponytail: .env optional; explicit env vars win
 	cfg := &Config{
@@ -97,6 +106,10 @@ func Load() (*Config, error) {
 			ServerURL:    getEnv("SYNC_SERVER_URL", ""),
 			APIKey:       getEnv("SYNC_API_KEY", ""),
 			PollInterval: time.Duration(getEnvInt("SYNC_POLL_INTERVAL_SEC", 30)) * time.Second,
+		},
+		Notifications: NotificationsConfig{
+			Enabled:      getEnvBool("NOTIFICATIONS_ENABLED", true),
+			PollInterval: time.Duration(getEnvInt("NOTIFICATIONS_POLL_INTERVAL_SEC", 60)) * time.Second,
 		},
 	}
 

@@ -223,6 +223,18 @@ func (r *inventoryBatchRepository) ListClearance(ctx context.Context, companyID 
 	return out, nil
 }
 
+func (r *inventoryBatchRepository) SetClearanceDate(ctx context.Context, id uuid.UUID, clearanceDate valueobjects.Date) (int, error) {
+	const q = `UPDATE inventory_batches
+		SET is_clearance = TRUE, clearance_date = $1, updated_at = $2
+		WHERE id = $3 AND is_clearance = FALSE`
+	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q, clearanceDate, time.Now().UTC(), id)
+	if err != nil {
+		return 0, persistence.Translate(err)
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
 func scanBatch(row *sql.Row) (*inventory.InventoryBatch, error) {
 	b := &inventory.InventoryBatch{}
 	var (

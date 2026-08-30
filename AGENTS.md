@@ -104,7 +104,7 @@ backend/
   pkg/                   # reusable packages
 ```
 
-Each feature (`auth`, `administration`, `customer`, `supplier`, `product`, `inventory`, `purchasing`, `sales`, `treasury`, `accounting`, `customerpayments`, `reporting`) is a **vertical slice**: it owns its entity definitions, its repository interface, and its business service. When an operation spans multiple features, the owning feature's service composes the other features' services/repositories inside a single transaction (e.g. `sales.SalesService.Create` records the sale AND the customer debt; `auth.AuthenticationService.Login` authenticates, creates the session and records the audit event). Concrete SQL lives only in the feature's `postgres/` subpackage.
+Each feature (`auth`, `administration`, `customer`, `supplier`, `product`, `inventory`, `purchasing`, `sales`, `treasury`, `accounting`, `customerpayments`, `reporting`, `notifications`) is a **vertical slice**: it owns its entity definitions, its repository interface, and its business service. When an operation spans multiple features, the owning feature's service composes the other features' services/repositories inside a single transaction (e.g. `sales.SalesService.Create` records the sale AND the customer debt; `auth.AuthenticationService.Login` authenticates, creates the session and records the audit event). Concrete SQL lives only in the feature's `postgres/` subpackage.
 
 The root `main.go` and `app.go` are the Wails entrypoint. `app.go` initializes config + logger, ensures the database exists, opens a connection, and runs pending migrations on startup. It binds two structs: the root `App` (config accessors for the frontend) and `bindings.App` (Wails-exposed methods).
 
@@ -254,6 +254,13 @@ Cada carpeta tiene su `index.ts` barrel — importar de `@/components/<categorí
 - The generic engine lives in `internal/features/sync` (entities, registry of 13 replicated tables, `Repository` interface, `HTTPClient`) and `internal/features/sync/postgres` (dialect-safe implementation). `internal/features/sync/server.go` is the server-side handler.
 - Replicated tables are the master-data/auth set: `companies`, `branches`, `roles`, `users`, `user_roles`, `user_profiles`, `user_sessions`, `application_settings`, `taxes`, `currencies`, `countries`. `audit_logs`, `audit_events`, `login_history`, `exchange_rates` are intentionally excluded.
 - Config: `SYNC_ENABLED=true`, `SYNC_SERVER_URL`, `SYNC_API_KEY`, `SYNC_POLL_INTERVAL_SEC=30`.
+
+## Notifications (device-local feed)
+
+- `internal/features/notifications` owns the in-app notification feed (`notifications` table: `type`, `title`, `message`, `record_type`, `record_id`, `dedup_key`, `read_at`, soft delete). Unread = `read_at IS NULL`; dedup via `UNIQUE (company_id, type, dedup_key)`.
+- The only generator today is **inventory clearance**: `notifications.NotificationsService.Generate` scans `InventoryService.GenerateClearanceCandidates`, inserts one notification per on-clearance batch (`dedup_key = batch id`), and soft-deletes **unread** notifications whose batch left clearance (read ones stay as history).
+- The `startNotificationsWorker` goroutine in `interfaces/bindings/app.go` (gated on `NOTIFICATIONS_ENABLED`, default `true`; interval `NOTIFICATIONS_POLL_INTERVAL_SEC`, default `60`) runs `InventoryService.RefreshClearanceFlags` (reconciles the persisted `is_clearance` column, which is otherwise only refreshed on batch writes) and then `Generate`. It skips when no company is active.
+- Delivery is **in-app only** (Topbar bell, `services/notifications`); notifications are device-local and intentionally excluded from the sync engine.
 
 ## Wails / Build Gotchas
 

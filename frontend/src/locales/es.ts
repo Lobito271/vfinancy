@@ -179,6 +179,9 @@ const es = {
     deleteSuccess: 'Registro eliminado',
     saveError: 'No se pudieron guardar los cambios',
     networkError: 'Error de conexión. Reintente.',
+    title: 'Notificaciones',
+    empty: 'Sin notificaciones',
+    markAllRead: 'Marcar todas como leídas',
   },
   validation: {
     required: 'Este campo es requerido',

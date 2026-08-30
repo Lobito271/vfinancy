@@ -38,6 +38,11 @@ export const queryKeys = {
     clearance: ['inventory', 'clearance'] as const,
     lowStock: ['inventory', 'lowStock'] as const,
   },
+  notifications: {
+    all: ['notifications'] as const,
+    list: (onlyUnread: boolean) => ['notifications', 'list', onlyUnread] as const,
+    unread: ['notifications', 'unread'] as const,
+  },
   treasury: {
     all: ['treasury'] as const,
     accounts: ['treasury', 'accounts'] as const,

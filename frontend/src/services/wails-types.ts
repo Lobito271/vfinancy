@@ -550,6 +550,22 @@ export interface WarehouseDTO {
   isActive: boolean;
 }
 
+export interface NotificationDTO {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  recordType: string;
+  recordId: string;
+  isRead: boolean;
+  readAt: string;
+  createdAt: string;
+}
+
+export interface ListNotificationsRequest extends PaginationRequest {
+  onlyUnread: boolean;
+}
+
 export interface InventoryBatchDTO {
   id: string;
   productId: string;
@@ -855,4 +871,11 @@ export interface AppBindings {
   MarkPurchaseFaulty(req: MarkPurchaseFaultyRequest): Promise<PurchaseOrderDTO>;
   MarkPurchaseReceived(req: MarkPurchaseReceivedRequest): Promise<PurchaseOrderDTO>;
   RegisterCustomerOrderPayment(req: RegisterCustomerOrderPaymentRequest): Promise<CustomerOrderPaymentDTO>;
+
+  ListNotifications(req: ListNotificationsRequest): Promise<PageResult<NotificationDTO>>;
+  UnreadNotificationCount(): Promise<number>;
+  MarkNotificationsRead(ids: string[]): Promise<void>;
+  MarkAllNotificationsRead(): Promise<void>;
+  DeleteNotification(id: string): Promise<void>;
+  GenerateClearanceNotifications(): Promise<number>;
 }

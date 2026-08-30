@@ -439,6 +439,29 @@ func (s *InventoryService) GenerateClearanceCandidates(ctx context.Context, comp
 	return out, nil
 }
 
+// RefreshClearanceFlags reconciles the persisted is_clearance column
+// with the current clearance rule. The column is normally refreshed
+// only on batch writes, so without this pass newly expired batches
+// would stay invisible to the is_clearance reads (dashboard KPI,
+// onlyClearance filter) until something writes to them again. Only
+// newly flagged batches are updated; returns how many that was.
+func (s *InventoryService) RefreshClearanceFlags(ctx context.Context, companyID uuid.UUID, at time.Time) (int, error) {
+	days, _ := s.clearancePolicy(ctx, companyID)
+	batches, err := s.GenerateClearanceCandidates(ctx, companyID, at)
+	if err != nil {
+		return 0, err
+	}
+	total := 0
+	for _, b := range batches {
+		flagged, err := s.batches.SetClearanceDate(ctx, b.ID, b.MaximumSaleDateAfter(days))
+		if err != nil {
+			return total, err
+		}
+		total += flagged
+	}
+	return total, nil
+}
+
 // NeedsClearanceSoon returns the batches within 3 days of their clearance
 // date.
 func (s *InventoryService) NeedsClearanceSoon(ctx context.Context, companyID uuid.UUID) ([]*InventoryBatch, error) {

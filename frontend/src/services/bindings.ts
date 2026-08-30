@@ -25,6 +25,7 @@ import type {
   ListCustomersRequest,
   ListInventoryBatchesRequest,
   ListInventoryMovementsRequest,
+  ListNotificationsRequest,
   ListProductsRequest,
   ListPurchaseOrdersRequest,
   ListSalesRequest,
@@ -427,5 +428,30 @@ export const wailsClient = {
   async registerCustomerOrderPayment(req: RegisterCustomerOrderPaymentRequest) {
     const b = await resolveBindings();
     return b.RegisterCustomerOrderPayment(req);
+  },
+
+  async listNotifications(req: ListNotificationsRequest) {
+    const b = await resolveBindings();
+    return b.ListNotifications(req);
+  },
+  async unreadNotificationCount() {
+    const b = await resolveBindings();
+    return b.UnreadNotificationCount();
+  },
+  async markNotificationsRead(ids: string[]) {
+    const b = await resolveBindings();
+    return b.MarkNotificationsRead(ids);
+  },
+  async markAllNotificationsRead() {
+    const b = await resolveBindings();
+    return b.MarkAllNotificationsRead();
+  },
+  async deleteNotification(id: string) {
+    const b = await resolveBindings();
+    return b.DeleteNotification(id);
+  },
+  async generateClearanceNotifications() {
+    const b = await resolveBindings();
+    return b.GenerateClearanceNotifications();
   },
 };

@@ -19,6 +19,7 @@ import type {
   CreateCategoryRequest,
   CreateBrandRequest,
   IssueStockRequest,
+  SetupWorkspaceRequest,
   ListBankTransactionsRequest,
   ListCustomerPaymentsRequest,
   ListCustomersRequest,
@@ -111,6 +112,10 @@ export const wailsClient = {
   async createCompany(req: CompanyRequest) {
     const b = await resolveBindings();
     return b.CreateCompany(req);
+  },
+  async setupWorkspace(req: SetupWorkspaceRequest) {
+    const b = await resolveBindings();
+    return b.SetupWorkspace(req);
   },
   async updateCompany(req: CompanyRequest) {
     const b = await resolveBindings();

@@ -190,6 +190,34 @@ func (a *App) CreateCompany(req CompanyRequest) (*CompanyDTO, error) {
 	return companyDTO(c), nil
 }
 
+type SetupWorkspaceRequest struct {
+	Code                 string `json:"code"`
+	LegalName            string `json:"legalName"`
+	TradeName            string `json:"tradeName"`
+	TaxID                string `json:"taxId"`
+	Address              string `json:"address"`
+	Phone                string `json:"phone"`
+	Email                string `json:"email"`
+	CountryCode          string `json:"countryCode"`
+	FunctionalCurrency   string `json:"functionalCurrency"`
+	Timezone             string `json:"timezone"`
+	FiscalYearStartMonth int    `json:"fiscalYearStartMonth"`
+	ProfileName          string `json:"profileName"`
+	Password             string `json:"password"`
+}
+
+func (a *App) SetupWorkspace(req SetupWorkspaceRequest) (*CompanyDTO, error) {
+	c := &workspace.Company{Code: req.Code, LegalName: req.LegalName,
+		TradeName: req.TradeName, TaxID: req.TaxID, Address: req.Address, Phone: req.Phone,
+		Email: req.Email, CountryCode: req.CountryCode, FunctionalCurrency: req.FunctionalCurrency,
+		Timezone: req.Timezone, FiscalYearStartMonth: req.FiscalYearStartMonth}
+	company, err := a.workspaceSvc.SetupCompany(a.rawContext(), c, req.ProfileName, req.Password)
+	if err != nil {
+		return nil, err
+	}
+	return companyDTO(company), nil
+}
+
 func (a *App) UpdateCompany(req CompanyRequest) (*CompanyDTO, error) {
 	id, err := uuid.Parse(req.ID)
 	if err != nil {

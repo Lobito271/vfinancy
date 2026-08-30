@@ -60,6 +60,22 @@ export interface UpdateLocalProfileRequest {
 
 export interface CompanyRequest extends CompanyDTO {}
 
+export interface SetupWorkspaceRequest {
+  code: string;
+  legalName: string;
+  tradeName: string;
+  taxId: string;
+  address: string;
+  phone: string;
+  email: string;
+  countryCode: string;
+  functionalCurrency: string;
+  timezone: string;
+  fiscalYearStartMonth: number;
+  profileName: string;
+  password: string;
+}
+
 export interface PreferencesDTO {
   defaultCurrency: string;
   defaultTaxCode: string;
@@ -752,6 +768,7 @@ export interface AppBindings {
   GetActiveCompany(): Promise<CompanyDTO>;
   SetActiveCompany(id: string): Promise<void>;
   CreateCompany(req: CompanyRequest): Promise<CompanyDTO>;
+  SetupWorkspace(req: SetupWorkspaceRequest): Promise<CompanyDTO>;
   UpdateCompany(req: CompanyRequest): Promise<CompanyDTO>;
 
   GetBusinessInfo(): Promise<BusinessInfoDTO>;

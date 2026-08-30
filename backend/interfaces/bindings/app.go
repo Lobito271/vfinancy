@@ -159,7 +159,7 @@ func (a *App) Init() error {
 	ledger := accountingpostgres.NewLedgerRepository(db.DB)
 	fiscalPeriods := accountingpostgres.NewFiscalPeriodRepository(db.DB)
 
-	a.workspaceSvc = workspace.NewService(workspacepostgres.NewRepository(db.DB))
+	a.workspaceSvc = workspace.NewService(workspacepostgres.NewRepository(db.DB), txm)
 	if _, err := a.workspaceSvc.Initialize(ctx); err != nil && !errors.Is(err, workspace.ErrProfileNotFound) {
 		a.log.Warn("load local profile failed; starting unconfigured", "error", err.Error())
 	}

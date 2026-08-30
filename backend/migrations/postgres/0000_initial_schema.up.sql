@@ -409,7 +409,7 @@ CREATE TABLE exchange_rates (
     rate            NUMERIC(18,6)  NOT NULL
         CHECK (rate > 0),
     source          VARCHAR(50)    NOT NULL DEFAULT 'manual'
-        CHECK (source IN ('manual', 'central_bank', 'sunat', 'bloomberg', 'other')),
+        CHECK (source IN ('manual', 'central_bank', 'sunat', 'bloomberg', 'other', 'apis.net.pe', 'open.er-api.com', 'fallback')),
     created_at      TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
 
     CONSTRAINT fk_exchange_rates_company
@@ -772,14 +772,15 @@ CREATE TABLE products (
     brand_id       UUID,
     unit_id        UUID           NOT NULL,
     tax_id         UUID           NOT NULL,
-    cost           NUMERIC(18,2)  NOT NULL DEFAULT 0
-        CHECK (cost >= 0),
+    cost_usd       NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (cost_usd >= 0),
     sale_price     NUMERIC(18,2)  NOT NULL DEFAULT 0
         CHECK (sale_price >= 0),
     sale_currency  VARCHAR(3)     NOT NULL DEFAULT 'PEN',
     min_stock      NUMERIC(18,4)  NOT NULL DEFAULT 0,
     max_stock      NUMERIC(18,4)  NOT NULL DEFAULT 0,
     weight         NUMERIC(18,4)  NOT NULL DEFAULT 0,
+    details        TEXT,
     is_active      BOOLEAN        NOT NULL DEFAULT TRUE,
     is_service     BOOLEAN        NOT NULL DEFAULT FALSE,
     created_at     TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
@@ -1566,6 +1567,26 @@ CREATE TABLE purchase_orders (
     currency_code    VARCHAR(3)     NOT NULL DEFAULT 'PEN',
     exchange_rate    NUMERIC(18,6)  NOT NULL DEFAULT 1,
     notes            TEXT,
+    order_type       VARCHAR(20)    NOT NULL DEFAULT 'general'
+        CHECK (order_type IN ('general', 'customer')),
+    customer_id      UUID,
+    credit_card_id   UUID,
+    supplier_order_number VARCHAR(100),
+    arrival_date     DATE,
+    cost_usd         NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (cost_usd >= 0),
+    sale_price_pen   NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (sale_price_pen >= 0),
+    real_cost_pen    NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (real_cost_pen >= 0),
+    projected_profit_pen NUMERIC(18,2) NOT NULL DEFAULT 0,
+    anticipo         NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (anticipo >= 0),
+    anticipo_date    DATE,
+    faulty           BOOLEAN        NOT NULL DEFAULT FALSE,
+    faulty_reason    TEXT,
+    refunded_amount  NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (refunded_amount >= 0),
     cancelled_at     TIMESTAMPTZ,
     cancelled_reason TEXT,
     created_at       TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
@@ -1583,6 +1604,12 @@ CREATE TABLE purchase_orders (
     CONSTRAINT fk_purchase_orders_branch
         FOREIGN KEY (branch_id) REFERENCES branches(id)
         ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT fk_purchase_orders_customer
+        FOREIGN KEY (customer_id) REFERENCES customers(id)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_purchase_orders_card
+        FOREIGN KEY (credit_card_id) REFERENCES credit_cards(id)
+        ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT ck_purchase_orders_dates
         CHECK (expected_date IS NULL OR expected_date >= order_date)
 );
@@ -1596,6 +1623,62 @@ CREATE INDEX idx_purchase_orders_supplier
 
 CREATE INDEX idx_purchase_orders_status
     ON purchase_orders (company_id, status, order_date);
+
+CREATE INDEX idx_purchase_orders_order_type
+    ON purchase_orders (company_id, order_type, status, order_date)
+    WHERE deleted_at IS NULL;
+
+CREATE INDEX idx_purchase_orders_customer
+    ON purchase_orders (company_id, customer_id, order_date)
+    WHERE deleted_at IS NULL;
+
+CREATE TABLE customer_order_payments (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id        UUID           NOT NULL,
+    purchase_order_id UUID           NOT NULL,
+    customer_id       UUID           NOT NULL,
+    number            VARCHAR(30)    NOT NULL,
+    payment_date      DATE           NOT NULL,
+    amount            NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (amount > 0),
+    payment_method    VARCHAR(20)    NOT NULL DEFAULT 'cash'
+        CHECK (payment_method IN ('cash', 'bank_transfer', 'check', 'card', 'credit', 'other')),
+    currency_code     VARCHAR(3)     NOT NULL DEFAULT 'PEN',
+    exchange_rate     NUMERIC(18,6)  NOT NULL DEFAULT 1,
+    reference         VARCHAR(100),
+    notes             TEXT,
+    status            VARCHAR(20)    NOT NULL DEFAULT 'active'
+        CHECK (status IN ('active', 'refunded')),
+    refunded_amount   NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (refunded_amount >= 0),
+    refunded_at       TIMESTAMPTZ,
+    refund_reason     TEXT,
+    created_at        TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+    updated_at        TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+    deleted_at        TIMESTAMPTZ,
+    created_by        UUID,
+    updated_by        UUID,
+
+    CONSTRAINT fk_customer_order_payments_company
+        FOREIGN KEY (company_id) REFERENCES companies(id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_customer_order_payments_order
+        FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_customer_order_payments_customer
+        FOREIGN KEY (customer_id) REFERENCES customers(id)
+        ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
+CREATE UNIQUE INDEX uq_customer_order_payments_number
+    ON customer_order_payments (company_id, number)
+    WHERE deleted_at IS NULL;
+
+CREATE INDEX idx_customer_order_payments_order
+    ON customer_order_payments (purchase_order_id, payment_date);
+
+CREATE INDEX idx_customer_order_payments_customer
+    ON customer_order_payments (customer_id, payment_date);
 
 CREATE TABLE purchase_order_items (
     id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),

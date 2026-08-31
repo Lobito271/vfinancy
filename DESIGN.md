@@ -14,22 +14,22 @@ The palette is **monochrome/grayscale by design** — a terminal/skeuomorphic-sq
 
 | Token | Light | Dark | Role |
 |---|---|---|---|
-| `--color-bg` | `oklch(97% 0 0)` | `oklch(14.5% 0 0)` | App background (dark = the fg color) |
-| `--color-surface` | `oklch(100% 0 0)` white | `oklch(14.5% 0 0)` | Cards, popups, inputs |
-| `--color-muted` | `oklch(97% 0 0)` | `oklch(26.9% 0 0)` | Hover fills, table head, wells |
-| `--color-fg` | `oklch(14.5% 0 0)` | white | Primary text, borders, primary accent |
-| `--color-muted-fg` | `oklch(43.9% 0 0)` | `oklch(87% 0 0)` | Secondary text |
-| `--color-fg-subtle` | `oklch(55.6% 0 0)` | `oklch(70.8% 0 0)` | Hints, placeholders, disabled |
-| `--color-border` / `--color-border-strong` | `oklch(14.5% 0 0)` | white | Full-strength 1px chrome (border = fg) |
-| `--color-primary` | `oklch(14.5% 0 0)` | white | **Single accent**: since the palette is monochrome, the accent collapses to fg. Filled primary buttons invert (near-black bg / white text in light; white bg / near-black text in dark). |
-| `--color-primary-muted` / `-fg` | `oklch(97% 0 0)` / `oklch(14.5% 0 0)` | `oklch(26.9% 0 0)` / white | Active nav pill, selected rows, soft accents |
+| `--color-bg` | `oklch(97% 0 0)` | `oklch(22% 0 0)` | App background (charcoal grey) |
+| `--color-surface` | `oklch(100% 0 0)` white | `oklch(24% 0 0)` | Cards, popups, inputs — charcoal grey, elevated slightly above `--color-bg` |
+| `--color-muted` | `oklch(97% 0 0)` | `oklch(29% 0 0)` | Hover fills, table head, wells |
+| `--color-fg` | `oklch(14.5% 0 0)` | `oklch(94% 0 0)` | Primary text, borders, primary accent |
+| `--color-muted-fg` | `oklch(43.9% 0 0)` | `oklch(82% 0 0)` | Secondary text |
+| `--color-fg-subtle` | `oklch(55.6% 0 0)` | `oklch(68% 0 0)` | Hints, placeholders, disabled |
+| `--color-border` / `--color-border-strong` | `oklch(14.5% 0 0)` | `oklch(38% 0 0)` / `oklch(43% 0 0)` | Muted dark-grey hairline chrome — soft, never pure white |
+| `--color-primary` | `oklch(14.5% 0 0)` | `oklch(62% 0 0)` | **Single accent**: monochrome, collapses to fg in light; in dark a soft light-grey (not pure white) so active states sit comfortably against the charcoal surface |
+| `--color-primary-muted` / `-fg` | `oklch(97% 0 0)` / `oklch(14.5% 0 0)` | `oklch(30% 0 0)` / `oklch(90% 0 0)` | Active nav pill, selected rows, soft accents |
 | `--color-success/-warning/-destructive/-info` (+`-muted`, `-muted-fg`) | semantic pairs | lightened pairs | Status only — never decorative. `destructive` is the sole chromatic: `oklch(50.5% 0.213 27.518deg)` / `oklch(70.4% 0.191 22.216deg)` |
-| `--color-ring` | `oklch(14.5% 0 0)` | white | `:focus-visible` outline |
-| `--color-overlay` | `oklch(14.5% 0 0 / 0.3)` | `oklch(14.5% 0 0 / 0.7)` | Dialog/drawer backdrops |
+| `--color-ring` | `oklch(14.5% 0 0)` | `oklch(60% 0 0)` | `:focus-visible` outline — softened in dark |
+| `--color-overlay` | `oklch(14.5% 0 0 / 0.3)` | `oklch(12% 0 0 / 0.7)` | Dialog/drawer backdrops |
 
 **Rules**
 - No hardcoded colors anywhere. Components consume tokens only. Every color has an OKLCH `0 0deg` chroma/hue or a muted semantic pair — there is no free-standing hue.
-- The accent is **monochrome**: primary, focus ring, borders, and links all resolve to `--color-fg` / its inversion. Blue/indigo is gone.
+- The accent is **monochrome**: primary, focus ring, borders, and links all resolve to `--color-fg` / its inversion. Blue/indigo is gone. In dark mode the accent softens to a light grey (`oklch(62% 0 0)`) rather than pure white.
 - `destructive` is the only chromatic token, and only red is allowed to carry chroma.
 - Status colors are rationed to meaning (badges, deltas, destructive confirmations).
 - Charts read the same tokens (passed as string props to recharts).
@@ -44,7 +44,7 @@ The palette is **monochrome/grayscale by design** — a terminal/skeuomorphic-sq
 ### Shape, depth, motion
 
 - Radii: `--radius-sm` / `--radius` / `--radius-lg` are **all `0`** (square corners — sharp, terminal-like edges); `--radius-full` (`999px`) is reserved for badges, dots, and circular avatars only.
-- Depth is **flat with hard-offset shadows** (no blur): `--shadow-sm` `0.0625rem 0.0625rem 0`, `--shadow-md` `0.125rem 0.125rem 0`, `--shadow-lg` `0.25rem 0.25rem 0` over `rgb(0 0 0 / 12–16%)`. Dark mode uses **no shadow** (`none`) — the monochrome inversion relies on strong borders instead.
+- Depth is **flat with hard-offset shadows** (no blur): `--shadow-sm` `0.0625rem 0.0625rem 0`, `--shadow-md` `0.125rem 0.125rem 0`, `--shadow-lg` `0.25rem 0.25rem 0` over `rgb(0 0 0 / 12–16%)`. Dark mode uses **no shadow** (`none`) — elevation is expressed through the charcoal surface layers and muted dark-grey borders instead of pure-white chrome.
 - **Layering (ascending z-index):** table sticky header 2 → topbar 40 → drawer 50 → dialog 60 → menu/select 70 → tooltip 80 → toaster 90. Overlays are portals into `body`; only the topbar/table participate in page stacking, so every overlay must sit above the topbar (40).
 - Motion: ~160ms for hover/state, ~200ms for dialogs/toasts, 250ms for the drawer. Easing `--ease` (`cubic-bezier(0.25,0.8,0.35,1)`).
 - Enter/exit animations use Base UI's `data-starting-style` / `data-ending-style` attributes. All motion is disabled under `prefers-reduced-motion: reduce`.

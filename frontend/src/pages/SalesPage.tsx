@@ -1,12 +1,21 @@
 import { useMemo, useState } from 'react';
-import { ShoppingCart, CreditCard, Trash2, Plus } from 'lucide-react';
+import { ShoppingCart, CreditCard, Ban, Plus } from 'lucide-react';
 import { PageContainer, PageHeader, Grid } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
 import { SaleStatusBadge } from '@/components/badge';
+import { SearchInput } from '@/components/input';
 import { EmptyState } from '@/components/feedback';
 import { Button } from '@/components/button';
 import { CancelDialog, RegisterPaymentDialog, type RegisterPaymentInput } from '@/components/dialog';
+import { RowActions } from '@/components/misc';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/select';
 import { useSales, useCancelSale, useCollectSalePayment } from '@/features/sales/hooks/useSales';
 import { SaleFormDialog } from '@/features/sales/components/SaleFormDialog';
 import type { Sale } from '@/types/domain';
@@ -44,7 +53,7 @@ const columns: Column<Sale>[] = [
     header: 'Utilidad',
     align: 'right',
     cell: (row) => (
-      <span className={row.profit >= 0 ? 'tabular-nums' : 'tabular-nums text-destructive'}>
+      <span className={row.profit >= 0 ? 'tabular' : 'tabular text-destructive'}>
         {formatCurrency(row.profit)}
       </span>
     ),
@@ -57,17 +66,32 @@ export function SalesPage() {
   const collect = useCollectSalePayment();
   const push = useNotificationStore((s) => s.push);
 
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
   const [formOpen, setFormOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Sale | null>(null);
   const [collectTarget, setCollectTarget] = useState<Sale | null>(null);
 
-  const canDelete = true;
-  const canCollect = true;
-
   const sales = data ?? [];
+  const filtered = useMemo(() => {
+    let rows = sales;
+    if (statusFilter !== 'all') rows = rows.filter((x) => x.status === statusFilter);
+    if (search) {
+      const q = search.toLowerCase();
+      rows = rows.filter(
+        (x) =>
+          x.number.toLowerCase().includes(q) ||
+          (x.customerName ?? '').toLowerCase().includes(q),
+      );
+    }
+    return rows;
+  }, [sales, statusFilter, search]);
+
   const totalAmount = sales.reduce((s, x) => s + x.total, 0);
   const totalProfit = sales.reduce((s, x) => s + x.profit, 0);
   const pending = sales.filter((x) => x.status === 'pending' || x.status === 'partial').length;
+
+  const openCreate = () => setFormOpen(true);
 
   const tableColumns = useMemo<Column<Sale>[]>(() => {
     return [
@@ -75,39 +99,32 @@ export function SalesPage() {
       {
         id: 'actions',
         header: '',
-        width: 120,
-        exportable: false,
+        width: 72,
         cell: (row) => {
           const collectable = row.status === 'pending' || row.status === 'partial';
           const cancellable = row.status !== 'cancelled';
-          return (
-            <div className="row-actions">
-              {canCollect && collectable && (
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Cobrar ${row.number}`}
-                  onClick={() => setCollectTarget(row)}
-                >
-                  <CreditCard />
-                </Button>
-              )}
-              {canDelete && cancellable && (
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Anular ${row.number}`}
-                  onClick={() => setCancelTarget(row)}
-                >
-                  <Trash2 />
-                </Button>
-              )}
-            </div>
-          );
+          const actions = [];
+          if (collectable) {
+            actions.push({
+              label: 'Cobrar',
+              icon: CreditCard,
+              onSelect: () => setCollectTarget(row),
+            });
+          }
+          if (cancellable) {
+            actions.push({
+              label: 'Anular',
+              icon: Ban,
+              danger: true,
+              onSelect: () => setCancelTarget(row),
+            });
+          }
+          if (actions.length === 0) return null;
+          return <RowActions actions={actions} label={`Acciones de ${row.number}`} />;
         },
       },
     ];
-  }, [canDelete, canCollect]);
+  }, []);
 
   return (
     <PageContainer>
@@ -115,7 +132,7 @@ export function SalesPage() {
         title="Ventas"
         subtitle="Documentos de venta y estado de cobranza"
         actions={
-          <Button onClick={() => setFormOpen(true)}>
+          <Button onClick={openCreate}>
             <Plus /> Nueva venta
           </Button>
         }
@@ -130,17 +147,52 @@ export function SalesPage() {
 
       <DataTable
         columns={tableColumns}
-        data={sales}
+        data={filtered}
         keyField="id"
         loading={isLoading}
         error={isError ? (error as Error) : null}
         onRetry={() => refetch()}
         globalSearch={false}
-        exportFilename="ventas.csv"
+        preferencesKey="sales"
+        toolbarLeft={
+          <>
+            <SearchInput
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onClear={() => setSearch('')}
+              placeholder="Buscar venta…"
+              className="datatable-search"
+              aria-label="Buscar venta"
+            />
+            <Select
+              items={[
+                { value: 'all', label: 'Estado: todos' },
+                { value: 'pending', label: 'Pendientes' },
+                { value: 'partial', label: 'Parciales' },
+                { value: 'paid', label: 'Pagadas' },
+                { value: 'cancelled', label: 'Anuladas' },
+              ]}
+              value={statusFilter}
+              onValueChange={(v) => setStatusFilter(v ?? 'all')}
+            >
+              <SelectTrigger style={{ width: '11rem' }} aria-label="Filtrar por estado">
+                <SelectValue placeholder="Estado: todos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Estado: todos</SelectItem>
+                <SelectItem value="pending">Pendientes</SelectItem>
+                <SelectItem value="partial">Parciales</SelectItem>
+                <SelectItem value="paid">Pagadas</SelectItem>
+                <SelectItem value="cancelled">Anuladas</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
+        }
         empty={
           <EmptyState
             title="No hay ventas registradas"
-            description="Las ventas generadas desde el sistema aparecerán aquí con su estado de cobro."
+            description="Registra tu primera venta para llevar el control de cobranza y utilidad."
+            action={{ label: 'Nueva venta', onClick: openCreate }}
           />
         }
       />

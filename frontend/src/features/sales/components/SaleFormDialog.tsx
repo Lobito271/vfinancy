@@ -109,23 +109,23 @@ function SaleFinancialSummary({ productMeta }: { productMeta: Map<string, { labe
   const profit = round2(total - totalCostPEN);
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-4 rounded-md border bg-muted/30 p-3 sm:grid-cols-4">
+    <div className="stack">
+      <div className="fact-grid">
         <div>
-          <div className="text-xs text-muted-foreground">Subtotal</div>
-          <div className="text-base font-semibold tabular-nums">{formatCurrency(subtotal)}</div>
+          <div className="fact-grid__label">Subtotal</div>
+          <div className="fact-grid__value">{formatCurrency(subtotal)}</div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">IGV</div>
-          <div className="text-base font-semibold tabular-nums">{formatCurrency(tax)}</div>
+          <div className="fact-grid__label">IGV</div>
+          <div className="fact-grid__value">{formatCurrency(tax)}</div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Total</div>
-          <div className="text-base font-semibold tabular-nums">{formatCurrency(total)}</div>
+          <div className="fact-grid__label">Total</div>
+          <div className="fact-grid__value">{formatCurrency(total)}</div>
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Utilidad</div>
-          <div className={`text-base font-semibold tabular-nums ${profit < 0 ? 'text-destructive' : 'text-success'}`}>
+          <div className="fact-grid__label">Utilidad</div>
+          <div className={`fact-grid__value ${profit < 0 ? 'text-destructive' : 'text-success'}`}>
             {formatCurrency(profit)}
           </div>
         </div>

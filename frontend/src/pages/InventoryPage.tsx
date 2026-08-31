@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Boxes, Pencil, Trash2, Plus } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Boxes, Pencil, Ban, Plus, Settings2 } from 'lucide-react';
+import { z } from 'zod';
 import { PageContainer, PageHeader, Grid } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
@@ -7,9 +9,20 @@ import { Badge } from '@/components/badge';
 import { EmptyState } from '@/components/feedback';
 import { Button } from '@/components/button';
 import { ConfirmDialog } from '@/components/dialog';
+import { Drawer, RowActions } from '@/components/misc';
+import { Form, NumberField } from '@/components/form';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/select';
 import { useInventory, useVoidStock } from '@/features/inventory/hooks/useInventory';
 import { InventoryReceiveDialog } from '@/features/inventory/components/InventoryReceiveDialog';
 import { InventoryAdjustDialog } from '@/features/inventory/components/InventoryAdjustDialog';
+import { wailsClient } from '@/services/bindings';
+import { queryKeys } from '@/services/queryKeys';
 import type { InventoryItem } from '@/types/domain';
 import { formatCurrency, formatDate, formatNumber } from '@/utils/format';
 import { useNotificationStore } from '@/stores/notification';
@@ -41,7 +54,6 @@ const columns: Column<InventoryItem>[] = [
     header: 'Costo unitario',
     align: 'right',
     sortable: true,
-    exportable: true,
     cell: (row) => <span className="tabular">{formatCurrency(row.unitCost, row.currencyCode)}</span>,
   },
   {
@@ -49,7 +61,6 @@ const columns: Column<InventoryItem>[] = [
     header: 'Costo total',
     align: 'right',
     sortable: true,
-    exportable: true,
     accessor: (row) => row.quantity * row.unitCost,
     cell: (row) => <span className="tabular">{formatCurrency(row.quantity * row.unitCost, row.currencyCode)}</span>,
   },
@@ -83,12 +94,98 @@ const columns: Column<InventoryItem>[] = [
   },
 ];
 
+const clearanceSchema = z.object({
+  clearanceDays: z.number().int().min(1, 'Usa al menos 1 día.').max(365),
+  clearanceWarningDays: z.number().int().min(0).max(90),
+});
+
+type ClearanceValues = z.infer<typeof clearanceSchema>;
+
+function InventorySettingsDrawer({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const queryClient = useQueryClient();
+  const push = useNotificationStore((s) => s.push);
+
+  const preferences = useQuery({
+    queryKey: queryKeys.settings.preferences,
+    queryFn: () => wailsClient.getPreferences(),
+    enabled: open,
+  });
+
+  const [saving, setSaving] = useState(false);
+
+  const defaults: ClearanceValues = {
+    clearanceDays: preferences.data?.clearanceDays ?? 25,
+    clearanceWarningDays: preferences.data?.clearanceWarningDays ?? 3,
+  };
+
+  async function save(values: ClearanceValues) {
+    setSaving(true);
+    try {
+      await wailsClient.updatePreference('clearance_days', String(values.clearanceDays));
+      await wailsClient.updatePreference('clearance_warning_days', String(values.clearanceWarningDays));
+      await queryClient.invalidateQueries({ queryKey: queryKeys.settings.preferences });
+      push({ title: 'Reglas de remate guardadas', variant: 'success' });
+      onOpenChange(false);
+    } catch (cause) {
+      push({
+        title: 'No se pudo guardar la configuración',
+        description: cause instanceof Error ? cause.message : undefined,
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Drawer
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Reglas de inventario"
+      description="Controla cuándo un lote pasa a remate y con cuánta anticipación se avisa."
+      footer={
+        <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={saving}>
+          Cancelar
+        </Button>
+      }
+    >
+      <Form<ClearanceValues> key={`${defaults.clearanceDays}-${defaults.clearanceWarningDays}`} schema={clearanceSchema} defaultValues={defaults} onSubmit={save}>
+        {() => (
+          <div className="stack">
+            <NumberField
+              name="clearanceDays"
+              label="Días para remate"
+              description="Un lote pasa a remate cuando supera estos días desde su ingreso."
+              min={1}
+              max={365}
+              required
+            />
+            <NumberField
+              name="clearanceWarningDays"
+              label="Días de aviso previo"
+              description="Cuántos días antes del remate se marca el lote como próximo a vencer."
+              min={0}
+              max={90}
+              required
+            />
+            <Button type="submit" loading={saving}>
+              Guardar
+            </Button>
+          </div>
+        )}
+      </Form>
+    </Drawer>
+  );
+}
+
 export function InventoryPage() {
   const { data, isLoading, isError, error, refetch } = useInventory();
   const voidStock = useVoidStock();
   const push = useNotificationStore((s) => s.push);
 
   const [receiveOpen, setReceiveOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('all');
   const [adjustTarget, setAdjustTarget] = useState<InventoryItem | null>(null);
   const [voidTarget, setVoidTarget] = useState<InventoryItem | null>(null);
 
@@ -99,37 +196,41 @@ export function InventoryPage() {
   const clearance = items.filter((i) => i.isClearance).length;
   const expiringSoon = live.filter((i) => i.daysRemaining >= 0 && i.daysRemaining < 5).length;
 
+  const filteredItems = useMemo(() => {
+    if (statusFilter === 'all') return items;
+    if (statusFilter === 'clearance') return items.filter((i) => i.isClearance && i.status !== 'voided');
+    if (statusFilter === 'expiring') return live.filter((i) => i.daysRemaining >= 0 && i.daysRemaining < 5);
+    if (statusFilter === 'voided') return items.filter((i) => i.status === 'voided');
+    return items;
+  }, [items, live, statusFilter]);
+
+  const openCreate = () => setReceiveOpen(true);
+
   const tableColumns = useMemo<Column<InventoryItem>[]>(() => [
     ...columns,
     {
       id: 'actions',
       header: '',
-      width: 88,
-      exportable: false,
-      cell: (row) => (
-        <div className="row-actions">
-          {row.status !== 'voided' && (
-            <>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Ajustar ${row.productDescription}`}
-                onClick={() => setAdjustTarget(row)}
-              >
-                <Pencil />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Anular ${row.productDescription}`}
-                onClick={() => setVoidTarget(row)}
-              >
-                <Trash2 />
-              </Button>
-            </>
-          )}
-        </div>
-      ),
+      width: 72,
+      cell: (row) =>
+        row.status !== 'voided' ? (
+          <RowActions
+            actions={[
+              {
+                label: 'Ajustar stock',
+                icon: Pencil,
+                onSelect: () => setAdjustTarget(row),
+              },
+              {
+                label: 'Anular lote',
+                icon: Ban,
+                danger: true,
+                onSelect: () => setVoidTarget(row),
+              },
+            ]}
+            label={`Acciones de ${row.productDescription}`}
+          />
+        ) : null,
     },
   ], []);
 
@@ -139,9 +240,14 @@ export function InventoryPage() {
         title="Inventario"
         subtitle="Lotes, existencias y control de remate"
         actions={
-          <Button onClick={() => setReceiveOpen(true)}>
-            <Plus /> Nuevo ingreso
-          </Button>
+          <>
+            <Button variant="outline" onClick={() => setSettingsOpen(true)}>
+              <Settings2 /> Reglas
+            </Button>
+            <Button onClick={openCreate}>
+              <Plus /> Nuevo ingreso
+            </Button>
+          </>
         }
       />
 
@@ -155,24 +261,47 @@ export function InventoryPage() {
 
       <DataTable
         columns={tableColumns}
-        data={items}
+        data={filteredItems}
         keyField="id"
         loading={isLoading}
         error={isError ? (error as Error) : null}
         onRetry={() => refetch()}
-        rowClassName={(row) => (row.status === 'voided' ? 'opacity-50' : undefined)}
         globalSearch={false}
-        exportFilename="inventario.csv"
+        preferencesKey="inventory"
+        toolbarLeft={
+          <Select
+            items={[
+              { value: 'all', label: 'Todos los lotes' },
+              { value: 'clearance', label: 'En remate' },
+              { value: 'expiring', label: 'Por vencer (5 días)' },
+              { value: 'voided', label: 'Anulados' },
+            ]}
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(v ?? 'all')}
+          >
+            <SelectTrigger style={{ width: '13rem' }} aria-label="Filtrar por estado">
+              <SelectValue placeholder="Todos los lotes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos los lotes</SelectItem>
+              <SelectItem value="clearance">En remate</SelectItem>
+              <SelectItem value="expiring">Por vencer (5 días)</SelectItem>
+              <SelectItem value="voided">Anulados</SelectItem>
+            </SelectContent>
+          </Select>
+        }
         empty={
           <EmptyState
             title="Sin existencias en inventario"
-            description="Los lotes recibidos por compras aparecerán aquí con sus fechas de remate."
+            description="Registra tu primer ingreso de stock; los lotes llegarán desde compras."
+            action={{ label: 'Nuevo ingreso', onClick: openCreate }}
           />
         }
       />
 
       <InventoryReceiveDialog open={receiveOpen} onOpenChange={setReceiveOpen} />
       <InventoryAdjustDialog open={!!adjustTarget} onOpenChange={(o) => { if (!o) setAdjustTarget(null); }} batch={adjustTarget} />
+      <InventorySettingsDrawer open={settingsOpen} onOpenChange={setSettingsOpen} />
 
       <ConfirmDialog
         open={!!voidTarget}

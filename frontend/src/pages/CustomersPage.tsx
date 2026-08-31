@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react';
-import { Pencil, Trash2, Plus, Users } from 'lucide-react';
+import { Users, Pencil, Trash2, Plus } from 'lucide-react';
 import { PageContainer, PageHeader, Grid } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
 import { CustomerStatusBadge } from '@/components/badge';
-import { Input } from '@/components/input';
+import { SearchInput } from '@/components/input';
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/feedback';
 import { ConfirmDialog } from '@/components/dialog';
+import { RowActions } from '@/components/misc';
 import {
   Select,
   SelectContent,
@@ -17,7 +18,7 @@ import {
 } from '@/components/select';
 import { useCustomers, useDeleteCustomer } from '@/features/customers';
 import { CustomerFormDialog } from '@/features/customers/components/CustomerFormDialog';
-import type { Customer, CustomerStatus } from '@/types/domain';
+import type { Customer } from '@/types/domain';
 import { formatCurrency } from '@/utils/format';
 import { useNotificationStore } from '@/stores/notification';
 
@@ -72,12 +73,12 @@ const columns: Column<Customer>[] = [
 
 export function CustomersPage() {
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<CustomerStatus | ''>('');
+  const [status, setStatus] = useState('');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Customer | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Customer | null>(null);
 
-  const { data, isLoading, isError, error, refetch } = useCustomers({ search, status: status || undefined });
+  const { data, isLoading, isError, error, refetch } = useCustomers({ search, status: (status || undefined) as Customer['status'] | undefined });
   const deleteMutation = useDeleteCustomer();
   const push = useNotificationStore((s) => s.push);
 
@@ -87,35 +88,37 @@ export function CustomersPage() {
   const active = customers.filter((c) => c.status === 'active').length;
   const withDebt = customers.filter((c) => c.currentDebt > 0).length;
 
+  const openCreate = () => {
+    setEditing(null);
+    setFormOpen(true);
+  };
+
   const tableColumns = useMemo<Column<Customer>[]>(() => [
     ...columns,
     {
       id: 'actions',
       header: '',
-      width: 88,
-      exportable: false,
+      width: 72,
       cell: (row) => (
-        <div className="row-actions">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Editar ${row.businessName}`}
-            onClick={() => {
-              setEditing(row);
-              setFormOpen(true);
-            }}
-          >
-            <Pencil />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Eliminar ${row.businessName}`}
-            onClick={() => setDeleteTarget(row)}
-          >
-            <Trash2 />
-          </Button>
-        </div>
+        <RowActions
+          actions={[
+            {
+              label: 'Editar',
+              icon: Pencil,
+              onSelect: () => {
+                setEditing(row);
+                setFormOpen(true);
+              },
+            },
+            {
+              label: 'Eliminar',
+              icon: Trash2,
+              danger: true,
+              onSelect: () => setDeleteTarget(row),
+            },
+          ]}
+          label={`Acciones de ${row.businessName}`}
+        />
       ),
     },
   ], []);
@@ -126,17 +129,9 @@ export function CustomersPage() {
         title="Clientes"
         subtitle="Gestión de clientes y cuentas por cobrar"
         actions={
-          <div className="hstack hstack--sm">
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar cliente…" style={{ width: "16rem" }} aria-label="Buscar cliente" />
-            <Button
-              onClick={() => {
-                setEditing(null);
-                setFormOpen(true);
-              }}
-            >
-              <Plus /> Nuevo cliente
-            </Button>
-          </div>
+          <Button onClick={openCreate}>
+            <Plus /> Nuevo cliente
+          </Button>
         }
       />
 
@@ -155,24 +150,44 @@ export function CustomersPage() {
         error={isError ? (error as Error) : null}
         onRetry={() => refetch()}
         globalSearch={false}
-        exportFilename="clientes.csv"
+        preferencesKey="customers"
         toolbarLeft={
-          <Select value={status} onValueChange={(v) => setStatus((v === 'all' ? '' : v) as CustomerStatus | '')}>
-            <SelectTrigger style={{ width: "11rem" }} aria-label="Filtrar por estado">
-              <SelectValue placeholder="Estado: todos" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Estado: todos</SelectItem>
-              <SelectItem value="active">Activos</SelectItem>
-              <SelectItem value="inactive">Inactivos</SelectItem>
-              <SelectItem value="blocked">Bloqueados</SelectItem>
-            </SelectContent>
-          </Select>
+          <>
+            <SearchInput
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onClear={() => setSearch('')}
+              placeholder="Buscar cliente…"
+              className="datatable-search"
+              aria-label="Buscar cliente"
+            />
+            <Select
+              items={[
+                { value: 'all', label: 'Estado: todos' },
+                { value: 'active', label: 'Activos' },
+                { value: 'inactive', label: 'Inactivos' },
+                { value: 'blocked', label: 'Bloqueados' },
+              ]}
+              value={status || 'all'}
+              onValueChange={(v) => setStatus(v === 'all' ? '' : (v ?? ''))}
+            >
+              <SelectTrigger style={{ width: '11rem' }} aria-label="Filtrar por estado">
+                <SelectValue placeholder="Estado: todos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Estado: todos</SelectItem>
+                <SelectItem value="active">Activos</SelectItem>
+                <SelectItem value="inactive">Inactivos</SelectItem>
+                <SelectItem value="blocked">Bloqueados</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
         }
         empty={
           <EmptyState
             title="No hay clientes registrados"
-            description="Cuando se registren clientes, aparecerán aquí con su estado de cuenta."
+            description="Registra tu primer cliente para comenzar a gestionar ventas y cuentas por cobrar."
+            action={{ label: 'Nuevo cliente', onClick: openCreate }}
           />
         }
       />

@@ -1,4 +1,5 @@
 export const queryKeys = {
+  setup: ['setup'] as const,
   customers: {
     all: ['customers'] as const,
     list: (q: unknown) => ['customers', 'list', q] as const,

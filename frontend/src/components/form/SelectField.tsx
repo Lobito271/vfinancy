@@ -54,10 +54,12 @@ export function SelectField<T extends FieldValues>({
         render={({ field }) => (
           <div className="select-wrap">
             <Select
-              value={field.value ?? ''}
+              items={options.map((opt) => ({ value: opt.value, label: opt.label }))}
+              value={field.value || null}
               onValueChange={(v) => {
-                field.onChange(v);
-                onChange?.(v);
+                const next = v ?? '';
+                field.onChange(next);
+                onChange?.(next);
               }}
               disabled={disabled || loading}
             >
@@ -81,7 +83,10 @@ export function SelectField<T extends FieldValues>({
             {clearable && field.value && !disabled && (
               <button
                 type="button"
-                onClick={() => field.onChange('')}
+                onClick={() => {
+                  field.onChange('');
+                  onChange?.('');
+                }}
                 className="select-clear"
                 aria-label="Limpiar selección"
               >

@@ -1,14 +1,22 @@
 import { useMemo, useState } from 'react';
-import { Package, CreditCard, AlertTriangle, Trash2, Plus, Download } from 'lucide-react';
+import { Package, CreditCard, AlertTriangle, Ban, Plus, Download } from 'lucide-react';
 import { PageContainer, PageHeader, Grid } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
 import { Badge } from '@/components/badge';
 import { EmptyState } from '@/components/feedback';
 import { Button } from '@/components/button';
-import { Label } from '@/components/input';
+import { SearchInput } from '@/components/input';
 import { CancelDialog, RegisterPaymentDialog, type RegisterPaymentInput } from '@/components/dialog';
+import { RowActions } from '@/components/misc';
 import { useDebounce } from '@/utils/debounce';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/select';
 import {
   usePurchases,
   useCancelPurchase,
@@ -45,7 +53,7 @@ const columns: Column<Purchase>[] = [
   {
     id: 'supplierOrderNumber',
     header: 'Orden Proveedor',
-    cell: (row) => <span className="text-muted-foreground">{row.supplierOrderNumber || '—'}</span>,
+    cell: (row) => <span className="muted">{row.supplierOrderNumber || '—'}</span>,
   },
   {
     id: 'date',
@@ -57,14 +65,14 @@ const columns: Column<Purchase>[] = [
     header: 'Costo real (PEN)',
     sortable: true,
     align: 'right',
-    cell: (row) => <span className="tabular-nums">{formatCurrency(row.realCostPEN)}</span>,
+    cell: (row) => <span className="tabular">{formatCurrency(row.realCostPEN)}</span>,
   },
   {
     id: 'projectedProfitPEN',
     header: 'Utilidad proy.',
     align: 'right',
     cell: (row) => (
-      <span className={`tabular-nums ${row.projectedProfitPEN < 0 ? 'text-destructive' : 'text-success'}`}>
+      <span className={`tabular ${row.projectedProfitPEN < 0 ? 'text-destructive' : 'text-success'}`}>
         {formatCurrency(row.projectedProfitPEN)}
       </span>
     ),
@@ -75,7 +83,7 @@ const columns: Column<Purchase>[] = [
     cell: (row) => {
       const cfg = statusMap[row.status] ?? { variant: 'muted' as const, label: row.status };
       return (
-        <div className="flex flex-wrap items-center gap-1">
+        <div className="hstack hstack--sm">
           <Badge variant={cfg.variant}>{cfg.label}</Badge>
           {row.faulty && <Badge variant="destructive">Defectuoso</Badge>}
         </div>
@@ -94,6 +102,7 @@ const columns: Column<Purchase>[] = [
 export function PurchasesPage() {
   const [searchInput, setSearchInput] = useState('');
   const search = useDebounce(searchInput);
+  const [statusFilter, setStatusFilter] = useState('all');
   const { data, isLoading, isError, error, refetch } = usePurchases(search);
   const cancel = useCancelPurchase();
   const markPaid = useMarkPurchasePaid();
@@ -116,14 +125,17 @@ export function PurchasesPage() {
   const [receivedTarget, setReceivedTarget] = useState<Purchase | null>(null);
   const [faultyTarget, setFaultyTarget] = useState<Purchase | null>(null);
 
-  const canDelete = true;
-  const canEdit = true;
-  const canPay = canEdit;
-
   const purchases = data ?? [];
+  const filtered = useMemo(() => {
+    if (statusFilter === 'all') return purchases;
+    return purchases.filter((p) => p.status === statusFilter);
+  }, [purchases, statusFilter]);
+
   const totalAmount = purchases.reduce((s, p) => s + p.total, 0);
   const pending = purchases.filter((p) => p.status === 'pending' || p.status === 'received').length;
   const cancelled = purchases.filter((p) => p.status === 'cancelled').length;
+
+  const openCreate = () => setFormOpen(true);
 
   const tableColumns = useMemo<Column<Purchase>[]>(() => {
     return [
@@ -131,60 +143,47 @@ export function PurchasesPage() {
       {
         id: 'actions',
         header: '',
-        width: 280,
-        exportable: false,
+        width: 72,
         cell: (row) => {
           const open = row.status !== 'cancelled';
           const receivable = !row.arrivalDate && !row.faulty && row.status !== 'cancelled';
           const payable = row.status === 'pending' || row.status === 'received';
-          return (
-            <div className="row-actions">
-              {canEdit && receivable && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setReceivedTarget(row)}
-                  title="Confirma la llegada de la mercadería e ingresa al inventario"
-                >
-                  <Download /> Marcar como Recibido
-                </Button>
-              )}
-              {canEdit && open && !row.faulty && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setFaultyTarget(row)}
-                  title="Anula el pedido y reembolsa el anticipo"
-                >
-                  <AlertTriangle /> Mal estado
-                </Button>
-              )}
-              {canPay && payable && (
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Registrar pago de ${row.number}`}
-                  onClick={() => setPayTarget(row)}
-                >
-                  <CreditCard />
-                </Button>
-              )}
-              {canDelete && open && (
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Anular ${row.number}`}
-                  onClick={() => setCancelTarget(row)}
-                >
-                  <Trash2 />
-                </Button>
-              )}
-            </div>
-          );
+          const actions = [];
+          if (receivable) {
+            actions.push({
+              label: 'Marcar como recibido',
+              icon: Download,
+              onSelect: () => setReceivedTarget(row),
+            });
+          }
+          if (open && !row.faulty) {
+            actions.push({
+              label: 'Mal estado',
+              icon: AlertTriangle,
+              onSelect: () => setFaultyTarget(row),
+            });
+          }
+          if (payable) {
+            actions.push({
+              label: 'Registrar pago',
+              icon: CreditCard,
+              onSelect: () => setPayTarget(row),
+            });
+          }
+          if (open) {
+            actions.push({
+              label: 'Anular',
+              icon: Ban,
+              danger: true,
+              onSelect: () => setCancelTarget(row),
+            });
+          }
+          if (actions.length === 0) return null;
+          return <RowActions actions={actions} label={`Acciones de ${row.number}`} />;
         },
       },
     ];
-  }, [canEdit, canDelete, canPay]);
+  }, []);
 
   return (
     <PageContainer>
@@ -192,7 +191,7 @@ export function PurchasesPage() {
         title="Compras"
         subtitle="Órdenes de compra a proveedores"
         actions={
-          <Button onClick={() => setFormOpen(true)}>
+          <Button onClick={openCreate}>
             <Plus /> Nueva compra
           </Button>
         }
@@ -205,31 +204,56 @@ export function PurchasesPage() {
         <StatCard label="Anuladas" value={String(cancelled)} />
       </Grid>
 
-      <div className="flex items-center gap-2">
-        <Label htmlFor="purchases-search">Buscar</Label>
-        <input
-          type="text"
-          id="purchases-search"
-          placeholder="Número u orden del proveedor…"
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          className="h-9 w-full max-w-sm rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-        />
-      </div>
-
       <DataTable
         columns={tableColumns}
-        data={purchases}
+        data={filtered}
         keyField="id"
         loading={isLoading}
         error={isError ? (error as Error) : null}
         onRetry={() => refetch()}
         globalSearch={false}
-        exportFilename="compras.csv"
+        preferencesKey="purchases"
+        toolbarLeft={
+          <>
+            <SearchInput
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onClear={() => setSearchInput('')}
+              placeholder="Número u orden del proveedor…"
+              className="datatable-search"
+              aria-label="Buscar compra"
+            />
+            <Select
+              items={[
+                { value: 'all', label: 'Estado: todos' },
+                { value: 'pending', label: 'Pendientes' },
+                { value: 'received', label: 'Recibidas' },
+                { value: 'paid', label: 'Pagadas' },
+                { value: 'reconciled', label: 'Conciliadas' },
+                { value: 'cancelled', label: 'Anuladas' },
+              ]}
+              value={statusFilter}
+              onValueChange={(v) => setStatusFilter(v ?? 'all')}
+            >
+              <SelectTrigger style={{ width: '11rem' }} aria-label="Filtrar por estado">
+                <SelectValue placeholder="Estado: todos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Estado: todos</SelectItem>
+                <SelectItem value="pending">Pendientes</SelectItem>
+                <SelectItem value="received">Recibidas</SelectItem>
+                <SelectItem value="paid">Pagadas</SelectItem>
+                <SelectItem value="reconciled">Conciliadas</SelectItem>
+                <SelectItem value="cancelled">Anuladas</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
+        }
         empty={
           <EmptyState
             title="No hay órdenes de compra"
-            description="Las órdenes creadas para los proveedores aparecerán aquí con su estado."
+            description="Crea tu primera orden de compra para abastecer el inventario."
+            action={{ label: 'Nueva compra', onClick: openCreate }}
           />
         }
       />

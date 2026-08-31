@@ -1,29 +1,32 @@
 import { create } from 'zustand';
+import { Toast } from '@base-ui/react/toast';
 
 export type ToastVariant = 'success' | 'info' | 'warning' | 'destructive';
 
-interface Toast {
-  id: string;
+interface ToastInput {
   title: string;
   description?: string;
-  variant: ToastVariant;
+  variant?: ToastVariant;
   duration?: number;
 }
 
+const manager = Toast.createToastManager();
+
+export const toastManager = manager;
+
 interface NotificationState {
-  toasts: Toast[];
-  push: (t: Omit<Toast, 'id'>) => string;
+  push: (toast: ToastInput) => string;
   dismiss: (id: string) => void;
-  clear: () => void;
+  clear?: () => void;
 }
 
-export const useNotificationStore = create<NotificationState>()((set) => ({
-  toasts: [],
-  push: (t) => {
-    const id = crypto.randomUUID();
-    set((s) => ({ toasts: [...s.toasts, { ...t, id }] }));
-    return id;
-  },
-  dismiss: (id) => set((s) => ({ toasts: s.toasts.filter((x) => x.id !== id) })),
-  clear: () => set({ toasts: [] }),
+export const useNotificationStore = create<NotificationState>(() => ({
+  push: (toast) =>
+    manager.add({
+      title: toast.title,
+      description: toast.description,
+      type: toast.variant ?? 'info',
+      timeout: toast.duration ?? 5000,
+    }),
+  dismiss: (id) => manager.close(id),
 }));

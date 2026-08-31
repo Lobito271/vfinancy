@@ -197,7 +197,7 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
                   <DateField name="orderDate" label="Fecha de orden" required />
                 </div>
                 <TextareaField name="supplierOrderNumber" label="N° Orden del Proveedor" rows={1} placeholder="Opcional — número de orden del proveedor" />
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="form-grid">
                   <SelectField
                     name="creditCardId"
                     label="Tarjeta de crédito (pago en USD)"

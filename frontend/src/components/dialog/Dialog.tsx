@@ -1,23 +1,9 @@
 import * as React from 'react';
-import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { X } from 'lucide-react';
 import { cx } from '@/utils/cx';
 
 export const Dialog = DialogPrimitive.Root;
-
-const DialogPortal = DialogPrimitive.Portal;
-
-const DialogOverlay = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Overlay>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
->(({ className, ...props }, ref) => (
-  <DialogPrimitive.Overlay
-    ref={ref}
-    className={cx('dialog-overlay', className)}
-    {...props}
-  />
-));
-DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 type Size = 'sm' | 'md' | 'lg' | 'xl';
 
@@ -29,30 +15,30 @@ const sizeClass: Record<Size, string> = {
 };
 
 interface DialogContentProps
-  extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> {
+  extends Omit<React.ComponentPropsWithoutRef<typeof DialogPrimitive.Popup>, 'className'> {
+  className?: string;
   size?: Size;
 }
 
 export const DialogContent = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Content>,
+  React.ComponentRef<typeof DialogPrimitive.Popup>,
   DialogContentProps
 >(({ className, children, size = 'md', ...props }, ref) => (
-  <DialogPortal>
-    <DialogOverlay>
-      <DialogPrimitive.Content
-        ref={ref}
-        className={cx('dialog-content', sizeClass[size], className)}
-        {...props}
-      >
-        {children}
-        <DialogPrimitive.Close className="dialog-close" aria-label="Cerrar">
-          <X />
-        </DialogPrimitive.Close>
-      </DialogPrimitive.Content>
-    </DialogOverlay>
-  </DialogPortal>
+  <DialogPrimitive.Portal>
+    <DialogPrimitive.Backdrop className="dialog-backdrop" />
+    <DialogPrimitive.Popup
+      ref={ref}
+      className={cx('dialog-content', sizeClass[size], className)}
+      {...props}
+    >
+      {children}
+      <DialogPrimitive.Close className="dialog-close" aria-label="Cerrar">
+        <X />
+      </DialogPrimitive.Close>
+    </DialogPrimitive.Popup>
+  </DialogPrimitive.Portal>
 ));
-DialogContent.displayName = DialogPrimitive.Content.displayName;
+DialogContent.displayName = 'DialogContent';
 
 export const DialogHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div className={cx('dialog-header', className)} {...props} />
@@ -65,25 +51,17 @@ export const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLD
 DialogFooter.displayName = 'DialogFooter';
 
 export const DialogTitle = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Title>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
+  React.ComponentRef<typeof DialogPrimitive.Title>,
+  Omit<React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>, 'className'> & { className?: string }
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Title
-    ref={ref}
-    className={cx('dialog-title', className)}
-    {...props}
-  />
+  <DialogPrimitive.Title ref={ref} className={cx('dialog-title', className)} {...props} />
 ));
-DialogTitle.displayName = DialogPrimitive.Title.displayName;
+DialogTitle.displayName = 'DialogTitle';
 
 export const DialogDescription = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Description>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
+  React.ComponentRef<typeof DialogPrimitive.Description>,
+  Omit<React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>, 'className'> & { className?: string }
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Description
-    ref={ref}
-    className={cx('dialog-description', className)}
-    {...props}
-  />
+  <DialogPrimitive.Description ref={ref} className={cx('dialog-description', className)} {...props} />
 ));
-DialogDescription.displayName = DialogPrimitive.Description.displayName;
+DialogDescription.displayName = 'DialogDescription';

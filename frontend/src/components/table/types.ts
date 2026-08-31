@@ -6,17 +6,12 @@ export interface Column<T> {
   cell: (row: T, info: { rowIndex: number; value: unknown }) => ReactNode;
   accessor?: (row: T) => unknown;
   sortable?: boolean;
-  filterable?: boolean;
   align?: 'left' | 'right' | 'center';
   width?: number | string;
   minWidth?: number;
-  resizable?: boolean;
   sticky?: boolean | 'left' | 'right';
-  defaultVisible?: boolean;
-  exportValue?: (row: T) => string | number;
   className?: string;
   headerClassName?: string;
-  exportable?: boolean;
 }
 
 type SortDirection = 'asc' | 'desc';
@@ -34,24 +29,19 @@ interface FilterState {
 export interface DataTableState {
   sort: SortState | null;
   filters: FilterState[];
-  visibleColumns: string[];
   search: string;
   page: number;
   pageSize: number;
-  selected: string[];
 }
 
 export interface DataTablePreferences {
-  visibleColumns?: string[];
   pageSize?: number;
   sort?: SortState | null;
-  columnWidths?: Record<string, number>;
 }
 
 export const DataTableDefaults = {
   pageSize: 25,
   pageSizeOptions: [10, 25, 50, 100] as const,
-  stickyHeader: true,
   stickyFirstColumn: true,
 };
 

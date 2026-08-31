@@ -64,18 +64,18 @@ export function ArrivalAndPaymentDialog({
           <DialogTitle>Llegada y Cobro</DialogTitle>
           <DialogDescription>
             Registra la llegada del pedido{' '}
-            <span className="font-medium">{documentNumber}</span> y cobra el saldo
+            <span className="fw-medium">{documentNumber}</span> y cobra el saldo
             pendiente en un solo paso.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="rounded-lg border bg-muted/40 p-4">
-          <div className="flex items-baseline justify-between gap-4">
-            <div className="text-sm text-muted-foreground">
+        <div className="fact-tile">
+          <div className="hstack" style={{ justifyContent: 'space-between' }}>
+            <div className="muted">
               Saldo por cobrar ·{' '}
-              <span className="font-medium text-foreground">{documentNumber}</span>
+              <span className="fw-medium">{documentNumber}</span>
             </div>
-            <div className="text-lg font-semibold tabular-nums">
+            <div className="fact-tile__value">
               {formatCurrency(outstandingAmount)}
             </div>
           </div>
@@ -97,7 +97,7 @@ export function ArrivalAndPaymentDialog({
         >
           {({ formState }) => (
             <>
-              <div className="space-y-4">
+              <div className="stack">
                 <DateField name="arrivalDate" label="Fecha de llegada" required />
                 <TextField name="amount" label="Monto a cobrar (PEN)" required />
                 <SelectField

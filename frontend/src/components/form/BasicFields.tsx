@@ -1,4 +1,5 @@
-import { useFormContext, type FieldPath, type FieldValues } from 'react-hook-form';
+import { useFormContext, Controller, type FieldPath, type FieldValues } from 'react-hook-form';
+import { NumberField as NumberFieldPrimitive } from '@base-ui/react/number-field';
 import type { ReactNode } from 'react';
 import { Field } from './Field';
 import { Input, Textarea } from '@/components/input';
@@ -42,6 +43,14 @@ export function TextField<T extends FieldValues>({
   );
 }
 
+interface NumberFieldProps<T extends FieldValues> extends BaseFieldProps<T> {
+  min?: number;
+  max?: number;
+  step?: number | 'any';
+  placeholder?: string;
+  readOnly?: boolean;
+}
+
 export function NumberField<T extends FieldValues>({
   name,
   label,
@@ -51,23 +60,37 @@ export function NumberField<T extends FieldValues>({
   min,
   max,
   step,
-  ...inputProps
-}: TextFieldProps<T> & { min?: number; max?: number; step?: number }) {
-  const { register, formState } = useFormContext<T>();
+  disabled,
+  readOnly,
+  placeholder,
+}: NumberFieldProps<T>) {
+  const { control, formState } = useFormContext<T>();
   const error = formState.errors[name]?.message as string | undefined;
   return (
     <Field label={label} required={required} description={description} error={error} className={className} htmlFor={String(name)}>
-      <Input
-        id={String(name)}
-        type="number"
-        inputMode="decimal"
-        invalid={!!error}
-        min={min}
-        max={max}
-        step={step}
-        className="tabular"
-        {...register(name, { valueAsNumber: true })}
-        {...inputProps}
+      <Controller
+        control={control}
+        name={name}
+        render={({ field }) => (
+          <NumberFieldPrimitive.Root
+            id={String(name)}
+            className="number-field"
+            locale="es-PE"
+            value={typeof field.value === 'number' ? field.value : null}
+            min={min}
+            max={max}
+            step={step}
+            disabled={disabled}
+            readOnly={readOnly}
+            onValueChange={(value) => field.onChange((value ?? 0) as never)}
+          >
+            <NumberFieldPrimitive.Input
+              className="input tabular"
+              aria-invalid={!!error || undefined}
+              placeholder={placeholder}
+            />
+          </NumberFieldPrimitive.Root>
+        )}
       />
     </Field>
   );
@@ -96,7 +119,6 @@ export function TextareaField<T extends FieldValues>({
         id={String(name)}
         rows={rows}
         invalid={!!error}
-        className={className}
         {...register(name)}
         {...rest}
       />

@@ -21,10 +21,3 @@ export const navRoutes: NavRoute[] = [
   { to: Routes.Treasury, label: 'Tesorería', icon: Landmark },
   { to: Routes.Settings, label: 'Configuración', icon: Settings },
 ];
-
-export function findRouteLabel(path: string): string {
-  const exact = navRoutes.find((r) => r.end && r.to === path);
-  if (exact) return exact.label;
-  const prefix = navRoutes.find((r) => !r.end && path.startsWith(r.to));
-  return prefix?.label ?? 'Inicio';
-}

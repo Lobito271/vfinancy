@@ -4,10 +4,11 @@ import { PageContainer, PageHeader, Grid } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
 import { CustomerStatusBadge } from '@/components/badge';
-import { Input } from '@/components/input';
+import { SearchInput } from '@/components/input';
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/feedback';
 import { ConfirmDialog } from '@/components/dialog';
+import { RowActions } from '@/components/misc';
 import {
   Select,
   SelectContent,
@@ -73,35 +74,37 @@ export function SuppliersPage() {
   const totalDebt = suppliers.reduce((s, c) => s + c.currentDebt, 0);
   const active = suppliers.filter((s) => s.status === 'active').length;
 
+  const openCreate = () => {
+    setEditing(null);
+    setFormOpen(true);
+  };
+
   const tableColumns = useMemo<Column<Supplier>[]>(() => [
     ...columns,
     {
       id: 'actions',
       header: '',
-      width: 88,
-      exportable: false,
+      width: 72,
       cell: (row) => (
-        <div className="row-actions">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Editar ${row.businessName}`}
-            onClick={() => {
-              setEditing(row);
-              setFormOpen(true);
-            }}
-          >
-            <Pencil />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Eliminar ${row.businessName}`}
-            onClick={() => setDeleteTarget(row)}
-          >
-            <Trash2 />
-          </Button>
-        </div>
+        <RowActions
+          actions={[
+            {
+              label: 'Editar',
+              icon: Pencil,
+              onSelect: () => {
+                setEditing(row);
+                setFormOpen(true);
+              },
+            },
+            {
+              label: 'Eliminar',
+              icon: Trash2,
+              danger: true,
+              onSelect: () => setDeleteTarget(row),
+            },
+          ]}
+          label={`Acciones de ${row.businessName}`}
+        />
       ),
     },
   ], []);
@@ -112,17 +115,9 @@ export function SuppliersPage() {
         title="Proveedores"
         subtitle="Gestión de proveedores y cuentas por pagar"
         actions={
-          <div className="hstack hstack--sm">
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar proveedor…" style={{ width: "16rem" }} aria-label="Buscar proveedor" />
-            <Button
-              onClick={() => {
-                setEditing(null);
-                setFormOpen(true);
-              }}
-            >
-              <Plus /> Nuevo proveedor
-            </Button>
-          </div>
+          <Button onClick={openCreate}>
+            <Plus /> Nuevo proveedor
+          </Button>
         }
       />
 
@@ -141,23 +136,42 @@ export function SuppliersPage() {
         error={isError ? (error as Error) : null}
         onRetry={() => refetch()}
         globalSearch={false}
-        exportFilename="proveedores.csv"
+        preferencesKey="suppliers"
         toolbarLeft={
-          <Select value={status} onValueChange={(v) => setStatus(v === 'all' ? '' : v)}>
-            <SelectTrigger style={{ width: "11rem" }} aria-label="Filtrar por estado">
-              <SelectValue placeholder="Estado: todos" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Estado: todos</SelectItem>
-              <SelectItem value="active">Activos</SelectItem>
-              <SelectItem value="inactive">Inactivos</SelectItem>
-            </SelectContent>
-          </Select>
+          <>
+            <SearchInput
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onClear={() => setSearch('')}
+              placeholder="Buscar proveedor…"
+              className="datatable-search"
+              aria-label="Buscar proveedor"
+            />
+            <Select
+              items={[
+                { value: 'all', label: 'Estado: todos' },
+                { value: 'active', label: 'Activos' },
+                { value: 'inactive', label: 'Inactivos' },
+              ]}
+              value={status || 'all'}
+              onValueChange={(v) => setStatus(v === 'all' ? '' : (v ?? ''))}
+            >
+              <SelectTrigger style={{ width: '11rem' }} aria-label="Filtrar por estado">
+                <SelectValue placeholder="Estado: todos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Estado: todos</SelectItem>
+                <SelectItem value="active">Activos</SelectItem>
+                <SelectItem value="inactive">Inactivos</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
         }
         empty={
           <EmptyState
             title="No hay proveedores registrados"
-            description="Cuando se registren proveedores, aparecerán aquí con sus cuentas por pagar."
+            description="Registra tu primer proveedor para comenzar a registrar compras y cuentas por pagar."
+            action={{ label: 'Nuevo proveedor', onClick: openCreate }}
           />
         }
       />

@@ -34,14 +34,14 @@ export function OrderFinancialPreview({ showProfit = true }: OrderFinancialPrevi
   const profit = showProfit ? round2((salePricePEN ?? 0) - realCost) : 0;
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 gap-4 rounded-md border bg-muted/30 p-3 sm:grid-cols-4">
+    <div className="stack">
+      <div className="fact-grid">
         <div>
-          <div className="text-xs text-muted-foreground">Costo (USD)</div>
-          <div className="text-base font-semibold tabular-nums">{formatCurrency(costUSD, 'USD')}</div>
+          <div className="fact-grid__label">Costo (USD)</div>
+          <div className="fact-grid__value">{formatCurrency(costUSD, 'USD')}</div>
         </div>
-        <div className="flex flex-col gap-1">
-          <div className="text-xs text-muted-foreground">T.C. (USD→PEN)</div>
+        <div className="stack stack--tight">
+          <div className="fact-grid__label">T.C. (USD→PEN)</div>
           <NumberField
             name="exchangeRate"
             min={0.01}
@@ -50,13 +50,13 @@ export function OrderFinancialPreview({ showProfit = true }: OrderFinancialPrevi
           />
         </div>
         <div>
-          <div className="text-xs text-muted-foreground">Costo real (PEN)</div>
-          <div className="text-base font-semibold tabular-nums">{formatCurrency(realCost)}</div>
+          <div className="fact-grid__label">Costo real (PEN)</div>
+          <div className="fact-grid__value">{formatCurrency(realCost)}</div>
         </div>
         {showProfit && (
           <div>
-            <div className="text-xs text-muted-foreground">Utilidad proyectada</div>
-            <div className={`text-base font-semibold tabular-nums ${profit < 0 ? 'text-destructive' : 'text-success'}`}>
+            <div className="fact-grid__label">Utilidad proyectada</div>
+            <div className={`fact-grid__value ${profit < 0 ? 'text-destructive' : 'text-success'}`}>
               {formatCurrency(profit)}
             </div>
           </div>

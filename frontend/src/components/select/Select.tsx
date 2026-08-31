@@ -1,18 +1,14 @@
 import * as React from 'react';
-import * as SelectPrimitive from '@radix-ui/react-select';
-import { Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { Select as SelectPrimitive } from '@base-ui/react/select';
+import { Check, ChevronDown } from 'lucide-react';
 import { cx } from '@/utils/cx';
 
 export const Select = SelectPrimitive.Root;
 export const SelectValue = SelectPrimitive.Value;
 
-interface SelectTriggerProps extends React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger> {
-  invalid?: boolean;
-}
-
 export const SelectTrigger = React.forwardRef<
-  React.ElementRef<typeof SelectPrimitive.Trigger>,
-  SelectTriggerProps
+  React.ComponentRef<typeof SelectPrimitive.Trigger>,
+  Omit<React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>, 'className'> & { className?: string; invalid?: boolean }
 >(({ className, children, invalid, ...props }, ref) => (
   <SelectPrimitive.Trigger
     ref={ref}
@@ -20,53 +16,40 @@ export const SelectTrigger = React.forwardRef<
     {...props}
   >
     {children}
-    <SelectPrimitive.Icon asChild>
+    <SelectPrimitive.Icon className="select-trigger__icon">
       <ChevronDown />
     </SelectPrimitive.Icon>
   </SelectPrimitive.Trigger>
 ));
-SelectTrigger.displayName = SelectPrimitive.Trigger.displayName;
+SelectTrigger.displayName = 'SelectTrigger';
 
 export const SelectContent = React.forwardRef<
-  React.ElementRef<typeof SelectPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(({ className, children, position = 'popper', ...props }, ref) => (
+  React.ComponentRef<typeof SelectPrimitive.Popup>,
+  Omit<React.ComponentPropsWithoutRef<typeof SelectPrimitive.Popup>, 'className'> & {
+    className?: string;
+    align?: React.ComponentPropsWithoutRef<typeof SelectPrimitive.Positioner>['align'];
+    sideOffset?: number;
+  }
+>(({ className, children, align = 'start', sideOffset = 6, ...props }, ref) => (
   <SelectPrimitive.Portal>
-    <SelectPrimitive.Content
-      ref={ref}
-      position={position}
-      className={cx('select-content', className)}
-      {...props}
-    >
-      <SelectPrimitive.ScrollUpButton className="select-scroll-btn">
-        <ChevronUp />
-      </SelectPrimitive.ScrollUpButton>
-      <SelectPrimitive.Viewport className="select-viewport">
+    <SelectPrimitive.Positioner align={align} sideOffset={sideOffset} className="select-positioner">
+      <SelectPrimitive.Popup ref={ref} className={cx('select-popup', className)} {...props}>
         {children}
-      </SelectPrimitive.Viewport>
-      <SelectPrimitive.ScrollDownButton className="select-scroll-btn">
-        <ChevronDown />
-      </SelectPrimitive.ScrollDownButton>
-    </SelectPrimitive.Content>
+      </SelectPrimitive.Popup>
+    </SelectPrimitive.Positioner>
   </SelectPrimitive.Portal>
 ));
-SelectContent.displayName = SelectPrimitive.Content.displayName;
+SelectContent.displayName = 'SelectContent';
 
 export const SelectItem = React.forwardRef<
-  React.ElementRef<typeof SelectPrimitive.Item>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>
+  React.ComponentRef<typeof SelectPrimitive.Item>,
+  Omit<React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>, 'className'> & { className?: string }
 >(({ className, children, ...props }, ref) => (
-  <SelectPrimitive.Item
-    ref={ref}
-    className={cx('select-item', className)}
-    {...props}
-  >
-    <span className="select-item__indicator">
-      <SelectPrimitive.ItemIndicator>
-        <Check />
-      </SelectPrimitive.ItemIndicator>
-    </span>
-    <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+  <SelectPrimitive.Item ref={ref} className={cx('select-item', className)} {...props}>
+    <SelectPrimitive.ItemIndicator className="select-item__indicator">
+      <Check />
+    </SelectPrimitive.ItemIndicator>
+    <SelectPrimitive.ItemText className="select-item__text">{children}</SelectPrimitive.ItemText>
   </SelectPrimitive.Item>
 ));
-SelectItem.displayName = SelectPrimitive.Item.displayName;
+SelectItem.displayName = 'SelectItem';

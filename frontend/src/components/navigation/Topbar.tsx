@@ -1,7 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Sun, Moon, Monitor, Bell, CheckCheck } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Sun, Moon, Monitor, Bell, CheckCheck, Lock, Menu as MenuIcon } from 'lucide-react';
 import { useThemeStore, type Theme } from '@/stores/theme';
 import { useUIStore } from '@/stores/ui';
+import { useSidebarStore } from '@/stores/sidebar';
 import { Button } from '@/components/button';
 import { SearchInput } from '@/components/input';
 import { Badge } from '@/components/badge';
@@ -10,6 +12,7 @@ import { t } from '@/locales';
 import { formatRelative } from '@/utils/format';
 import { queryKeys } from '@/services/queryKeys';
 import { notificationsService, type AppNotification } from '@/services/notifications';
+import { wailsClient } from '@/services/bindings';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -116,11 +119,38 @@ export function Topbar() {
   const setTheme = useThemeStore((s) => s.setTheme);
   const search = useUIStore((s) => s.globalSearch);
   const setSearch = useUIStore((s) => s.setGlobalSearch);
+  const setMobileOpen = useSidebarStore((s) => s.setMobileOpen);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const authState = useQuery({
+    queryKey: queryKeys.setup,
+    queryFn: () => wailsClient.getLocalAuthState(),
+    staleTime: 30_000,
+  });
 
   const ThemeIcon = themeIcons[theme];
 
+  const lock = useMutation({
+    mutationFn: () => wailsClient.lockLocalProfile(),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.setup });
+      navigate('/bienvenida', { replace: true });
+    },
+  });
+
   return (
     <header className="topbar">
+      <Button
+        variant="ghost"
+        size="icon"
+        className="topbar__hamburger"
+        onClick={() => setMobileOpen(true)}
+        aria-label="Abrir menú"
+      >
+        <MenuIcon />
+      </Button>
+
       <div className="topbar__search">
         <SearchInput
           value={search}
@@ -159,8 +189,20 @@ export function Topbar() {
 
         <NotificationsBell />
 
-        <div className="topbar__divider" aria-hidden="true" />
-
+        {authState.data?.passwordEnabled && (
+          <>
+            <div className="topbar__divider" aria-hidden="true" />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => lock.mutate()}
+              loading={lock.isPending}
+              aria-label="Bloquear aplicación"
+            >
+              <Lock />
+            </Button>
+          </>
+        )}
       </div>
     </header>
   );

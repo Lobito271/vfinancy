@@ -38,7 +38,7 @@ export function MarkReceivedDialog({ open, onOpenChange, documentNumber, loading
         <DialogHeader>
           <DialogTitle>Marcar como Recibido</DialogTitle>
           <DialogDescription>
-            Confirma la llegada del pedido <span className="font-medium">{documentNumber}</span>. La mercadería se
+            Confirma la llegada del pedido <span className="fw-medium">{documentNumber}</span>. La mercadería se
             ingresará al inventario y comenzará a contar el plazo de liquidación (25 días).
           </DialogDescription>
         </DialogHeader>
@@ -46,7 +46,7 @@ export function MarkReceivedDialog({ open, onOpenChange, documentNumber, loading
         <Form key={documentNumber} schema={ReceivedSchema} defaultValues={defaults} onSubmit={onConfirm}>
           {({ formState }) => (
             <>
-              <div className="space-y-4">
+              <div className="stack">
                 <DateField name="arrivalDate" label="Fecha de llegada" required />
               </div>
               <DialogFooter>

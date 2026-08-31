@@ -46,53 +46,49 @@ export function TreasuryPage() {
               const projectedUSD = projection?.projectedUSD ?? 0;
               return (
                 <Card key={card.id}>
-                  <CardHeader className="flex-row items-center justify-between">
-                    <div>
-                      <p className="text-base font-semibold">
-                        {card.issuer === 'visa' ? 'Visa' : 'Diners'} •••• {card.lastFour}
-                      </p>
-                      <p className="text-sm muted">{card.cardHolder}</p>
+                  <CardHeader className="card-header--row">
+                    <div className="vstack">
+                      <p className="card-title">{card.issuer === 'visa' ? 'Visa' : 'Diners'} •••• {card.lastFour}</p>
+                      <p className="muted">{card.cardHolder}</p>
                     </div>
                     <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={projectedUSD <= 0 || payCardMutation.isPending}
-                        onClick={() =>
-                          setPayTarget({
-                            cardId: card.id,
-                            issuer: card.issuer,
-                            lastFour: card.lastFour,
-                            amount: projectedUSD,
-                          })
-                        }
-                      >
-                        <CreditCard /> Registrar pago
-                      </Button>
+                      variant="outline"
+                      size="sm"
+                      disabled={projectedUSD <= 0 || payCardMutation.isPending}
+                      onClick={() =>
+                        setPayTarget({
+                          cardId: card.id,
+                          issuer: card.issuer,
+                          lastFour: card.lastFour,
+                          amount: projectedUSD,
+                        })
+                      }
+                    >
+                      <CreditCard /> Registrar pago
+                    </Button>
                   </CardHeader>
                   <CardContent>
-                    <div className="form-grid">
+                    <div className="treasury-grid">
                       <div>
                         <p className="muted">Fecha de corte</p>
-                        <p className="font-medium tabular-nums">
+                        <p className="fw-medium tabular">
                           {projection?.nextCutOffDate ? formatDate(projection.nextCutOffDate) : '—'}
                         </p>
                       </div>
                       <div>
                         <p className="muted">Fecha de pago</p>
-                        <p className="font-medium tabular-nums">
+                        <p className="fw-medium tabular">
                           {projection?.nextPaymentDate ? formatDate(projection.nextPaymentDate) : '—'}
                         </p>
                       </div>
-                      <div className="col-span-2 pt-2 border-top">
+                      <div className="treasury-grid__divider">
                         <p className="muted">Deuda proyectada (USD)</p>
-                        <p className="text-lg font-bold tabular-nums" style={{ color: 'hsl(var(--primary))' }}>
-                          {formatCurrency(projectedUSD, 'USD')}
-                        </p>
+                        <p className="treasury-grid__amount tabular">{formatCurrency(projectedUSD, 'USD')}</p>
                       </div>
-                      <div className="col-span-2 pt-2 border-top">
+                      <div className="treasury-grid__divider">
                         <div className="hstack" style={{ justifyContent: 'space-between' }}>
-                          <span className="text-sm muted">Límite: {formatCurrency(card.creditLimit, 'USD')}</span>
-                          <span className="text-sm muted">Disponible: {formatCurrency(card.creditLimit - card.currentBalance, 'USD')}</span>
+                          <span className="muted">Límite: {formatCurrency(card.creditLimit, 'USD')}</span>
+                          <span className="muted">Disponible: {formatCurrency(card.creditLimit - card.currentBalance, 'USD')}</span>
                         </div>
                       </div>
                     </div>

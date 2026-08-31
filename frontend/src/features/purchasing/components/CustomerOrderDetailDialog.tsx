@@ -24,7 +24,7 @@ const itemColumns: Column<CustomerOrderItem>[] = [
     id: 'unitPrice',
     header: 'Costo unit.',
     align: 'right',
-    cell: (r) => <span className="tabular-nums">{formatCurrency(r.unitPrice, 'USD')}</span>,
+    cell: (r) => <span className="tabular">{formatCurrency(r.unitPrice, 'USD')}</span>,
   },
   {
     id: 'discountPercent',
@@ -36,14 +36,14 @@ const itemColumns: Column<CustomerOrderItem>[] = [
     id: 'taxAmount',
     header: 'IGV',
     align: 'right',
-    cell: (r) => <span className="tabular-nums">{formatCurrency(r.taxAmount, 'USD')}</span>,
+    cell: (r) => <span className="tabular">{formatCurrency(r.taxAmount, 'USD')}</span>,
   },
   {
     id: 'lineTotal',
     header: 'Total',
     align: 'right',
     cell: (r) => (
-      <span className="tabular-nums font-medium">
+      <span className="tabular fw-medium">
         {formatCurrency(r.quantity * r.unitPrice - r.discountAmount + r.taxAmount, 'USD')}
       </span>
     ),
@@ -51,13 +51,13 @@ const itemColumns: Column<CustomerOrderItem>[] = [
 ];
 
 const paymentColumns: Column<CustomerOrderPayment>[] = [
-  { id: 'number', header: 'N°', cell: (r) => <span className="font-medium tabular-nums">{r.number}</span> },
-  { id: 'paymentDate', header: 'Fecha', cell: (r) => <span className="text-muted-foreground">{formatDate(r.paymentDate)}</span> },
+  { id: 'number', header: 'N°', cell: (r) => <span className="fw-medium tabular">{r.number}</span> },
+  { id: 'paymentDate', header: 'Fecha', cell: (r) => <span className="muted">{formatDate(r.paymentDate)}</span> },
   {
     id: 'amount',
     header: 'Monto',
     align: 'right',
-    cell: (r) => <span className="tabular-nums">{formatCurrency(r.amount)}</span>,
+    cell: (r) => <span className="tabular">{formatCurrency(r.amount)}</span>,
   },
   {
     id: 'method',
@@ -123,9 +123,9 @@ export function CustomerOrderDetailDialog({ order, onOpenChange, onMarkReceived,
           <>
             <DialogHeader>
               <DialogTitle>
-                Pedido <span className="tabular-nums">{current.number}</span>
+                Pedido <span className="tabular">{current.number}</span>
               </DialogTitle>
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+              <div className="hstack hstack--sm muted">
                 <span>{current.customerName || 'Cliente'}</span>
                 <span>·</span>
                 <span>{formatDate(current.date)}</span>
@@ -140,52 +140,52 @@ export function CustomerOrderDetailDialog({ order, onOpenChange, onMarkReceived,
               </div>
             </DialogHeader>
 
-            <div className="space-y-5">
+            <div className="stack">
               <Grid cols={4}>
-                <div className="rounded-md border bg-muted/30 p-3">
-                  <div className="text-xs text-muted-foreground">Costo real (PEN)</div>
-                  <div className="text-lg font-semibold tabular-nums">{formatCurrency(current.realCostPEN)}</div>
+                <div className="fact-tile">
+                  <div className="fact-tile__label">Costo real (PEN)</div>
+                  <div className="fact-tile__value">{formatCurrency(current.realCostPEN)}</div>
                 </div>
-                <div className="rounded-md border bg-muted/30 p-3">
-                  <div className="text-xs text-muted-foreground">Precio de venta</div>
-                  <div className="text-lg font-semibold tabular-nums">{formatCurrency(current.salePricePEN)}</div>
+                <div className="fact-tile">
+                  <div className="fact-tile__label">Precio de venta</div>
+                  <div className="fact-tile__value">{formatCurrency(current.salePricePEN)}</div>
                 </div>
-                <div className="rounded-md border bg-muted/30 p-3">
-                  <div className="text-xs text-muted-foreground">Anticipo</div>
-                  <div className="text-lg font-semibold tabular-nums">{formatCurrency(current.anticipo)}</div>
+                <div className="fact-tile">
+                  <div className="fact-tile__label">Anticipo</div>
+                  <div className="fact-tile__value">{formatCurrency(current.anticipo)}</div>
                 </div>
-                <div className="rounded-md border bg-muted/30 p-3">
-                  <div className="text-xs text-muted-foreground">Por cobrar</div>
-                  <div className="text-lg font-semibold tabular-nums">{formatCurrency(current.porCobrar)}</div>
+                <div className="fact-tile">
+                  <div className="fact-tile__label">Por cobrar</div>
+                  <div className="fact-tile__value">{formatCurrency(current.porCobrar)}</div>
                 </div>
               </Grid>
 
               <div>
-                <h3 className="mb-2 text-sm font-medium">Líneas del pedido</h3>
-                <DataTable columns={itemColumns} data={items} keyField="id" globalSearch={false} exportable={false} />
+                <h3 className="dialog-section-title">Líneas del pedido</h3>
+                <DataTable columns={itemColumns} data={items} keyField="id" globalSearch={false} />
               </div>
 
               <div>
-                <h3 className="mb-2 text-sm font-medium">Pagos del cliente</h3>
+                <h3 className="dialog-section-title">Pagos del cliente</h3>
                 {payments.length === 0 ? (
-                  <p className="rounded-md border bg-muted/20 p-3 text-sm text-muted-foreground">
+                  <p className="dialog-note">
                     Aún no se han registrado anticipos para este pedido.
                   </p>
                 ) : (
-                  <DataTable columns={paymentColumns} data={payments} keyField="id" globalSearch={false} exportable={false} />
+                  <DataTable columns={paymentColumns} data={payments} keyField="id" globalSearch={false} />
                 )}
               </div>
 
               {current.faulty && (
-                <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm">
-                  <span className="font-medium">Motivo del daño:</span>{' '}
+                <div className="dialog-note dialog-note--destructive">
+                  <span className="fw-medium">Motivo del daño:</span>{' '}
                   {current.faultyReason || 'Sin detalle'} · Reembolsado:{' '}
-                  <span className="tabular-nums">{formatCurrency(current.refundedAmount)}</span>
+                  <span className="tabular">{formatCurrency(current.refundedAmount)}</span>
                 </div>
               )}
             </div>
 
-            <DialogFooter className="border-t pt-4">
+            <DialogFooter>
               {receivable && (
                 <>
                   <Button variant="outline" onClick={handleFaulty}>

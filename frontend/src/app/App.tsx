@@ -5,6 +5,7 @@ import { AppLayout } from '@/layouts/AppLayout';
 import { Spinner } from '@/components/feedback';
 import { Providers } from './Providers';
 import { useThemeStore } from '@/stores/theme';
+import { queryKeys } from '@/services/queryKeys';
 import { wailsClient } from '@/services/bindings';
 
 const DashboardPage = lazy(() =>
@@ -21,6 +22,7 @@ const SalesPage = lazy(() => import('@/pages/SalesPage').then((m) => ({ default:
 const TreasuryPage = lazy(() => import('@/pages/TreasuryPage').then((m) => ({ default: m.TreasuryPage })));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 const SetupWizardPage = lazy(() => import('@/pages/SetupWizardPage').then((m) => ({ default: m.SetupWizardPage })));
+const WelcomePage = lazy(() => import('@/pages/WelcomePage').then((m) => ({ default: m.WelcomePage })));
 
 function PageLoader() {
   return (
@@ -39,11 +41,22 @@ function ThemeInit() {
 }
 
 function SetupState({ children, setup }: { children: React.ReactNode; setup: boolean }) {
-  const state = useQuery({ queryKey: ['setup'], queryFn: () => wailsClient.getLocalAuthState() });
+  const state = useQuery({ queryKey: queryKeys.setup, queryFn: () => wailsClient.getLocalAuthState() });
   if (state.isLoading) return <PageLoader />;
   if (state.isError) return <div className="page-loader">No se pudo comprobar la configuración.</div>;
   if (state.data?.configured !== setup)
     return <Navigate to={setup ? '/configuracion-inicial' : '/'} replace />;
+  if (setup && state.data?.passwordEnabled && !state.data?.unlocked)
+    return <Navigate to="/bienvenida" replace />;
+  return <>{children}</>;
+}
+
+function LockedState({ children }: { children: React.ReactNode }) {
+  const state = useQuery({ queryKey: queryKeys.setup, queryFn: () => wailsClient.getLocalAuthState() });
+  if (state.isLoading) return <PageLoader />;
+  if (state.isError || !state.data) return <PageLoader />;
+  if (!state.data.configured) return <Navigate to="/configuracion-inicial" replace />;
+  if (!state.data.passwordEnabled || state.data.unlocked) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
@@ -54,6 +67,7 @@ export function App() {
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="configuracion-inicial" element={<SetupState setup={false}><SetupWizardPage /></SetupState>} />
+          <Route path="bienvenida" element={<LockedState><WelcomePage /></LockedState>} />
           <Route element={<SetupState setup><AppLayout /></SetupState>}>
             <Route index element={<DashboardPage />} />
             <Route path="clientes" element={<CustomersPage />} />

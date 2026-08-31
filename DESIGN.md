@@ -10,23 +10,27 @@ This is the canonical visual/interaction spec for the vfinancy desktop UI. Imple
 
 Full-color custom properties (no channel splitting). Alpha is derived with `color-mix(in oklch, …)` when needed.
 
+The palette is **monochrome/grayscale by design** — a terminal/skeuomorphic-square look. The only chromatic token is the destructive/error red; all other state colors (success/warning/info) are muted pairs never used decoratively.
+
 | Token | Light | Dark | Role |
 |---|---|---|---|
-| `--color-bg` | ~98% L neutral-cool | ~17% L | App background |
-| `--color-surface` | white | raised neutral | Cards, popups, inputs |
-| `--color-muted` | ~97% L | ~24% L | Hover fills, table head, wells |
-| `--color-fg` | ~22% L | ~95% L | Primary text |
-| `--color-muted-fg` | ~50% L | ~70% L | Secondary text |
-| `--color-fg-subtle` | ~64% L | ~56% L | Hints, placeholders |
-| `--color-border` / `--color-border-strong` | hairline neutrals | | 1px chrome |
-| `--color-primary` | indigo (OKLCH 52% 0.2 274) | lightened indigo | Single accent: actions, active nav, links |
-| `--color-primary-muted` / `-fg` | tint pair | | Active nav pill, selected rows, soft accents |
-| `--color-success/-warning/-destructive/-info` (+`-muted`, `-muted-fg`) | semantic pairs | lightened pairs | Status only — never decorative |
-| `--color-ring` | primary-ish | | `:focus-visible` outline |
-| `--color-overlay` | scrim alpha | | Dialog/drawer backdrops |
+| `--color-bg` | `oklch(97% 0 0)` | `oklch(14.5% 0 0)` | App background (dark = the fg color) |
+| `--color-surface` | `oklch(100% 0 0)` white | `oklch(14.5% 0 0)` | Cards, popups, inputs |
+| `--color-muted` | `oklch(97% 0 0)` | `oklch(26.9% 0 0)` | Hover fills, table head, wells |
+| `--color-fg` | `oklch(14.5% 0 0)` | white | Primary text, borders, primary accent |
+| `--color-muted-fg` | `oklch(43.9% 0 0)` | `oklch(87% 0 0)` | Secondary text |
+| `--color-fg-subtle` | `oklch(55.6% 0 0)` | `oklch(70.8% 0 0)` | Hints, placeholders, disabled |
+| `--color-border` / `--color-border-strong` | `oklch(14.5% 0 0)` | white | Full-strength 1px chrome (border = fg) |
+| `--color-primary` | `oklch(14.5% 0 0)` | white | **Single accent**: since the palette is monochrome, the accent collapses to fg. Filled primary buttons invert (near-black bg / white text in light; white bg / near-black text in dark). |
+| `--color-primary-muted` / `-fg` | `oklch(97% 0 0)` / `oklch(14.5% 0 0)` | `oklch(26.9% 0 0)` / white | Active nav pill, selected rows, soft accents |
+| `--color-success/-warning/-destructive/-info` (+`-muted`, `-muted-fg`) | semantic pairs | lightened pairs | Status only — never decorative. `destructive` is the sole chromatic: `oklch(50.5% 0.213 27.518deg)` / `oklch(70.4% 0.191 22.216deg)` |
+| `--color-ring` | `oklch(14.5% 0 0)` | white | `:focus-visible` outline |
+| `--color-overlay` | `oklch(14.5% 0 0 / 0.3)` | `oklch(14.5% 0 0 / 0.7)` | Dialog/drawer backdrops |
 
 **Rules**
-- No hardcoded colors anywhere. Components consume tokens only.
+- No hardcoded colors anywhere. Components consume tokens only. Every color has an OKLCH `0 0deg` chroma/hue or a muted semantic pair — there is no free-standing hue.
+- The accent is **monochrome**: primary, focus ring, borders, and links all resolve to `--color-fg` / its inversion. Blue/indigo is gone.
+- `destructive` is the only chromatic token, and only red is allowed to carry chroma.
 - Status colors are rationed to meaning (badges, deltas, destructive confirmations).
 - Charts read the same tokens (passed as string props to recharts).
 
@@ -39,8 +43,8 @@ Full-color custom properties (no channel splitting). Alpha is derived with `colo
 
 ### Shape, depth, motion
 
-- Radii: `--radius-sm` 7px (controls, menu items), `--radius` 10px (popups, inputs), `--radius-lg` 14px (cards, dialogs, table container), `--radius-full` (badges, dots).
-- Depth is minimal: `--shadow-sm` (resting cards/buttons), `--shadow-md` (menus/selects), `--shadow-lg` (dialogs, toasts). Dark mode uses heavier black alphas.
+- Radii: `--radius-sm` / `--radius` / `--radius-lg` are **all `0`** (square corners — sharp, terminal-like edges); `--radius-full` (`999px`) is reserved for badges, dots, and circular avatars only.
+- Depth is **flat with hard-offset shadows** (no blur): `--shadow-sm` `0.0625rem 0.0625rem 0`, `--shadow-md` `0.125rem 0.125rem 0`, `--shadow-lg` `0.25rem 0.25rem 0` over `rgb(0 0 0 / 12–16%)`. Dark mode uses **no shadow** (`none`) — the monochrome inversion relies on strong borders instead.
 - **Layering (ascending z-index):** table sticky header 2 → topbar 40 → drawer 50 → dialog 60 → menu/select 70 → tooltip 80 → toaster 90. Overlays are portals into `body`; only the topbar/table participate in page stacking, so every overlay must sit above the topbar (40).
 - Motion: ~160ms for hover/state, ~200ms for dialogs/toasts, 250ms for the drawer. Easing `--ease` (`cubic-bezier(0.25,0.8,0.35,1)`).
 - Enter/exit animations use Base UI's `data-starting-style` / `data-ending-style` attributes. All motion is disabled under `prefers-reduced-motion: reduce`.
@@ -48,7 +52,8 @@ Full-color custom properties (no channel splitting). Alpha is derived with `colo
 ### Spacing & density
 
 - 8px grid; page gutters 24px (16px < 768px).
-- Control heights: `--control-h` 36px (default), 32px (sm), 44px (lg).
+- Control heights: `--control-h` **2rem (32px)** (default), `--control-h-sm` 1.875rem (sm), `--control-h-lg` 2.5rem (lg). Default control text is 0.875rem (14px) with 1.25rem line-height.
+- Buttons/inputs use `gap 0.5rem`, padding `0 0.75rem` (buttons) / `0 0.5rem` (inputs), matching the reference component sheet.
 - CRUD pages: `PageContainer` → `PageHeader` (title/subtitle + Create) → stat-card `Grid` → `DataTable`.
 
 ---

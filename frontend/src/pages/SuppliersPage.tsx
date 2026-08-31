@@ -135,7 +135,6 @@ export function SuppliersPage() {
         loading={isLoading}
         error={isError ? (error as Error) : null}
         onRetry={() => refetch()}
-        globalSearch={false}
         preferencesKey="suppliers"
         toolbarLeft={
           <>

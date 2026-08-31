@@ -128,7 +128,7 @@ export function TopProductsWidget() {
   return (
     <WidgetShell title="Productos más vendidos" description="Top del mes" loading={isLoading} error={isError ? (error as Error) : null}>
       {rows.length ? (
-        <DataTable columns={columns} data={rows} keyField="label" globalSearch={false}  />
+        <DataTable columns={columns} data={rows} keyField="label" />
       ) : (
         <EmptyState title="Sin datos" description="El ranking se completará con las ventas del mes." />
       )}
@@ -156,7 +156,7 @@ export function RecentActivityWidget() {
   return (
     <WidgetShell title="Actividad reciente" description="Últimas operaciones del sistema" loading={isLoading} error={isError ? (error as Error) : null}>
       {rows.length ? (
-        <DataTable columns={columns} data={rows} keyField="id" globalSearch={false}  />
+        <DataTable columns={columns} data={rows} keyField="id" />
       ) : (
         <EmptyState title="Sin actividad" description="Las operaciones registradas aparecerán aquí." />
       )}

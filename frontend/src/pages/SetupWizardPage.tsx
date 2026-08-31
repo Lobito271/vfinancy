@@ -115,7 +115,7 @@ export function SetupWizardPage() {
                     <TextField name="legalName" label="Razón social" required autoComplete="organization" />
                     <TextField name="tradeName" label="Nombre comercial" required />
                     <TextField name="code" label="Código interno" required description="Ejemplo: ACME" />
-                    <TextField name="taxId" label="RUC o identificación fiscal" required />
+                    <TextField name="taxId" label="RUC o identificación fiscal" required description="Solo dígitos." />
                     <TextField name="address" label="Dirección" required className="setup-form-grid__wide" />
                     <TextField name="phone" label="Teléfono" type="tel" />
                     <TextField name="email" label="Correo" type="email" required />

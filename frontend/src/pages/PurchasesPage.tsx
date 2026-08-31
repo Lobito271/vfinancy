@@ -211,7 +211,6 @@ export function PurchasesPage() {
         loading={isLoading}
         error={isError ? (error as Error) : null}
         onRetry={() => refetch()}
-        globalSearch={false}
         preferencesKey="purchases"
         toolbarLeft={
           <>

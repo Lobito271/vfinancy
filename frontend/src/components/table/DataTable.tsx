@@ -3,9 +3,7 @@ import {
   ChevronsUpDown,
   ChevronUp,
   ChevronDown,
-  X as XIcon,
 } from 'lucide-react';
-import { Input } from '@/components/input';
 import { EmptyState, ErrorState } from '@/components/feedback';
 import { TablePagination } from './TablePagination';
 import { cx } from '@/utils/cx';
@@ -35,7 +33,6 @@ interface DataTableProps<T> {
   defaultPreferences?: DataTablePreferences;
   toolbarLeft?: ReactNode;
   toolbarRight?: ReactNode;
-  globalSearch?: boolean;
   stickyFirstColumn?: boolean;
   className?: string;
   ariaLabel?: string;
@@ -70,7 +67,6 @@ export function DataTable<T>({
   defaultPreferences,
   toolbarLeft,
   toolbarRight,
-  globalSearch = true,
   stickyFirstColumn = DataTableDefaults.stickyFirstColumn,
   className,
   ariaLabel,
@@ -115,15 +111,6 @@ export function DataTable<T>({
 
   const filteredData = useMemo(() => {
     let rows = data;
-    if (state.search && globalSearch) {
-      const s = state.search.toLowerCase();
-      rows = rows.filter((row) =>
-        columns.some((col) => {
-          const v = getValue(row, col);
-          return v != null && String(v).toLowerCase().includes(s);
-        }),
-      );
-    }
     for (const f of state.filters) {
       const col = columnsById.get(f.id);
       if (!col) continue;
@@ -147,7 +134,7 @@ export function DataTable<T>({
       }
     }
     return rows;
-  }, [data, state.search, state.filters, state.sort, columnsById, columns, globalSearch]);
+  }, [data, state.filters, state.sort, columnsById, columns]);
 
   const total = filteredData.length;
   const pageStart = (state.page - 1) * state.pageSize;
@@ -175,30 +162,9 @@ export function DataTable<T>({
 
   return (
     <div className={cx('datatable', className)} aria-label={ariaLabel}>
-      {(globalSearch || toolbarLeft || toolbarRight) && (
+      {(toolbarLeft || toolbarRight) && (
         <div className="datatable-toolbar">
-          <div className="datatable-toolbar__left">
-            {toolbarLeft}
-            {globalSearch && (
-              <Input
-                value={state.search}
-                onChange={(e) => update({ search: e.target.value, page: 1 })}
-                placeholder="Buscar…"
-                className="datatable-search"
-                aria-label="Buscar en la tabla"
-              />
-            )}
-            {state.search && (
-              <button
-                type="button"
-                className="btn btn--ghost btn--icon-sm"
-                onClick={() => update({ search: '' })}
-                aria-label="Limpiar búsqueda"
-              >
-                <XIcon />
-              </button>
-            )}
-          </div>
+          <div className="datatable-toolbar__left">{toolbarLeft}</div>
           <div className="datatable-toolbar__right">{toolbarRight}</div>
         </div>
       )}

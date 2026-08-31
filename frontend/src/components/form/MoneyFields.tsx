@@ -60,7 +60,7 @@ export function MoneyField<T extends FieldValues>({
           </div>
         )}
       />
-      {value != null && Number.isFinite(value) && (
+      {!description && value != null && Number.isFinite(value) && (
         <p className="field-hint">≈ {formatCurrency(value, currency)}</p>
       )}
     </Field>

@@ -212,10 +212,10 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
                     label="Tipo de cambio (USD→PEN)"
                     description={
                       rateQuery.isLoading
-                        ? 'Obteniendo tipo de cambio…'
+                        ? 'Cargando tipo de cambio…'
                         : rateQuery.isError
-                          ? 'No disponible — ingrese el T.C. manualmente'
-                          : 'T.C. de referencia (editable en el panel de costos)'
+                          ? 'Ingrese el T.C. manualmente'
+                          : 'T.C. de referencia editable'
                     }
                     min={0.01}
                     step={0.01}

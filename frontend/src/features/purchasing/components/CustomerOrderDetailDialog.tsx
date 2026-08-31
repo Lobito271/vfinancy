@@ -140,7 +140,7 @@ export function CustomerOrderDetailDialog({ order, onOpenChange, onMarkReceived,
               </div>
             </DialogHeader>
 
-            <div className="stack">
+            <div className="stack dialog-body-scroll">
               <Grid cols={4}>
                 <div className="fact-tile">
                   <div className="fact-tile__label">Costo real (PEN)</div>
@@ -162,7 +162,7 @@ export function CustomerOrderDetailDialog({ order, onOpenChange, onMarkReceived,
 
               <div>
                 <h3 className="dialog-section-title">Líneas del pedido</h3>
-                <DataTable columns={itemColumns} data={items} keyField="id" globalSearch={false} />
+                <DataTable columns={itemColumns} data={items} keyField="id" />
               </div>
 
               <div>
@@ -172,7 +172,7 @@ export function CustomerOrderDetailDialog({ order, onOpenChange, onMarkReceived,
                     Aún no se han registrado anticipos para este pedido.
                   </p>
                 ) : (
-                  <DataTable columns={paymentColumns} data={payments} keyField="id" globalSearch={false} />
+                  <DataTable columns={paymentColumns} data={payments} keyField="id" />
                 )}
               </div>
 

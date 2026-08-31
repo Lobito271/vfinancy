@@ -242,6 +242,7 @@ export function SaleFormDialog({ open, onOpenChange }: SaleFormDialogProps) {
                     required
                     min={0.01}
                     step={0.001}
+                    description="Valor de la moneda extranjera en soles."
                   />
                 </div>
                 <ExchangeRateSeed rate={rateQuery.data} />

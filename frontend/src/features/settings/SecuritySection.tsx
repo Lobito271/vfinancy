@@ -5,7 +5,7 @@ import { KeyRound, Lock } from 'lucide-react';
 import { Section } from '@/components/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card';
 import { Button } from '@/components/button';
-import { Input, Label } from '@/components/input';
+import { PasswordInput, Label } from '@/components/input';
 import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
 import { useNotificationStore } from '@/stores/notification';
@@ -76,9 +76,8 @@ export function SecuritySection() {
             {passwordEnabled && (
               <div className="field">
                 <Label htmlFor="security-current">Contraseña actual</Label>
-                <Input
+                <PasswordInput
                   id="security-current"
-                  type="password"
                   value={current}
                   onChange={(e) => setCurrent(e.target.value)}
                   autoComplete="current-password"
@@ -89,14 +88,13 @@ export function SecuritySection() {
               <Label htmlFor="security-next">
                 {passwordEnabled ? 'Nueva contraseña' : 'Nueva contraseña (opcional)'}
               </Label>
-              <Input
+              <PasswordInput
                 id="security-next"
-                type="password"
                 value={next}
                 onChange={(e) => setNext(e.target.value)}
                 placeholder={passwordEnabled ? 'Déjalo vacío para no cambiarla' : undefined}
                 autoComplete="new-password"
-                aria-invalid={!valid || undefined}
+                invalid={!valid}
               />
               {!valid && <p className="field-error">Usa al menos 8 caracteres.</p>}
             </div>

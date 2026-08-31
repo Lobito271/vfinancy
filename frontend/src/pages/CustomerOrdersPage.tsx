@@ -312,7 +312,6 @@ export function CustomerOrdersPage() {
         loading={isLoading}
         error={isError ? (error as Error) : null}
         onRetry={() => refetch()}
-        globalSearch={false}
         preferencesKey="customer-orders"
         toolbarLeft={
           <>

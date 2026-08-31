@@ -149,7 +149,6 @@ export function CustomersPage() {
         loading={isLoading}
         error={isError ? (error as Error) : null}
         onRetry={() => refetch()}
-        globalSearch={false}
         preferencesKey="customers"
         toolbarLeft={
           <>

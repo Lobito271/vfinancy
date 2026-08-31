@@ -155,7 +155,6 @@ export function ProductsPage() {
         loading={isLoading}
         error={isError ? (error as Error) : null}
         onRetry={() => refetch()}
-        globalSearch={false}
         preferencesKey="products"
         toolbarLeft={
           <>

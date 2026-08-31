@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
 import { Card } from '@/components/card';
 import { Button } from '@/components/button';
-import { Input } from '@/components/input';
+import { PasswordInput } from '@/components/input';
 import { Label } from '@/components/input';
 import { Spinner } from '@/components/feedback';
 import { queryKeys } from '@/services/queryKeys';
@@ -64,9 +64,8 @@ export function WelcomePage() {
           }}
         >
           <Label htmlFor="welcome-password">Contraseña</Label>
-          <Input
+          <PasswordInput
             id="welcome-password"
-            type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"

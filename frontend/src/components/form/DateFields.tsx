@@ -11,6 +11,7 @@ interface DateFieldProps<T extends FieldValues> {
   className?: string;
   min?: string;
   max?: string;
+  showFormatted?: boolean;
 }
 
 export function DateField<T extends FieldValues>({
@@ -21,6 +22,7 @@ export function DateField<T extends FieldValues>({
   className,
   min,
   max,
+  showFormatted = false,
 }: DateFieldProps<T>) {
   const { register, formState, watch } = useFormContext<T>();
   const error = formState.errors[name]?.message as string | undefined;
@@ -35,7 +37,7 @@ export function DateField<T extends FieldValues>({
         max={max}
         {...register(name)}
       />
-      {value && <p className="field-hint">{formatDate(value)}</p>}
+      {showFormatted && value && <p className="field-hint">{formatDate(value)}</p>}
     </Field>
   );
 }

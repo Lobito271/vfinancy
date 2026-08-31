@@ -90,12 +90,12 @@ export function SupplierFormDialog({ open, onOpenChange, supplier }: SupplierFor
               <div className="dialog-body-scroll">
                 <Grid cols={2}>
                   <SelectField name="documentType" label="Tipo de documento" required options={documentOptions} clearable={false} />
-                  <TextField name="documentNumber" label="Número de documento" required />
+                  <TextField name="documentNumber" label="Número de documento" required description="Solo dígitos, sin guiones." />
                 </Grid>
                 <TextField name="businessName" label="Razón social" required />
                 <Grid cols={2}>
                   <TextField name="contactName" label="Persona de contacto" />
-                  <NumberField name="paymentTermDays" label="Días de plazo de pago" min={0} max={365} />
+                  <NumberField name="paymentTermDays" label="Días de plazo de pago" min={0} max={365} description="Plazo de crédito antes del vencimiento." />
                 </Grid>
                 <Grid cols={2}>
                   <TextField name="phone" label="Teléfono" type="tel" />

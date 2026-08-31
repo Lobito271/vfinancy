@@ -102,7 +102,6 @@ function CatalogTable({ kind }: { kind: CatalogKind }) {
         loading={query.isLoading}
         error={query.isError ? (query.error as Error) : null}
         onRetry={() => query.refetch()}
-        globalSearch={false}
         toolbarRight={
           <Button onClick={openCreate}>
             <Plus /> Nueva {singular}

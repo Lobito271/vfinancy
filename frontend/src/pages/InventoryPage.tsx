@@ -266,7 +266,6 @@ export function InventoryPage() {
         loading={isLoading}
         error={isError ? (error as Error) : null}
         onRetry={() => refetch()}
-        globalSearch={false}
         preferencesKey="inventory"
         toolbarLeft={
           <Select

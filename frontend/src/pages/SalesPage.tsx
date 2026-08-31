@@ -152,7 +152,6 @@ export function SalesPage() {
         loading={isLoading}
         error={isError ? (error as Error) : null}
         onRetry={() => refetch()}
-        globalSearch={false}
         preferencesKey="sales"
         toolbarLeft={
           <>

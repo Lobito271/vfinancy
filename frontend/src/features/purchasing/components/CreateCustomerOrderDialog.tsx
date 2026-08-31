@@ -240,7 +240,7 @@ export function CreateCustomerOrderDialog({ open, onOpenChange }: CreateCustomer
                   <NumberField
                     name="exchangeRate"
                     label="Tipo de cambio (USD→PEN)"
-                    description={rateQuery.isLoading ? 'Cargando…' : 'T.C. de referencia (editable en el panel de costos)'}
+                    description={rateQuery.isLoading ? 'Cargando tipo de cambio…' : rateQuery.isError ? 'Ingrese el T.C. manualmente' : 'T.C. de referencia editable'}
                     min={0.01}
                     step={0.01}
                     readOnly

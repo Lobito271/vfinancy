@@ -31,9 +31,6 @@ CREATE TABLE companies (
         CHECK (trade_name IS NULL OR length(trim(trade_name)) > 0)
 );
 
-INSERT INTO companies (id, code, legal_name, trade_name, tax_id)
-VALUES ('00000000-0000-0000-0000-000000000001', 'SETUP', 'setup placeholder', 'setup', '00000000000');
-
 CREATE UNIQUE INDEX uq_companies_code
     ON companies (code);
 
@@ -192,32 +189,39 @@ CREATE UNIQUE INDEX uq_settings_company_key
 CREATE INDEX idx_settings_company_category
     ON application_settings (company_id, category);
 
-INSERT OR IGNORE INTO application_settings (company_id, key, value, category, label, description, is_public) VALUES
-    ('00000000-0000-0000-0000-000000000001', 'business.name',           '"vfinancy S.A.C."',       'business',   'Razón social',       'Nombre legal de la empresa',           TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'business.trade_name',     '"vfinancy"',              'business',   'Nombre comercial',   'Nombre comercial de la empresa',       TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'business.tax_id',         '"20600000001"',            'business',   'RUC',                'Número de registro tributario',        TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'business.address',        '"Lima, Perú"',             'business',   'Dirección',          'Dirección fiscal de la empresa',       TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'business.phone',          '""',                      'business',   'Teléfono',           'Teléfono de contacto',                 TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'business.email',          '"admin@vfinancy.local"',   'business',   'Correo electrónico', 'Correo de contacto',                   TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'business.logo',           '""',                      'business',   'Logo',               'URL del logo de la empresa',           TRUE),
 
-    ('00000000-0000-0000-0000-000000000001', 'defaults.currency',       '"PEN"',                   'defaults',   'Moneda por defecto', 'Código ISO 4217 de la moneda principal',     TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'defaults.tax_code',       '"IGV"',                   'defaults',   'Impuesto por defecto', 'Código del impuesto aplicado por defecto',  TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'defaults.expiry_alert_days', '25',                    'defaults',   'Días alerta vencimiento', 'Días antes del vencimiento para alertar', TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'defaults.country',        '"PE"',                    'defaults',   'País por defecto',   'Código ISO 3166 del país principal',         TRUE),
+CREATE TABLE notifications (
+    id           TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    company_id   TEXT         NOT NULL,
+    type         VARCHAR(50)  NOT NULL,
+    title        VARCHAR(200) NOT NULL,
+    message      TEXT         NOT NULL,
+    record_type  VARCHAR(50),
+    record_id    TEXT,
+    dedup_key    VARCHAR(64)  NOT NULL,
+    read_at      TIMESTAMP,
+    created_at   TIMESTAMP    NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
+    deleted_at   TIMESTAMP,
 
-    ('00000000-0000-0000-0000-000000000001', 'format.date',             '"DD/MM/YYYY"',            'format',     'Formato de fecha',   'Formato de fecha preferido',                TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'format.number',           '"es-PE"',                 'format',     'Formato numérico',   'Locale para formato numérico',              TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'format.decimals',         '2',                       'format',     'Decimales',          'Cantidad de decimales por defecto',         TRUE),
+    CONSTRAINT fk_notifications_company
+        FOREIGN KEY (company_id) REFERENCES companies(id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
 
-    ('00000000-0000-0000-0000-000000000001', 'system.language',         '"es-PE"',                 'system',     'Idioma',             'Idioma de la interfaz',                       TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'system.theme',            '"light"',                 'system',     'Tema',               'Tema visual de la aplicación',                TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'system.timezone',         '"America/Lima"',          'system',     'Zona horaria',       'Zona horaria del sistema',                    TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'system.fiscal_year_start', '1',                      'system',     'Inicio año fiscal',  'Mes de inicio del año fiscal (1-12)',         TRUE),
+    CONSTRAINT ck_notifications_type_nonblank
+        CHECK (length(trim(type)) > 0),
 
-    ('00000000-0000-0000-0000-000000000001', 'backup.folder',           '""',                      'backup',     'Carpeta de respaldo', 'Ruta de la carpeta de respaldos',       FALSE),
-    ('00000000-0000-0000-0000-000000000001', 'backup.export_folder',    '""',                      'backup',     'Carpeta de exportación', 'Ruta de la carpeta de exportaciones', FALSE),
-    ('00000000-0000-0000-0000-000000000001', 'backup.auto_frequency',   '"daily"',                 'backup',     'Frecuencia automática', 'Frecuencia de respaldo automático',    FALSE);
+    CONSTRAINT ck_notifications_title_nonblank
+        CHECK (length(trim(title)) > 0),
+
+    CONSTRAINT ck_notifications_dedup_nonblank
+        CHECK (length(trim(dedup_key)) > 0),
+
+    CONSTRAINT uq_notifications_company_type_dedup
+        UNIQUE (company_id, type, dedup_key)
+);
+
+CREATE INDEX idx_notifications_company_unread
+    ON notifications (company_id, read_at, created_at DESC);
 
 
 CREATE TABLE currencies (
@@ -358,7 +362,7 @@ CREATE TABLE exchange_rates (
     rate            TEXT           NOT NULL
         CHECK (CAST(rate AS REAL) > 0),
     source          VARCHAR(50)    NOT NULL DEFAULT 'manual'
-        CHECK (source IN ('manual', 'central_bank', 'sunat', 'bloomberg', 'other')),
+        CHECK (source IN ('manual', 'central_bank', 'sunat', 'bloomberg', 'other', 'apis.net.pe', 'open.er-api.com', 'fallback')),
     created_at      TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
 
     CONSTRAINT fk_exchange_rates_company
@@ -742,14 +746,15 @@ CREATE TABLE products (
     brand_id       TEXT,
     unit_id        TEXT           NOT NULL,
     tax_id         TEXT           NOT NULL,
-    cost           TEXT           NOT NULL DEFAULT '0.00'
-        CHECK (CAST(cost AS REAL) >= 0),
+    cost_usd       TEXT           NOT NULL DEFAULT '0.00'
+        CHECK (CAST(cost_usd AS REAL) >= 0),
     sale_price     TEXT           NOT NULL DEFAULT '0.00'
         CHECK (CAST(sale_price AS REAL) >= 0),
     sale_currency  VARCHAR(3)     NOT NULL DEFAULT 'PEN',
     min_stock      TEXT           NOT NULL DEFAULT '0.0000',
     max_stock      TEXT           NOT NULL DEFAULT '0.0000',
     weight         TEXT           NOT NULL DEFAULT '0.0000',
+    details        TEXT,
     is_active      BOOLEAN        NOT NULL DEFAULT TRUE,
     is_service     BOOLEAN        NOT NULL DEFAULT FALSE,
     created_at     TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
@@ -1112,6 +1117,181 @@ CREATE INDEX idx_intl_return_items_product
     ON international_return_items (product_id);
 
 
+CREATE TABLE purchase_orders (
+    id               TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    company_id       TEXT           NOT NULL,
+    supplier_id      TEXT           NOT NULL,
+    branch_id        TEXT,
+    number           VARCHAR(30)    NOT NULL,
+    order_date       TIMESTAMP      NOT NULL,
+    expected_date    TIMESTAMP,
+    received_date    TIMESTAMP,
+    status           VARCHAR(20)    NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'received', 'paid', 'reconciled', 'cancelled')),
+    subtotal         TEXT           NOT NULL DEFAULT '0.00'
+        CHECK (CAST(subtotal AS REAL) >= 0),
+    tax_amount       TEXT           NOT NULL DEFAULT '0.00'
+        CHECK (CAST(tax_amount AS REAL) >= 0),
+    total            TEXT           NOT NULL DEFAULT '0.00'
+        CHECK (CAST(total AS REAL) >= 0),
+    paid_amount      TEXT           NOT NULL DEFAULT '0.00'
+        CHECK (CAST(paid_amount AS REAL) >= 0),
+    discount_amount  TEXT           NOT NULL DEFAULT '0.00'
+        CHECK (CAST(discount_amount AS REAL) >= 0),
+    currency_code    VARCHAR(3)     NOT NULL DEFAULT 'PEN',
+    exchange_rate    TEXT           NOT NULL DEFAULT '1.000000',
+    notes            TEXT,
+    order_type       VARCHAR(20)    NOT NULL DEFAULT 'general'
+        CHECK (order_type IN ('general', 'customer')),
+    customer_id      TEXT,
+    credit_card_id   TEXT,
+    supplier_order_number VARCHAR(100),
+    arrival_date     TIMESTAMP,
+    cost_usd         TEXT           NOT NULL DEFAULT '0.00'
+        CHECK (CAST(cost_usd AS REAL) >= 0),
+    sale_price_pen   TEXT           NOT NULL DEFAULT '0.00'
+        CHECK (CAST(sale_price_pen AS REAL) >= 0),
+    real_cost_pen    TEXT           NOT NULL DEFAULT '0.00'
+        CHECK (CAST(real_cost_pen AS REAL) >= 0),
+    projected_profit_pen TEXT       NOT NULL DEFAULT '0.00',
+    anticipo         TEXT           NOT NULL DEFAULT '0.00'
+        CHECK (CAST(anticipo AS REAL) >= 0),
+    anticipo_date    TIMESTAMP,
+    faulty           BOOLEAN        NOT NULL DEFAULT FALSE,
+    faulty_reason    TEXT,
+    refunded_amount  TEXT           NOT NULL DEFAULT '0.00'
+        CHECK (CAST(refunded_amount AS REAL) >= 0),
+    cancelled_at     TIMESTAMP,
+    cancelled_reason TEXT,
+    created_at       TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
+    updated_at       TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
+    deleted_at       TIMESTAMP,
+    created_by       TEXT,
+    updated_by       TEXT,
+
+    CONSTRAINT fk_purchase_orders_company
+        FOREIGN KEY (company_id) REFERENCES companies(id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_purchase_orders_supplier
+        FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_purchase_orders_branch
+        FOREIGN KEY (branch_id) REFERENCES branches(id)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT fk_purchase_orders_customer
+        FOREIGN KEY (customer_id) REFERENCES customers(id)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_purchase_orders_card
+        FOREIGN KEY (credit_card_id) REFERENCES credit_cards(id)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT ck_purchase_orders_dates
+        CHECK (expected_date IS NULL OR expected_date >= order_date)
+);
+
+CREATE UNIQUE INDEX uq_purchase_orders_number
+    ON purchase_orders (company_id, number)
+    WHERE deleted_at IS NULL;
+
+CREATE INDEX idx_purchase_orders_supplier
+    ON purchase_orders (supplier_id, order_date);
+
+CREATE INDEX idx_purchase_orders_status
+    ON purchase_orders (company_id, status, order_date);
+
+CREATE INDEX idx_purchase_orders_order_type
+    ON purchase_orders (company_id, order_type, status, order_date)
+    WHERE deleted_at IS NULL;
+
+CREATE INDEX idx_purchase_orders_customer
+    ON purchase_orders (company_id, customer_id, order_date)
+    WHERE deleted_at IS NULL;
+
+CREATE TABLE customer_order_payments (
+    id                TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    company_id        TEXT           NOT NULL,
+    purchase_order_id TEXT           NOT NULL,
+    customer_id       TEXT           NOT NULL,
+    number            VARCHAR(30)    NOT NULL,
+    payment_date      TIMESTAMP      NOT NULL,
+    amount            TEXT           NOT NULL DEFAULT '0.00'
+        CHECK (CAST(amount AS REAL) > 0),
+    payment_method    VARCHAR(20)    NOT NULL DEFAULT 'cash'
+        CHECK (payment_method IN ('cash', 'bank_transfer', 'check', 'card', 'credit', 'other')),
+    currency_code     VARCHAR(3)     NOT NULL DEFAULT 'PEN',
+    exchange_rate     TEXT           NOT NULL DEFAULT '1.000000',
+    reference         VARCHAR(100),
+    notes             TEXT,
+    status            VARCHAR(20)    NOT NULL DEFAULT 'active'
+        CHECK (status IN ('active', 'refunded')),
+    refunded_amount   TEXT           NOT NULL DEFAULT '0.00'
+        CHECK (CAST(refunded_amount AS REAL) >= 0),
+    refunded_at       TIMESTAMP,
+    refund_reason     TEXT,
+    created_at        TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
+    updated_at        TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
+    deleted_at        TIMESTAMP,
+    created_by        TEXT,
+    updated_by        TEXT,
+
+    CONSTRAINT fk_customer_order_payments_company
+        FOREIGN KEY (company_id) REFERENCES companies(id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_customer_order_payments_order
+        FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_customer_order_payments_customer
+        FOREIGN KEY (customer_id) REFERENCES customers(id)
+        ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
+CREATE UNIQUE INDEX uq_customer_order_payments_number
+    ON customer_order_payments (company_id, number)
+    WHERE deleted_at IS NULL;
+
+CREATE INDEX idx_customer_order_payments_order
+    ON customer_order_payments (purchase_order_id, payment_date);
+
+CREATE INDEX idx_customer_order_payments_customer
+    ON customer_order_payments (customer_id, payment_date);
+
+CREATE TABLE purchase_order_items (
+    id                 TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    purchase_order_id  TEXT           NOT NULL,
+    product_id         TEXT           NOT NULL,
+    line_number        INTEGER        NOT NULL DEFAULT 1
+        CHECK (line_number >= 1),
+    quantity_ordered   TEXT           NOT NULL DEFAULT '0.0000'
+        CHECK (CAST(quantity_ordered AS REAL) > 0),
+    quantity_received  TEXT           NOT NULL DEFAULT '0.0000'
+        CHECK (CAST(quantity_received AS REAL) >= 0),
+    unit_cost          TEXT           NOT NULL DEFAULT '0.00'
+        CHECK (CAST(unit_cost AS REAL) >= 0),
+    discount_percent   TEXT           NOT NULL DEFAULT '0.0000',
+    discount_amount    TEXT           NOT NULL DEFAULT '0.00'
+        CHECK (CAST(discount_amount AS REAL) >= 0),
+    tax_rate           TEXT           NOT NULL DEFAULT '0.00',
+    tax_amount         TEXT           NOT NULL DEFAULT '0.00'
+        CHECK (CAST(tax_amount AS REAL) >= 0),
+    line_total         TEXT           NOT NULL DEFAULT '0.00',
+    description        TEXT,
+    created_at         TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
+
+    CONSTRAINT fk_purchase_order_items_order
+        FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_purchase_order_items_product
+        FOREIGN KEY (product_id) REFERENCES products(id)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT ck_purchase_order_items_received
+        CHECK (CAST(quantity_received AS REAL) <= CAST(quantity_ordered AS REAL))
+);
+
+CREATE INDEX idx_purchase_order_items_order
+    ON purchase_order_items (purchase_order_id);
+
+CREATE INDEX idx_purchase_order_items_product
+    ON purchase_order_items (product_id);
+
 CREATE TABLE inventory_batches (
     id              TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
     company_id      TEXT           NOT NULL,
@@ -1132,7 +1312,7 @@ CREATE TABLE inventory_batches (
     currency_code   VARCHAR(3)     NOT NULL DEFAULT 'PEN',
     exchange_rate   TEXT           NOT NULL DEFAULT '1.000000',
     status          VARCHAR(20)    NOT NULL DEFAULT 'active'
-        CHECK (status IN ('active', 'depleted', 'written_off')),
+        CHECK (status IN ('active', 'depleted', 'written_off', 'voided')),
     clearance_date  TIMESTAMP,
     is_clearance    BOOLEAN        NOT NULL DEFAULT FALSE,
     created_at      TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
@@ -1172,7 +1352,7 @@ CREATE TABLE inventory_movements (
     warehouse_id     TEXT           NOT NULL,
     movement_date    TIMESTAMP      NOT NULL,
     type             VARCHAR(20)    NOT NULL
-        CHECK (type IN ('purchase', 'sale', 'transfer_in', 'transfer_out', 'adjustment_in', 'adjustment_out', 'return_in', 'return_out', 'damage_out')),
+        CHECK (type IN ('purchase', 'purchase_receipt', 'sale', 'void_sale', 'void_purchase', 'transfer_in', 'transfer_out', 'adjustment_in', 'adjustment_out', 'return_in', 'return_out', 'damage_out', 'void_out')),
     reference_type   VARCHAR(30),
     reference_id     TEXT,
     quantity_delta   TEXT           NOT NULL DEFAULT '0.0000'
@@ -1437,99 +1617,6 @@ CREATE INDEX idx_customer_adv_app_sale
     ON customer_advance_applications (sale_id);
 
 
-CREATE TABLE purchase_orders (
-    id               TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-    company_id       TEXT           NOT NULL,
-    supplier_id      TEXT           NOT NULL,
-    branch_id        TEXT,
-    number           VARCHAR(30)    NOT NULL,
-    order_date       TIMESTAMP      NOT NULL,
-    expected_date    TIMESTAMP,
-    received_date    TIMESTAMP,
-    status           VARCHAR(20)    NOT NULL DEFAULT 'pending'
-        CHECK (status IN ('pending', 'received', 'paid', 'reconciled', 'cancelled')),
-    subtotal         TEXT           NOT NULL DEFAULT '0.00'
-        CHECK (CAST(subtotal AS REAL) >= 0),
-    tax_amount       TEXT           NOT NULL DEFAULT '0.00'
-        CHECK (CAST(tax_amount AS REAL) >= 0),
-    total            TEXT           NOT NULL DEFAULT '0.00'
-        CHECK (CAST(total AS REAL) >= 0),
-    paid_amount      TEXT           NOT NULL DEFAULT '0.00'
-        CHECK (CAST(paid_amount AS REAL) >= 0),
-    discount_amount  TEXT           NOT NULL DEFAULT '0.00'
-        CHECK (CAST(discount_amount AS REAL) >= 0),
-    currency_code    VARCHAR(3)     NOT NULL DEFAULT 'PEN',
-    exchange_rate    TEXT           NOT NULL DEFAULT '1.000000',
-    notes            TEXT,
-    cancelled_at     TIMESTAMP,
-    cancelled_reason TEXT,
-    created_at       TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-    updated_at       TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-    deleted_at       TIMESTAMP,
-    created_by       TEXT,
-    updated_by       TEXT,
-
-    CONSTRAINT fk_purchase_orders_company
-        FOREIGN KEY (company_id) REFERENCES companies(id)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_purchase_orders_supplier
-        FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT fk_purchase_orders_branch
-        FOREIGN KEY (branch_id) REFERENCES branches(id)
-        ON UPDATE CASCADE ON DELETE SET NULL,
-    CONSTRAINT ck_purchase_orders_dates
-        CHECK (expected_date IS NULL OR expected_date >= order_date)
-);
-
-CREATE UNIQUE INDEX uq_purchase_orders_number
-    ON purchase_orders (company_id, number)
-    WHERE deleted_at IS NULL;
-
-CREATE INDEX idx_purchase_orders_supplier
-    ON purchase_orders (supplier_id, order_date);
-
-CREATE INDEX idx_purchase_orders_status
-    ON purchase_orders (company_id, status, order_date);
-
-CREATE TABLE purchase_order_items (
-    id                 TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-    purchase_order_id  TEXT           NOT NULL,
-    product_id         TEXT           NOT NULL,
-    line_number        INTEGER        NOT NULL DEFAULT 1
-        CHECK (line_number >= 1),
-    quantity_ordered   TEXT           NOT NULL DEFAULT '0.0000'
-        CHECK (CAST(quantity_ordered AS REAL) > 0),
-    quantity_received  TEXT           NOT NULL DEFAULT '0.0000'
-        CHECK (CAST(quantity_received AS REAL) >= 0),
-    unit_cost          TEXT           NOT NULL DEFAULT '0.00'
-        CHECK (CAST(unit_cost AS REAL) >= 0),
-    discount_percent   TEXT           NOT NULL DEFAULT '0.0000',
-    discount_amount    TEXT           NOT NULL DEFAULT '0.00'
-        CHECK (CAST(discount_amount AS REAL) >= 0),
-    tax_rate           TEXT           NOT NULL DEFAULT '0.00',
-    tax_amount         TEXT           NOT NULL DEFAULT '0.00'
-        CHECK (CAST(tax_amount AS REAL) >= 0),
-    line_total         TEXT           NOT NULL DEFAULT '0.00',
-    description        TEXT,
-    created_at         TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-
-    CONSTRAINT fk_purchase_order_items_order
-        FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_purchase_order_items_product
-        FOREIGN KEY (product_id) REFERENCES products(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT ck_purchase_order_items_received
-        CHECK (CAST(quantity_received AS REAL) <= CAST(quantity_ordered AS REAL))
-);
-
-CREATE INDEX idx_purchase_order_items_order
-    ON purchase_order_items (purchase_order_id);
-
-CREATE INDEX idx_purchase_order_items_product
-    ON purchase_order_items (product_id);
-
 CREATE TABLE supplier_payments (
     id               TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
     company_id       TEXT           NOT NULL,
@@ -1601,188 +1688,3 @@ CREATE INDEX idx_supplier_payment_alloc_payment
 CREATE INDEX idx_supplier_payment_alloc_po
     ON supplier_payment_allocations (purchase_order_id);
 
-
-
-
-PRAGMA defer_foreign_keys = ON;
-
-UPDATE taxes
-SET id = lower(substr(id, 1, 8) || '-' || substr(id, 9, 4) || '-' || substr(id, 13, 4) || '-' || substr(id, 17, 4) || '-' || substr(id, 21, 12))
-WHERE id NOT LIKE '%-%';
-
-UPDATE products
-SET tax_id = lower(substr(tax_id, 1, 8) || '-' || substr(tax_id, 9, 4) || '-' || substr(tax_id, 13, 4) || '-' || substr(tax_id, 17, 4) || '-' || substr(tax_id, 21, 12))
-WHERE tax_id IS NOT NULL AND tax_id NOT LIKE '%-%';
-
-UPDATE application_settings
-SET id = lower(substr(id, 1, 8) || '-' || substr(id, 9, 4) || '-' || substr(id, 13, 4) || '-' || substr(id, 17, 4) || '-' || substr(id, 21, 12))
-WHERE id NOT LIKE '%-%';
-
-
-COMMIT;
-PRAGMA foreign_keys = OFF;
-BEGIN;
-
-CREATE TABLE inventory_batches_new (
-    id              TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-    company_id      TEXT           NOT NULL,
-    product_id      TEXT           NOT NULL,
-    warehouse_id    TEXT           NOT NULL,
-    supplier_id     TEXT,
-    purchase_order_item_id TEXT,
-    lot             VARCHAR(100),
-    batch_code      VARCHAR(50),
-    arrival_date    TIMESTAMP      NOT NULL,
-    expiry_date     TIMESTAMP,
-    quantity        TEXT           NOT NULL DEFAULT '0.0000'
-        CHECK (CAST(quantity AS REAL) >= 0),
-    original_quantity TEXT         NOT NULL DEFAULT '0.0000'
-        CHECK (CAST(original_quantity AS REAL) >= 0),
-    unit_cost       TEXT           NOT NULL DEFAULT '0.00'
-        CHECK (CAST(unit_cost AS REAL) >= 0),
-    currency_code   VARCHAR(3)     NOT NULL DEFAULT 'PEN',
-    exchange_rate   TEXT           NOT NULL DEFAULT '1.000000',
-    status          VARCHAR(20)    NOT NULL DEFAULT 'active'
-        CHECK (status IN ('active', 'depleted', 'written_off', 'voided')),
-    clearance_date  TIMESTAMP,
-    is_clearance    BOOLEAN        NOT NULL DEFAULT FALSE,
-    created_at      TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-    updated_at      TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-    created_by      TEXT,
-    updated_by      TEXT,
-
-    CONSTRAINT fk_inventory_batches_company
-        FOREIGN KEY (company_id) REFERENCES companies(id)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_inventory_batches_product
-        FOREIGN KEY (product_id) REFERENCES products(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT fk_inventory_batches_warehouse
-        FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT fk_inventory_batches_supplier
-        FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
-        ON UPDATE CASCADE ON DELETE SET NULL,
-    CONSTRAINT fk_inventory_batches_poi
-        FOREIGN KEY (purchase_order_item_id) REFERENCES purchase_order_items(id)
-        ON UPDATE CASCADE ON DELETE SET NULL
-);
-
-INSERT INTO inventory_batches_new SELECT * FROM inventory_batches;
-DROP TABLE inventory_batches;
-ALTER TABLE inventory_batches_new RENAME TO inventory_batches;
-
-CREATE INDEX idx_inventory_batches_product
-    ON inventory_batches (product_id, warehouse_id, status);
-
-CREATE INDEX idx_inventory_batches_clearance
-    ON inventory_batches (company_id, is_clearance, status)
-    WHERE is_clearance = TRUE AND status = 'active';
-
-CREATE TABLE inventory_movements_new (
-    id               TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-    company_id       TEXT           NOT NULL,
-    batch_id         TEXT           NOT NULL,
-    product_id       TEXT           NOT NULL,
-    warehouse_id     TEXT           NOT NULL,
-    movement_date    TIMESTAMP      NOT NULL,
-    type             VARCHAR(20)    NOT NULL
-        CHECK (type IN ('purchase', 'sale', 'transfer_in', 'transfer_out', 'adjustment_in', 'adjustment_out', 'return_in', 'return_out', 'damage_out', 'void_out')),
-    reference_type   VARCHAR(30),
-    reference_id     TEXT,
-    quantity_delta   TEXT           NOT NULL DEFAULT '0.0000'
-        CHECK (CAST(quantity_delta AS REAL) <> 0),
-    balance_after    TEXT           NOT NULL DEFAULT '0.0000',
-    unit_cost        TEXT           NOT NULL DEFAULT '0.00',
-    currency_code    VARCHAR(3)     NOT NULL DEFAULT 'PEN',
-    notes            TEXT,
-    created_by       TEXT,
-    created_at       TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-
-    CONSTRAINT fk_inventory_movements_company
-        FOREIGN KEY (company_id) REFERENCES companies(id)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_inventory_movements_batch
-        FOREIGN KEY (batch_id) REFERENCES inventory_batches(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT fk_inventory_movements_product
-        FOREIGN KEY (product_id) REFERENCES products(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT fk_inventory_movements_warehouse
-        FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT
-);
-
-INSERT INTO inventory_movements_new SELECT * FROM inventory_movements;
-DROP TABLE inventory_movements;
-ALTER TABLE inventory_movements_new RENAME TO inventory_movements;
-
-CREATE INDEX idx_inventory_movements_batch
-    ON inventory_movements (batch_id, movement_date);
-
-CREATE INDEX idx_inventory_movements_product
-    ON inventory_movements (product_id, movement_date);
-
-CREATE INDEX idx_inventory_movements_reference
-    ON inventory_movements (reference_type, reference_id);
-
-COMMIT;
-DELETE FROM companies WHERE id = '00000000-0000-0000-0000-000000000001';
-PRAGMA foreign_keys = ON;
-BEGIN;
-
-
-COMMIT;
-PRAGMA foreign_keys = OFF;
-BEGIN;
-
-CREATE TABLE inventory_movements_new (
-    id               TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-    company_id       TEXT           NOT NULL,
-    batch_id         TEXT           NOT NULL,
-    product_id       TEXT           NOT NULL,
-    warehouse_id     TEXT           NOT NULL,
-    movement_date    TIMESTAMP      NOT NULL,
-    type             VARCHAR(20)    NOT NULL
-        CHECK (type IN ('purchase', 'purchase_receipt', 'sale', 'void_sale', 'void_purchase', 'transfer_in', 'transfer_out', 'adjustment_in', 'adjustment_out', 'return_in', 'return_out', 'damage_out', 'void_out')),
-    reference_type   VARCHAR(30),
-    reference_id     TEXT,
-    quantity_delta   TEXT           NOT NULL DEFAULT '0.0000'
-        CHECK (CAST(quantity_delta AS REAL) <> 0),
-    balance_after    TEXT           NOT NULL DEFAULT '0.0000',
-    unit_cost        TEXT           NOT NULL DEFAULT '0.00',
-    currency_code    VARCHAR(3)     NOT NULL DEFAULT 'PEN',
-    notes            TEXT,
-    created_by       TEXT,
-    created_at       TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-
-    CONSTRAINT fk_inventory_movements_company
-        FOREIGN KEY (company_id) REFERENCES companies(id)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_inventory_movements_batch
-        FOREIGN KEY (batch_id) REFERENCES inventory_batches(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT fk_inventory_movements_product
-        FOREIGN KEY (product_id) REFERENCES products(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT fk_inventory_movements_warehouse
-        FOREIGN KEY (warehouse_id) REFERENCES warehouses(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT
-);
-
-INSERT INTO inventory_movements_new SELECT * FROM inventory_movements;
-DROP TABLE inventory_movements;
-ALTER TABLE inventory_movements_new RENAME TO inventory_movements;
-
-CREATE INDEX idx_inventory_movements_batch
-    ON inventory_movements (batch_id, movement_date);
-
-CREATE INDEX idx_inventory_movements_product
-    ON inventory_movements (product_id, movement_date);
-
-CREATE INDEX idx_inventory_movements_reference
-    ON inventory_movements (reference_type, reference_id);
-
-COMMIT;
-PRAGMA foreign_keys = ON;
-BEGIN;

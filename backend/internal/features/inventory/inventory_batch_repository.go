@@ -1,12 +1,13 @@
 package inventory
 
 import (
-	"vfinancy/backend/internal/domain/repositories"
 	"context"
 	"time"
 
 	"github.com/google/uuid"
 
+	"vfinancy/backend/internal/domain/repositories"
+	"vfinancy/backend/internal/domain/valueobjects"
 )
 
 // InventoryBatchFilter is the input to InventoryBatchRepository.List.
@@ -49,4 +50,10 @@ type InventoryBatchRepository interface {
 	// ListClearance returns the batches past their maximum sale date
 	// that still have stock. Used by the dashboard widget.
 	ListClearance(ctx context.Context, companyID uuid.UUID, at time.Time) ([]*InventoryBatch, error)
+
+	// SetClearanceDate flags a batch as clearance: sets is_clearance to
+	// TRUE and refreshes clearance_date to the given maximum sale date.
+	// Rows already flagged are left untouched. Returns the number of
+	// batches newly flagged. Used by the periodic clearance refresh.
+	SetClearanceDate(ctx context.Context, id uuid.UUID, clearanceDate valueobjects.Date) (int, error)
 }

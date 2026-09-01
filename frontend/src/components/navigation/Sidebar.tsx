@@ -6,17 +6,21 @@ import { useSidebarStore } from '@/stores/sidebar';
 import { Button } from '@/components/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/misc';
 
-export function Sidebar() {
+export function Sidebar({ mobile = false }: { mobile?: boolean }) {
   const collapsed = useSidebarStore((s) => s.collapsed);
   const toggle = useSidebarStore((s) => s.toggle);
 
   return (
     <aside
-      className={cx('sidebar', collapsed && 'sidebar--collapsed')}
+      className={cx(
+        'sidebar',
+        mobile && 'sidebar--mobile',
+        !mobile && collapsed && 'sidebar--collapsed',
+      )}
       aria-label="Navegación principal"
     >
       <div className="sidebar__header">
-        {!collapsed && (
+        {!mobile && !collapsed && (
           <Link to="/" className="sidebar__brand">
             vfinancy
           </Link>
@@ -41,15 +45,15 @@ export function Sidebar() {
                       {({ isActive }) => (
                         <>
                           <Icon aria-hidden="true" />
-                          {!collapsed && <span className="truncate">{item.label}</span>}
-                          {isActive && !collapsed && (
+                          {(mobile || !collapsed) && <span className="truncate">{item.label}</span>}
+                          {isActive && (mobile || !collapsed) && (
                             <span className="sidebar__dot" aria-hidden="true" />
                           )}
                         </>
                       )}
                     </NavLink>
                   </TooltipTrigger>
-                  {collapsed && (
+                  {!mobile && collapsed && (
                     <TooltipContent side="right">{item.label}</TooltipContent>
                   )}
                 </Tooltip>
@@ -59,24 +63,26 @@ export function Sidebar() {
         </ul>
       </nav>
 
-      <div className="sidebar__footer">
-        <Button
-          variant="ghost"
-          size={collapsed ? 'icon-sm' : 'sm'}
-          onClick={toggle}
-          aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
-          className={cx('sidebar__toggle', !collapsed && 'btn--justify-start')}
-        >
-          {collapsed ? (
-            <ChevronsRight />
-          ) : (
-            <>
-              <ChevronsLeft />
-              <span>Colapsar</span>
-            </>
-          )}
-        </Button>
-      </div>
+      {!mobile && (
+        <div className="sidebar__footer">
+          <Button
+            variant="ghost"
+            size={collapsed ? 'icon-sm' : 'sm'}
+            onClick={toggle}
+            aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
+            className={cx('sidebar__toggle', !collapsed && 'btn--justify-start')}
+          >
+            {collapsed ? (
+              <ChevronsRight />
+            ) : (
+              <>
+                <ChevronsLeft />
+                <span>Colapsar</span>
+              </>
+            )}
+          </Button>
+        </div>
+      )}
     </aside>
   );
 }

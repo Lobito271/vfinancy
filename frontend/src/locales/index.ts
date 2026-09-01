@@ -4,7 +4,7 @@ type Path<T> = T extends object
   ? { [K in keyof T]: K extends string ? `${K}.${Path<T[K]>}` | K : never }[keyof T]
   : never;
 
-export type TranslationKey = Path<Translations>;
+type TranslationKey = Path<Translations>;
 
 type Vars = Record<string, string | number>;
 

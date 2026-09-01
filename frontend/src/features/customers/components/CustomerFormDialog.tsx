@@ -90,12 +90,12 @@ export function CustomerFormDialog({ open, onOpenChange, customer }: CustomerFor
               <div className="dialog-body-scroll">
                 <Grid cols={2}>
                   <SelectField name="documentType" label="Tipo de documento" required options={documentOptions} clearable={false} />
-                  <TextField name="documentNumber" label="Número de documento" required />
+                  <TextField name="documentNumber" label="Número de documento" required description="Solo dígitos, sin guiones." />
                 </Grid>
                 <TextField name="businessName" label="Razón social / Nombre" required />
                 <Grid cols={2}>
                   <TextField name="contactName" label="Persona de contacto" />
-                  <MoneyField name="creditLimit" label="Límite de crédito" />
+                  <MoneyField name="creditLimit" label="Límite de crédito" description="Monto máximo de crédito (PEN). 0 = sin crédito." />
                 </Grid>
                 <Grid cols={2}>
                   <TextField name="phone" label="Teléfono" type="tel" />

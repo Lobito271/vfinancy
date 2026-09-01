@@ -8,13 +8,13 @@ export interface BusinessInfoDTO {
   logo: string;
 }
 
-export interface LocalAuthStateDTO {
+interface LocalAuthStateDTO {
   configured: boolean;
   passwordEnabled: boolean;
   unlocked: boolean;
 }
 
-export interface LocalProfileDTO {
+interface LocalProfileDTO {
   id: string;
   name: string;
   passwordEnabled: boolean;
@@ -60,7 +60,23 @@ export interface UpdateLocalProfileRequest {
 
 export interface CompanyRequest extends CompanyDTO {}
 
-export interface PreferencesDTO {
+export interface SetupWorkspaceRequest {
+  code: string;
+  legalName: string;
+  tradeName: string;
+  taxId: string;
+  address: string;
+  phone: string;
+  email: string;
+  countryCode: string;
+  functionalCurrency: string;
+  timezone: string;
+  fiscalYearStartMonth: number;
+  profileName: string;
+  password: string;
+}
+
+interface PreferencesDTO {
   defaultCurrency: string;
   defaultTaxCode: string;
   expiryAlertDays: number;
@@ -82,7 +98,7 @@ export interface PreferencesDTO {
   journalNumberPrefix: string;
 }
 
-export interface CurrencyDTO {
+interface CurrencyDTO {
   code: string;
   symbol: string;
   name: string;
@@ -91,7 +107,7 @@ export interface CurrencyDTO {
   isActive: boolean;
 }
 
-export interface TaxDTO {
+interface TaxDTO {
   id: string;
   code: string;
   name: string;
@@ -104,7 +120,7 @@ export interface TaxDTO {
   isActive: boolean;
 }
 
-export interface AuditEventDTO {
+interface AuditEventDTO {
   id: string;
   eventType: string;
   userId: string;
@@ -114,7 +130,7 @@ export interface AuditEventDTO {
   occurredAt: string;
 }
 
-export interface AuditLogResult {
+interface AuditLogResult {
   events: AuditEventDTO[];
   total: number;
 }
@@ -136,19 +152,19 @@ export interface AppSettingsDTO {
   logFormat: string;
 }
 
-export interface ModuleDTO {
+interface ModuleDTO {
   id: string;
   name: string;
   description: string;
   enabled: boolean;
 }
 
-export interface PaginationRequest {
+interface PaginationRequest {
   page: number;
   pageSize: number;
 }
 
-export interface PageResult<T = unknown> {
+interface PageResult<T = unknown> {
   items: T[];
   total: number;
   page: number;
@@ -244,7 +260,7 @@ export interface BrandDTO {
   name: string;
 }
 
-export interface CategoryCodeNameRequest {
+interface CategoryCodeNameRequest {
   code: string;
   name: string;
 }
@@ -345,7 +361,7 @@ export interface UpdateSupplierRequest {
   isActive?: boolean | null;
 }
 
-export interface SaleItemDTO {
+interface SaleItemDTO {
   id: string;
   productId: string;
   lineNumber: number;
@@ -382,7 +398,7 @@ export interface ListSalesRequest extends PaginationRequest {
   status: string;
 }
 
-export interface CreateSaleItemRequest {
+interface CreateSaleItemRequest {
   productId: string;
   quantity: string;
   unitPrice: string;
@@ -404,7 +420,7 @@ export interface CreateSaleRequest {
   items: CreateSaleItemRequest[];
 }
 
-export interface CustomerPaymentDTO {
+interface CustomerPaymentDTO {
   id: string;
   number: string;
   customerId: string;
@@ -417,7 +433,7 @@ export interface CustomerPaymentDTO {
   notes: string;
 }
 
-export interface CustomerAdvanceDTO {
+interface CustomerAdvanceDTO {
   id: string;
   number: string;
   customerId: string;
@@ -468,7 +484,7 @@ export interface CardProjectionDTO {
   nextPaymentDate: string;
 }
 
-export interface PayCreditCardRequest {
+interface PayCreditCardRequest {
   cardId: string;
   amount: string;
 }
@@ -525,13 +541,29 @@ export interface UpsertExchangeRateRequest {
   source: string;
 }
 
-export interface WarehouseDTO {
+interface WarehouseDTO {
   id: string;
   code: string;
   name: string;
   isDefault: boolean;
   allowsClearance: boolean;
   isActive: boolean;
+}
+
+export interface NotificationDTO {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  recordType: string;
+  recordId: string;
+  isRead: boolean;
+  readAt: string;
+  createdAt: string;
+}
+
+export interface ListNotificationsRequest extends PaginationRequest {
+  onlyUnread: boolean;
 }
 
 export interface InventoryBatchDTO {
@@ -596,7 +628,7 @@ export interface VoidStockRequest {
   reason: string;
 }
 
-export interface PurchaseItemDTO {
+interface PurchaseItemDTO {
   id: string;
   productId: string;
   lineNumber: number;
@@ -646,7 +678,7 @@ export interface ListPurchaseOrdersRequest extends PaginationRequest {
   search: string;
 }
 
-export interface CreatePurchaseOrderItemRequest {
+interface CreatePurchaseOrderItemRequest {
   productId: string;
   quantity: string;
   unitPrice: string;
@@ -701,7 +733,7 @@ export interface RegisterCustomerOrderPaymentRequest {
   notes: string;
 }
 
-export interface CustomerOrderPaymentDTO {
+interface CustomerOrderPaymentDTO {
   id: string;
   purchaseOrderId: string;
   number: string;
@@ -752,6 +784,7 @@ export interface AppBindings {
   GetActiveCompany(): Promise<CompanyDTO>;
   SetActiveCompany(id: string): Promise<void>;
   CreateCompany(req: CompanyRequest): Promise<CompanyDTO>;
+  SetupWorkspace(req: SetupWorkspaceRequest): Promise<CompanyDTO>;
   UpdateCompany(req: CompanyRequest): Promise<CompanyDTO>;
 
   GetBusinessInfo(): Promise<BusinessInfoDTO>;
@@ -838,4 +871,11 @@ export interface AppBindings {
   MarkPurchaseFaulty(req: MarkPurchaseFaultyRequest): Promise<PurchaseOrderDTO>;
   MarkPurchaseReceived(req: MarkPurchaseReceivedRequest): Promise<PurchaseOrderDTO>;
   RegisterCustomerOrderPayment(req: RegisterCustomerOrderPaymentRequest): Promise<CustomerOrderPaymentDTO>;
+
+  ListNotifications(req: ListNotificationsRequest): Promise<PageResult<NotificationDTO>>;
+  UnreadNotificationCount(): Promise<number>;
+  MarkNotificationsRead(ids: string[]): Promise<void>;
+  MarkAllNotificationsRead(): Promise<void>;
+  DeleteNotification(id: string): Promise<void>;
+  GenerateClearanceNotifications(): Promise<number>;
 }

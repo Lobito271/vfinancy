@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { cx } from '@/utils/cx';
 
-export type BadgeVariant =
+type BadgeVariant =
   | 'primary'
   | 'secondary'
   | 'outline'
@@ -11,7 +11,7 @@ export type BadgeVariant =
   | 'info'
   | 'muted';
 
-export interface BadgeProps
+interface BadgeProps
   extends React.HTMLAttributes<HTMLSpanElement> {
   variant?: BadgeVariant;
 }

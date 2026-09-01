@@ -10,7 +10,8 @@
 - **Backend:** Go 1.23
 - **Frontend:** TypeScript + **React 19** + Vite 5
 - **State / data:** Zustand, TanStack Query, React Hook Form, Zod
-- **Styling:** plain CSS3 in `src/index.css` (semantic per-component classes + design tokens) — **no Tailwind, no PostCSS**
+- **UI primitives:** **Base UI** (`@base-ui/react` v1) — the primary component system; all Radix packages removed
+- **Styling:** plain CSS3 in `src/index.css` (OKLCH design tokens + Base UI part styling via data-attributes) — **no Tailwind, no PostCSS**
 - **DB:** hybrid — local **SQLite** (primary runtime DB, `modernc.org/sqlite`, pure Go) + cloud **PostgreSQL** mirror (via `github.com/jackc/pgx/v5/stdlib`) synchronized by the built-in sync engine.
 
 ## Key Commands
@@ -99,12 +100,12 @@ backend/
       <feature>/postgres/# concrete repository implementations
       sync/              # replication engine: device registry, cursors, LWW conflicts, tombstones
   migrations/
-    sqlite/              # SQLite migration pairs (0000_xxx.up.sql / .down.sql) — local runtime DB
-    postgres/            # PostgreSQL pairs — cloud mirror (moved via git mv)
+    sqlite/              # SQLite schema migrations (up.sql only) — local runtime DB
+    postgres/            # PostgreSQL mirror (same version set/order as sqlite)
   pkg/                   # reusable packages
 ```
 
-Each feature (`auth`, `administration`, `customer`, `supplier`, `product`, `inventory`, `purchasing`, `sales`, `treasury`, `accounting`, `customerpayments`, `reporting`) is a **vertical slice**: it owns its entity definitions, its repository interface, and its business service. When an operation spans multiple features, the owning feature's service composes the other features' services/repositories inside a single transaction (e.g. `sales.SalesService.Create` records the sale AND the customer debt; `auth.AuthenticationService.Login` authenticates, creates the session and records the audit event). Concrete SQL lives only in the feature's `postgres/` subpackage.
+Each feature (`auth`, `administration`, `customer`, `supplier`, `product`, `inventory`, `purchasing`, `sales`, `treasury`, `accounting`, `customerpayments`, `reporting`, `notifications`) is a **vertical slice**: it owns its entity definitions, its repository interface, and its business service. When an operation spans multiple features, the owning feature's service composes the other features' services/repositories inside a single transaction (e.g. `sales.SalesService.Create` records the sale AND the customer debt; `auth.AuthenticationService.Login` authenticates, creates the session and records the audit event). Concrete SQL lives only in the feature's `postgres/` subpackage.
 
 The root `main.go` and `app.go` are the Wails entrypoint. `app.go` initializes config + logger, ensures the database exists, opens a connection, and runs pending migrations on startup. It binds two structs: the root `App` (config accessors for the frontend) and `bindings.App` (Wails-exposed methods).
 
@@ -124,13 +125,12 @@ frontend/
     main.tsx
     app/                     # App.tsx (routes + lazy), Providers.tsx, ErrorBoundary.tsx
     layouts/                 # AppLayout (sidebar + topbar + breadcrumbs)
-    pages/                   # route screens (1 per module + Login)
-    features/                # feature-based modules (dashboard/, customers/, sales/)
-    components/              # category folders — see "Component organization" below
+    pages/                   # route screens (1 per module + SetupWizard + Welcome/Login)
+    features/                # feature-based modules (dashboard/, customers/, sales/, settings/)
+    components/              # category folders (Base UI wrappers) — see "Component organization" below
     services/                # one folder per business domain + queryKeys.ts
     stores/                  # Zustand: theme, sidebar, ui, notification
     hooks/                   # useDebounce
-    design-system/           # TS design tokens (colors, spacing, etc.) + IconRegistry
     constants/               # routes, currencies, countries, languages, status, taxes
     utils/                   # format, validators, debounce, clipboard, download, collection, misc, storage
     locales/                 # i18n (es-PE) — t() helper
@@ -147,7 +147,7 @@ frontend/
 All UI text is in Spanish (es-PE). Source code (variable names, comments if any) is English.
 
 - Translations live in `src/locales/es.ts`.
-- `t('key')` (and `t('key', { n: 5 })`) is the only way to display static UI text. Hardcoded strings in components are not allowed.
+- `t('key')` (and `t('key', { n: 5 })`) is the standard for shared components; page-level screens currently use inline Spanish strings — prefer `t()` for new shared components and migrate pages opportunistically. Hardcoded English is never allowed.
 - Number / date / currency formatting goes through `formatCurrency`, `formatDate`, `formatNumber`, `formatPercent` in `@/utils/format`. These use `Intl.*` with `es-PE` locale.
 
 ### Design system
@@ -156,15 +156,13 @@ Un documento canónico:
 
 - **`DESIGN.md`** — reglas de diseño (paleta, tipografía, spacing, componentes, accesibilidad).
 
-Tokens tienen **dos representaciones sincronizadas**:
-- CSS variables en `src/index.css` (lo que consume la UI en runtime).
-- TypeScript en `src/design-system/` (type safety y valores no-CSS).
+La librería de componentes es **Base UI** (`@base-ui/react`, unstyled + accesible). Los wrappers viven en `src/components/*` y exportan la API usada por las páginas; el estilo se aplica directamente sobre las partes de Base UI.
 
-Estilos: `src/index.css` es un sistema **plain CSS3** auto-suficiente (sin Tailwind/PostCSS). Define tokens, reset/base y **clases semánticas por componente** (`.btn`, `.card`, `.dialog-overlay`, `.sidebar`, `.datatable`, …) con variantes BEM-style (`--primary`, `--collapsed`, `__header`). Los componentes React reciben estilos propios; para composición puntual hay helpers mínimos (`.stack`, `.hstack`, `.grid-N`). Soporta Radix `data-[state=*]`/`data-[side=*]`, animaciones (`vf-enter`/`vf-exit`) y `prefers-reduced-motion`. Usa `hsl(var(--x) / N)` para opacidades y `--vf-offset`/`--vf-offset-color` para focus rings. La unión condicional de clases se hace con `cx()` de `@/utils/cx`.
+Estilos: `src/index.css` es un sistema **plain CSS3** auto-suficiente (sin Tailwind/PostCSS). Define tokens **OKLCH full-color** (`--color-*`, con overrides `.dark`), tipografía **Geist Sans/Geist Mono**, y **clases semánticas por parte** (`.btn`, `.card`, `.dialog-content`, `.menu-content`, `.select-trigger`, `.sidebar`, `.datatable`, …) con variantes BEM-style (`--primary`, `--collapsed`, `__header`). Los estados de Base UI se estilan con sus data-attributes (`[data-pressed]`, `[data-open]`, `[data-starting-style]`/`[data-ending-style]`, `[data-highlighted]`, `[data-checked]`, `[data-active]`, `[data-popup-open]`, `aria-invalid`). Para composición puntual hay helpers mínimos (`.stack`, `.hstack`, `.grid-N`). Focus ring global vía `:focus-visible` con `--color-ring`. La unión condicional de clases se hace con `cx()` de `@/utils/cx`.
 
 Reglas operativas:
 
-- **No hardcoded colors.** Usa tokens CSS (`hsl(var(--primary))`, `hsl(var(--muted-foreground))`, `hsl(var(--destructive))`, …) — definidos en `src/index.css`.
+- **No hardcoded colors.** Usa tokens CSS (`var(--color-primary)`, `var(--color-muted-fg)`, `var(--color-destructive)`, …) — definidos en `src/index.css`.
 - **No utility classes** (`bg-*`, `text-sm`, `p-4`, `flex items-center gap-2`, …). Usa la clase semántica del componente o los helpers de layout (`.stack`, `.hstack`, `.grid-N`); casos únicos van con `style={{...}}`.
 - **Money usa `formatCurrency(value, 'PEN')`**, nunca `toFixed`.
 - **Dates usa `formatDate(value)`**, nunca `toLocaleString` ad-hoc.
@@ -172,7 +170,7 @@ Reglas operativas:
 - **Acciones destructivas** van en `<AlertDialog variant="destructive">` o `<ConfirmDialog>`.
 - **Formularios** usan `<Form>` + zod + componentes de `@/components/form`.
 - **Tablas** usan `<DataTable>` (no `<table>` a mano).
-- **Iconos** vienen de `@/design-system/icons` (el registry). Nunca importes de `lucide-react` directamente.
+- **Iconos**: `lucide-react` se importa directamente (convención actual del repo).
 
 ### Theme (light / dark / system)
 
@@ -185,22 +183,19 @@ Reglas operativas:
 `src/components/` está dividido por **categoría** (no por feature). Los **features** específicos van en `src/features/<x>/`.
 
 ```
-button/      # Button + 7 variants, 5 sizes
+button/      # Button (Base UI) — 5 variants, 5 sizes, loading, render prop
 input/       # Input, Textarea, Label, SearchInput
-select/      # Select (Radix) + SelectContent/Item/Label/Separator
-checkbox/    # Checkbox, RadioGroup, Switch
-table/       # DataTable (framework), TablePagination
-dialog/      # Dialog, AlertDialog (5 variants), ConfirmDialog
-card/        # Card, CardHeader/Title/Description/Content/Footer, StatCard
-badge/       # Badge, SaleStatusBadge, CustomerStatusBadge
-navigation/  # Sidebar, Topbar, Breadcrumbs
-feedback/    # Spinner, Skeleton, ProgressBar, EmptyState, ErrorState, Toaster
-charts/      # LineChart, BarChart, PieChart (recharts wrappers)
-layout/      # PageContainer, PageHeader, Section, Stack, Grid
-money/       # MoneyInput, MoneyDisplay
-form/        # Form + 16+ field components (TextField, MoneyField, etc.)
-auth/        # Can
-misc/        # DropdownMenu, Separator, Tooltip
+select/      # Select (Base UI) + SelectValue/Trigger/Content/Item
+table/       # DataTable (search/filters/sort/pagination/row-actions), TablePagination
+dialog/      # Dialog, AlertDialog (5 variants), ConfirmDialog, CancelDialog, RegisterPaymentDialog
+card/        # Card, CardHeader/Title/Description/Content, StatCard
+badge/       # Badge (8 variants), SaleStatusBadge, CustomerStatusBadge
+navigation/  # Sidebar (flat, collapsible, mobile drawer), Topbar, Breadcrumbs
+feedback/    # Spinner, EmptyState, ErrorState, Toaster (Base UI Toast)
+charts/      # LineChart, BarChart (recharts wrappers, token colors)
+layout/      # PageContainer, PageHeader, Section, Grid
+form/        # Form (RHF + zod) + fields (TextField, NumberField, MoneyField, PercentageField, SelectField, domain selects, LineItemsEditor)
+misc/        # DropdownMenu (Base UI Menu), Tooltip, Drawer (Base UI), RowActions
 ```
 
 Cada carpeta tiene su `index.ts` barrel — importar de `@/components/<categoría>`, nunca del archivo individual.
@@ -239,10 +234,10 @@ Cada carpeta tiene su `index.ts` barrel — importar de `@/components/<categorí
 
 ## Migrations
 
-- Files live in `backend/migrations/` under two dialect directories: `sqlite/` (the local runtime DB) and `postgres/` (the cloud mirror). Both contain the same versions; keep every pair in sync.
-- Filenames follow the pattern `0001_create_users.up.sql` / `0001_create_users.down.sql`.
-- Each pair is a version. Runner records applied versions in `schema_migrations(version, name, applied_at)`.
-- Filename must be `VERSION_NAME.up.sql` or `VERSION_NAME.down.sql` (single underscore between version and name; name may contain underscores but no dots).
+- Files live in `backend/migrations/` under two dialect directories: `sqlite/` (the local runtime DB) and `postgres/` (the cloud mirror). Both contain the same versions in the same creation order; keep them in sync.
+- Only `.up.sql` exists today: this is a pre-release app with no production data, so rollback scripts were intentionally dropped and the runner exposes no rollback command (the `cli` has only `migrate` and `status`).
+- Filename must be `VERSION_name.up.sql` (single underscore between version and name; name may contain underscores but no dots). The initial schema is written in FK-safe creation order (companies/branches first, then reference data, then purchasing → inventory → sales). FKs must never reference a table created later in the file: PostgreSQL rejects forward references at CREATE time, while SQLite silently tolerates them.
+- Each file is a version. Runner records applied versions in `schema_migrations(version, name, applied_at)`.
 - Apply with `go run ./backend/cmd/cli migrate` (default: local SQLite; add `--postgres` for the cloud). Status with `go run ./backend/cmd/cli status`.
 - The Wails app also auto-runs pending migrations on `OnStartup`.
 - SQLite dialect notes: `gen_random_uuid()` → `lower(hex(randomblob(16)))`, `NOW()` → `(CAST(unixepoch('subsec') * 1000 AS INTEGER))`, `TIMESTAMPTZ`/`JSONB`/`TEXT[]`/`INET` → `TIMESTAMP`/`TEXT`/`TEXT`/`TEXT`. Timestamps are INTEGER ms; `ALTER TABLE ADD CONSTRAINT` is a no-op (FKs are declared inline in `CREATE TABLE`). SQLite requires all columns before table-level `CONSTRAINT`s, and triggers cannot be `BEFORE UPDATE OR DELETE`.
@@ -250,10 +245,17 @@ Cada carpeta tiene su `index.ts` barrel — importar de `@/components/<categorí
 ## Sync architecture
 
 - **Local SQLite is the runtime DB.** The background worker in `interfaces/bindings/app.go` (`startSyncWorker`, gated on `SYNC_ENABLED`) pushes/pulls changes to the self-hosted sync server (`backend/cmd/syncserver`, cloud PostgreSQL mirror).
-- **Model:** watermark-diff replication with last-writer-wins. Rows travel as "all rows whose time column > per-table cursor" in both directions; hard deletes are captured by the `AFTER DELETE` triggers in `migrations/sqlite/0020` into `sync_tombstones`. The postgres 0020 has no triggers — the server records tombstones explicitly. There are no INSERT/UPDATE triggers (no outbox echo).
+- **Model:** watermark-diff replication with last-writer-wins. Rows travel as "all rows whose time column > per-table cursor" in both directions; hard deletes are captured by the `AFTER DELETE` triggers in `migrations/sqlite/0000_initial_schema` into `sync_tombstones`. The postgres 0000 has no triggers — the server records tombstones explicitly. There are no INSERT/UPDATE triggers (no outbox echo).
 - The generic engine lives in `internal/features/sync` (entities, registry of 13 replicated tables, `Repository` interface, `HTTPClient`) and `internal/features/sync/postgres` (dialect-safe implementation). `internal/features/sync/server.go` is the server-side handler.
 - Replicated tables are the master-data/auth set: `companies`, `branches`, `roles`, `users`, `user_roles`, `user_profiles`, `user_sessions`, `application_settings`, `taxes`, `currencies`, `countries`. `audit_logs`, `audit_events`, `login_history`, `exchange_rates` are intentionally excluded.
 - Config: `SYNC_ENABLED=true`, `SYNC_SERVER_URL`, `SYNC_API_KEY`, `SYNC_POLL_INTERVAL_SEC=30`.
+
+## Notifications (device-local feed)
+
+- `internal/features/notifications` owns the in-app notification feed (`notifications` table: `type`, `title`, `message`, `record_type`, `record_id`, `dedup_key`, `read_at`, soft delete). Unread = `read_at IS NULL`; dedup via `UNIQUE (company_id, type, dedup_key)`.
+- The only generator today is **inventory clearance**: `notifications.NotificationsService.Generate` scans `InventoryService.GenerateClearanceCandidates`, inserts one notification per on-clearance batch (`dedup_key = batch id`), and soft-deletes **unread** notifications whose batch left clearance (read ones stay as history).
+- The `startNotificationsWorker` goroutine in `interfaces/bindings/app.go` (gated on `NOTIFICATIONS_ENABLED`, default `true`; interval `NOTIFICATIONS_POLL_INTERVAL_SEC`, default `60`) runs `InventoryService.RefreshClearanceFlags` (reconciles the persisted `is_clearance` column, which is otherwise only refreshed on batch writes) and then `Generate`. It skips when no company is active.
+- Delivery is **in-app only** (Topbar bell, `services/notifications`); notifications are device-local and intentionally excluded from the sync engine.
 
 ## Wails / Build Gotchas
 

@@ -1,7 +1,7 @@
-import { createPortal } from 'react-dom';
+import { Toast } from '@base-ui/react/toast';
 import { CheckCircle2, AlertTriangle, Info, XCircle, X } from 'lucide-react';
 import { cx } from '@/utils/cx';
-import { useNotificationStore, type ToastVariant } from '@/stores/notification';
+import { toastManager, type ToastVariant } from '@/stores/notification';
 
 const iconMap: Record<ToastVariant, typeof CheckCircle2> = {
   success: CheckCircle2,
@@ -10,46 +10,45 @@ const iconMap: Record<ToastVariant, typeof CheckCircle2> = {
   info: Info,
 };
 
-export function Toaster() {
-  const toasts = useNotificationStore((s) => s.toasts);
-  const dismiss = useNotificationStore((s) => s.dismiss);
+function ToastViewport() {
+  const manager = Toast.useToastManager();
 
-  if (typeof document === 'undefined') return null;
-
-  return createPortal(
-    <div
-      className="toaster"
-      aria-live="polite"
-      aria-atomic="true"
-    >
-      {toasts.map((t) => {
-        const Icon = iconMap[t.variant];
+  return (
+    <>
+      {manager.toasts.map((toast) => {
+        const variant = (toast.type ?? 'info') as ToastVariant;
+        const Icon = iconMap[variant] ?? Info;
         return (
-          <div
-            key={t.id}
-            role="status"
-            className={cx('toast', `toast--${t.variant}`)}
+          <Toast.Root
+            key={toast.id}
+            toast={toast}
+            className={cx('toast', `toast--${variant}`)}
+            swipeDirection={['down', 'right']}
           >
-            <div className="toast__bar" aria-hidden="true" />
-            <Icon className="toast__icon" aria-hidden="true" />
+            <span className="toast__icon" aria-hidden="true">
+              <Icon />
+            </span>
             <div className="toast__body">
-              <p className="toast__title">{t.title}</p>
-              {t.description && (
-                <p className="toast__description">{t.description}</p>
+              <Toast.Title className="toast__title">{toast.title}</Toast.Title>
+              {toast.description && (
+                <Toast.Description className="toast__description">{toast.description}</Toast.Description>
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => dismiss(t.id)}
-              className="toast__close"
-              aria-label="Cerrar notificación"
-            >
+            <Toast.Close className="toast__close" aria-label="Cerrar notificación">
               <X />
-            </button>
-          </div>
+            </Toast.Close>
+          </Toast.Root>
         );
       })}
-    </div>,
-    document.body,
+      <Toast.Viewport className="toaster" />
+    </>
+  );
+}
+
+export function Toaster() {
+  return (
+    <Toast.Provider toastManager={toastManager}>
+      <ToastViewport />
+    </Toast.Provider>
   );
 }

@@ -17,16 +17,16 @@ const ReBarChart = lazy(() =>
       return (
         <ResponsiveContainer width="100%" height={height}>
           <BC data={data} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
             <XAxis
               dataKey="label"
-              stroke="hsl(var(--muted-foreground))"
+              stroke="var(--color-muted-fg)"
               fontSize={12}
               tickLine={false}
               axisLine={false}
             />
             <YAxis
-              stroke="hsl(var(--muted-foreground))"
+              stroke="var(--color-muted-fg)"
               fontSize={12}
               tickLine={false}
               axisLine={false}
@@ -35,8 +35,8 @@ const ReBarChart = lazy(() =>
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: 'hsl(var(--popover))',
-                border: '1px solid hsl(var(--border))',
+                backgroundColor: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
                 borderRadius: 8,
                 fontSize: 12,
               }}
@@ -62,11 +62,11 @@ interface BarChartProps {
 }
 
 const defaultColors = [
-  'hsl(var(--primary))',
-  'hsl(var(--info))',
-  'hsl(var(--success))',
-  'hsl(var(--warning))',
-  'hsl(var(--destructive))',
+  'var(--color-primary)',
+  'var(--color-info)',
+  'var(--color-success)',
+  'var(--color-warning)',
+  'var(--color-destructive)',
 ];
 
 export function BarChart({ data, height = 280, formatY, colors = defaultColors }: BarChartProps) {

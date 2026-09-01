@@ -1,13 +1,22 @@
 import { useMemo, useState } from 'react';
-import { Package, TrendingUp, Eye, Download, AlertTriangle, Trash2, Plus } from 'lucide-react';
+import { Package, TrendingUp, Eye, Download, AlertTriangle, Ban, Plus } from 'lucide-react';
 import { PageContainer, PageHeader, Grid } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
 import { Badge } from '@/components/badge';
 import { EmptyState } from '@/components/feedback';
 import { Button } from '@/components/button';
+import { SearchInput } from '@/components/input';
 import { CancelDialog } from '@/components/dialog';
+import { RowActions, type RowAction } from '@/components/misc';
 import { useDebounce } from '@/utils/debounce';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/select';
 import {
   useCustomerOrders,
   useCancelCustomerOrder,
@@ -39,52 +48,52 @@ const columns: Column<CustomerOrder>[] = [
     header: 'N° Pedido',
     sortable: true,
     sticky: true,
-    cell: (row) => <span className="font-medium tabular-nums">{row.number}</span>,
+    cell: (row) => <span className="fw-medium tabular">{row.number}</span>,
   },
   { id: 'customerName', header: 'Cliente', sortable: true, cell: (row) => row.customerName || '—' },
   {
     id: 'supplierOrderNumber',
     header: 'Orden Proveedor',
-    cell: (row) => <span className="text-muted-foreground">{row.supplierOrderNumber || '—'}</span>,
+    cell: (row) => <span className="muted">{row.supplierOrderNumber || '—'}</span>,
   },
   {
     id: 'date',
     header: 'Fecha',
-    cell: (row) => <span className="text-muted-foreground">{formatDate(row.date)}</span>,
+    cell: (row) => <span className="muted">{formatDate(row.date)}</span>,
   },
   {
     id: 'salePricePEN',
     header: 'Venta',
     sortable: true,
     align: 'right',
-    cell: (row) => <span className="tabular-nums">{formatCurrency(row.salePricePEN)}</span>,
+    cell: (row) => <span className="tabular">{formatCurrency(row.salePricePEN)}</span>,
   },
   {
     id: 'realCostPEN',
     header: 'Costo real (PEN)',
     sortable: true,
     align: 'right',
-    cell: (row) => <span className="tabular-nums">{formatCurrency(row.realCostPEN)}</span>,
+    cell: (row) => <span className="tabular">{formatCurrency(row.realCostPEN)}</span>,
   },
   {
     id: 'anticipo',
     header: 'Anticipo',
     align: 'right',
-    cell: (row) => <span className="tabular-nums">{formatCurrency(row.anticipo)}</span>,
+    cell: (row) => <span className="tabular">{formatCurrency(row.anticipo)}</span>,
   },
   {
     id: 'porCobrar',
     header: 'Por cobrar',
     sortable: true,
     align: 'right',
-    cell: (row) => <span className="tabular-nums font-medium">{formatCurrency(row.porCobrar)}</span>,
+    cell: (row) => <span className="fw-medium tabular">{formatCurrency(row.porCobrar)}</span>,
   },
   {
     id: 'projectedProfitPEN',
     header: 'Utilidad proy.',
     align: 'right',
     cell: (row) => (
-      <span className={`tabular-nums ${row.projectedProfitPEN < 0 ? 'text-destructive' : 'text-success'}`}>
+      <span className={`tabular ${row.projectedProfitPEN < 0 ? 'text-destructive' : 'text-success'}`}>
         {formatCurrency(row.projectedProfitPEN)}
       </span>
     ),
@@ -95,7 +104,7 @@ const columns: Column<CustomerOrder>[] = [
     cell: (row) => {
       const cfg = statusMap[row.status] ?? { variant: 'muted' as const, label: row.status };
       return (
-        <div className="flex flex-wrap items-center gap-1">
+        <div className="hstack hstack--sm">
           <Badge variant={cfg.variant}>{cfg.label}</Badge>
           {row.faulty && <Badge variant="destructive">Defectuoso</Badge>}
         </div>
@@ -132,9 +141,6 @@ export function CustomerOrdersPage() {
   const [faultyTarget, setFaultyTarget] = useState<CustomerOrder | null>(null);
   const [arrivalPayTarget, setArrivalPayTarget] = useState<CustomerOrder | null>(null);
 
-  const canEdit = true;
-  const canDelete = true;
-
   const orders = useMemo(() => {
     const all = data ?? [];
     if (debtFilter === 'pending') return all.filter((o) => o.porCobrar > 0 && o.status !== 'cancelled');
@@ -146,61 +152,49 @@ export function CustomerOrdersPage() {
   const totalPorCobrar = orders.reduce((s, o) => s + o.porCobrar, 0);
   const totalProfit = orders.reduce((s, o) => s + o.projectedProfitPEN, 0);
 
+  const openCreate = () => setFormOpen(true);
+
   const tableColumns = useMemo<Column<CustomerOrder>[]>(() => {
     return [
       ...columns,
       {
         id: 'actions',
         header: '',
-        width: 280,
-        exportable: false,
+        width: 72,
         cell: (row) => {
           const open = row.status !== 'cancelled';
           const receivable = !row.arrivalDate && !row.faulty && row.status !== 'cancelled';
           const canMarkFaulty = open && !row.faulty;
-          return (
-            <div className="flex items-center justify-end gap-1">
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Ver ${row.number}`}
-                onClick={() => setDetailOrder(row)}
-              >
-                <Eye />
-              </Button>
-              {canEdit && receivable && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setArrivalPayTarget(row)}
-                  title="Registra la llegada y cobra el saldo pendiente en un solo paso"
-                >
-                  <Download /> Llegada y Cobro
-                </Button>
-              )}
-              {canEdit && canMarkFaulty && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  aria-label={`Llegó en mal estado ${row.number}`}
-                  onClick={() => setFaultyTarget(row)}
-                  title="Anula el pedido y reembolsa el anticipo"
-                >
-                  <AlertTriangle /> Mal estado
-                </Button>
-              )}
-              {canDelete && open && (
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Anular ${row.number}`}
-                  onClick={() => setCancelTarget(row)}
-                >
-                  <Trash2 />
-                </Button>
-              )}
-            </div>
-          );
+          const actions: RowAction[] = [
+            {
+              label: 'Ver detalle',
+              icon: Eye,
+              onSelect: () => setDetailOrder(row),
+            },
+          ];
+          if (receivable) {
+            actions.push({
+              label: 'Llegada y cobro',
+              icon: Download,
+              onSelect: () => setArrivalPayTarget(row),
+            });
+          }
+          if (canMarkFaulty) {
+            actions.push({
+              label: 'Mal estado',
+              icon: AlertTriangle,
+              onSelect: () => setFaultyTarget(row),
+            });
+          }
+          if (open) {
+            actions.push({
+              label: 'Anular',
+              icon: Ban,
+              danger: true,
+              onSelect: () => setCancelTarget(row),
+            });
+          }
+          return <RowActions actions={actions} label={`Acciones de ${row.number}`} />;
         },
       },
     ];
@@ -297,7 +291,7 @@ export function CustomerOrdersPage() {
         title="Pedidos de cliente"
         subtitle="Órdenes de importación para clientes con anticipos y utilidad proyectada"
         actions={
-          <Button onClick={() => setFormOpen(true)}>
+          <Button onClick={openCreate}>
             <Plus /> Nuevo pedido
           </Button>
         }
@@ -311,25 +305,6 @@ export function CustomerOrdersPage() {
         <StatCard label="Utilidad proyectada" value={formatCurrency(totalProfit)} icon={TrendingUp} />
       </Grid>
 
-      <div className="flex items-center gap-3">
-        <input
-          type="text"
-          placeholder="Buscar por número o orden del proveedor…"
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          className="h-9 w-full max-w-sm rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
-        />
-        <select
-          value={debtFilter}
-          onChange={(e) => setDebtFilter(e.target.value as DebtFilter)}
-          className="h-9 rounded-md border bg-background px-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="all">Todos</option>
-          <option value="pending">Con Deuda</option>
-          <option value="paid">Cancelados</option>
-        </select>
-      </div>
-
       <DataTable
         columns={tableColumns}
         data={orders}
@@ -337,12 +312,42 @@ export function CustomerOrdersPage() {
         loading={isLoading}
         error={isError ? (error as Error) : null}
         onRetry={() => refetch()}
-        globalSearch={false}
-        exportFilename="pedidos-cliente.csv"
+        preferencesKey="customer-orders"
+        toolbarLeft={
+          <>
+            <SearchInput
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onClear={() => setSearchInput('')}
+              placeholder="Número u orden del proveedor…"
+              className="datatable-search"
+              aria-label="Buscar pedido"
+            />
+            <Select
+              items={[
+                { value: 'all', label: 'Todos' },
+                { value: 'pending', label: 'Con deuda' },
+                { value: 'paid', label: 'Cancelados' },
+              ]}
+              value={debtFilter}
+              onValueChange={(v) => setDebtFilter((v ?? 'all') as DebtFilter)}
+            >
+              <SelectTrigger style={{ width: '10rem' }} aria-label="Filtrar por cobranza">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="pending">Con deuda</SelectItem>
+                <SelectItem value="paid">Cancelados</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
+        }
         empty={
           <EmptyState
             title="No hay pedidos de cliente"
-            description="Los pedidos de importación para clientes aparecerán aquí con su anticipo y utilidad proyectada."
+            description="Crea el primer pedido de importación con anticipo para tus clientes."
+            action={{ label: 'Nuevo pedido', onClick: openCreate }}
           />
         }
       />

@@ -6,7 +6,19 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"vfinancy/backend/internal/domain/repositories"
 )
+
+type noopTxManager struct{}
+
+func (noopTxManager) WithinTransaction(ctx context.Context, fn repositories.TxRunner) error {
+	return fn(ctx)
+}
+
+func newTestService(repo Repository) *Service {
+	return NewService(repo, noopTxManager{})
+}
 
 type memoryRepository struct {
 	profile   *LocalProfile
@@ -63,7 +75,7 @@ func TestLocalProfileUsesActiveCompanyAndOptionalPassword(t *testing.T) {
 		ID: companyID, Code: "ACME", LegalName: "Acme", TaxID: "123", IsActive: true,
 		FiscalYearStartMonth: 1, CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}}}
-	service := NewService(repo)
+	service := newTestService(repo)
 
 	profile, err := service.CreateProfile(context.Background(), "Owner", companyID)
 	if err != nil {
@@ -74,5 +86,48 @@ func TestLocalProfileUsesActiveCompanyAndOptionalPassword(t *testing.T) {
 	}
 	if got, err := service.CurrentCompanyID(); err != nil || got != companyID {
 		t.Fatalf("active company = %v, %v", got, err)
+	}
+}
+
+func TestSetupCompanyRejectsWeakPasswordBeforeAnyInsert(t *testing.T) {
+	repo := &memoryRepository{companies: map[uuid.UUID]*Company{}}
+	service := newTestService(repo)
+	company := &Company{Code: "ACME", LegalName: "Acme", TaxID: "123"}
+
+	if _, err := service.SetupCompany(context.Background(), company, "Owner", "short"); err == nil {
+		t.Fatal("expected weak password to be rejected")
+	}
+
+	if len(repo.companies) != 0 {
+		t.Fatal("weak password should not have inserted the company")
+	}
+	if repo.profile != nil {
+		t.Fatal("weak password should not have inserted the profile")
+	}
+}
+
+func TestSetupCompanyInsertsCompanyAndProfile(t *testing.T) {
+	repo := &memoryRepository{companies: map[uuid.UUID]*Company{}}
+	service := newTestService(repo)
+	company := &Company{Code: "ACME", LegalName: "Acme", TaxID: "123"}
+
+	got, err := service.SetupCompany(context.Background(), company, "Owner", "Correct-horse-battery-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Code != "ACME" {
+		t.Fatalf("expected company to be returned, got %+v", got)
+	}
+	if len(repo.companies) != 1 {
+		t.Fatalf("expected 1 company inserted, got %d", len(repo.companies))
+	}
+	if repo.profile == nil {
+		t.Fatal("expected profile inserted")
+	}
+	if !repo.profile.PasswordEnabled || repo.profile.PasswordHash == "" {
+		t.Fatal("expected profile to be password-enabled")
+	}
+	if repo.profile.ActiveCompanyID != got.ID {
+		t.Fatal("profile should reference the created company")
 	}
 }

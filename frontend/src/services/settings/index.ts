@@ -1,9 +1,9 @@
 import { wailsClient } from '../bindings';
 
-export type BusinessInfo = Awaited<ReturnType<typeof wailsClient.getBusinessInfo>>;
-export type Preferences = Awaited<ReturnType<typeof wailsClient.getPreferences>>;
-export type Currency = Awaited<ReturnType<typeof wailsClient.getCurrencies>>[number];
-export type Tax = Awaited<ReturnType<typeof wailsClient.getTaxes>>[number];
+type BusinessInfo = Awaited<ReturnType<typeof wailsClient.getBusinessInfo>>;
+type Preferences = Awaited<ReturnType<typeof wailsClient.getPreferences>>;
+type Currency = Awaited<ReturnType<typeof wailsClient.getCurrencies>>[number];
+type Tax = Awaited<ReturnType<typeof wailsClient.getTaxes>>[number];
 
 export const settingsService = {
   async getBusinessInfo(): Promise<BusinessInfo> {

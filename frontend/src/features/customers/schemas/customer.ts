@@ -1,13 +1,13 @@
 import { z } from 'zod';
 import { DocumentTypes } from '@/constants/countries';
 
-export const CustomerStatusSchema = z.enum(['active', 'inactive', 'blocked']);
+const CustomerStatusSchema = z.enum(['active', 'inactive', 'blocked']);
 
-export const CustomerDocumentTypeSchema = z.enum(
+const CustomerDocumentTypeSchema = z.enum(
   Object.keys(DocumentTypes) as [keyof typeof DocumentTypes, ...(keyof typeof DocumentTypes)[]],
 );
 
-export const CustomerSchema = z.object({
+const CustomerSchema = z.object({
   id: z.string(),
   documentType: CustomerDocumentTypeSchema,
   documentNumber: z.string().min(8, 'Mínimo 8 caracteres'),
@@ -20,8 +20,4 @@ export const CustomerSchema = z.object({
   status: CustomerStatusSchema,
 });
 
-export type CustomerFormValues = z.infer<typeof CustomerSchema>;
-
 export const CustomerCreateSchema = CustomerSchema.omit({ id: true });
-
-export type CustomerCreateFormValues = z.infer<typeof CustomerCreateSchema>;

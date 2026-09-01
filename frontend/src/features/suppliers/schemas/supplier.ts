@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
-export const SupplierDocumentTypeSchema = z.enum(['RUC', 'DNI', 'CE', 'PASSPORT']);
+const SupplierDocumentTypeSchema = z.enum(['RUC', 'DNI', 'CE', 'PASSPORT']);
 
-export const SupplierSchema = z.object({
+const SupplierSchema = z.object({
   id: z.string(),
   documentType: SupplierDocumentTypeSchema,
   documentNumber: z.string().min(8, 'Mínimo 8 caracteres'),
@@ -14,8 +14,4 @@ export const SupplierSchema = z.object({
   paymentTermDays: z.number().min(0, 'Debe ser >= 0').max(365, 'Máximo 365 días').optional(),
 });
 
-export type SupplierFormValues = z.infer<typeof SupplierSchema>;
-
 export const SupplierCreateSchema = SupplierSchema.omit({ id: true });
-
-export type SupplierCreateFormValues = z.infer<typeof SupplierCreateSchema>;

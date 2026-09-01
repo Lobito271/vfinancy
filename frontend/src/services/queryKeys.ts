@@ -1,4 +1,5 @@
 export const queryKeys = {
+  setup: ['setup'] as const,
   customers: {
     all: ['customers'] as const,
     list: (q: unknown) => ['customers', 'list', q] as const,
@@ -37,6 +38,11 @@ export const queryKeys = {
     list: ['inventory', 'list'] as const,
     clearance: ['inventory', 'clearance'] as const,
     lowStock: ['inventory', 'lowStock'] as const,
+  },
+  notifications: {
+    all: ['notifications'] as const,
+    list: (onlyUnread: boolean) => ['notifications', 'list', onlyUnread] as const,
+    unread: ['notifications', 'unread'] as const,
   },
   treasury: {
     all: ['treasury'] as const,

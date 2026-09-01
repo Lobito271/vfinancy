@@ -197,7 +197,7 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
                   <DateField name="orderDate" label="Fecha de orden" required />
                 </div>
                 <TextareaField name="supplierOrderNumber" label="N° Orden del Proveedor" rows={1} placeholder="Opcional — número de orden del proveedor" />
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="form-grid">
                   <SelectField
                     name="creditCardId"
                     label="Tarjeta de crédito (pago en USD)"
@@ -212,10 +212,10 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
                     label="Tipo de cambio (USD→PEN)"
                     description={
                       rateQuery.isLoading
-                        ? 'Obteniendo tipo de cambio…'
+                        ? 'Cargando tipo de cambio…'
                         : rateQuery.isError
-                          ? 'No disponible — ingrese el T.C. manualmente'
-                          : 'T.C. de referencia (editable en el panel de costos)'
+                          ? 'Ingrese el T.C. manualmente'
+                          : 'T.C. de referencia editable'
                     }
                     min={0.01}
                     step={0.01}

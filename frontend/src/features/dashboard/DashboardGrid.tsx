@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { cx } from '@/utils/cx';
 
-export type WidgetSize = 'sm' | 'md' | 'lg' | 'xl' | 'full';
+type WidgetSize = 'sm' | 'md' | 'lg' | 'xl' | 'full';
 
 export interface DashboardGridItem {
   id: string;

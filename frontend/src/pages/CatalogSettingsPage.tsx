@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/tabs';
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/feedback';
 import { AlertDialog } from '@/components/dialog';
+import { RowActions } from '@/components/misc';
 import {
   useCatalogBrands,
   useCatalogCategories,
@@ -55,54 +56,45 @@ function CatalogTable({ kind }: { kind: CatalogKind }) {
   const noun = isCategory ? 'Categoría' : 'Marca';
   const deleteMutation = isCategory ? deleteCategory : deleteBrand;
 
+  const openCreate = () => {
+    setEditing(null);
+    setFormOpen(true);
+  };
+
   const columns = useMemo<Column<CatalogItem>[]>(() => {
     return [
       ...columnSet,
       {
         id: 'actions',
         header: '',
-        width: 88,
-        exportable: false,
+        width: 72,
         cell: (row) => (
-          <div className="row-actions">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`Editar ${singular} ${row.name}`}
-              onClick={() => {
-                setEditing(row);
-                setFormOpen(true);
-              }}
-            >
-              <Pencil />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`Eliminar ${singular} ${row.name}`}
-              onClick={() => setDeleteTarget(row)}
-            >
-              <Trash2 />
-            </Button>
-          </div>
+          <RowActions
+            actions={[
+              {
+                label: 'Editar',
+                icon: Pencil,
+                onSelect: () => {
+                  setEditing(row);
+                  setFormOpen(true);
+                },
+              },
+              {
+                label: 'Eliminar',
+                icon: Trash2,
+                danger: true,
+                onSelect: () => setDeleteTarget(row),
+              },
+            ]}
+            label={`Acciones de ${row.name}`}
+          />
         ),
       },
     ];
-  }, [singular]);
+  }, []);
 
   return (
     <>
-      <div className="row-end" style={{ marginBottom: "1rem" }}>
-        <Button
-            onClick={() => {
-              setEditing(null);
-              setFormOpen(true);
-            }}
-          >
-            <Plus /> Nueva {singular}
-          </Button>
-      </div>
-
       <DataTable
         columns={columns}
         data={data}
@@ -110,12 +102,16 @@ function CatalogTable({ kind }: { kind: CatalogKind }) {
         loading={query.isLoading}
         error={query.isError ? (query.error as Error) : null}
         onRetry={() => query.refetch()}
-        globalSearch={false}
-        exportFilename={`${plural}.csv`}
+        toolbarRight={
+          <Button onClick={openCreate}>
+            <Plus /> Nueva {singular}
+          </Button>
+        }
         empty={
           <EmptyState
             title={`No hay ${plural} registradas`}
-            description={`Cuando se creen ${plural}, aparecerán aquí con su código y nombre.`}
+            description={`Crea ${plural} para clasificar tus productos.`}
+            action={{ label: `Nueva ${singular}`, onClick: openCreate }}
           />
         }
       />
@@ -158,7 +154,7 @@ export function CatalogSettingsPage() {
   return (
     <PageContainer>
       <PageHeader
-        title="Configuración de catálogo"
+        title="Catálogo"
         subtitle="Administra categorías y marcas de productos"
       />
 

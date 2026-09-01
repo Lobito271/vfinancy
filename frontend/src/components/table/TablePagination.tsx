@@ -59,6 +59,7 @@ export function TablePagination({
         <div className="table-pagination__per-page">
           <span className="table-pagination__per-page-label">Por página</span>
           <Select
+            items={pageSizeOptions.map((n) => ({ value: String(n), label: String(n) }))}
             value={String(pageSize)}
             onValueChange={(v) => onPageSizeChange(Number(v))}
           >

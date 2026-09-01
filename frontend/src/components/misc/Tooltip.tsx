@@ -1,20 +1,50 @@
 import * as React from 'react';
-import * as TooltipPrimitive from '@radix-ui/react-tooltip';
+import { Tooltip as TooltipPrimitive } from '@base-ui/react/tooltip';
 import { cx } from '@/utils/cx';
 
-export const TooltipProvider = TooltipPrimitive.Provider;
+export function TooltipProvider({
+  delayDuration,
+  ...props
+}: Omit<React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Provider>, 'className' | 'delay'> & {
+  className?: string;
+  delayDuration?: number;
+}) {
+  return <TooltipPrimitive.Provider delay={delayDuration} {...props} />;
+}
+
 export const Tooltip = TooltipPrimitive.Root;
-export const TooltipTrigger = TooltipPrimitive.Trigger;
+
+export function TooltipTrigger({
+  asChild,
+  children,
+  ...props
+}: Omit<React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Trigger>, 'className'> & {
+  className?: string;
+  asChild?: boolean;
+}) {
+  return (
+    <TooltipPrimitive.Trigger
+      {...props}
+      render={asChild && React.isValidElement(children) ? children : undefined}
+    >
+      {children}
+    </TooltipPrimitive.Trigger>
+  );
+}
 
 export const TooltipContent = React.forwardRef<
-  React.ElementRef<typeof TooltipPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
->(({ className, sideOffset = 4, ...props }, ref) => (
-  <TooltipPrimitive.Content
-    ref={ref}
-    sideOffset={sideOffset}
-    className={cx('tooltip-content', className)}
-    {...props}
-  />
+  React.ComponentRef<typeof TooltipPrimitive.Popup>,
+  Omit<React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Popup>, 'className'> & {
+    className?: string;
+    side?: React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Positioner>['side'];
+    align?: React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Positioner>['align'];
+    sideOffset?: number;
+  }
+>(({ className, side, align, sideOffset = 6, ...props }, ref) => (
+  <TooltipPrimitive.Portal>
+    <TooltipPrimitive.Positioner side={side} align={align} sideOffset={sideOffset} className="tooltip-positioner">
+      <TooltipPrimitive.Popup ref={ref} className={cx('tooltip-content', className)} {...props} />
+    </TooltipPrimitive.Positioner>
+  </TooltipPrimitive.Portal>
 ));
-TooltipContent.displayName = TooltipPrimitive.Content.displayName;
+TooltipContent.displayName = 'TooltipContent';

@@ -220,14 +220,14 @@ export function CreateCustomerOrderDialog({ open, onOpenChange }: CreateCustomer
           {({ formState }) => (
             <>
               <ExchangeRateSeed rate={rateQuery.data} />
-              <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-2">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div className="stack dialog-scroll">
+                <div className="form-grid form-grid--3">
                   <CustomerSelectField name="customerId" label="Cliente" required />
                   <SupplierSelectField name="supplierId" label="Proveedor / Importador" required />
                   <DateField name="orderDate" label="Fecha de pedido" required />
                 </div>
                 <TextareaField name="supplierOrderNumber" label="N° Orden del Proveedor" rows={1} placeholder="Opcional — número de orden del proveedor" />
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="form-grid">
                   <SelectField
                     name="creditCardId"
                     label="Tarjeta de crédito (pago en USD)"
@@ -240,7 +240,7 @@ export function CreateCustomerOrderDialog({ open, onOpenChange }: CreateCustomer
                   <NumberField
                     name="exchangeRate"
                     label="Tipo de cambio (USD→PEN)"
-                    description={rateQuery.isLoading ? 'Cargando…' : 'T.C. de referencia (editable en el panel de costos)'}
+                    description={rateQuery.isLoading ? 'Cargando tipo de cambio…' : rateQuery.isError ? 'Ingrese el T.C. manualmente' : 'T.C. de referencia editable'}
                     min={0.01}
                     step={0.01}
                     readOnly
@@ -248,7 +248,7 @@ export function CreateCustomerOrderDialog({ open, onOpenChange }: CreateCustomer
                 </div>
                 <OrderFinancialPreview />
                 <LineItemsEditor products={productOptions} currency="USD" />
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="form-grid form-grid--3">
                   <MoneyField
                     name="salePricePEN"
                     label="Precio de venta (PEN)"

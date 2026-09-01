@@ -2,7 +2,7 @@ export type SaleStatus = 'pending' | 'paid' | 'partial' | 'cancelled';
 
 export type CustomerStatus = 'active' | 'inactive' | 'blocked';
 
-export type DocumentType = 'DNI' | 'RUC' | 'CE' | 'PASSPORT';
+type DocumentType = 'DNI' | 'RUC' | 'CE' | 'PASSPORT';
 
 export interface Customer {
   id: string;

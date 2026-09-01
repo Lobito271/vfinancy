@@ -28,7 +28,7 @@ const variantIconClass: Record<Variant, string> = {
   confirmation: 'alert-icon--warning',
 };
 
-export interface AlertDialogProps {
+interface AlertDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   variant?: Variant;

@@ -102,12 +102,12 @@ export function InventoryReceiveDialog({ open, onOpenChange }: InventoryReceiveD
                 <ProductSelectField name="productId" label="Producto" required />
                 <WarehouseSelectField name="warehouseId" label="Almacén" required />
                 <div className="form-grid">
-                  <TextField name="lotNumber" label="Número de lote" required />
+                  <TextField name="lotNumber" label="Número de lote" required description="Identificador del lote recibido." />
                   <DateField name="arrivalDate" label="Fecha de ingreso" required />
                 </div>
                 <div className="form-grid">
-                  <NumberField name="quantity" label="Cantidad" required min={0} step={0.01} />
-                  <MoneyField name="unitCost" label="Costo unitario" />
+                  <NumberField name="quantity" label="Cantidad" required min={0} step={0.01} description="Unidades ingresadas al almacén." />
+                  <MoneyField name="unitCost" label="Costo unitario" description="Costo de adquisición por unidad (PEN)." />
                 </div>
               </div>
               <DialogFooter>

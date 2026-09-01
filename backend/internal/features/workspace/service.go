@@ -7,16 +7,21 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"vfinancy/backend/internal/domain/repositories"
 )
 
 type Service struct {
 	repo     Repository
+	txm      repositories.TransactionManager
 	mu       sync.RWMutex
 	profile  *LocalProfile
 	unlocked bool
 }
 
-func NewService(repo Repository) *Service { return &Service{repo: repo} }
+func NewService(repo Repository, txm repositories.TransactionManager) *Service {
+	return &Service{repo: repo, txm: txm}
+}
 
 func (s *Service) Initialize(ctx context.Context) (*LocalProfile, error) {
 	s.mu.Lock()
@@ -129,6 +134,67 @@ func (s *Service) GetCompany(ctx context.Context, id uuid.UUID) (*Company, error
 }
 
 func (s *Service) CreateCompany(ctx context.Context, company *Company) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.prepareCompany(company); err != nil {
+		return err
+	}
+	return s.repo.CreateCompany(ctx, company)
+}
+
+func (s *Service) SetupCompany(ctx context.Context, company *Company, profileName, password string) (*Company, error) {
+	if err := s.prepareCompany(company); err != nil {
+		return nil, err
+	}
+
+	profileName = strings.TrimSpace(profileName)
+	now := time.Now().UTC()
+	profile := &LocalProfile{
+		ID:              uuid.New(),
+		Name:            profileName,
+		ActiveCompanyID: company.ID,
+		Theme:           "system",
+		Language:        "es-PE",
+		DateFormat:      "DD/MM/YYYY",
+		NumberFormat:    "es-PE",
+		DecimalPlaces:   2,
+		Timezone:        "America/Lima",
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+	if err := profile.Validate(); err != nil {
+		return nil, err
+	}
+
+	if password != "" {
+		if err := ValidatePasswordStrength(password); err != nil {
+			return nil, err
+		}
+		hash, err := HashPassword(password, nil)
+		if err != nil {
+			return nil, err
+		}
+		profile.PasswordHash = hash
+		profile.PasswordEnabled = true
+	}
+
+	if err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		if err := s.repo.CreateCompany(ctx, company); err != nil {
+			return err
+		}
+		return s.repo.CreateProfile(ctx, profile)
+	}); err != nil {
+		return nil, err
+	}
+
+	s.mu.Lock()
+	s.profile = profile
+	s.unlocked = true
+	s.mu.Unlock()
+	return company, nil
+}
+
+func (s *Service) prepareCompany(company *Company) error {
 	if company.ID == uuid.Nil {
 		company.ID = uuid.New()
 	}
@@ -151,10 +217,7 @@ func (s *Service) CreateCompany(ctx context.Context, company *Company) error {
 		company.FiscalYearStartMonth = 1
 	}
 	company.IsActive = true
-	if err := company.Validate(); err != nil {
-		return err
-	}
-	return s.repo.CreateCompany(ctx, company)
+	return company.Validate()
 }
 
 func (s *Service) UpdateCompany(ctx context.Context, company *Company) error {

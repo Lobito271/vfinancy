@@ -4,10 +4,11 @@ import { PageContainer, PageHeader, Grid } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
 import { Badge } from '@/components/badge';
-import { Input } from '@/components/input';
+import { SearchInput } from '@/components/input';
 import { Button } from '@/components/button';
 import { EmptyState } from '@/components/feedback';
 import { ConfirmDialog } from '@/components/dialog';
+import { RowActions } from '@/components/misc';
 import {
   Select,
   SelectContent,
@@ -48,7 +49,7 @@ const columns: Column<Product>[] = [
     header: 'Costo (USD)',
     align: 'right',
     sortable: true,
-    cell: (row) => <span className="tabular-nums">{formatCurrency(row.costUSD, 'USD')}</span>,
+    cell: (row) => <span className="tabular">{formatCurrency(row.costUSD, 'USD')}</span>,
   },
   {
     id: 'salePrice',
@@ -62,7 +63,7 @@ const columns: Column<Product>[] = [
     header: 'Margen',
     align: 'right',
     cell: (row) => (
-      <span className="tabular-nums muted">
+      <span className="tabular muted">
         {row.costUSD > 0 ? formatPercent((row.salePrice - row.costUSD) / row.costUSD) : '—'}
       </span>
     ),
@@ -93,35 +94,37 @@ export function ProductsPage() {
     ? products.reduce((s, p) => s + (p.salePrice - p.costUSD) / Math.max(p.costUSD, 0.01), 0) / products.length
     : 0;
 
+  const openCreate = () => {
+    setEditing(null);
+    setFormOpen(true);
+  };
+
   const tableColumns = useMemo<Column<Product>[]>(() => [
     ...columns,
     {
       id: 'actions',
       header: '',
-      width: 88,
-      exportable: false,
+      width: 72,
       cell: (row) => (
-        <div className="row-actions">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Editar ${row.sku}`}
-            onClick={() => {
-              setEditing(row);
-              setFormOpen(true);
-            }}
-          >
-            <Pencil />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={`Eliminar ${row.sku}`}
-            onClick={() => setDeleteTarget(row)}
-          >
-            <Trash2 />
-          </Button>
-        </div>
+        <RowActions
+          actions={[
+            {
+              label: 'Editar',
+              icon: Pencil,
+              onSelect: () => {
+                setEditing(row);
+                setFormOpen(true);
+              },
+            },
+            {
+              label: 'Eliminar',
+              icon: Trash2,
+              danger: true,
+              onSelect: () => setDeleteTarget(row),
+            },
+          ]}
+          label={`Acciones de ${row.sku}`}
+        />
       ),
     },
   ], []);
@@ -132,17 +135,9 @@ export function ProductsPage() {
         title="Productos"
         subtitle="Catálogo de productos y servicios"
         actions={
-          <div className="hstack hstack--sm">
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar producto…" style={{ width: "16rem" }} aria-label="Buscar producto" />
-            <Button
-              onClick={() => {
-                setEditing(null);
-                setFormOpen(true);
-              }}
-            >
-              <Plus /> Nuevo producto
-            </Button>
-          </div>
+          <Button onClick={openCreate}>
+            <Plus /> Nuevo producto
+          </Button>
         }
       />
 
@@ -160,24 +155,42 @@ export function ProductsPage() {
         loading={isLoading}
         error={isError ? (error as Error) : null}
         onRetry={() => refetch()}
-        globalSearch={false}
-        exportFilename="productos.csv"
+        preferencesKey="products"
         toolbarLeft={
-          <Select value={status} onValueChange={(v) => setStatus(v === 'all' ? '' : v)}>
-            <SelectTrigger style={{ width: "11rem" }} aria-label="Filtrar por estado">
-              <SelectValue placeholder="Estado: todos" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Estado: todos</SelectItem>
-              <SelectItem value="active">Activos</SelectItem>
-              <SelectItem value="inactive">Inactivos</SelectItem>
-            </SelectContent>
-          </Select>
+          <>
+            <SearchInput
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onClear={() => setSearch('')}
+              placeholder="Buscar producto…"
+              className="datatable-search"
+              aria-label="Buscar producto"
+            />
+            <Select
+              items={[
+                { value: 'all', label: 'Estado: todos' },
+                { value: 'active', label: 'Activos' },
+                { value: 'inactive', label: 'Inactivos' },
+              ]}
+              value={status || 'all'}
+              onValueChange={(v) => setStatus(v === 'all' ? '' : (v ?? ''))}
+            >
+              <SelectTrigger style={{ width: '11rem' }} aria-label="Filtrar por estado">
+                <SelectValue placeholder="Estado: todos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Estado: todos</SelectItem>
+                <SelectItem value="active">Activos</SelectItem>
+                <SelectItem value="inactive">Inactivos</SelectItem>
+              </SelectContent>
+            </Select>
+          </>
         }
         empty={
           <EmptyState
             title="No hay productos registrados"
-            description="Cuando se creen productos, aparecerán aquí con su costo, precio y estado."
+            description="Crea tu primer producto para poder registrar compras, inventario y ventas."
+            action={{ label: 'Nuevo producto', onClick: openCreate }}
           />
         }
       />

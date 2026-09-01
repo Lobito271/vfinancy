@@ -1,22 +1,17 @@
 import * as React from 'react';
-import * as LabelPrimitive from '@radix-ui/react-label';
 import { cx } from '@/utils/cx';
 
 export const Label = React.forwardRef<
-  React.ElementRef<typeof LabelPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof LabelPrimitive.Root> & { required?: boolean }
+  HTMLLabelElement,
+  React.LabelHTMLAttributes<HTMLLabelElement> & { required?: boolean }
 >(({ className, required, children, ...props }, ref) => (
-  <LabelPrimitive.Root
-    ref={ref}
-    className={cx('label', className)}
-    {...props}
-  >
+  <label ref={ref} className={cx('label', className)} {...props}>
     {children}
     {required && (
       <span className="required-mark" aria-hidden="true">
         *
       </span>
     )}
-  </LabelPrimitive.Root>
+  </label>
 ));
-Label.displayName = LabelPrimitive.Root.displayName;
+Label.displayName = 'Label';

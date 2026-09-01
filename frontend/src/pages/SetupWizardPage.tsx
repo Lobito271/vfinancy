@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, TextField, NumberField, PasswordField, SelectField } from '@/components/form';
 import { AlertCircle, ArrowLeft, ArrowRight, Plus } from 'lucide-react';
 import { wailsClient } from '@/services/bindings';
-import type { CompanyRequest } from '@/services/wails-types';
+import type { SetupWorkspaceRequest } from '@/services/wails-types';
 
 const setupSchema = z.object({
   legalName: z.string().trim().min(2, 'Ingresa la razón social.'),
@@ -60,8 +60,7 @@ export function SetupWizardPage() {
     setSaving(true);
     setError('');
     try {
-      const company = await wailsClient.createCompany({
-        id: '',
+      await wailsClient.setupWorkspace({
         code: values.code,
         legalName: values.legalName,
         tradeName: values.tradeName,
@@ -73,10 +72,9 @@ export function SetupWizardPage() {
         functionalCurrency: values.functionalCurrency,
         timezone: values.timezone,
         fiscalYearStartMonth: values.fiscalYearStartMonth,
-        isActive: true,
-      } satisfies CompanyRequest);
-      await wailsClient.initializeLocalProfile({ name: values.profileName, companyId: company.id });
-      if (values.password) await wailsClient.setLocalPassword('', values.password);
+        profileName: values.profileName,
+        password: values.password,
+      } satisfies SetupWorkspaceRequest);
       await queryClient.invalidateQueries({ queryKey: ['setup'] });
       navigate('/', { replace: true });
     } catch (cause) {
@@ -117,7 +115,7 @@ export function SetupWizardPage() {
                     <TextField name="legalName" label="Razón social" required autoComplete="organization" />
                     <TextField name="tradeName" label="Nombre comercial" required />
                     <TextField name="code" label="Código interno" required description="Ejemplo: ACME" />
-                    <TextField name="taxId" label="RUC o identificación fiscal" required />
+                    <TextField name="taxId" label="RUC o identificación fiscal" required description="Solo dígitos." />
                     <TextField name="address" label="Dirección" required className="setup-form-grid__wide" />
                     <TextField name="phone" label="Teléfono" type="tel" />
                     <TextField name="email" label="Correo" type="email" required />

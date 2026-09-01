@@ -40,7 +40,7 @@ export function MarkFaultyDialog({ open, onOpenChange, documentNumber, loading, 
         <DialogHeader>
           <DialogTitle>Llegó en mal estado</DialogTitle>
           <DialogDescription>
-            Se anulará el pedido <span className="font-medium">{documentNumber}</span>, se restituirá el inventario y se
+            Se anulará el pedido <span className="fw-medium">{documentNumber}</span>, se restituirá el inventario y se
             reembolsarán automáticamente todos los anticipos registrados.
           </DialogDescription>
         </DialogHeader>
@@ -48,7 +48,7 @@ export function MarkFaultyDialog({ open, onOpenChange, documentNumber, loading, 
         <Form key={documentNumber} schema={FaultySchema} defaultValues={defaults} onSubmit={onConfirm}>
           {({ formState }) => (
             <>
-              <div className="space-y-4">
+              <div className="stack">
                 <DateField name="arrivalDate" label="Fecha de llegada" required />
                 <TextareaField name="reason" label="Motivo del daño" rows={3} required placeholder="Describa el estado de la mercadería…" />
               </div>

@@ -11,5 +11,3 @@ export const Routes = {
   Treasury: '/tesoreria',
   Settings: '/configuracion',
 } as const;
-
-export type RouteKey = keyof typeof Routes;

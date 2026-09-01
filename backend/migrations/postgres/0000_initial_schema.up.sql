@@ -47,9 +47,6 @@ CREATE TABLE companies (
     updated_by                 UUID
 );
 
-INSERT INTO companies (id, code, legal_name, trade_name, tax_id)
-VALUES ('00000000-0000-0000-0000-000000000001', 'SETUP', 'setup placeholder', 'setup', '00000000000');
-
 CREATE UNIQUE INDEX uq_companies_code
     ON companies (code);
 
@@ -229,33 +226,39 @@ CREATE TRIGGER trg_settings_set_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION set_updated_at();
 
-INSERT INTO application_settings (company_id, key, value, category, label, description, is_public) VALUES
-    ('00000000-0000-0000-0000-000000000001', 'business.name',           '"vfinancy S.A.C."',       'business',   'Razón social',       'Nombre legal de la empresa',           TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'business.trade_name',     '"vfinancy"',              'business',   'Nombre comercial',   'Nombre comercial de la empresa',       TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'business.tax_id',         '"20600000001"',            'business',   'RUC',                'Número de registro tributario',        TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'business.address',        '"Lima, Perú"',             'business',   'Dirección',          'Dirección fiscal de la empresa',       TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'business.phone',          '""',                      'business',   'Teléfono',           'Teléfono de contacto',                 TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'business.email',          '"admin@vfinancy.local"',   'business',   'Correo electrónico', 'Correo de contacto',                   TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'business.logo',           '""',                      'business',   'Logo',               'URL del logo de la empresa',           TRUE),
 
-    ('00000000-0000-0000-0000-000000000001', 'defaults.currency',       '"PEN"',                   'defaults',   'Moneda por defecto', 'Código ISO 4217 de la moneda principal',     TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'defaults.tax_code',       '"IGV"',                   'defaults',   'Impuesto por defecto', 'Código del impuesto aplicado por defecto',  TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'defaults.expiry_alert_days', '25',                    'defaults',   'Días alerta vencimiento', 'Días antes del vencimiento para alertar', TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'defaults.country',        '"PE"',                    'defaults',   'País por defecto',   'Código ISO 3166 del país principal',         TRUE),
+CREATE TABLE notifications (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id   UUID         NOT NULL,
+    type         VARCHAR(50)  NOT NULL,
+    title        VARCHAR(200) NOT NULL,
+    message      TEXT         NOT NULL,
+    record_type  VARCHAR(50),
+    record_id    UUID,
+    dedup_key    VARCHAR(64)  NOT NULL,
+    read_at      TIMESTAMPTZ,
+    created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    deleted_at   TIMESTAMPTZ,
 
-    ('00000000-0000-0000-0000-000000000001', 'format.date',             '"DD/MM/YYYY"',            'format',     'Formato de fecha',   'Formato de fecha preferido',                TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'format.number',           '"es-PE"',                 'format',     'Formato numérico',   'Locale para formato numérico',              TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'format.decimals',         '2',                       'format',     'Decimales',          'Cantidad de decimales por defecto',         TRUE),
+    CONSTRAINT fk_notifications_company
+        FOREIGN KEY (company_id) REFERENCES companies(id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
 
-    ('00000000-0000-0000-0000-000000000001', 'system.language',         '"es-PE"',                 'system',     'Idioma',             'Idioma de la interfaz',                       TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'system.theme',            '"light"',                 'system',     'Tema',               'Tema visual de la aplicación',                TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'system.timezone',         '"America/Lima"',          'system',     'Zona horaria',       'Zona horaria del sistema',                    TRUE),
-    ('00000000-0000-0000-0000-000000000001', 'system.fiscal_year_start', '1',                      'system',     'Inicio año fiscal',  'Mes de inicio del año fiscal (1-12)',         TRUE),
+    CONSTRAINT ck_notifications_type_nonblank
+        CHECK (length(trim(type)) > 0),
 
-    ('00000000-0000-0000-0000-000000000001', 'backup.folder',           '""',                      'backup',     'Carpeta de respaldo', 'Ruta de la carpeta de respaldos',       FALSE),
-    ('00000000-0000-0000-0000-000000000001', 'backup.export_folder',    '""',                      'backup',     'Carpeta de exportación', 'Ruta de la carpeta de exportaciones', FALSE),
-    ('00000000-0000-0000-0000-000000000001', 'backup.auto_frequency',   '"daily"',                 'backup',     'Frecuencia automática', 'Frecuencia de respaldo automático',    FALSE)
-ON CONFLICT (company_id, key) DO NOTHING;
+    CONSTRAINT ck_notifications_title_nonblank
+        CHECK (length(trim(title)) > 0),
+
+    CONSTRAINT ck_notifications_dedup_nonblank
+        CHECK (length(trim(dedup_key)) > 0),
+
+    CONSTRAINT uq_notifications_company_type_dedup
+        UNIQUE (company_id, type, dedup_key)
+);
+
+CREATE INDEX idx_notifications_company_unread
+    ON notifications (company_id, read_at, created_at DESC);
 
 
 CREATE TABLE currencies (
@@ -409,7 +412,7 @@ CREATE TABLE exchange_rates (
     rate            NUMERIC(18,6)  NOT NULL
         CHECK (rate > 0),
     source          VARCHAR(50)    NOT NULL DEFAULT 'manual'
-        CHECK (source IN ('manual', 'central_bank', 'sunat', 'bloomberg', 'other')),
+        CHECK (source IN ('manual', 'central_bank', 'sunat', 'bloomberg', 'other', 'apis.net.pe', 'open.er-api.com', 'fallback')),
     created_at      TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
 
     CONSTRAINT fk_exchange_rates_company
@@ -772,14 +775,15 @@ CREATE TABLE products (
     brand_id       UUID,
     unit_id        UUID           NOT NULL,
     tax_id         UUID           NOT NULL,
-    cost           NUMERIC(18,2)  NOT NULL DEFAULT 0
-        CHECK (cost >= 0),
+    cost_usd       NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (cost_usd >= 0),
     sale_price     NUMERIC(18,2)  NOT NULL DEFAULT 0
         CHECK (sale_price >= 0),
     sale_currency  VARCHAR(3)     NOT NULL DEFAULT 'PEN',
     min_stock      NUMERIC(18,4)  NOT NULL DEFAULT 0,
     max_stock      NUMERIC(18,4)  NOT NULL DEFAULT 0,
     weight         NUMERIC(18,4)  NOT NULL DEFAULT 0,
+    details        TEXT,
     is_active      BOOLEAN        NOT NULL DEFAULT TRUE,
     is_service     BOOLEAN        NOT NULL DEFAULT FALSE,
     created_at     TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
@@ -1197,6 +1201,181 @@ CREATE TRIGGER trg_international_returns_set_updated_at
     EXECUTE FUNCTION set_updated_at();
 
 
+CREATE TABLE purchase_orders (
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id       UUID           NOT NULL,
+    supplier_id      UUID           NOT NULL,
+    branch_id        UUID,
+    number           VARCHAR(30)    NOT NULL,
+    order_date       DATE           NOT NULL,
+    expected_date    DATE,
+    received_date    DATE,
+    status           VARCHAR(20)    NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'received', 'paid', 'reconciled', 'cancelled')),
+    subtotal         NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (subtotal >= 0),
+    tax_amount       NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (tax_amount >= 0),
+    total            NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (total >= 0),
+    paid_amount      NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (paid_amount >= 0),
+    discount_amount  NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (discount_amount >= 0),
+    currency_code    VARCHAR(3)     NOT NULL DEFAULT 'PEN',
+    exchange_rate    NUMERIC(18,6)  NOT NULL DEFAULT 1,
+    notes            TEXT,
+    order_type       VARCHAR(20)    NOT NULL DEFAULT 'general'
+        CHECK (order_type IN ('general', 'customer')),
+    customer_id      UUID,
+    credit_card_id   UUID,
+    supplier_order_number VARCHAR(100),
+    arrival_date     DATE,
+    cost_usd         NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (cost_usd >= 0),
+    sale_price_pen   NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (sale_price_pen >= 0),
+    real_cost_pen    NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (real_cost_pen >= 0),
+    projected_profit_pen NUMERIC(18,2) NOT NULL DEFAULT 0,
+    anticipo         NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (anticipo >= 0),
+    anticipo_date    DATE,
+    faulty           BOOLEAN        NOT NULL DEFAULT FALSE,
+    faulty_reason    TEXT,
+    refunded_amount  NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (refunded_amount >= 0),
+    cancelled_at     TIMESTAMPTZ,
+    cancelled_reason TEXT,
+    created_at       TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+    deleted_at       TIMESTAMPTZ,
+    created_by       UUID,
+    updated_by       UUID,
+
+    CONSTRAINT fk_purchase_orders_company
+        FOREIGN KEY (company_id) REFERENCES companies(id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_purchase_orders_supplier
+        FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_purchase_orders_branch
+        FOREIGN KEY (branch_id) REFERENCES branches(id)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT fk_purchase_orders_customer
+        FOREIGN KEY (customer_id) REFERENCES customers(id)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_purchase_orders_card
+        FOREIGN KEY (credit_card_id) REFERENCES credit_cards(id)
+        ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT ck_purchase_orders_dates
+        CHECK (expected_date IS NULL OR expected_date >= order_date)
+);
+
+CREATE UNIQUE INDEX uq_purchase_orders_number
+    ON purchase_orders (company_id, number)
+    WHERE deleted_at IS NULL;
+
+CREATE INDEX idx_purchase_orders_supplier
+    ON purchase_orders (supplier_id, order_date);
+
+CREATE INDEX idx_purchase_orders_status
+    ON purchase_orders (company_id, status, order_date);
+
+CREATE INDEX idx_purchase_orders_order_type
+    ON purchase_orders (company_id, order_type, status, order_date)
+    WHERE deleted_at IS NULL;
+
+CREATE INDEX idx_purchase_orders_customer
+    ON purchase_orders (company_id, customer_id, order_date)
+    WHERE deleted_at IS NULL;
+
+CREATE TABLE customer_order_payments (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id        UUID           NOT NULL,
+    purchase_order_id UUID           NOT NULL,
+    customer_id       UUID           NOT NULL,
+    number            VARCHAR(30)    NOT NULL,
+    payment_date      DATE           NOT NULL,
+    amount            NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (amount > 0),
+    payment_method    VARCHAR(20)    NOT NULL DEFAULT 'cash'
+        CHECK (payment_method IN ('cash', 'bank_transfer', 'check', 'card', 'credit', 'other')),
+    currency_code     VARCHAR(3)     NOT NULL DEFAULT 'PEN',
+    exchange_rate     NUMERIC(18,6)  NOT NULL DEFAULT 1,
+    reference         VARCHAR(100),
+    notes             TEXT,
+    status            VARCHAR(20)    NOT NULL DEFAULT 'active'
+        CHECK (status IN ('active', 'refunded')),
+    refunded_amount   NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (refunded_amount >= 0),
+    refunded_at       TIMESTAMPTZ,
+    refund_reason     TEXT,
+    created_at        TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+    updated_at        TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+    deleted_at        TIMESTAMPTZ,
+    created_by        UUID,
+    updated_by        UUID,
+
+    CONSTRAINT fk_customer_order_payments_company
+        FOREIGN KEY (company_id) REFERENCES companies(id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_customer_order_payments_order
+        FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_customer_order_payments_customer
+        FOREIGN KEY (customer_id) REFERENCES customers(id)
+        ON UPDATE CASCADE ON DELETE RESTRICT
+);
+
+CREATE UNIQUE INDEX uq_customer_order_payments_number
+    ON customer_order_payments (company_id, number)
+    WHERE deleted_at IS NULL;
+
+CREATE INDEX idx_customer_order_payments_order
+    ON customer_order_payments (purchase_order_id, payment_date);
+
+CREATE INDEX idx_customer_order_payments_customer
+    ON customer_order_payments (customer_id, payment_date);
+
+CREATE TABLE purchase_order_items (
+    id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    purchase_order_id  UUID           NOT NULL,
+    product_id         UUID           NOT NULL,
+    line_number        INTEGER        NOT NULL DEFAULT 1
+        CHECK (line_number >= 1),
+    quantity_ordered   NUMERIC(18,4)  NOT NULL DEFAULT 0
+        CHECK (quantity_ordered > 0),
+    quantity_received  NUMERIC(18,4)  NOT NULL DEFAULT 0
+        CHECK (quantity_received >= 0),
+    unit_cost          NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (unit_cost >= 0),
+    discount_percent   NUMERIC(18,4)  NOT NULL DEFAULT 0,
+    discount_amount    NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (discount_amount >= 0),
+    tax_rate           NUMERIC(18,4)  NOT NULL DEFAULT 0,
+    tax_amount         NUMERIC(18,2)  NOT NULL DEFAULT 0
+        CHECK (tax_amount >= 0),
+    line_total         NUMERIC(18,2)  NOT NULL DEFAULT 0,
+    description        TEXT,
+    created_at         TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT fk_purchase_order_items_order
+        FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_purchase_order_items_product
+        FOREIGN KEY (product_id) REFERENCES products(id)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT ck_purchase_order_items_received
+        CHECK (quantity_received <= quantity_ordered)
+);
+
+CREATE INDEX idx_purchase_order_items_order
+    ON purchase_order_items (purchase_order_id);
+
+CREATE INDEX idx_purchase_order_items_product
+    ON purchase_order_items (product_id);
+
 CREATE TABLE inventory_batches (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id      UUID           NOT NULL,
@@ -1217,7 +1396,7 @@ CREATE TABLE inventory_batches (
     currency_code   VARCHAR(3)     NOT NULL DEFAULT 'PEN',
     exchange_rate   NUMERIC(18,6)  NOT NULL DEFAULT 1,
     status          VARCHAR(20)    NOT NULL DEFAULT 'active'
-        CHECK (status IN ('active', 'depleted', 'written_off')),
+        CHECK (status IN ('active', 'depleted', 'written_off', 'voided')),
     clearance_date  TIMESTAMPTZ,
     is_clearance    BOOLEAN        NOT NULL DEFAULT FALSE,
     created_at      TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
@@ -1257,7 +1436,7 @@ CREATE TABLE inventory_movements (
     warehouse_id     UUID           NOT NULL,
     movement_date    TIMESTAMPTZ    NOT NULL,
     type             VARCHAR(20)    NOT NULL
-        CHECK (type IN ('purchase', 'sale', 'transfer_in', 'transfer_out', 'adjustment_in', 'adjustment_out', 'return_in', 'return_out', 'damage_out')),
+        CHECK (type IN ('purchase', 'purchase_receipt', 'sale', 'void_sale', 'void_purchase', 'transfer_in', 'transfer_out', 'adjustment_in', 'adjustment_out', 'return_in', 'return_out', 'damage_out', 'void_out')),
     reference_type   VARCHAR(30),
     reference_id     UUID,
     quantity_delta   NUMERIC(18,4)  NOT NULL DEFAULT 0
@@ -1542,99 +1721,6 @@ CREATE TRIGGER trg_customer_advances_set_updated_at
     EXECUTE FUNCTION set_updated_at();
 
 
-CREATE TABLE purchase_orders (
-    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id       UUID           NOT NULL,
-    supplier_id      UUID           NOT NULL,
-    branch_id        UUID,
-    number           VARCHAR(30)    NOT NULL,
-    order_date       DATE           NOT NULL,
-    expected_date    DATE,
-    received_date    DATE,
-    status           VARCHAR(20)    NOT NULL DEFAULT 'pending'
-        CHECK (status IN ('pending', 'received', 'paid', 'reconciled', 'cancelled')),
-    subtotal         NUMERIC(18,2)  NOT NULL DEFAULT 0
-        CHECK (subtotal >= 0),
-    tax_amount       NUMERIC(18,2)  NOT NULL DEFAULT 0
-        CHECK (tax_amount >= 0),
-    total            NUMERIC(18,2)  NOT NULL DEFAULT 0
-        CHECK (total >= 0),
-    paid_amount      NUMERIC(18,2)  NOT NULL DEFAULT 0
-        CHECK (paid_amount >= 0),
-    discount_amount  NUMERIC(18,2)  NOT NULL DEFAULT 0
-        CHECK (discount_amount >= 0),
-    currency_code    VARCHAR(3)     NOT NULL DEFAULT 'PEN',
-    exchange_rate    NUMERIC(18,6)  NOT NULL DEFAULT 1,
-    notes            TEXT,
-    cancelled_at     TIMESTAMPTZ,
-    cancelled_reason TEXT,
-    created_at       TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
-    updated_at       TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
-    deleted_at       TIMESTAMPTZ,
-    created_by       UUID,
-    updated_by       UUID,
-
-    CONSTRAINT fk_purchase_orders_company
-        FOREIGN KEY (company_id) REFERENCES companies(id)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_purchase_orders_supplier
-        FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT fk_purchase_orders_branch
-        FOREIGN KEY (branch_id) REFERENCES branches(id)
-        ON UPDATE CASCADE ON DELETE SET NULL,
-    CONSTRAINT ck_purchase_orders_dates
-        CHECK (expected_date IS NULL OR expected_date >= order_date)
-);
-
-CREATE UNIQUE INDEX uq_purchase_orders_number
-    ON purchase_orders (company_id, number)
-    WHERE deleted_at IS NULL;
-
-CREATE INDEX idx_purchase_orders_supplier
-    ON purchase_orders (supplier_id, order_date);
-
-CREATE INDEX idx_purchase_orders_status
-    ON purchase_orders (company_id, status, order_date);
-
-CREATE TABLE purchase_order_items (
-    id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    purchase_order_id  UUID           NOT NULL,
-    product_id         UUID           NOT NULL,
-    line_number        INTEGER        NOT NULL DEFAULT 1
-        CHECK (line_number >= 1),
-    quantity_ordered   NUMERIC(18,4)  NOT NULL DEFAULT 0
-        CHECK (quantity_ordered > 0),
-    quantity_received  NUMERIC(18,4)  NOT NULL DEFAULT 0
-        CHECK (quantity_received >= 0),
-    unit_cost          NUMERIC(18,2)  NOT NULL DEFAULT 0
-        CHECK (unit_cost >= 0),
-    discount_percent   NUMERIC(18,4)  NOT NULL DEFAULT 0,
-    discount_amount    NUMERIC(18,2)  NOT NULL DEFAULT 0
-        CHECK (discount_amount >= 0),
-    tax_rate           NUMERIC(18,4)  NOT NULL DEFAULT 0,
-    tax_amount         NUMERIC(18,2)  NOT NULL DEFAULT 0
-        CHECK (tax_amount >= 0),
-    line_total         NUMERIC(18,2)  NOT NULL DEFAULT 0,
-    description        TEXT,
-    created_at         TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT fk_purchase_order_items_order
-        FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_purchase_order_items_product
-        FOREIGN KEY (product_id) REFERENCES products(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT ck_purchase_order_items_received
-        CHECK (quantity_received <= quantity_ordered)
-);
-
-CREATE INDEX idx_purchase_order_items_order
-    ON purchase_order_items (purchase_order_id);
-
-CREATE INDEX idx_purchase_order_items_product
-    ON purchase_order_items (product_id);
-
 CREATE TABLE supplier_payments (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id       UUID           NOT NULL,
@@ -1715,41 +1801,3 @@ CREATE TRIGGER trg_supplier_payments_set_updated_at
     BEFORE UPDATE ON supplier_payments
     FOR EACH ROW
     EXECUTE FUNCTION set_updated_at();
-
-
-UPDATE taxes
-SET id = id::text::uuid
-WHERE id::text NOT LIKE '%-%';
-
-UPDATE products
-SET tax_id = tax_id::text::uuid
-WHERE tax_id IS NOT NULL AND tax_id::text NOT LIKE '%-%';
-
-UPDATE application_settings
-SET id = id::text::uuid
-WHERE id::text NOT LIKE '%-%';
-
-
-ALTER TABLE inventory_batches
-    DROP CONSTRAINT inventory_batches_status_check;
-
-ALTER TABLE inventory_batches
-    ADD CONSTRAINT inventory_batches_status_check
-        CHECK (status IN ('active', 'depleted', 'written_off', 'voided'));
-
-ALTER TABLE inventory_movements
-    DROP CONSTRAINT inventory_movements_type_check;
-
-ALTER TABLE inventory_movements
-    ADD CONSTRAINT inventory_movements_type_check
-        CHECK (type IN ('purchase', 'sale', 'transfer_in', 'transfer_out', 'adjustment_in', 'adjustment_out', 'return_in', 'return_out', 'damage_out', 'void_out'));
-
-
-ALTER TABLE inventory_movements
-    DROP CONSTRAINT inventory_movements_type_check;
-
-ALTER TABLE inventory_movements
-    ADD CONSTRAINT inventory_movements_type_check
-        CHECK (type IN ('purchase', 'purchase_receipt', 'sale', 'void_sale', 'void_purchase', 'transfer_in', 'transfer_out', 'adjustment_in', 'adjustment_out', 'return_in', 'return_out', 'damage_out', 'void_out'));
-
-DELETE FROM companies WHERE id = '00000000-0000-0000-0000-000000000001';

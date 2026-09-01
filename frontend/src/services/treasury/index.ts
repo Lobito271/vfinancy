@@ -9,9 +9,9 @@ import type {
 } from '../wails-types';
 import { wailsClient } from '../bindings';
 
-export type BankAccountType = 'checking' | 'savings';
+type BankAccountType = 'checking' | 'savings';
 
-export interface BankAccount {
+interface BankAccount {
   id: string;
   bank: string;
   accountNumber: string;
@@ -22,9 +22,9 @@ export interface BankAccount {
   isActive: boolean;
 }
 
-export type BankTxType = 'deposit' | 'withdrawal' | 'fee' | 'interest' | 'transfer' | 'other';
+type BankTxType = 'deposit' | 'withdrawal' | 'fee' | 'interest' | 'transfer' | 'other';
 
-export interface BankTransaction {
+interface BankTransaction {
   id: string;
   accountId: string;
   date: string;
@@ -36,7 +36,7 @@ export interface BankTransaction {
   isReconciled: boolean;
 }
 
-export interface BankAccountInput {
+interface BankAccountInput {
   bank: string;
   accountNumber: string;
   accountType: BankAccountType;
@@ -44,11 +44,11 @@ export interface BankAccountInput {
   isDefault: boolean;
 }
 
-export interface BankAccountUpdateInput extends BankAccountInput {
+interface BankAccountUpdateInput extends BankAccountInput {
   isActive: boolean;
 }
 
-export interface BankTransactionInput {
+interface BankTransactionInput {
   accountId: string;
   date: string;
   description: string;
@@ -57,7 +57,7 @@ export interface BankTransactionInput {
   reference?: string;
 }
 
-export interface CreditCard {
+interface CreditCard {
   id: string;
   issuer: string;
   lastFour: string;
@@ -72,7 +72,7 @@ export interface CreditCard {
   isActive: boolean;
 }
 
-export interface CardProjection {
+interface CardProjection {
   cardId: string;
   issuer: string;
   lastFour: string;

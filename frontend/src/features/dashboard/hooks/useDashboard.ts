@@ -21,7 +21,7 @@ export interface DashboardKpis {
   activeCustomers: number;
 }
 
-export interface DashboardData {
+interface DashboardData {
   kpis: DashboardKpis;
   salesLast7Days: ChartPoint[];
   salesByStatus: ChartPoint[];

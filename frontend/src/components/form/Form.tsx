@@ -11,7 +11,7 @@ import {
 } from 'react-hook-form';
 import { z } from 'zod';
 
-export interface FormProps<T extends FieldValues>
+interface FormProps<T extends FieldValues>
   extends Omit<UseFormProps<T, any, T>, 'children' | 'resolver'> {
   schema?: z.ZodType<T>;
   onSubmit: SubmitHandler<T>;

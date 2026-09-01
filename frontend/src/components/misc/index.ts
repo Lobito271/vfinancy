@@ -7,10 +7,7 @@ export {
   DropdownMenuSeparator,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuCheckboxItem,
-  DropdownMenuShortcut,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
 } from './DropdownMenu';
-export { Separator } from './Separator';
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './Tooltip';
+export { Drawer } from './Drawer';
+export { RowActions, type RowAction } from './RowActions';

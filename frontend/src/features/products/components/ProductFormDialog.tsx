@@ -139,8 +139,8 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
             <>
               <div className="dialog-body-scroll">
                 <Grid cols={2}>
-                  <TextField name="sku" label="SKU" required />
-                  <TextField name="barcode" label="Código de barras" />
+                  <TextField name="sku" label="SKU" required description="Código único interno. Letras, números, - _ ." />
+                  <TextField name="barcode" label="Código de barras" description="Opcional: código EAN/UPC." />
                 </Grid>
                 <TextField name="description" label="Descripción" required />
                 <Grid cols={2}>
@@ -157,12 +157,12 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
                   />
                 )}
                 <Grid cols={2}>
-                  <MoneyField name="costUSD" label="Costo Base (USD)" currency="USD" />
-                  <MoneyField name="salePrice" label="Precio de venta" />
+                  <MoneyField name="costUSD" label="Costo Base (USD)" currency="USD" description="Costo de adquisición en dólares." />
+                  <MoneyField name="salePrice" label="Precio de venta" description="Precio unitario de venta (PEN)." />
                 </Grid>
                 <Grid cols={2}>
-                  <NumberField name="minStock" label="Stock mínimo" min={0} step={0.0001} />
-                  <NumberField name="maxStock" label="Stock máximo" min={0} step={0.0001} />
+                  <NumberField name="minStock" label="Stock mínimo" min={0} step={0.0001} description="Alerta cuando el stock baja de este nivel." />
+                  <NumberField name="maxStock" label="Stock máximo" min={0} step={0.0001} description="Nivel tope de reposición." />
                 </Grid>
                 {product && (
                   <Grid cols={2}>

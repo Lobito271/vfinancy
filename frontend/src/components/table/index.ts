@@ -1,10 +1,2 @@
-export { DataTable, type DataTableProps } from './DataTable';
-export { TablePagination } from './TablePagination';
-export {
-  type Column,
-  type SortDirection,
-  type FilterState,
-  type DataTableState,
-  type DataTablePreferences,
-  DataTableDefaults,
-} from './types';
+export { DataTable } from './DataTable';
+export type { Column } from './types';

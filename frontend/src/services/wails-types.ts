@@ -93,9 +93,11 @@ interface PreferencesDTO {
   backupFrequency: string;
   clearanceDays: number;
   clearanceWarningDays: number;
+  clearanceDaysThreshold: number;
+  importCostFactor: number;
+  fallbackExchangeRate: number;
   saleNumberPrefix: string;
   purchaseNumberPrefix: string;
-  journalNumberPrefix: string;
 }
 
 interface CurrencyDTO {
@@ -467,9 +469,33 @@ export interface CreditCardDTO {
   expirationYear: number;
   creditLimit: string;
   currentBalance: string;
+  availableCredit: string;
   cutOffDay: number;
   paymentDueDay: number;
   currencyCode: string;
+  isActive: boolean;
+}
+
+export interface IssueCreditCardRequest {
+  issuer: string;
+  lastFour: string;
+  cardHolder: string;
+  expirationMonth: number;
+  expirationYear: number;
+  creditLimit: string;
+  cutOffDay: number;
+  paymentDueDay: number;
+  currencyCode: string;
+}
+
+export interface UpdateCreditCardRequest {
+  id: string;
+  issuer: string;
+  lastFour: string;
+  cardHolder: string;
+  creditLimit: string;
+  cutOffDay: number;
+  paymentDueDay: number;
   isActive: boolean;
 }
 
@@ -846,6 +872,9 @@ export interface AppBindings {
   UpdateBankAccount(req: UpdateBankAccountRequest): Promise<BankAccountDTO>;
   DeleteBankAccount(id: string): Promise<void>;
   ListCreditCards(): Promise<CreditCardDTO[]>;
+  IssueCreditCard(req: IssueCreditCardRequest): Promise<CreditCardDTO>;
+  UpdateCreditCard(req: UpdateCreditCardRequest): Promise<CreditCardDTO>;
+  DeleteCreditCard(id: string): Promise<void>;
   GetCardProjections(): Promise<CardProjectionDTO[]>;
   PayCreditCard(req: PayCreditCardRequest): Promise<void>;
   ListBankTransactions(req: ListBankTransactionsRequest): Promise<PageResult<BankTransactionDTO>>;

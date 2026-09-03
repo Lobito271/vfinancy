@@ -139,6 +139,50 @@ func (a *App) IssueCreditCard(req IssueCreditCardRequest) (*CreditCardDTO, error
 	return toCreditCardDTO(card), nil
 }
 
+type UpdateCreditCardRequest struct {
+	ID            string `json:"id"`
+	Issuer        string `json:"issuer"`
+	LastFour      string `json:"lastFour"`
+	CardHolder    string `json:"cardHolder"`
+	CreditLimit   string `json:"creditLimit"`
+	CutOffDay     int    `json:"cutOffDay"`
+	PaymentDueDay int    `json:"paymentDueDay"`
+	IsActive      bool   `json:"isActive"`
+}
+
+func (a *App) UpdateCreditCard(req UpdateCreditCardRequest) (*CreditCardDTO, error) {
+	id, err := uuid.Parse(req.ID)
+	if err != nil {
+		return nil, err
+	}
+	limit, err := valueobjects.MoneyFromString(req.CreditLimit)
+	if err != nil {
+		return nil, err
+	}
+	card, err := a.treasurySvc.UpdateCard(a.Context(), treasury.UpdateCardInput{
+		ID:            id,
+		Issuer:        req.Issuer,
+		LastFour:      req.LastFour,
+		CardHolder:    req.CardHolder,
+		CreditLimit:   limit,
+		CutOffDay:     req.CutOffDay,
+		PaymentDueDay: req.PaymentDueDay,
+		IsActive:      req.IsActive,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return toCreditCardDTO(card), nil
+}
+
+func (a *App) DeleteCreditCard(id string) error {
+	cardID, err := uuid.Parse(id)
+	if err != nil {
+		return err
+	}
+	return a.treasurySvc.DeleteCard(a.Context(), cardID)
+}
+
 type CreditCardAmountRequest struct {
 	ID     string `json:"id"`
 	Amount string `json:"amount"`

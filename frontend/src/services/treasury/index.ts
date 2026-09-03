@@ -6,6 +6,7 @@ import type {
   CreateBankTransactionRequest,
   CreditCardDTO,
   UpdateBankAccountRequest,
+  UpdateCreditCardRequest,
 } from '../wails-types';
 import { wailsClient } from '../bindings';
 
@@ -55,6 +56,28 @@ interface BankTransactionInput {
   amount: number;
   type: BankTxType;
   reference?: string;
+}
+
+interface CreditCardInput {
+  issuer: string;
+  lastFour: string;
+  cardHolder: string;
+  expirationMonth: number;
+  expirationYear: number;
+  creditLimit: number;
+  cutOffDay: number;
+  paymentDueDay: number;
+  currencyCode: string;
+}
+
+interface CreditCardUpdateInput {
+  issuer: string;
+  lastFour: string;
+  cardHolder: string;
+  creditLimit: number;
+  cutOffDay: number;
+  paymentDueDay: number;
+  isActive: boolean;
 }
 
 interface CreditCard {
@@ -186,6 +209,37 @@ export const treasuryService = {
   },
   async listCreditCards(): Promise<CreditCard[]> {
     return (await wailsClient.listCreditCards()).map(toCreditCard);
+  },
+  async createCreditCard(input: CreditCardInput): Promise<CreditCard> {
+    return toCreditCard(
+      await wailsClient.issueCreditCard({
+        issuer: input.issuer,
+        lastFour: input.lastFour,
+        cardHolder: input.cardHolder,
+        expirationMonth: input.expirationMonth,
+        expirationYear: input.expirationYear,
+        creditLimit: input.creditLimit.toFixed(2),
+        cutOffDay: input.cutOffDay,
+        paymentDueDay: input.paymentDueDay,
+        currencyCode: input.currencyCode,
+      }),
+    );
+  },
+  async updateCreditCard(id: string, input: CreditCardUpdateInput): Promise<CreditCard> {
+    const req: UpdateCreditCardRequest = {
+      id,
+      issuer: input.issuer,
+      lastFour: input.lastFour,
+      cardHolder: input.cardHolder,
+      creditLimit: input.creditLimit.toFixed(2),
+      cutOffDay: input.cutOffDay,
+      paymentDueDay: input.paymentDueDay,
+      isActive: input.isActive,
+    };
+    return toCreditCard(await wailsClient.updateCreditCard(req));
+  },
+  async deleteCreditCard(id: string): Promise<void> {
+    await wailsClient.deleteCreditCard(id);
   },
   async getCardProjections(): Promise<CardProjection[]> {
     return (await wailsClient.getCardProjections()).map(toCardProjection);

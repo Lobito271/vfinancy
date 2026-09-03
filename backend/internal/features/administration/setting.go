@@ -77,3 +77,11 @@ func (s *ApplicationSetting) BoolValue() bool {
 	}
 	return v
 }
+
+func (s *ApplicationSetting) Float64Value() float64 {
+	var v float64
+	if err := json.Unmarshal(s.Value, &v); err != nil {
+		return 0
+	}
+	return v
+}

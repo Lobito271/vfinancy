@@ -29,3 +29,58 @@ export function usePayCard() {
     },
   });
 }
+
+export function useCreateCreditCard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      issuer: string;
+      lastFour: string;
+      cardHolder: string;
+      expirationMonth: number;
+      expirationYear: number;
+      creditLimit: number;
+      cutOffDay: number;
+      paymentDueDay: number;
+      currencyCode: string;
+    }) => treasuryService.createCreditCard(input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.treasury.creditCards });
+      qc.invalidateQueries({ queryKey: queryKeys.treasury.cardProjections });
+    },
+  });
+}
+
+export function useUpdateCreditCard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...input
+    }: {
+      id: string;
+      issuer: string;
+      lastFour: string;
+      cardHolder: string;
+      creditLimit: number;
+      cutOffDay: number;
+      paymentDueDay: number;
+      isActive: boolean;
+    }) => treasuryService.updateCreditCard(id, input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.treasury.creditCards });
+      qc.invalidateQueries({ queryKey: queryKeys.treasury.cardProjections });
+    },
+  });
+}
+
+export function useDeleteCreditCard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => treasuryService.deleteCreditCard(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.treasury.creditCards });
+      qc.invalidateQueries({ queryKey: queryKeys.treasury.cardProjections });
+    },
+  });
+}

@@ -280,6 +280,64 @@ func (s *TreasuryService) ListCards(ctx context.Context, companyID uuid.UUID) ([
 	return s.cards.List(ctx, companyID)
 }
 
+// UpdateCardInput describes editable fields of a credit card.
+type UpdateCardInput struct {
+	ID            uuid.UUID
+	Issuer        string
+	LastFour      string
+	CardHolder    string
+	CreditLimit   valueobjects.Money
+	CutOffDay     int
+	PaymentDueDay int
+	IsActive      bool
+}
+
+// UpdateCard persists changes to an existing credit card.
+func (s *TreasuryService) UpdateCard(ctx context.Context, in UpdateCardInput) (*CreditCard, error) {
+	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		card, err := s.cards.GetByID(ctx, in.ID)
+		if err != nil {
+			return err
+		}
+		if in.Issuer != "" {
+			card.Issuer = in.Issuer
+		}
+		if in.LastFour != "" {
+			card.LastFour = in.LastFour
+		}
+		if in.CardHolder != "" {
+			card.CardHolder = in.CardHolder
+		}
+		if !in.CreditLimit.IsZero() {
+			card.CreditLimit = in.CreditLimit
+		}
+		if in.CutOffDay > 0 {
+			card.CutOffDay = in.CutOffDay
+		}
+		if in.PaymentDueDay > 0 {
+			card.PaymentDueDay = in.PaymentDueDay
+		}
+		card.IsActive = in.IsActive
+		card.UpdatedAt = time.Now().UTC()
+		return s.cards.Update(ctx, card)
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.log.Info("credit card updated", "card_id", in.ID)
+	return s.cards.GetByID(ctx, in.ID)
+}
+
+// DeleteCard soft-deletes a credit card by setting deleted_at and is_active=false.
+func (s *TreasuryService) DeleteCard(ctx context.Context, cardID uuid.UUID) error {
+	err := s.cards.Delete(ctx, cardID)
+	if err != nil {
+		return err
+	}
+	s.log.Info("credit card deleted", "card_id", cardID)
+	return nil
+}
+
 // ChargeCardInput records a purchase on a credit card. The amount is
 // added to the card's outstanding balance; the caller is expected to
 // record the corresponding journal entry.

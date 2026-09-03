@@ -76,11 +76,13 @@ type SystemPreferences struct {
 	BackupFolder         string
 	ExportFolder         string
 	BackupFrequency      string
-	ClearanceDays        int
-	ClearanceWarningDays int
-	SaleNumberPrefix     string
-	PurchaseNumberPrefix string
-	JournalNumberPrefix  string
+	ClearanceDays          int
+	ClearanceWarningDays   int
+	ClearanceDaysThreshold int
+	ImportCostFactor       float64
+	FallbackExchangeRate   float64
+	SaleNumberPrefix       string
+	PurchaseNumberPrefix   string
 }
 
 func (s *SettingsService) GetBusinessInfo(ctx context.Context, companyID uuid.UUID) (*BusinessInfo, error) {
@@ -185,12 +187,14 @@ func (s *SettingsService) GetPreferences(ctx context.Context, companyID uuid.UUI
 		Theme:                "system",
 		Timezone:             "America/Lima",
 		FiscalYearStart:      1,
-		BackupFrequency:      "daily",
-		ClearanceDays:        25,
-		ClearanceWarningDays: 3,
-		SaleNumberPrefix:     "V",
-		PurchaseNumberPrefix: "PO",
-		JournalNumberPrefix:  "JE",
+		BackupFrequency:        "daily",
+		ClearanceDays:          25,
+		ClearanceWarningDays:   3,
+		ClearanceDaysThreshold: 25,
+		ImportCostFactor:       0.07,
+		FallbackExchangeRate:   3.75,
+		SaleNumberPrefix:       "V",
+		PurchaseNumberPrefix:   "PO",
 	}
 
 	settings, err := s.settings.ListByCompany(ctx, companyID)
@@ -232,12 +236,16 @@ func (s *SettingsService) GetPreferences(ctx context.Context, companyID uuid.UUI
 			prefs.ClearanceDays = setting.IntValue()
 		case "preferences.clearance_warning_days":
 			prefs.ClearanceWarningDays = setting.IntValue()
+		case "preferences.clearance_days_threshold":
+			prefs.ClearanceDaysThreshold = setting.IntValue()
+		case "preferences.import_cost_factor":
+			prefs.ImportCostFactor = setting.Float64Value()
+		case "preferences.fallback_exchange_rate":
+			prefs.FallbackExchangeRate = setting.Float64Value()
 		case "preferences.sale_number_prefix":
 			prefs.SaleNumberPrefix = setting.StringValue()
 		case "preferences.purchase_number_prefix":
 			prefs.PurchaseNumberPrefix = setting.StringValue()
-		case "preferences.journal_number_prefix":
-			prefs.JournalNumberPrefix = setting.StringValue()
 		}
 	}
 
@@ -254,12 +262,18 @@ func (s *SettingsService) UpdatePreference(ctx context.Context, companyID uuid.U
 
 	if raw, ok := value.(string); ok {
 		switch key {
-		case "clearance_days", "clearance_warning_days", "decimal_places", "fiscal_year_start", "expiry_alert_days":
+		case "clearance_days", "clearance_warning_days", "clearance_days_threshold", "decimal_places", "fiscal_year_start", "expiry_alert_days":
 			n, err := strconv.Atoi(raw)
 			if err != nil {
 				return derrors.New("INVALID", "preference must be an integer")
 			}
 			value = n
+		case "import_cost_factor", "fallback_exchange_rate":
+			f, err := strconv.ParseFloat(raw, 64)
+			if err != nil {
+				return derrors.New("INVALID", "preference must be a decimal number")
+			}
+			value = f
 		}
 	}
 	jsonValue, err := json.Marshal(value)

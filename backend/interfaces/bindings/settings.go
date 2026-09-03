@@ -33,11 +33,13 @@ type PreferencesDTO struct {
 	BackupFolder         string `json:"backupFolder"`
 	ExportFolder         string `json:"exportFolder"`
 	BackupFrequency      string `json:"backupFrequency"`
-	ClearanceDays        int    `json:"clearanceDays"`
-	ClearanceWarningDays int    `json:"clearanceWarningDays"`
-	SaleNumberPrefix     string `json:"saleNumberPrefix"`
-	PurchaseNumberPrefix string `json:"purchaseNumberPrefix"`
-	JournalNumberPrefix  string `json:"journalNumberPrefix"`
+	ClearanceDays          int     `json:"clearanceDays"`
+	ClearanceWarningDays   int     `json:"clearanceWarningDays"`
+	ClearanceDaysThreshold int     `json:"clearanceDaysThreshold"`
+	ImportCostFactor       float64 `json:"importCostFactor"`
+	FallbackExchangeRate   float64 `json:"fallbackExchangeRate"`
+	SaleNumberPrefix       string  `json:"saleNumberPrefix"`
+	PurchaseNumberPrefix   string  `json:"purchaseNumberPrefix"`
 }
 
 type CurrencyDTO struct {
@@ -120,11 +122,13 @@ func (a *App) GetPreferences() (*PreferencesDTO, error) {
 		BackupFolder:         prefs.BackupFolder,
 		ExportFolder:         prefs.ExportFolder,
 		BackupFrequency:      prefs.BackupFrequency,
-		ClearanceDays:        prefs.ClearanceDays,
-		ClearanceWarningDays: prefs.ClearanceWarningDays,
-		SaleNumberPrefix:     prefs.SaleNumberPrefix,
-		PurchaseNumberPrefix: prefs.PurchaseNumberPrefix,
-		JournalNumberPrefix:  prefs.JournalNumberPrefix,
+		ClearanceDays:          prefs.ClearanceDays,
+		ClearanceWarningDays:   prefs.ClearanceWarningDays,
+		ClearanceDaysThreshold: prefs.ClearanceDaysThreshold,
+		ImportCostFactor:       prefs.ImportCostFactor,
+		FallbackExchangeRate:   prefs.FallbackExchangeRate,
+		SaleNumberPrefix:       prefs.SaleNumberPrefix,
+		PurchaseNumberPrefix:   prefs.PurchaseNumberPrefix,
 	}, nil
 }
 

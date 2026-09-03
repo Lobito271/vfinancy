@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Boxes, Pencil, Ban, Plus, Settings2 } from 'lucide-react';
+import { Boxes, Pencil, Ban, Plus, Settings2, AlertTriangle } from 'lucide-react';
 import { z } from 'zod';
 import { PageContainer, PageHeader, Grid } from '@/components/layout';
 import { StatCard } from '@/components/card';
@@ -88,7 +88,7 @@ const columns: Column<InventoryItem>[] = [
       if (row.status === 'voided') return <Badge variant="destructive">Anulado</Badge>;
       if (row.status === 'written_off') return <Badge variant="muted">Baja</Badge>;
       if (row.status === 'depleted') return <Badge variant="muted">Agotado</Badge>;
-      if (row.isClearance) return <Badge variant="destructive">Remate</Badge>;
+      if (row.isClearance) return <Badge variant="destructive" className="fw-bold">REMATE</Badge>;
       return <Badge variant="success">Normal</Badge>;
     },
   },
@@ -186,6 +186,7 @@ export function InventoryPage() {
   const [receiveOpen, setReceiveOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [showClearanceOnly, setShowClearanceOnly] = useState(false);
   const [adjustTarget, setAdjustTarget] = useState<InventoryItem | null>(null);
   const [voidTarget, setVoidTarget] = useState<InventoryItem | null>(null);
 
@@ -197,12 +198,16 @@ export function InventoryPage() {
   const expiringSoon = live.filter((i) => i.daysRemaining >= 0 && i.daysRemaining < 5).length;
 
   const filteredItems = useMemo(() => {
-    if (statusFilter === 'all') return items;
-    if (statusFilter === 'clearance') return items.filter((i) => i.isClearance && i.status !== 'voided');
-    if (statusFilter === 'expiring') return live.filter((i) => i.daysRemaining >= 0 && i.daysRemaining < 5);
-    if (statusFilter === 'voided') return items.filter((i) => i.status === 'voided');
-    return items;
-  }, [items, live, statusFilter]);
+    let result = items;
+    if (showClearanceOnly) {
+      result = result.filter((i) => i.isClearance && i.status !== 'voided');
+    } else {
+      if (statusFilter === 'clearance') result = result.filter((i) => i.isClearance && i.status !== 'voided');
+      else if (statusFilter === 'expiring') result = live.filter((i) => i.daysRemaining >= 0 && i.daysRemaining < 5);
+      else if (statusFilter === 'voided') result = result.filter((i) => i.status === 'voided');
+    }
+    return result;
+  }, [items, live, statusFilter, showClearanceOnly]);
 
   const openCreate = () => setReceiveOpen(true);
 
@@ -255,9 +260,22 @@ export function InventoryPage() {
         <StatCard label="Lotes en almacén" value={String(live.length)} icon={Boxes} />
         <StatCard label="Unidades en stock" value={formatNumber(totalUnits)} />
         <StatCard label="Valor de inventario" value={formatCurrency(inventoryValue)} />
-        <StatCard label="En remate" value={String(clearance)} />
+        <StatCard label="En remate" value={String(clearance)} icon={AlertTriangle} />
         <StatCard label="Por vencer (5 días)" value={String(expiringSoon)} />
       </Grid>
+
+      {clearance > 0 && (
+        <div className="hstack" style={{ gap: '0.75rem', marginBottom: '1rem' }}>
+          <Button
+            variant={showClearanceOnly ? 'primary' : 'outline'}
+            size="sm"
+            onClick={() => setShowClearanceOnly(!showClearanceOnly)}
+          >
+            <AlertTriangle />
+            {showClearanceOnly ? 'Mostrando productos en remate' : `Ver productos en remate (${clearance})`}
+          </Button>
+        </div>
+      )}
 
       <DataTable
         columns={tableColumns}

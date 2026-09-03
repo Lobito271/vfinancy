@@ -181,7 +181,11 @@ func (a *App) Init() error {
 		if err != nil {
 			return inventory.ClearanceDays, 3
 		}
-		return prefs.ClearanceDays, prefs.ClearanceWarningDays
+		days := prefs.ClearanceDays
+		if prefs.ClearanceDaysThreshold > 0 {
+			days = prefs.ClearanceDaysThreshold
+		}
+		return days, prefs.ClearanceWarningDays
 	}
 	a.inventorySvc.SetClearanceSettings(clearanceSettings)
 	a.salesSvc = sales.New(orders, customers, a.inventorySvc, productClassifier, txm, a.log)

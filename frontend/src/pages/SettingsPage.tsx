@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { Save } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card';
 import { Button } from '@/components/button';
-import { EmailField, Form, TextField, TextareaField } from '@/components/form';
+import { EmailField, Form, NumberField, TextField, TextareaField } from '@/components/form';
 import { Label } from '@/components/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select';
 import { PageContainer, PageHeader, Section } from '@/components/layout';
@@ -25,11 +25,17 @@ const businessSchema = z.object({
 const prefixSchema = z.object({
   saleNumberPrefix: z.string().trim().min(1),
   purchaseNumberPrefix: z.string().trim().min(1),
-  journalNumberPrefix: z.string().trim().min(1),
+});
+
+const businessVarsSchema = z.object({
+  clearanceDaysThreshold: z.number().int().min(1, 'Al menos 1 día.').max(365),
+  importCostFactor: z.number().min(0, 'No puede ser negativo.').max(1, 'No puede superar 1.0'),
+  fallbackExchangeRate: z.number().positive('Debe ser positivo.').max(100, 'Valor fuera de rango.'),
 });
 
 type BusinessValues = z.infer<typeof businessSchema>;
 type PrefixValues = z.infer<typeof prefixSchema>;
+type BusinessVarsValues = z.infer<typeof businessVarsSchema>;
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
@@ -55,7 +61,6 @@ export function SettingsPage() {
     mutationFn: async (values: PrefixValues) => {
       await wailsClient.updatePreference('sale_number_prefix', values.saleNumberPrefix);
       await wailsClient.updatePreference('purchase_number_prefix', values.purchaseNumberPrefix);
-      await wailsClient.updatePreference('journal_number_prefix', values.journalNumberPrefix);
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.settings.preferences });
@@ -63,6 +68,21 @@ export function SettingsPage() {
     },
     onError: (err: unknown) => {
       push({ title: 'No se pudo guardar las reglas', description: err instanceof Error ? err.message : undefined, variant: 'destructive' });
+    },
+  });
+
+  const saveBusinessVars = useMutation({
+    mutationFn: async (values: BusinessVarsValues) => {
+      await wailsClient.updatePreference('clearance_days_threshold', String(values.clearanceDaysThreshold));
+      await wailsClient.updatePreference('import_cost_factor', String(values.importCostFactor));
+      await wailsClient.updatePreference('fallback_exchange_rate', String(values.fallbackExchangeRate));
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.settings.preferences });
+      push({ title: 'Variables de negocio guardadas', variant: 'success' });
+    },
+    onError: (err: unknown) => {
+      push({ title: 'No se pudo guardar las variables', description: err instanceof Error ? err.message : undefined, variant: 'destructive' });
     },
   });
 
@@ -131,26 +151,81 @@ export function SettingsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Prefijos documentales</CardTitle>
-              <CardDescription>Se usan al generar números de venta, compra y asientos contables.</CardDescription>
+              <CardDescription>Se usan al generar números de venta y compra.</CardDescription>
             </CardHeader>
             <CardContent>
               <Form<PrefixValues>
-                key={`${preferences.data.saleNumberPrefix}-${preferences.data.purchaseNumberPrefix}-${preferences.data.journalNumberPrefix}`}
+                key={`${preferences.data.saleNumberPrefix}-${preferences.data.purchaseNumberPrefix}`}
                 schema={prefixSchema}
                 defaultValues={{
                   saleNumberPrefix: preferences.data.saleNumberPrefix,
                   purchaseNumberPrefix: preferences.data.purchaseNumberPrefix,
-                  journalNumberPrefix: preferences.data.journalNumberPrefix,
                 }}
                 onSubmit={(values) => savePrefixes.mutate(values)}
               >
                 <div className="form-grid">
                   <TextField name="saleNumberPrefix" label="Prefijo de ventas" required />
                   <TextField name="purchaseNumberPrefix" label="Prefijo de compras" required />
-                  <TextField name="journalNumberPrefix" label="Prefijo de asientos" required />
                 </div>
                 <div className="form-actions">
                   <Button type="submit" loading={savePrefixes.isPending}>
+                    <Save /> Guardar
+                  </Button>
+                </div>
+              </Form>
+            </CardContent>
+          </Card>
+        )}
+      </Section>
+
+      <Section title="Variables de negocio" description="Parámetros que afectan el cálculo de costos, remates y tipos de cambio.">
+        {preferences.data && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Parámetros operativos</CardTitle>
+              <CardDescription>Estos valores se usan en cálculos de importación, remate y proyecciones.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Form<BusinessVarsValues>
+                key={`${preferences.data.clearanceDaysThreshold}-${preferences.data.importCostFactor}-${preferences.data.fallbackExchangeRate}`}
+                schema={businessVarsSchema}
+                defaultValues={{
+                  clearanceDaysThreshold: preferences.data.clearanceDaysThreshold,
+                  importCostFactor: preferences.data.importCostFactor,
+                  fallbackExchangeRate: preferences.data.fallbackExchangeRate,
+                }}
+                onSubmit={(values) => saveBusinessVars.mutate(values)}
+              >
+                <div className="form-grid">
+                  <NumberField
+                    name="clearanceDaysThreshold"
+                    label="Días para remate"
+                    description="Un lote pasa a remate cuando supera estos días desde su ingreso."
+                    min={1}
+                    max={365}
+                    required
+                  />
+                  <NumberField
+                    name="importCostFactor"
+                    label="Factor de costo de importación"
+                    description="Factor multiplicador para calcular costos de importación (ej: 0.07 = 7%)."
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    required
+                  />
+                  <NumberField
+                    name="fallbackExchangeRate"
+                    label="Tipo de cambio de respaldo"
+                    description="Tipo de cambio USD→PEN a usar cuando no hay conexión a APIs."
+                    min={0.01}
+                    max={100}
+                    step={0.01}
+                    required
+                  />
+                </div>
+                <div className="form-actions">
+                  <Button type="submit" loading={saveBusinessVars.isPending}>
                     <Save /> Guardar
                   </Button>
                 </div>

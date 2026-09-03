@@ -18,6 +18,7 @@ import type {
   CreateSupplierRequest,
   CreateCategoryRequest,
   CreateBrandRequest,
+  IssueCreditCardRequest,
   IssueStockRequest,
   SetupWorkspaceRequest,
   ListBankTransactionsRequest,
@@ -39,6 +40,7 @@ import type {
   UpdateBankAccountRequest,
   UpdateCategoryRequest,
   UpdateBrandRequest,
+  UpdateCreditCardRequest,
   UpdateCustomerRequest,
   UpdateLocalProfileRequest,
   UpdateProductRequest,
@@ -338,6 +340,18 @@ export const wailsClient = {
   async listCreditCards() {
     const b = await resolveBindings();
     return b.ListCreditCards();
+  },
+  async issueCreditCard(req: IssueCreditCardRequest) {
+    const b = await resolveBindings();
+    return b.IssueCreditCard(req);
+  },
+  async updateCreditCard(req: UpdateCreditCardRequest) {
+    const b = await resolveBindings();
+    return b.UpdateCreditCard(req);
+  },
+  async deleteCreditCard(id: string) {
+    const b = await resolveBindings();
+    return b.DeleteCreditCard(id);
   },
   async getCardProjections() {
     const b = await resolveBindings();

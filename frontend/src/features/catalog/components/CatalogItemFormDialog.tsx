@@ -109,10 +109,12 @@ export function CatalogItemFormDialog({ open, onOpenChange, kind, item }: Catalo
         <Form<CatalogItemValues> schema={CatalogItemSchema} defaultValues={defaults} onSubmit={handleSubmit}>
           {({ formState }) => (
             <>
-              <Grid cols={2}>
-                <TextField name="code" label="Código" description="Ej.: ABR" required />
-                <TextField name="name" label="Nombre" description="Ej.: Abarrotes" required />
-              </Grid>
+              <div className="stack dialog-body-scroll">
+                <Grid cols={2}>
+                  <TextField name="code" label="Código" description="Ej.: ABR" required />
+                  <TextField name="name" label="Nombre" description="Ej.: Abarrotes" required />
+                </Grid>
+              </div>
               <DialogFooter>
                 <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={loading}>
                   Cancelar

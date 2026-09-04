@@ -49,14 +49,14 @@ const columns: Column<Customer>[] = [
   {
     id: 'creditLimit',
     header: 'Límite de crédito',
-    align: 'right',
+    align: 'numeric',
     sortable: true,
     cell: (row) => <span className="tabular">{formatCurrency(row.creditLimit)}</span>,
   },
   {
     id: 'currentDebt',
     header: 'Deuda',
-    align: 'right',
+    align: 'numeric',
     sortable: true,
     cell: (row) => (
       <span className={row.currentDebt > 0 ? 'fw-medium tabular' : 'tabular muted'}>

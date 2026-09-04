@@ -47,21 +47,21 @@ const columns: Column<Product>[] = [
   {
     id: 'costUSD',
     header: 'Costo (USD)',
-    align: 'right',
+    align: 'numeric',
     sortable: true,
     cell: (row) => <span className="tabular">{formatCurrency(row.costUSD, 'USD')}</span>,
   },
   {
     id: 'salePrice',
     header: 'Precio venta',
-    align: 'right',
+    align: 'numeric',
     sortable: true,
     cell: (row) => <span className="tabular">{formatCurrency(row.salePrice)}</span>,
   },
   {
     id: 'margin',
     header: 'Margen',
-    align: 'right',
+    align: 'numeric',
     cell: (row) => (
       <span className="tabular muted">
         {row.costUSD > 0 ? formatPercent((row.salePrice - row.costUSD) / row.costUSD) : '—'}

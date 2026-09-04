@@ -38,7 +38,7 @@ export function CancelDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <div className="stack stack--sm">
+        <div className="stack stack--sm dialog-body-scroll">
           <Label htmlFor="cancel-reason">Motivo</Label>
           <Textarea
             id="cancel-reason"

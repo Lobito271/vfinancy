@@ -6,7 +6,7 @@ export interface Column<T> {
   cell: (row: T, info: { rowIndex: number; value: unknown }) => ReactNode;
   accessor?: (row: T) => unknown;
   sortable?: boolean;
-  align?: 'left' | 'right' | 'center';
+  align?: 'left' | 'right' | 'center' | 'numeric';
   width?: number | string;
   minWidth?: number;
   sticky?: boolean | 'left' | 'right';
@@ -50,6 +50,7 @@ type CellAlign = NonNullable<Column<unknown>['align']>;
 export function getCellAlign(align: CellAlign | undefined): string {
   if (align === 'right') return 'ta-right';
   if (align === 'center') return 'ta-center';
+  if (align === 'numeric') return 'ta-numeric';
   return '';
 }
 

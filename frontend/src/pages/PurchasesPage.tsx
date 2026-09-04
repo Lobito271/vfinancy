@@ -64,13 +64,13 @@ const columns: Column<Purchase>[] = [
     id: 'realCostPEN',
     header: 'Costo real (PEN)',
     sortable: true,
-    align: 'right',
+    align: 'numeric',
     cell: (row) => <span className="tabular">{formatCurrency(row.realCostPEN)}</span>,
   },
   {
     id: 'projectedProfitPEN',
     header: 'Utilidad proy.',
-    align: 'right',
+    align: 'numeric',
     cell: (row) => (
       <span className={`tabular ${row.projectedProfitPEN < 0 ? 'text-destructive' : 'text-success'}`}>
         {formatCurrency(row.projectedProfitPEN)}
@@ -93,7 +93,7 @@ const columns: Column<Purchase>[] = [
   {
     id: 'total',
     header: 'Total',
-    align: 'right',
+    align: 'numeric',
     sortable: true,
     cell: (row) => <span className="fw-medium tabular">{formatCurrency(row.total)}</span>,
   },

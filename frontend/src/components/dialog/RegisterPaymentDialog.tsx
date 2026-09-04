@@ -106,7 +106,7 @@ export function RegisterPaymentDialog({
         >
           {({ formState }) => (
             <>
-              <div className="stack stack--lg">
+              <div className="stack stack--lg dialog-body-scroll">
                 <div className="grid-2">
                   <DateField name="paymentDate" label="Fecha de pago" required />
                   {useCreditCard ? (

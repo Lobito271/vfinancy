@@ -121,7 +121,7 @@ export function TopProductsWidget() {
     {
       id: 'value',
       header: 'Ventas',
-      align: 'right',
+      align: 'numeric',
       cell: (r) => <span className="fw-medium tabular">{formatCurrency(r.value)}</span>,
     },
   ];
@@ -144,7 +144,7 @@ export function RecentActivityWidget() {
     {
       id: 'amount',
       header: 'Monto',
-      align: 'right',
+      align: 'numeric',
       cell: (r) => (r.amount != null ? formatCurrency(r.amount) : '—'),
     },
     {

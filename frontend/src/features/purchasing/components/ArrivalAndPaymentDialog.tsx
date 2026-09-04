@@ -97,7 +97,7 @@ export function ArrivalAndPaymentDialog({
         >
           {({ formState }) => (
             <>
-              <div className="stack">
+              <div className="stack dialog-body-scroll">
                 <DateField name="arrivalDate" label="Fecha de llegada" required />
                 <TextField name="amount" label="Monto a cobrar (PEN)" required />
                 <SelectField

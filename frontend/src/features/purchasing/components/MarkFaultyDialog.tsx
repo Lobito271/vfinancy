@@ -48,7 +48,7 @@ export function MarkFaultyDialog({ open, onOpenChange, documentNumber, loading, 
         <Form key={documentNumber} schema={FaultySchema} defaultValues={defaults} onSubmit={onConfirm}>
           {({ formState }) => (
             <>
-              <div className="stack">
+              <div className="stack dialog-body-scroll">
                 <DateField name="arrivalDate" label="Fecha de llegada" required />
                 <TextareaField name="reason" label="Motivo del daño" rows={3} required placeholder="Describa el estado de la mercadería…" />
               </div>

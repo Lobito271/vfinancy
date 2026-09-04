@@ -23,25 +23,25 @@ const itemColumns: Column<CustomerOrderItem>[] = [
   {
     id: 'unitPrice',
     header: 'Costo unit.',
-    align: 'right',
+    align: 'numeric',
     cell: (r) => <span className="tabular">{formatCurrency(r.unitPrice, 'USD')}</span>,
   },
   {
     id: 'discountPercent',
     header: 'Dscto %',
-    align: 'right',
+    align: 'numeric',
     cell: (r) => `${r.discountPercent}%`,
   },
   {
     id: 'taxAmount',
     header: 'IGV',
-    align: 'right',
+    align: 'numeric',
     cell: (r) => <span className="tabular">{formatCurrency(r.taxAmount, 'USD')}</span>,
   },
   {
     id: 'lineTotal',
     header: 'Total',
-    align: 'right',
+    align: 'numeric',
     cell: (r) => (
       <span className="tabular fw-medium">
         {formatCurrency(r.quantity * r.unitPrice - r.discountAmount + r.taxAmount, 'USD')}
@@ -56,7 +56,7 @@ const paymentColumns: Column<CustomerOrderPayment>[] = [
   {
     id: 'amount',
     header: 'Monto',
-    align: 'right',
+    align: 'numeric',
     cell: (r) => <span className="tabular">{formatCurrency(r.amount)}</span>,
   },
   {

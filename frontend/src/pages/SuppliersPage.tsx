@@ -43,7 +43,7 @@ const columns: Column<Supplier>[] = [
   {
     id: 'currentDebt',
     header: 'Cuentas por pagar',
-    align: 'right',
+    align: 'numeric',
     sortable: true,
     cell: (row) => (
       <span className={row.currentDebt > 0 ? 'fw-medium tabular' : 'tabular muted'}>

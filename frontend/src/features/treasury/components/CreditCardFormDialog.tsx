@@ -92,7 +92,7 @@ export function CreditCardFormDialog({ open, onOpenChange, editCard }: CreditCar
           </DialogDescription>
         </DialogHeader>
         <Form<FormValues> schema={schema} defaultValues={defaultValues} onSubmit={handleSubmit}>
-          <div className="stack">
+          <div className="stack dialog-body-scroll">
             <SelectField
               name="issuer"
               label="Emisor"

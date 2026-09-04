@@ -23,12 +23,18 @@
   --color-border: oklch(14.5% 0 0);
   --color-border-strong: oklch(14.5% 0 0);
 
-  --color-primary: oklch(14.5% 0 0);
-  --color-primary-hover: oklch(37.1% 0 0);
-  --color-primary-fg: white;
-  --color-primary-muted: oklch(97% 0 0);
-  --color-primary-muted-fg: oklch(14.5% 0 0);
-  --color-ring: oklch(14.5% 0 0);
+  --color-accent: oklch(72% 0.16 85);
+  --color-accent-hover: oklch(64% 0.17 80);
+  --color-accent-fg: oklch(14.5% 0 0);
+  --color-accent-muted: oklch(96% 0.04 85);
+  --color-accent-muted-fg: oklch(38% 0.13 80);
+
+  --color-primary: var(--color-accent);
+  --color-primary-hover: var(--color-accent-hover);
+  --color-primary-fg: var(--color-accent-fg);
+  --color-primary-muted: var(--color-accent-muted);
+  --color-primary-muted-fg: var(--color-accent-muted-fg);
+  --color-ring: var(--color-accent);
 
   --color-success: oklch(46% 0.14 152);
   --color-success-muted: oklch(96.5% 0.04 152);
@@ -88,12 +94,18 @@
   --color-border: oklch(38% 0 0);
   --color-border-strong: oklch(43% 0 0);
 
-  --color-primary: oklch(62% 0 0);
-  --color-primary-hover: oklch(45% 0 0);
-  --color-primary-fg: oklch(14.5% 0 0);
-  --color-primary-muted: oklch(30% 0 0);
-  --color-primary-muted-fg: oklch(90% 0 0);
-  --color-ring: oklch(60% 0 0);
+  --color-accent: oklch(78% 0.15 85);
+  --color-accent-hover: oklch(70% 0.16 80);
+  --color-accent-fg: oklch(98% 0 0);
+  --color-accent-muted: oklch(28% 0.05 85);
+  --color-accent-muted-fg: oklch(82% 0.12 85);
+
+  --color-primary: var(--color-accent);
+  --color-primary-hover: var(--color-accent-hover);
+  --color-primary-fg: var(--color-accent-fg);
+  --color-primary-muted: var(--color-accent-muted);
+  --color-primary-muted-fg: var(--color-accent-muted-fg);
+  --color-ring: var(--color-accent);
 
   --color-success: oklch(66% 0.14 152);
   --color-success-muted: oklch(26% 0.05 152);
@@ -193,6 +205,12 @@ a {
 
 .ta-right { text-align: right; }
 .ta-center { text-align: center; }
+.ta-numeric {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  padding-left: 1.25rem;
+  padding-right: 1.25rem;
+}
 
 .text-destructive { color: var(--color-destructive); }
 .text-success { color: var(--color-success); }
@@ -945,6 +963,7 @@ a {
   display: grid;
   gap: 0.3125rem;
   flex: none;
+  flex-shrink: 0;
   padding-right: 2rem;
   margin-bottom: 1rem;
 }
@@ -965,6 +984,7 @@ a {
   justify-content: flex-end;
   gap: 0.5rem;
   flex: none;
+  flex-shrink: 0;
   margin-top: 1.25rem;
 }
 
@@ -2094,6 +2114,14 @@ a {
 .form {
   display: grid;
   gap: 1rem;
+}
+
+.dialog-content > .form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .form-grid {

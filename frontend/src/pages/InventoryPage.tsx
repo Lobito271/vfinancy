@@ -45,21 +45,21 @@ const columns: Column<InventoryItem>[] = [
   {
     id: 'quantity',
     header: 'Cantidad',
-    align: 'right',
+    align: 'numeric',
     sortable: true,
     cell: (row) => <span className="tabular">{formatNumber(row.quantity)}</span>,
   },
   {
     id: 'unitCost',
     header: 'Costo unitario',
-    align: 'right',
+    align: 'numeric',
     sortable: true,
     cell: (row) => <span className="tabular">{formatCurrency(row.unitCost, row.currencyCode)}</span>,
   },
   {
     id: 'totalCost',
     header: 'Costo total',
-    align: 'right',
+    align: 'numeric',
     sortable: true,
     accessor: (row) => row.quantity * row.unitCost,
     cell: (row) => <span className="tabular">{formatCurrency(row.quantity * row.unitCost, row.currencyCode)}</span>,
@@ -77,7 +77,7 @@ const columns: Column<InventoryItem>[] = [
   {
     id: 'daysRemaining',
     header: 'Días restantes',
-    align: 'right',
+    align: 'numeric',
     sortable: true,
     cell: (row) => <span className="tabular">{row.daysRemaining}</span>,
   },

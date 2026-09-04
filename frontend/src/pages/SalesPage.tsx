@@ -44,14 +44,14 @@ const columns: Column<Sale>[] = [
   {
     id: 'total',
     header: 'Total',
-    align: 'right',
+    align: 'numeric',
     sortable: true,
     cell: (row) => <span className="fw-medium tabular">{formatCurrency(row.total)}</span>,
   },
   {
     id: 'profit',
     header: 'Utilidad',
-    align: 'right',
+    align: 'numeric',
     cell: (row) => (
       <span className={row.profit >= 0 ? 'tabular' : 'tabular text-destructive'}>
         {formatCurrency(row.profit)}

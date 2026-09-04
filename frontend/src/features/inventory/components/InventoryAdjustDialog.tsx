@@ -61,7 +61,7 @@ export function InventoryAdjustDialog({ open, onOpenChange, batch }: InventoryAd
         <Form schema={AdjustSchema} defaultValues={defaults} onSubmit={handleSubmit}>
           {({ formState }) => (
             <>
-              <div className="stack stack--lg">
+              <div className="stack stack--lg dialog-body-scroll">
                 <NumberField name="delta" label="Cantidad de ajuste" description="Usa valores negativos para reducir stock." required step={0.01} />
                 <TextField name="reason" label="Motivo" required maxLength={200} />
               </div>

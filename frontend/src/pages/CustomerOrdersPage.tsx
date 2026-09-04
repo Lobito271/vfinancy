@@ -65,33 +65,33 @@ const columns: Column<CustomerOrder>[] = [
     id: 'salePricePEN',
     header: 'Venta',
     sortable: true,
-    align: 'right',
+    align: 'numeric',
     cell: (row) => <span className="tabular">{formatCurrency(row.salePricePEN)}</span>,
   },
   {
     id: 'realCostPEN',
     header: 'Costo real (PEN)',
     sortable: true,
-    align: 'right',
+    align: 'numeric',
     cell: (row) => <span className="tabular">{formatCurrency(row.realCostPEN)}</span>,
   },
   {
     id: 'anticipo',
     header: 'Anticipo',
-    align: 'right',
+    align: 'numeric',
     cell: (row) => <span className="tabular">{formatCurrency(row.anticipo)}</span>,
   },
   {
     id: 'porCobrar',
     header: 'Por cobrar',
     sortable: true,
-    align: 'right',
+    align: 'numeric',
     cell: (row) => <span className="fw-medium tabular">{formatCurrency(row.porCobrar)}</span>,
   },
   {
     id: 'projectedProfitPEN',
     header: 'Utilidad proy.',
-    align: 'right',
+    align: 'numeric',
     cell: (row) => (
       <span className={`tabular ${row.projectedProfitPEN < 0 ? 'text-destructive' : 'text-success'}`}>
         {formatCurrency(row.projectedProfitPEN)}

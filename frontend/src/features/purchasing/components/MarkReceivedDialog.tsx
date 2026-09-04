@@ -46,7 +46,7 @@ export function MarkReceivedDialog({ open, onOpenChange, documentNumber, loading
         <Form key={documentNumber} schema={ReceivedSchema} defaultValues={defaults} onSubmit={onConfirm}>
           {({ formState }) => (
             <>
-              <div className="stack">
+              <div className="stack dialog-body-scroll">
                 <DateField name="arrivalDate" label="Fecha de llegada" required />
               </div>
               <DialogFooter>

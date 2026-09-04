@@ -220,7 +220,7 @@ export function CreateCustomerOrderDialog({ open, onOpenChange }: CreateCustomer
           {({ formState }) => (
             <>
               <ExchangeRateSeed rate={rateQuery.data} />
-              <div className="stack dialog-scroll">
+              <div className="stack dialog-body-scroll">
                 <div className="form-grid form-grid--3">
                   <CustomerSelectField name="customerId" label="Cliente" required />
                   <SupplierSelectField name="supplierId" label="Proveedor / Importador" required />

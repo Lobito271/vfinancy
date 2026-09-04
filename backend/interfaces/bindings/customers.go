@@ -8,6 +8,7 @@ import (
 	"vfinancy/backend/internal/domain/enums"
 	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/features/customer"
+	"vfinancy/backend/internal/utils"
 )
 
 // CustomerDTO is the serializable view of a customer.
@@ -65,7 +66,7 @@ func (a *App) ListCustomers(req ListCustomersRequest) (PageResult, error) {
 	}
 	page, err := a.customersSvc.List(ctx, filter)
 	if err != nil {
-		return PageResult{}, err
+		return PageResult{}, utils.ProcessError(err)
 	}
 	items := make([]*CustomerDTO, 0, len(page.Items))
 	for _, c := range page.Items {
@@ -78,11 +79,11 @@ func (a *App) ListCustomers(req ListCustomersRequest) (PageResult, error) {
 func (a *App) GetCustomer(id string) (*CustomerDTO, error) {
 	cid, err := uuid.Parse(id)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	c, err := a.customersSvc.GetByID(a.Context(), cid)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toCustomerDTO(c), nil
 }
@@ -104,7 +105,7 @@ type CreateCustomerRequest struct {
 func (a *App) CreateCustomer(req CreateCustomerRequest) (*CustomerDTO, error) {
 	limit, err := valueobjects.MoneyFromString(req.CreditLimit)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	in := customer.CreateInput{
 		CompanyID:       a.companyID(),
@@ -121,7 +122,7 @@ func (a *App) CreateCustomer(req CreateCustomerRequest) (*CustomerDTO, error) {
 	}
 	c, err := a.customersSvc.Create(a.Context(), in)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toCustomerDTO(c), nil
 }
@@ -143,11 +144,11 @@ type UpdateCustomerRequest struct {
 func (a *App) UpdateCustomer(req UpdateCustomerRequest) (*CustomerDTO, error) {
 	cid, err := uuid.Parse(req.ID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	limit, err := valueobjects.MoneyFromString(req.CreditLimit)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	days := req.PaymentTermDays
 	in := customer.UpdateInput{
@@ -163,7 +164,7 @@ func (a *App) UpdateCustomer(req UpdateCustomerRequest) (*CustomerDTO, error) {
 	}
 	c, err := a.customersSvc.Update(a.Context(), in)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toCustomerDTO(c), nil
 }
@@ -173,9 +174,9 @@ func (a *App) UpdateCustomer(req UpdateCustomerRequest) (*CustomerDTO, error) {
 func (a *App) RemoveCustomer(id string) error {
 	cid, err := uuid.Parse(id)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
-	return a.customersSvc.Delete(a.Context(), cid)
+	return utils.ProcessError(a.customersSvc.Delete(a.Context(), cid))
 }
 
 type BlockCustomerRequest struct {
@@ -186,14 +187,14 @@ type BlockCustomerRequest struct {
 func (a *App) BlockCustomer(req BlockCustomerRequest) (*CustomerDTO, error) {
 	id, err := uuid.Parse(req.ID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	if err := a.customersSvc.Block(a.Context(), id, req.Reason); err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	c, err := a.customersSvc.GetByID(a.Context(), id)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toCustomerDTO(c), nil
 }
@@ -201,14 +202,14 @@ func (a *App) BlockCustomer(req BlockCustomerRequest) (*CustomerDTO, error) {
 func (a *App) UnblockCustomer(id string) (*CustomerDTO, error) {
 	cid, err := uuid.Parse(id)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	if err := a.customersSvc.Unblock(a.Context(), cid); err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	c, err := a.customersSvc.GetByID(a.Context(), cid)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toCustomerDTO(c), nil
 }

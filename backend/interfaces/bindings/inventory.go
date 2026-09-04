@@ -2,12 +2,12 @@ package bindings
 
 import (
 	"time"
-
 	"github.com/google/uuid"
 
 	"vfinancy/backend/internal/domain/enums"
 	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/features/inventory"
+	"vfinancy/backend/internal/utils"
 )
 
 // InventoryBatchDTO is the serializable view of a stock batch.
@@ -104,19 +104,19 @@ func (a *App) ListWarehouses() ([]WarehouseDTO, error) {
 		  WHERE company_id = $1 AND deleted_at IS NULL
 		  ORDER BY is_default DESC, name`, a.companyID())
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	defer rows.Close()
 	out := make([]WarehouseDTO, 0, 8)
 	for rows.Next() {
 		var w WarehouseDTO
 		if err := rows.Scan(&w.ID, &w.Code, &w.Name, &w.IsDefault, &w.AllowsClearance, &w.IsActive); err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		out = append(out, w)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return out, nil
 }
@@ -131,7 +131,7 @@ func (a *App) ListInventoryBatches(req ListInventoryBatchesRequest) (PageResult,
 	}
 	page, err := a.inventorySvc.ListBatches(ctx, filter)
 	if err != nil {
-		return PageResult{}, err
+		return PageResult{}, utils.ProcessError(err)
 	}
 	today := valueobjects.Date(time.Now().UTC())
 	items := make([]*InventoryBatchDTO, 0, len(page.Items))
@@ -156,12 +156,12 @@ func (a *App) ListInventoryMovements(req ListInventoryMovementsRequest) (PageRes
 	}
 	productID, err := parseOptionalUUID(req.ProductID)
 	if err != nil {
-		return PageResult{}, err
+		return PageResult{}, utils.ProcessError(err)
 	}
 	filter.ProductID = productID
 	page, err := a.inventorySvc.ListMovements(ctx, filter)
 	if err != nil {
-		return PageResult{}, err
+		return PageResult{}, utils.ProcessError(err)
 	}
 	items := make([]*InventoryMovementDTO, 0, len(page.Items))
 	for _, m := range page.Items {
@@ -176,7 +176,7 @@ func (a *App) GetClearanceCandidates() ([]*InventoryBatchDTO, error) {
 	now := time.Now().UTC()
 	batches, err := a.inventorySvc.GenerateClearanceCandidates(ctx, a.companyID(), now)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	today := valueobjects.Date(now)
 	items := make([]*InventoryBatchDTO, 0, len(batches))
@@ -202,31 +202,31 @@ func (a *App) ReceiveStock(req ReceiveStockRequest) (*InventoryBatchDTO, error) 
 	ctx := a.Context()
 	productID, err := uuid.Parse(req.ProductID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	warehouseID, err := uuid.Parse(req.WarehouseID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	lot, err := valueobjects.NewLotNumber(req.LotNumber)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	arrival, err := time.Parse("2006-01-02", req.ArrivalDate)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	qty, err := valueobjects.QuantityFromString(req.Quantity)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	cost, err := valueobjects.MoneyFromString(req.UnitCost)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	cc, err := valueobjects.NewCurrencyCode(req.CurrencyCode)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	batch, err := a.inventorySvc.Receive(ctx, inventory.ReceiveInput{
 		CompanyID:    a.companyID(),
@@ -239,7 +239,7 @@ func (a *App) ReceiveStock(req ReceiveStockRequest) (*InventoryBatchDTO, error) 
 		CurrencyCode: cc,
 	})
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	today := valueobjects.Date(time.Now().UTC())
 	return toInventoryBatchDTO(today, batch), nil
@@ -256,21 +256,21 @@ func (a *App) IssueStock(req IssueStockRequest) error {
 	ctx := a.Context()
 	batchID, err := uuid.Parse(req.BatchID)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
 	qty, err := valueobjects.QuantityFromString(req.Quantity)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
 	ref, err := valueobjects.NewReference(enums.ReferenceTypeManual, batchID)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
-	return a.inventorySvc.Issue(ctx, inventory.IssueInput{
+	return utils.ProcessError(a.inventorySvc.Issue(ctx, inventory.IssueInput{
 		BatchID:   batchID,
 		Quantity:  qty,
 		Reference: ref,
-	})
+	}))
 }
 
 // AdjustStockRequest corrects the stock level of a batch. Delta is
@@ -286,22 +286,22 @@ func (a *App) AdjustStock(req AdjustStockRequest) error {
 	ctx := a.Context()
 	batchID, err := uuid.Parse(req.BatchID)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
 	delta, err := valueobjects.QuantityFromString(req.Delta)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
 	ref, err := valueobjects.NewReference(enums.ReferenceTypeAdjustment, batchID)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
-	return a.inventorySvc.Adjust(ctx, inventory.AdjustInput{
+	return utils.ProcessError(a.inventorySvc.Adjust(ctx, inventory.AdjustInput{
 		BatchID:   batchID,
 		Delta:     delta,
 		Reason:    req.Reason,
 		Reference: ref,
-	})
+	}))
 }
 
 // VoidStockRequest cancels a mistaken stock receipt.
@@ -316,10 +316,10 @@ func (a *App) VoidStock(req VoidStockRequest) error {
 	ctx := a.Context()
 	batchID, err := uuid.Parse(req.BatchID)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
-	return a.inventorySvc.Void(ctx, inventory.VoidInput{
+	return utils.ProcessError(a.inventorySvc.Void(ctx, inventory.VoidInput{
 		BatchID: batchID,
 		Reason:  req.Reason,
-	})
+	}))
 }

@@ -2,12 +2,12 @@ package bindings
 
 import (
 	"time"
-
 	"github.com/google/uuid"
 
 	"vfinancy/backend/internal/domain/enums"
 	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/features/purchasing"
+	"vfinancy/backend/internal/utils"
 )
 
 // PurchaseItemDTO is a serializable purchase order line.
@@ -142,7 +142,7 @@ func (a *App) ListPurchaseOrders(req ListPurchaseOrdersRequest) (PageResult, err
 	}
 	page, err := a.purchasingSvc.List(ctx, filter)
 	if err != nil {
-		return PageResult{}, err
+		return PageResult{}, utils.ProcessError(err)
 	}
 	items := make([]*PurchaseOrderDTO, 0, len(page.Items))
 	for _, po := range page.Items {
@@ -155,11 +155,11 @@ func (a *App) ListPurchaseOrders(req ListPurchaseOrdersRequest) (PageResult, err
 func (a *App) GetPurchaseOrder(id string) (*PurchaseOrderDTO, error) {
 	pid, err := uuid.Parse(id)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	po, err := a.purchasingSvc.GetByID(a.Context(), pid)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toPurchaseOrderDTO(po), nil
 }
@@ -199,19 +199,19 @@ func (a *App) CreatePurchaseOrder(req CreatePurchaseOrderRequest) (*PurchaseOrde
 	ctx := a.Context()
 	supplierID, err := uuid.Parse(req.SupplierID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	cc, err := valueobjects.NewCurrencyCode(req.CurrencyCode)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	rate, err := valueobjects.ExchangeRateFromString(req.ExchangeRate)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	orderDate, err := time.Parse("2006-01-02", req.OrderDate)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	orderType := enums.OrderType(req.OrderType)
 	if orderType == "" {
@@ -221,7 +221,7 @@ func (a *App) CreatePurchaseOrder(req CreatePurchaseOrderRequest) (*PurchaseOrde
 	if req.CustomerID != "" {
 		cid, err := uuid.Parse(req.CustomerID)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		customerID = &cid
 	}
@@ -229,27 +229,27 @@ func (a *App) CreatePurchaseOrder(req CreatePurchaseOrderRequest) (*PurchaseOrde
 	if req.CreditCardID != "" {
 		cid, err := uuid.Parse(req.CreditCardID)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		creditCardID = &cid
 	}
 	costUSD, err := valueobjects.MoneyFromString(req.CostUSD)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	salePricePEN, err := valueobjects.MoneyFromString(req.SalePricePEN)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	anticipo, err := valueobjects.MoneyFromString(req.Anticipo)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	var anticipoDate *valueobjects.Date
 	if req.AnticipoDate != "" {
 		t, err := time.Parse("2006-01-02", req.AnticipoDate)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		ad := valueobjects.Date(t)
 		anticipoDate = &ad
@@ -258,31 +258,31 @@ func (a *App) CreatePurchaseOrder(req CreatePurchaseOrderRequest) (*PurchaseOrde
 	for _, it := range req.Items {
 		productID, err := uuid.Parse(it.ProductID)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		qty, err := valueobjects.QuantityFromString(it.Quantity)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		unitPrice, err := valueobjects.MoneyFromString(it.UnitPrice)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		discountPct, err := valueobjects.PercentageFromString(it.DiscountPercent)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		discountAmount, err := valueobjects.MoneyFromString(it.DiscountAmount)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		taxRate, err := valueobjects.PercentageFromString(it.TaxRate)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		taxAmount, err := valueobjects.MoneyFromString(it.TaxAmount)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		items = append(items, purchasing.CreateItemInput{
 			ProductID:       productID,
@@ -315,7 +315,7 @@ func (a *App) CreatePurchaseOrder(req CreatePurchaseOrderRequest) (*PurchaseOrde
 	}
 	po, err := a.purchasingSvc.Create(ctx, in)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toPurchaseOrderDTO(po), nil
 }
@@ -332,24 +332,24 @@ func (a *App) MarkPurchaseReceived(req MarkPurchaseReceivedRequest) (*PurchaseOr
 	ctx := a.Context()
 	pid, err := uuid.Parse(req.ID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	var ad valueobjects.Date
 	if req.ArrivalDate != "" {
 		t, err := time.Parse("2006-01-02", req.ArrivalDate)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		ad = valueobjects.Date(t)
 	} else {
 		ad = valueobjects.Date(time.Now().UTC())
 	}
 	if err := a.purchasingSvc.MarkAsReceived(ctx, pid, ad); err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	po, err := a.purchasingSvc.GetByID(ctx, pid)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toPurchaseOrderDTO(po), nil
 }
@@ -369,13 +369,13 @@ func (a *App) RegisterPurchasePayment(req RegisterPurchasePaymentRequest) (*Purc
 	ctx := a.Context()
 	pid, err := uuid.Parse(req.ID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	var pd valueobjects.Date
 	if req.PaymentDate != "" {
 		t, err := time.Parse("2006-01-02", req.PaymentDate)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		pd = valueobjects.Date(t)
 	} else {
@@ -393,7 +393,7 @@ func (a *App) RegisterPurchasePayment(req RegisterPurchasePaymentRequest) (*Purc
 		Notes:       req.Notes,
 	})
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toPurchaseOrderDTO(po), nil
 }
@@ -408,9 +408,9 @@ type CancelPurchaseOrderRequest struct {
 func (a *App) CancelPurchaseOrder(req CancelPurchaseOrderRequest) error {
 	pid, err := uuid.Parse(req.ID)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
-	return a.purchasingSvc.Cancel(a.Context(), pid, req.Reason)
+	return utils.ProcessError(a.purchasingSvc.Cancel(a.Context(), pid, req.Reason))
 }
 
 // MarkPurchaseFaultyRequest marks a customer order as faulty ("Llegó en
@@ -426,13 +426,13 @@ type MarkPurchaseFaultyRequest struct {
 func (a *App) MarkPurchaseFaulty(req MarkPurchaseFaultyRequest) (*PurchaseOrderDTO, error) {
 	pid, err := uuid.Parse(req.ID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	var ad valueobjects.Date
 	if req.ArrivalDate != "" {
 		t, err := time.Parse("2006-01-02", req.ArrivalDate)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		ad = valueobjects.Date(t)
 	} else {
@@ -444,7 +444,7 @@ func (a *App) MarkPurchaseFaulty(req MarkPurchaseFaultyRequest) (*PurchaseOrderD
 		Reason:      req.Reason,
 	})
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toPurchaseOrderDTO(po), nil
 }
@@ -507,25 +507,25 @@ func toCustomerOrderPaymentDTO(pm *purchasing.CustomerOrderPayment) *CustomerOrd
 func (a *App) RegisterCustomerOrderPayment(req RegisterCustomerOrderPaymentRequest) (*CustomerOrderPaymentDTO, error) {
 	pid, err := uuid.Parse(req.PurchaseID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	amount, err := valueobjects.MoneyFromString(req.Amount)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	cc, err := valueobjects.NewCurrencyCode(req.CurrencyCode)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	rate, err := valueobjects.ExchangeRateFromString(req.ExchangeRate)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	var pd valueobjects.Date
 	if req.PaymentDate != "" {
 		t, err := time.Parse("2006-01-02", req.PaymentDate)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		pd = valueobjects.Date(t)
 	} else {
@@ -546,7 +546,7 @@ func (a *App) RegisterCustomerOrderPayment(req RegisterCustomerOrderPaymentReque
 		Notes:        req.Notes,
 	})
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toCustomerOrderPaymentDTO(pm), nil
 }

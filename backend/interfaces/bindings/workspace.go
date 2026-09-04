@@ -3,10 +3,10 @@ package bindings
 import (
 	"errors"
 	"time"
-
 	"github.com/google/uuid"
 
 	"vfinancy/backend/internal/features/workspace"
+	"vfinancy/backend/internal/utils"
 )
 
 type LocalAuthStateDTO struct {
@@ -87,7 +87,7 @@ func (a *App) GetLocalAuthState() (LocalAuthStateDTO, error) {
 		if errors.Is(err, workspace.ErrProfileNotFound) {
 			return LocalAuthStateDTO{}, nil
 		}
-		return LocalAuthStateDTO{}, err
+		return LocalAuthStateDTO{}, utils.ProcessError(err)
 	}
 	return LocalAuthStateDTO{Configured: true, PasswordEnabled: p.PasswordEnabled, Unlocked: a.workspaceSvc.IsUnlocked()}, nil
 }
@@ -95,7 +95,7 @@ func (a *App) GetLocalAuthState() (LocalAuthStateDTO, error) {
 func (a *App) GetLocalProfile() (*LocalProfileDTO, error) {
 	p, err := a.workspaceSvc.Profile()
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return localProfileDTO(p), nil
 }
@@ -113,7 +113,7 @@ type UpdateLocalProfileRequest struct {
 func (a *App) UpdateLocalProfile(req UpdateLocalProfileRequest) (*LocalProfileDTO, error) {
 	p, err := a.workspaceSvc.UpdateProfile(a.rawContext(), req.Name, req.Theme, req.Language, req.DateFormat, req.NumberFormat, req.Timezone, req.DecimalPlaces)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return localProfileDTO(p), nil
 }
@@ -121,11 +121,11 @@ func (a *App) UpdateLocalProfile(req UpdateLocalProfileRequest) (*LocalProfileDT
 func (a *App) InitializeLocalProfile(req CreateLocalProfileRequest) (*LocalProfileDTO, error) {
 	companyID, err := uuid.Parse(req.CompanyID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	p, err := a.workspaceSvc.CreateProfile(a.rawContext(), req.Name, companyID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return localProfileDTO(p), nil
 }
@@ -135,11 +135,11 @@ func (a *App) UnlockLocalProfile(password string) error {
 }
 
 func (a *App) SetLocalPassword(current, next string) error {
-	return a.workspaceSvc.SetPassword(a.rawContext(), current, next)
+	return utils.ProcessError(a.workspaceSvc.SetPassword(a.rawContext(), current, next))
 }
 
 func (a *App) RemoveLocalPassword(current string) error {
-	return a.workspaceSvc.RemovePassword(a.rawContext(), current)
+	return utils.ProcessError(a.workspaceSvc.RemovePassword(a.rawContext(), current))
 }
 
 func (a *App) LockLocalProfile() {
@@ -149,7 +149,7 @@ func (a *App) LockLocalProfile() {
 func (a *App) ListCompanies() ([]*CompanyDTO, error) {
 	companies, err := a.workspaceSvc.ListCompanies(a.Context())
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	out := make([]*CompanyDTO, 0, len(companies))
 	for _, c := range companies {
@@ -161,11 +161,11 @@ func (a *App) ListCompanies() ([]*CompanyDTO, error) {
 func (a *App) GetActiveCompany() (*CompanyDTO, error) {
 	id, err := a.workspaceSvc.CurrentCompanyID()
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	c, err := a.workspaceSvc.GetCompany(a.Context(), id)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return companyDTO(c), nil
 }
@@ -173,9 +173,9 @@ func (a *App) GetActiveCompany() (*CompanyDTO, error) {
 func (a *App) SetActiveCompany(id string) error {
 	companyID, err := uuid.Parse(id)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
-	return a.workspaceSvc.SetActiveCompany(a.rawContext(), companyID)
+	return utils.ProcessError(a.workspaceSvc.SetActiveCompany(a.rawContext(), companyID))
 }
 
 func (a *App) CreateCompany(req CompanyRequest) (*CompanyDTO, error) {
@@ -185,7 +185,7 @@ func (a *App) CreateCompany(req CompanyRequest) (*CompanyDTO, error) {
 		Timezone: req.Timezone, FiscalYearStartMonth: req.FiscalYearStartMonth,
 		CreatedAt: time.Now().UTC()}
 	if err := a.workspaceSvc.CreateCompany(a.rawContext(), c); err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return companyDTO(c), nil
 }
@@ -213,7 +213,7 @@ func (a *App) SetupWorkspace(req SetupWorkspaceRequest) (*CompanyDTO, error) {
 		Timezone: req.Timezone, FiscalYearStartMonth: req.FiscalYearStartMonth}
 	company, err := a.workspaceSvc.SetupCompany(a.rawContext(), c, req.ProfileName, req.Password)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return companyDTO(company), nil
 }
@@ -221,11 +221,11 @@ func (a *App) SetupWorkspace(req SetupWorkspaceRequest) (*CompanyDTO, error) {
 func (a *App) UpdateCompany(req CompanyRequest) (*CompanyDTO, error) {
 	id, err := uuid.Parse(req.ID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	c, err := a.workspaceSvc.GetCompany(a.Context(), id)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	c.Code = req.Code
 	c.LegalName = req.LegalName
@@ -239,7 +239,7 @@ func (a *App) UpdateCompany(req CompanyRequest) (*CompanyDTO, error) {
 	c.Timezone = req.Timezone
 	c.FiscalYearStartMonth = req.FiscalYearStartMonth
 	if err := a.workspaceSvc.UpdateCompany(a.Context(), c); err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return companyDTO(c), nil
 }

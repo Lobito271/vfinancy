@@ -7,6 +7,7 @@ import (
 
 	"vfinancy/backend/internal/domain/enums"
 	"vfinancy/backend/internal/features/supplier"
+	"vfinancy/backend/internal/utils"
 )
 
 // SupplierDTO is the serializable view of a supplier.
@@ -65,7 +66,7 @@ func (a *App) ListSuppliers(req ListSuppliersRequest) (PageResult, error) {
 	}
 	page, err := a.suppliersSvc.List(a.Context(), filter)
 	if err != nil {
-		return PageResult{}, err
+		return PageResult{}, utils.ProcessError(err)
 	}
 	items := make([]*SupplierDTO, 0, len(page.Items))
 	for _, s := range page.Items {
@@ -78,11 +79,11 @@ func (a *App) ListSuppliers(req ListSuppliersRequest) (PageResult, error) {
 func (a *App) GetSupplier(id string) (*SupplierDTO, error) {
 	sid, err := uuid.Parse(id)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	s, err := a.suppliersSvc.GetByID(a.Context(), sid)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toSupplierDTO(s), nil
 }
@@ -106,7 +107,7 @@ type CreateSupplierRequest struct {
 func (a *App) CreateSupplier(req CreateSupplierRequest) (*SupplierDTO, error) {
 	currency, err := currencyOrDefault(req.DefaultCurrency)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	in := supplier.CreateInput{
 		CompanyID:       a.companyID(),
@@ -124,7 +125,7 @@ func (a *App) CreateSupplier(req CreateSupplierRequest) (*SupplierDTO, error) {
 	}
 	s, err := a.suppliersSvc.Create(a.Context(), in)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toSupplierDTO(s), nil
 }
@@ -146,7 +147,7 @@ type UpdateSupplierRequest struct {
 func (a *App) UpdateSupplier(req UpdateSupplierRequest) (*SupplierDTO, error) {
 	sid, err := uuid.Parse(req.ID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	in := supplier.UpdateInput{
 		ID:           sid,
@@ -162,7 +163,7 @@ func (a *App) UpdateSupplier(req UpdateSupplierRequest) (*SupplierDTO, error) {
 	in.PaymentTermDays = &days
 	s, err := a.suppliersSvc.Update(a.Context(), in)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toSupplierDTO(s), nil
 }
@@ -172,7 +173,7 @@ func (a *App) UpdateSupplier(req UpdateSupplierRequest) (*SupplierDTO, error) {
 func (a *App) RemoveSupplier(id string) error {
 	sid, err := uuid.Parse(id)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
-	return a.suppliersSvc.Delete(a.Context(), sid)
+	return utils.ProcessError(a.suppliersSvc.Delete(a.Context(), sid))
 }

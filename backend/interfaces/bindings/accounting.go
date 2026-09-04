@@ -3,12 +3,12 @@ package bindings
 import (
 	"context"
 	"time"
-
 	"github.com/google/uuid"
 
 	"vfinancy/backend/internal/domain/enums"
 	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/features/accounting"
+	"vfinancy/backend/internal/utils"
 )
 
 // AccountDTO is the serializable view of a chart-of-accounts entry.
@@ -131,7 +131,7 @@ func (a *App) ListChartOfAccounts() ([]*AccountDTO, error) {
 	ctx := a.Context()
 	accounts, err := a.accountingSvc.ListChartOfAccounts(ctx, a.companyID())
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	items := make([]*AccountDTO, 0, len(accounts))
 	for _, acc := range accounts {
@@ -156,11 +156,11 @@ func (a *App) CreateChartOfAccount(req CreateChartOfAccountRequest) (*AccountDTO
 	ctx := a.Context()
 	code, err := valueobjects.NewChartOfAccountsCode(req.Code)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	parent, err := a.resolveChartParent(ctx, req.ParentID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	var pid *uuid.UUID
 	if parent != nil {
@@ -184,7 +184,7 @@ func (a *App) CreateChartOfAccount(req CreateChartOfAccountRequest) (*AccountDTO
 		Description:    req.Description,
 	})
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toAccountDTO(acc), nil
 }
@@ -206,11 +206,11 @@ func (a *App) UpdateChartOfAccount(req UpdateChartOfAccountRequest) (*AccountDTO
 	ctx := a.Context()
 	id, err := uuid.Parse(req.ID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	parent, err := a.resolveChartParent(ctx, req.ParentID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	var pid *uuid.UUID
 	if parent != nil {
@@ -218,7 +218,7 @@ func (a *App) UpdateChartOfAccount(req UpdateChartOfAccountRequest) (*AccountDTO
 	}
 	updateCode, err := valueobjects.NewChartOfAccountsCode(req.Code)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	depth := updateCode.Depth()
 	path := req.Code
@@ -239,7 +239,7 @@ func (a *App) UpdateChartOfAccount(req UpdateChartOfAccountRequest) (*AccountDTO
 		Description:    req.Description,
 	})
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toAccountDTO(acc), nil
 }
@@ -248,9 +248,9 @@ func (a *App) UpdateChartOfAccount(req UpdateChartOfAccountRequest) (*AccountDTO
 func (a *App) DeleteChartOfAccount(id string) error {
 	aid, err := uuid.Parse(id)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
-	return a.accountingSvc.DeleteChartOfAccount(a.Context(), aid)
+	return utils.ProcessError(a.accountingSvc.DeleteChartOfAccount(a.Context(), aid))
 }
 
 // ListFiscalPeriods returns the fiscal periods of the active company.
@@ -258,7 +258,7 @@ func (a *App) ListFiscalPeriods() ([]*FiscalPeriodDTO, error) {
 	ctx := a.Context()
 	periods, err := a.accountingSvc.ListFiscalPeriods(ctx, a.companyID())
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	items := make([]*FiscalPeriodDTO, 0, len(periods))
 	for _, p := range periods {
@@ -270,11 +270,11 @@ func (a *App) ListFiscalPeriods() ([]*FiscalPeriodDTO, error) {
 func (a *App) GetTrialBalance(fiscalPeriodID string) ([]*TrialBalanceRowDTO, error) {
 	periodID, err := uuid.Parse(fiscalPeriodID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	rows, err := a.accountingSvc.TrialBalance(a.Context(), periodID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	result := make([]*TrialBalanceRowDTO, 0, len(rows))
 	for _, row := range rows {
@@ -295,9 +295,13 @@ func (a *App) resolveChartParent(ctx context.Context, parentID string) (*account
 	}
 	pid, err := uuid.Parse(parentID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
-	return a.accountingSvc.GetChartAccount(ctx, pid)
+	acc, err := a.accountingSvc.GetChartAccount(ctx, pid)
+	if err != nil {
+		return nil, utils.ProcessError(err)
+	}
+	return acc, nil
 }
 
 // accountPath builds the dotted path of an account from its parent.
@@ -328,7 +332,7 @@ func (a *App) ListJournalEntries(req ListJournalEntriesRequest) (PageResult, err
 	}
 	page, err := a.accountingSvc.ListEntries(ctx, filter)
 	if err != nil {
-		return PageResult{}, err
+		return PageResult{}, utils.ProcessError(err)
 	}
 	items := make([]*JournalEntryDTO, 0, len(page.Items))
 	for _, e := range page.Items {
@@ -360,18 +364,18 @@ func (a *App) CreateJournalEntry(req CreateJournalEntryRequest) (*JournalEntryDT
 	ctx := a.Context()
 	entryDate, err := time.Parse("2006-01-02", req.EntryDate)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	var periodID uuid.UUID
 	if req.FiscalPeriodID != "" {
 		periodID, err = uuid.Parse(req.FiscalPeriodID)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 	} else {
 		period, err := a.accountingSvc.EnsureOpenFiscalPeriod(ctx, a.companyID(), entryDate)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		periodID = period.ID
 	}
@@ -379,15 +383,15 @@ func (a *App) CreateJournalEntry(req CreateJournalEntryRequest) (*JournalEntryDT
 	for _, l := range req.Lines {
 		accountID, err := uuid.Parse(l.AccountID)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		debit, err := valueobjects.MoneyFromString(l.Debit)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		credit, err := valueobjects.MoneyFromString(l.Credit)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		lines = append(lines, accounting.EntryLineInput{
 			AccountID:   accountID,
@@ -407,7 +411,7 @@ func (a *App) CreateJournalEntry(req CreateJournalEntryRequest) (*JournalEntryDT
 	}
 	entry, err := a.accountingSvc.CreateEntry(ctx, in)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toJournalEntryDTO(entry), nil
 }
@@ -417,11 +421,11 @@ func (a *App) PostJournalEntry(id string) (*JournalEntryDTO, error) {
 	ctx := a.Context()
 	eid, err := uuid.Parse(id)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	entry, err := a.accountingSvc.Post(ctx, eid, a.companyID())
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toJournalEntryDTO(entry), nil
 }

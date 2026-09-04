@@ -9,6 +9,7 @@ import (
 	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/features/product"
 	"vfinancy/backend/internal/shared/apperrors"
+	"vfinancy/backend/internal/utils"
 )
 
 // ProductDTO is the serializable view of a product.
@@ -86,7 +87,7 @@ func (a *App) ListProducts(req ListProductsRequest) (PageResult, error) {
 	}
 	page, err := a.productsSvc.List(a.Context(), filter)
 	if err != nil {
-		return PageResult{}, err
+		return PageResult{}, utils.ProcessError(err)
 	}
 	items := make([]*ProductDTO, 0, len(page.Items))
 	for _, p := range page.Items {
@@ -99,11 +100,11 @@ func (a *App) ListProducts(req ListProductsRequest) (PageResult, error) {
 func (a *App) GetProduct(id string) (*ProductDTO, error) {
 	pid, err := uuid.Parse(id)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	p, err := a.productsSvc.GetByID(a.Context(), pid)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toProductDTO(p), nil
 }
@@ -130,57 +131,57 @@ type CreateProductRequest struct {
 func (a *App) CreateProduct(req CreateProductRequest) (*ProductDTO, error) {
 	categoryID, err := parseOptionalUUID(req.CategoryID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	brandID, err := parseOptionalUUID(req.BrandID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	unitID, err := parseOptionalUUID(req.UnitID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	if unitID == nil {
 		return nil, apperrors.Errorf(apperrors.ErrValidation, "unit id is required")
 	}
 	taxID, err := parseOptionalUUID(req.TaxID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	if taxID == nil {
 		return nil, apperrors.Errorf(apperrors.ErrValidation, "tax id is required")
 	}
 	currency, err := currencyOrDefault(req.SaleCurrency)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	barcode, err := valueobjects.OptionalBarcode(req.Barcode)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	cost, err := moneyOrZero(req.CostUSD)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	salePrice, err := moneyOrZero(req.SalePrice)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	minStock, err := quantityOrZero(req.MinStock)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	maxStock, err := quantityOrZero(req.MaxStock)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	weight, err := quantityOrZero(req.Weight)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	sku, err := valueobjects.NewSKU(req.SKU)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	in := product.CreateInput{
 		CompanyID:    a.companyID(),
@@ -201,7 +202,7 @@ func (a *App) CreateProduct(req CreateProductRequest) (*ProductDTO, error) {
 	}
 	p, err := a.productsSvc.Create(a.Context(), in)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toProductDTO(p), nil
 }
@@ -224,59 +225,59 @@ type UpdateProductRequest struct {
 func (a *App) UpdateProduct(req UpdateProductRequest) (*ProductDTO, error) {
 	pid, err := uuid.Parse(req.ID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	in := product.UpdateInput{ID: pid, Description: req.Description, IsActive: req.IsActive}
 	if req.CategoryID != "" {
 		id, err := parseOptionalUUID(req.CategoryID)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		in.CategoryID = id
 	}
 	if req.BrandID != "" {
 		id, err := parseOptionalUUID(req.BrandID)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		in.BrandID = id
 	}
 	if req.UnitID != "" {
 		id, err := parseOptionalUUID(req.UnitID)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		in.UnitID = id
 	}
 	if req.CostUSD != "" {
 		cost, err := valueobjects.MoneyFromString(req.CostUSD)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		in.CostUSD = &cost
 	}
 	if req.SalePrice != "" {
 		price, err := valueobjects.MoneyFromString(req.SalePrice)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		in.SalePrice = &price
 	}
 	if req.MinStock != "" && req.MaxStock != "" {
 		min, err := valueobjects.QuantityFromString(req.MinStock)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		max, err := valueobjects.QuantityFromString(req.MaxStock)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		in.MinStock = &min
 		in.MaxStock = &max
 	}
 	p, err := a.productsSvc.Update(a.Context(), in)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toProductDTO(p), nil
 }
@@ -286,9 +287,9 @@ func (a *App) UpdateProduct(req UpdateProductRequest) (*ProductDTO, error) {
 func (a *App) RemoveProduct(id string) error {
 	pid, err := uuid.Parse(id)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
-	return a.productsSvc.Delete(a.Context(), pid)
+	return utils.ProcessError(a.productsSvc.Delete(a.Context(), pid))
 }
 
 // --- helpers ---

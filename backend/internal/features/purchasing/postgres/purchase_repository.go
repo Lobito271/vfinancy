@@ -254,7 +254,7 @@ func (r *purchaseRepository) List(ctx context.Context, filter purchasing.Purchas
 		args = append(args, filter.IssueRange.To)
 	}
 	if filter.Search != "" {
-		clauses = append(clauses, fmt.Sprintf("(number ILIKE $%d OR supplier_order_number ILIKE $%d)", len(args)+1, len(args)+1))
+		clauses = append(clauses, fmt.Sprintf("(number LIKE $%d OR supplier_order_number LIKE $%d)", len(args)+1, len(args)+1))
 		args = append(args, "%"+filter.Search+"%")
 	}
 	limit, offset := persistence.LimitOffset(filter.PageRequest, 25, 200)

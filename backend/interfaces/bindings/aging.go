@@ -1,6 +1,10 @@
 package bindings
 
-import "github.com/google/uuid"
+import (
+	"github.com/google/uuid"
+
+	"vfinancy/backend/internal/utils"
+)
 
 type AgingDTO struct {
 	Open          string `json:"open"`
@@ -17,15 +21,15 @@ func agingDTO(open string, buckets map[string]string) *AgingDTO {
 func (a *App) GetCustomerAging(customerID string) (*AgingDTO, error) {
 	id, err := uuid.Parse(customerID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	open, err := a.accountsReceivable.GetOpenBalanceForCustomer(a.Context(), id)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	buckets, err := a.accountsReceivable.ListAgingBucket(a.Context(), id)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return agingDTO(open, buckets), nil
 }
@@ -33,15 +37,15 @@ func (a *App) GetCustomerAging(customerID string) (*AgingDTO, error) {
 func (a *App) GetSupplierAging(supplierID string) (*AgingDTO, error) {
 	id, err := uuid.Parse(supplierID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	open, err := a.accountsPayable.GetOpenBalanceForSupplier(a.Context(), id)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	buckets, err := a.accountsPayable.ListAgingBucket(a.Context(), id)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return agingDTO(open, buckets), nil
 }

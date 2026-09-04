@@ -2,13 +2,13 @@ package bindings
 
 import (
 	"errors"
-
 	"github.com/google/uuid"
 
 	"vfinancy/backend/internal/domain/repositories"
 	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/features/product"
 	"vfinancy/backend/internal/shared/apperrors"
+	"vfinancy/backend/internal/utils"
 )
 
 // UnitDTO is the serializable view of a unit of measure.
@@ -34,7 +34,7 @@ func toUnitDTO(u *product.UnitOfMeasure) *UnitDTO {
 func (a *App) ListUnits() ([]UnitDTO, error) {
 	units, err := a.productsSvc.ListUnits(a.Context(), a.companyID())
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	out := make([]UnitDTO, 0, len(units))
 	for _, u := range units {
@@ -61,7 +61,7 @@ type BrandDTO struct {
 func (a *App) ListCategories() ([]CategoryDTO, error) {
 	categories, err := a.productsSvc.ListCategories(a.Context(), a.companyID())
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	out := make([]CategoryDTO, 0, len(categories))
 	for _, c := range categories {
@@ -74,7 +74,7 @@ func (a *App) ListCategories() ([]CategoryDTO, error) {
 func (a *App) ListBrands() ([]BrandDTO, error) {
 	brands, err := a.productsSvc.ListBrands(a.Context(), a.companyID())
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	out := make([]BrandDTO, 0, len(brands))
 	for _, b := range brands {
@@ -104,27 +104,27 @@ type UpdateCategoryRequest struct {
 func parseCategoryFields(code, name string) (valueobjects.ShortCode, valueobjects.FullName, error) {
 	c, err := valueobjects.NewShortCode(code)
 	if err != nil {
-		return valueobjects.ShortCode(""), valueobjects.FullName{}, apperrors.Errorf(apperrors.ErrValidation, err.Error())
+		return valueobjects.ShortCode(""), valueobjects.FullName{}, apperrors.Errorf(apperrors.ErrValidation, utils.ProcessError(err).Error())
 	}
 	n, err := valueobjects.NewFullName(name)
 	if err != nil {
-		return valueobjects.ShortCode(""), valueobjects.FullName{}, apperrors.Errorf(apperrors.ErrValidation, err.Error())
+		return valueobjects.ShortCode(""), valueobjects.FullName{}, apperrors.Errorf(apperrors.ErrValidation, utils.ProcessError(err).Error())
 	}
 	return c, n, nil
 }
 
 func mapCatalogError(err error) error {
 	if errors.Is(err, repositories.ErrDuplicate) {
-		return apperrors.Errorf(apperrors.ErrConflict, "ya existe un registro con ese código")
+		return utils.ProcessError(apperrors.Errorf(apperrors.ErrConflict, "ya existe un registro con ese código"))
 	}
-	return err
+	return utils.ProcessError(err)
 }
 
 // CreateCategory persists a new product category.
 func (a *App) CreateCategory(req CreateCategoryRequest) (*CategoryDTO, error) {
 	code, name, err := parseCategoryFields(req.Code, req.Name)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	c, err := a.productsSvc.CreateCategory(a.Context(), product.CategoryInput{
 		CompanyID: a.companyID(),
@@ -132,7 +132,7 @@ func (a *App) CreateCategory(req CreateCategoryRequest) (*CategoryDTO, error) {
 		Name:      name,
 	})
 	if err != nil {
-		return nil, mapCatalogError(err)
+		return nil, utils.ProcessError(mapCatalogError(err))
 	}
 	return &CategoryDTO{ID: c.ID.String(), Code: c.Code.String(), Name: c.Name.String()}, nil
 }
@@ -141,11 +141,11 @@ func (a *App) CreateCategory(req CreateCategoryRequest) (*CategoryDTO, error) {
 func (a *App) UpdateCategory(req UpdateCategoryRequest) (*CategoryDTO, error) {
 	id, err := uuid.Parse(req.ID)
 	if err != nil {
-		return nil, apperrors.Errorf(apperrors.ErrValidation, "id inválido")
+		return nil, utils.ProcessError(apperrors.Errorf(apperrors.ErrValidation, "id inválido"))
 	}
 	code, name, err := parseCategoryFields(req.Code, req.Name)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	c, err := a.productsSvc.UpdateCategory(a.Context(), product.CategoryUpdateInput{
 		ID:   id,
@@ -153,7 +153,7 @@ func (a *App) UpdateCategory(req UpdateCategoryRequest) (*CategoryDTO, error) {
 		Name: name,
 	})
 	if err != nil {
-		return nil, mapCatalogError(err)
+		return nil, utils.ProcessError(mapCatalogError(err))
 	}
 	return &CategoryDTO{ID: c.ID.String(), Code: c.Code.String(), Name: c.Name.String()}, nil
 }
@@ -162,9 +162,9 @@ func (a *App) UpdateCategory(req UpdateCategoryRequest) (*CategoryDTO, error) {
 func (a *App) DeleteCategory(id string) error {
 	pid, err := uuid.Parse(id)
 	if err != nil {
-		return apperrors.Errorf(apperrors.ErrValidation, "id inválido")
+		return utils.ProcessError(apperrors.Errorf(apperrors.ErrValidation, "id inválido"))
 	}
-	return mapCatalogError(a.productsSvc.DeleteCategory(a.Context(), pid))
+	return utils.ProcessError(mapCatalogError(a.productsSvc.DeleteCategory(a.Context(), pid)))
 }
 
 // --- Brand CRUD ---
@@ -179,7 +179,7 @@ type UpdateBrandRequest = UpdateCategoryRequest
 func (a *App) CreateBrand(req CreateBrandRequest) (*BrandDTO, error) {
 	code, name, err := parseCategoryFields(req.Code, req.Name)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	b, err := a.productsSvc.CreateBrand(a.Context(), product.BrandInput{
 		CompanyID: a.companyID(),
@@ -187,7 +187,7 @@ func (a *App) CreateBrand(req CreateBrandRequest) (*BrandDTO, error) {
 		Name:      name,
 	})
 	if err != nil {
-		return nil, mapCatalogError(err)
+		return nil, utils.ProcessError(mapCatalogError(err))
 	}
 	return &BrandDTO{ID: b.ID.String(), Code: b.Code.String(), Name: b.Name.String()}, nil
 }
@@ -196,11 +196,11 @@ func (a *App) CreateBrand(req CreateBrandRequest) (*BrandDTO, error) {
 func (a *App) UpdateBrand(req UpdateBrandRequest) (*BrandDTO, error) {
 	id, err := uuid.Parse(req.ID)
 	if err != nil {
-		return nil, apperrors.Errorf(apperrors.ErrValidation, "id inválido")
+		return nil, utils.ProcessError(apperrors.Errorf(apperrors.ErrValidation, "id inválido"))
 	}
 	code, name, err := parseCategoryFields(req.Code, req.Name)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	b, err := a.productsSvc.UpdateBrand(a.Context(), product.BrandInput{
 		ID:   id,
@@ -208,7 +208,7 @@ func (a *App) UpdateBrand(req UpdateBrandRequest) (*BrandDTO, error) {
 		Name: name,
 	})
 	if err != nil {
-		return nil, mapCatalogError(err)
+		return nil, utils.ProcessError(mapCatalogError(err))
 	}
 	return &BrandDTO{ID: b.ID.String(), Code: b.Code.String(), Name: b.Name.String()}, nil
 }
@@ -217,7 +217,7 @@ func (a *App) UpdateBrand(req UpdateBrandRequest) (*BrandDTO, error) {
 func (a *App) DeleteBrand(id string) error {
 	pid, err := uuid.Parse(id)
 	if err != nil {
-		return apperrors.Errorf(apperrors.ErrValidation, "id inválido")
+		return utils.ProcessError(apperrors.Errorf(apperrors.ErrValidation, "id inválido"))
 	}
-	return mapCatalogError(a.productsSvc.DeleteBrand(a.Context(), pid))
+	return utils.ProcessError(mapCatalogError(a.productsSvc.DeleteBrand(a.Context(), pid)))
 }

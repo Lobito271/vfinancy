@@ -5,6 +5,7 @@ import (
 
 	"vfinancy/backend/internal/domain/repositories"
 	"vfinancy/backend/internal/features/administration"
+	"vfinancy/backend/internal/utils"
 )
 
 type AuditEventDTO struct {
@@ -34,7 +35,7 @@ func (a *App) GetAuditLog(page, pageSize int, eventType string) (*AuditLogResult
 	}}
 	events, total, err := a.auditSvc.List(a.Context(), a.companyID(), filter)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	result := &AuditLogResult{Events: make([]AuditEventDTO, len(events)), Total: total}
 	for i, event := range events {

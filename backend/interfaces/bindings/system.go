@@ -10,6 +10,7 @@ import (
 
 	"vfinancy/backend/infrastructure/config"
 	"vfinancy/backend/infrastructure/postgres"
+	"vfinancy/backend/internal/utils"
 )
 
 // ConnectionConfigDTO is the database connection settings surface to
@@ -120,7 +121,7 @@ func savePersistedSettings(p persistedSettings) error {
 func (a *App) GetConnectionConfig() (ConnectionConfigDTO, error) {
 	p, err := loadPersistedSettings()
 	if err != nil {
-		return ConnectionConfigDTO{}, err
+		return ConnectionConfigDTO{}, utils.ProcessError(err)
 	}
 	if p.Connection != nil {
 		return *p.Connection, nil
@@ -161,10 +162,10 @@ func (a *App) SaveConnectionConfig(cfg ConnectionConfigDTO) error {
 
 	p, err := loadPersistedSettings()
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
 	p.Connection = &cfg
-	return savePersistedSettings(p)
+	return utils.ProcessError(savePersistedSettings(p))
 }
 
 func (a *App) TestDatabaseConnection(cfg ConnectionConfigDTO) (string, error) {
@@ -201,7 +202,7 @@ func (a *App) TestDatabaseConnection(cfg ConnectionConfigDTO) (string, error) {
 
 	db, err := postgres.Connect(ctx, &dbCfg, a.log)
 	if err != nil {
-		return "", err
+		return "", utils.ProcessError(err)
 	}
 	_ = db.Close()
 	return "OK", nil
@@ -210,7 +211,7 @@ func (a *App) TestDatabaseConnection(cfg ConnectionConfigDTO) (string, error) {
 func (a *App) GetAppSettings() (AppSettingsDTO, error) {
 	p, err := loadPersistedSettings()
 	if err != nil {
-		return AppSettingsDTO{}, err
+		return AppSettingsDTO{}, utils.ProcessError(err)
 	}
 	if p.App != nil {
 		return *p.App, nil
@@ -243,16 +244,16 @@ func (a *App) SaveAppSettings(settings AppSettingsDTO) error {
 
 	p, err := loadPersistedSettings()
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
 	p.App = &settings
-	return savePersistedSettings(p)
+	return utils.ProcessError(savePersistedSettings(p))
 }
 
 func (a *App) GetModules() ([]ModuleDTO, error) {
 	p, err := loadPersistedSettings()
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 
 	enabled := make(map[string]bool, len(p.Modules))
@@ -290,7 +291,7 @@ func (a *App) SetModuleEnabled(id string, enabled bool) error {
 
 	p, err := loadPersistedSettings()
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
 	replaced := false
 	for i := range p.Modules {
@@ -303,5 +304,5 @@ func (a *App) SetModuleEnabled(id string, enabled bool) error {
 	if !replaced {
 		p.Modules = append(p.Modules, moduleSetting{ID: id, Enabled: enabled})
 	}
-	return savePersistedSettings(p)
+	return utils.ProcessError(savePersistedSettings(p))
 }

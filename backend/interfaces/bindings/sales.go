@@ -3,7 +3,6 @@ package bindings
 import (
 	"context"
 	"time"
-
 	"github.com/google/uuid"
 
 	"vfinancy/backend/internal/domain/enums"
@@ -11,6 +10,7 @@ import (
 	"vfinancy/backend/internal/features/customer"
 	"vfinancy/backend/internal/features/customerpayments"
 	"vfinancy/backend/internal/features/sales"
+	"vfinancy/backend/internal/utils"
 )
 
 // SaleItemDTO is a serializable sale line.
@@ -130,12 +130,12 @@ func (a *App) ListSales(req ListSalesRequest) (PageResult, error) {
 	}
 	customerID, err := parseOptionalUUID(req.CustomerID)
 	if err != nil {
-		return PageResult{}, err
+		return PageResult{}, utils.ProcessError(err)
 	}
 	filter.CustomerID = customerID
 	page, err := a.salesSvc.List(ctx, filter)
 	if err != nil {
-		return PageResult{}, err
+		return PageResult{}, utils.ProcessError(err)
 	}
 	items := make([]*SaleDTO, 0, len(page.Items))
 	for _, s := range page.Items {
@@ -149,11 +149,11 @@ func (a *App) GetSale(id string) (*SaleDTO, error) {
 	ctx := a.Context()
 	sid, err := uuid.Parse(id)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	s, err := a.salesSvc.GetByID(ctx, sid)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toSaleDTO(ctx, a.customersSvc, s), nil
 }
@@ -187,21 +187,21 @@ func (a *App) CreateSale(req CreateSaleRequest) (*SaleDTO, error) {
 	ctx := a.Context()
 	cid, err := uuid.Parse(req.CustomerID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	cc, err := valueobjects.NewCurrencyCode(req.CurrencyCode)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	rate, err := valueobjects.ExchangeRateFromString(req.ExchangeRate)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	var saleDate valueobjects.Date
 	if req.Date != "" {
 		d, err := time.Parse("2006-01-02", req.Date)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		saleDate = d
 	} else {
@@ -211,7 +211,7 @@ func (a *App) CreateSale(req CreateSaleRequest) (*SaleDTO, error) {
 	if req.DueDate != "" {
 		d, err := time.Parse("2006-01-02", req.DueDate)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		dd := valueobjects.Date(d)
 		dueDate = &dd
@@ -220,35 +220,35 @@ func (a *App) CreateSale(req CreateSaleRequest) (*SaleDTO, error) {
 	for _, it := range req.Items {
 		productID, err := uuid.Parse(it.ProductID)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		qty, err := valueobjects.QuantityFromString(it.Quantity)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		unitPrice, err := valueobjects.MoneyFromString(it.UnitPrice)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		discountPct, err := valueobjects.PercentageFromString(it.DiscountPercent)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		discountAmount, err := valueobjects.MoneyFromString(it.DiscountAmount)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		taxRate, err := valueobjects.PercentageFromString(it.TaxRate)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		taxAmount, err := valueobjects.MoneyFromString(it.TaxAmount)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		cost, err := valueobjects.MoneyFromString(it.CostSnapshot)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		items = append(items, sales.CreateItemInput{
 			ProductID:       productID,
@@ -275,7 +275,7 @@ func (a *App) CreateSale(req CreateSaleRequest) (*SaleDTO, error) {
 	}
 	res, err := a.salesSvc.Create(ctx, in)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toSaleDTO(ctx, a.customersSvc, res.Sale), nil
 }
@@ -291,11 +291,11 @@ func (a *App) CancelSale(req CancelSaleRequest) (*SaleDTO, error) {
 	ctx := a.Context()
 	sid, err := uuid.Parse(req.ID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	s, err := a.salesSvc.Cancel(ctx, sales.CancelInput{ID: sid, Reason: req.Reason})
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toSaleDTO(ctx, a.customersSvc, s), nil
 }
@@ -316,13 +316,13 @@ func (a *App) RegisterSalePayment(req RegisterSalePaymentRequest) (*SaleDTO, err
 	ctx := a.Context()
 	sid, err := uuid.Parse(req.ID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	var pd valueobjects.Date
 	if req.PaymentDate != "" {
 		t, err := time.Parse("2006-01-02", req.PaymentDate)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 		pd = valueobjects.Date(t)
 	} else {
@@ -340,7 +340,7 @@ func (a *App) RegisterSalePayment(req RegisterSalePaymentRequest) (*SaleDTO, err
 		Notes:       req.Notes,
 	})
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toSaleDTO(ctx, a.customersSvc, s), nil
 }
@@ -356,7 +356,7 @@ func (a *App) ListCustomerPayments(req ListCustomerPaymentsRequest) (PageResult,
 	ctx := a.Context()
 	cid, err := uuid.Parse(req.CustomerID)
 	if err != nil {
-		return PageResult{}, err
+		return PageResult{}, utils.ProcessError(err)
 	}
 	filter := sales.CustomerPaymentFilter{
 		CompanyID:   a.companyIDPtr(),
@@ -365,7 +365,7 @@ func (a *App) ListCustomerPayments(req ListCustomerPaymentsRequest) (PageResult,
 	}
 	page, err := a.paymentSvc.ListPayments(ctx, filter)
 	if err != nil {
-		return PageResult{}, err
+		return PageResult{}, utils.ProcessError(err)
 	}
 	items := make([]*CustomerPaymentDTO, 0, len(page.Items))
 	for _, p := range page.Items {
@@ -390,11 +390,11 @@ func (a *App) ListCustomerAdvances(customerID string) ([]*CustomerAdvanceDTO, er
 	ctx := a.Context()
 	cid, err := uuid.Parse(customerID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	advances, err := a.paymentSvc.ListAdvances(ctx, cid)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	items := make([]*CustomerAdvanceDTO, 0, len(advances))
 	for _, ad := range advances {
@@ -425,25 +425,25 @@ type RegisterCustomerAdvanceRequest struct {
 func (a *App) RegisterCustomerAdvance(req RegisterCustomerAdvanceRequest) (*CustomerAdvanceDTO, error) {
 	customerID, err := uuid.Parse(req.CustomerID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	amount, err := valueobjects.MoneyFromString(req.Amount)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	currency, err := valueobjects.NewCurrencyCode(req.CurrencyCode)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	rate, err := valueobjects.ExchangeRateFromString(req.ExchangeRate)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	date := time.Now().UTC()
 	if req.AdvanceDate != "" {
 		date, err = time.Parse("2006-01-02", req.AdvanceDate)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 	}
 	method := enums.PaymentMethod(req.Method)
@@ -455,7 +455,7 @@ func (a *App) RegisterCustomerAdvance(req RegisterCustomerAdvanceRequest) (*Cust
 		CurrencyCode: currency, ExchangeRate: rate, Method: method, Notes: req.Notes,
 	})
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return &CustomerAdvanceDTO{ID: advance.ID.String(), Number: advance.Number, CustomerID: advance.CustomerID.String(), AdvanceDate: advance.AdvanceDate.Format("2006-01-02"), Amount: advance.Amount.String(), CurrencyCode: advance.CurrencyCode.String(), Method: advance.Method.String(), Remaining: advance.Remaining().String()}, nil
 }
@@ -469,19 +469,19 @@ type ApplyCustomerAdvanceRequest struct {
 func (a *App) ApplyCustomerAdvance(req ApplyCustomerAdvanceRequest) (string, error) {
 	advanceID, err := uuid.Parse(req.AdvanceID)
 	if err != nil {
-		return "", err
+		return "", utils.ProcessError(err)
 	}
 	saleID, err := uuid.Parse(req.SaleID)
 	if err != nil {
-		return "", err
+		return "", utils.ProcessError(err)
 	}
 	amount, err := valueobjects.MoneyFromString(req.Amount)
 	if err != nil {
-		return "", err
+		return "", utils.ProcessError(err)
 	}
 	remaining, err := a.paymentSvc.ApplyAdvanceToSale(a.Context(), advanceID, saleID, amount)
 	if err != nil {
-		return "", err
+		return "", utils.ProcessError(err)
 	}
 	return remaining.String(), nil
 }
@@ -498,17 +498,17 @@ type RegisterPartialSalePaymentRequest struct {
 func (a *App) RegisterPartialSalePayment(req RegisterPartialSalePaymentRequest) (*SaleDTO, error) {
 	saleID, err := uuid.Parse(req.ID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	amount, err := valueobjects.MoneyFromString(req.Amount)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	date := time.Now().UTC()
 	if req.PaymentDate != "" {
 		date, err = time.Parse("2006-01-02", req.PaymentDate)
 		if err != nil {
-			return nil, err
+			return nil, utils.ProcessError(err)
 		}
 	}
 	method := enums.PaymentMethod(req.Method)
@@ -520,7 +520,7 @@ func (a *App) RegisterPartialSalePayment(req RegisterPartialSalePaymentRequest) 
 		Reference: req.Reference, Notes: req.Notes,
 	})
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toSaleDTO(a.Context(), a.customersSvc, sale), nil
 }

@@ -4,13 +4,13 @@ import (
 	"context"
 	"strings"
 	"time"
-
 	"github.com/google/uuid"
 
 	"vfinancy/backend/internal/domain/enums"
 	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/features/accounting"
 	"vfinancy/backend/internal/features/treasury"
+	"vfinancy/backend/internal/utils"
 )
 
 // BankAccountDTO is the serializable view of a bank account.
@@ -94,7 +94,7 @@ func toCreditCardDTO(c *treasury.CreditCard) *CreditCardDTO {
 func (a *App) ListCreditCards() ([]*CreditCardDTO, error) {
 	cards, err := a.treasurySvc.ListCards(a.Context(), a.companyID())
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	result := make([]*CreditCardDTO, 0, len(cards))
 	for _, card := range cards {
@@ -118,15 +118,15 @@ type IssueCreditCardRequest struct {
 func (a *App) IssueCreditCard(req IssueCreditCardRequest) (*CreditCardDTO, error) {
 	limit, err := valueobjects.MoneyFromString(req.CreditLimit)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	currency, err := valueobjects.NewCurrencyCode(req.CurrencyCode)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	gl, err := a.ensureCardGLAccount(a.Context())
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	card, err := a.treasurySvc.IssueCard(a.Context(), treasury.IssueCardInput{
 		CompanyID: a.companyID(), Issuer: req.Issuer, LastFour: req.LastFour, CardHolder: req.CardHolder,
@@ -134,7 +134,7 @@ func (a *App) IssueCreditCard(req IssueCreditCardRequest) (*CreditCardDTO, error
 		CutOffDay: req.CutOffDay, PaymentDueDay: req.PaymentDueDay, CurrencyCode: currency, GLAccountID: gl,
 	})
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toCreditCardDTO(card), nil
 }
@@ -153,11 +153,11 @@ type UpdateCreditCardRequest struct {
 func (a *App) UpdateCreditCard(req UpdateCreditCardRequest) (*CreditCardDTO, error) {
 	id, err := uuid.Parse(req.ID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	limit, err := valueobjects.MoneyFromString(req.CreditLimit)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	card, err := a.treasurySvc.UpdateCard(a.Context(), treasury.UpdateCardInput{
 		ID:            id,
@@ -170,7 +170,7 @@ func (a *App) UpdateCreditCard(req UpdateCreditCardRequest) (*CreditCardDTO, err
 		IsActive:      req.IsActive,
 	})
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toCreditCardDTO(card), nil
 }
@@ -178,9 +178,9 @@ func (a *App) UpdateCreditCard(req UpdateCreditCardRequest) (*CreditCardDTO, err
 func (a *App) DeleteCreditCard(id string) error {
 	cardID, err := uuid.Parse(id)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
-	return a.treasurySvc.DeleteCard(a.Context(), cardID)
+	return utils.ProcessError(a.treasurySvc.DeleteCard(a.Context(), cardID))
 }
 
 type CreditCardAmountRequest struct {
@@ -191,13 +191,13 @@ type CreditCardAmountRequest struct {
 func (a *App) ChargeCreditCard(req CreditCardAmountRequest) error {
 	id, err := uuid.Parse(req.ID)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
 	amount, err := valueobjects.MoneyFromString(req.Amount)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
-	return a.treasurySvc.ChargeCard(a.Context(), id, amount)
+	return utils.ProcessError(a.treasurySvc.ChargeCard(a.Context(), id, amount))
 }
 
 // ListBankAccounts returns all active bank accounts.
@@ -208,7 +208,7 @@ func (a *App) ListBankAccounts() ([]*BankAccountDTO, error) {
 	}
 	page, err := a.treasurySvc.ListAccounts(ctx, filter)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	items := make([]*BankAccountDTO, 0, len(page.Items))
 	for _, acc := range page.Items {
@@ -221,11 +221,11 @@ func (a *App) ListBankAccounts() ([]*BankAccountDTO, error) {
 func (a *App) GetBankAccount(id string) (*BankAccountDTO, error) {
 	aid, err := uuid.Parse(id)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	acc, err := a.treasurySvc.GetAccount(a.Context(), aid)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toBankAccountDTO(acc), nil
 }
@@ -246,11 +246,11 @@ func (a *App) CreateBankAccount(req CreateBankAccountRequest) (*BankAccountDTO, 
 	ctx := a.Context()
 	glAccountID, err := a.ensureBankGLAccount(ctx)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	currencyCode, err := valueobjects.NewCurrencyCode(req.CurrencyCode)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	acc, err := a.treasurySvc.OpenAccount(ctx, treasury.OpenAccountInput{
 		CompanyID:     a.companyID(),
@@ -262,7 +262,7 @@ func (a *App) CreateBankAccount(req CreateBankAccountRequest) (*BankAccountDTO, 
 		IsDefault:     req.IsDefault,
 	})
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toBankAccountDTO(acc), nil
 }
@@ -283,11 +283,11 @@ func (a *App) UpdateBankAccount(req UpdateBankAccountRequest) (*BankAccountDTO, 
 	ctx := a.Context()
 	id, err := uuid.Parse(req.ID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	currencyCode, err := valueobjects.NewCurrencyCode(req.CurrencyCode)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	acc, err := a.treasurySvc.UpdateAccount(ctx, treasury.UpdateAccountInput{
 		ID:            id,
@@ -299,7 +299,7 @@ func (a *App) UpdateBankAccount(req UpdateBankAccountRequest) (*BankAccountDTO, 
 		IsActive:      req.IsActive,
 	})
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toBankAccountDTO(acc), nil
 }
@@ -308,9 +308,9 @@ func (a *App) UpdateBankAccount(req UpdateBankAccountRequest) (*BankAccountDTO, 
 func (a *App) DeleteBankAccount(id string) error {
 	aid, err := uuid.Parse(id)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
-	return a.treasurySvc.DeleteAccount(a.Context(), aid)
+	return utils.ProcessError(a.treasurySvc.DeleteAccount(a.Context(), aid))
 }
 
 // ensureBankGLAccount returns the GL account used for bank movements,
@@ -319,7 +319,7 @@ func (a *App) DeleteBankAccount(id string) error {
 func (a *App) ensureBankGLAccount(ctx context.Context) (uuid.UUID, error) {
 	accounts, err := a.accountingSvc.ListChartOfAccounts(ctx, a.companyID())
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, utils.ProcessError(err)
 	}
 	for _, acc := range accounts {
 		if strings.HasPrefix(acc.Code.String(), "104") {
@@ -328,7 +328,7 @@ func (a *App) ensureBankGLAccount(ctx context.Context) (uuid.UUID, error) {
 	}
 	code, err := valueobjects.NewChartOfAccountsCode("104.01")
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, utils.ProcessError(err)
 	}
 	acc, err := a.accountingSvc.CreateChartOfAccounts(ctx, accounting.CreateChartOfAccountsInput{
 		CompanyID:      a.companyID(),
@@ -340,7 +340,7 @@ func (a *App) ensureBankGLAccount(ctx context.Context) (uuid.UUID, error) {
 		Description:    "Banco y dinero en cuentas corrientes (creada automáticamente por Tesorería)",
 	})
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, utils.ProcessError(err)
 	}
 	return acc.ID, nil
 }
@@ -360,13 +360,13 @@ func (a *App) ListBankTransactions(req ListBankTransactionsRequest) (PageResult,
 	}
 	accountID, err := parseOptionalUUID(req.AccountID)
 	if err != nil {
-		return PageResult{}, err
+		return PageResult{}, utils.ProcessError(err)
 	}
 	filter.BankAccountID = accountID
 	filter.Reconciled = req.Reconciled
 	page, err := a.treasurySvc.ListTransactions(ctx, filter)
 	if err != nil {
-		return PageResult{}, err
+		return PageResult{}, utils.ProcessError(err)
 	}
 	items := make([]*BankTransactionDTO, 0, len(page.Items))
 	for _, t := range page.Items {
@@ -379,11 +379,11 @@ func (a *App) ListBankTransactions(req ListBankTransactionsRequest) (PageResult,
 func (a *App) ReconcileBankTransaction(id string) (*BankTransactionDTO, error) {
 	tid, err := uuid.Parse(id)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	t, err := a.treasurySvc.MarkTransactionReconciled(a.Context(), tid)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toBankTransactionDTO(t), nil
 }
@@ -404,15 +404,15 @@ func (a *App) CreateBankTransaction(req CreateBankTransactionRequest) (*BankTran
 	ctx := a.Context()
 	accountID, err := uuid.Parse(req.AccountID)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	date, err := time.Parse("2006-01-02", req.Date)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	amount, err := valueobjects.MoneyFromString(req.Amount)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	t, err := a.treasurySvc.RegisterTransaction(ctx, treasury.RegisterTransactionInput{
 		BankAccountID: accountID,
@@ -423,7 +423,7 @@ func (a *App) CreateBankTransaction(req CreateBankTransactionRequest) (*BankTran
 		Reference:     req.Reference,
 	})
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	return toBankTransactionDTO(t), nil
 }
@@ -441,46 +441,46 @@ type UpsertExchangeRateRequest struct {
 func (a *App) UpsertExchangeRate(req UpsertExchangeRateRequest) error {
 	from, err := valueobjects.NewCurrencyCode(req.From)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
 	to, err := valueobjects.NewCurrencyCode(req.To)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
 	rate, err := valueobjects.MoneyFromString(req.Rate)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
 	effectiveDate, err := time.Parse("2006-01-02", req.EffectiveDate)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
 	source := req.Source
 	if source == "" {
 		source = "manual"
 	}
-	return a.treasurySvc.UpsertExchangeRate(a.Context(), treasury.UpsertExchangeRateInput{
+	return utils.ProcessError(a.treasurySvc.UpsertExchangeRate(a.Context(), treasury.UpsertExchangeRateInput{
 		From:          from,
 		To:            to,
 		Rate:          rate,
 		EffectiveDate: effectiveDate,
 		Source:        source,
-	})
+	}))
 }
 
 // LatestExchangeRate returns the most recent rate for a currency pair.
 func (a *App) LatestExchangeRate(from, to string) (string, error) {
 	f, err := valueobjects.NewCurrencyCode(from)
 	if err != nil {
-		return "", err
+		return "", utils.ProcessError(err)
 	}
 	t, err := valueobjects.NewCurrencyCode(to)
 	if err != nil {
-		return "", err
+		return "", utils.ProcessError(err)
 	}
 	rate, err := a.treasurySvc.LatestExchangeRate(a.Context(), f, t)
 	if err != nil {
-		return "", err
+		return "", utils.ProcessError(err)
 	}
 	return rate.String(), nil
 }
@@ -490,7 +490,7 @@ func (a *App) LatestExchangeRate(from, to string) (string, error) {
 func (a *App) ensureCardGLAccount(ctx context.Context) (uuid.UUID, error) {
 	accounts, err := a.accountingSvc.ListChartOfAccounts(ctx, a.companyID())
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, utils.ProcessError(err)
 	}
 	for _, acc := range accounts {
 		if strings.HasPrefix(acc.Code.String(), "165") {
@@ -499,7 +499,7 @@ func (a *App) ensureCardGLAccount(ctx context.Context) (uuid.UUID, error) {
 	}
 	code, err := valueobjects.NewChartOfAccountsCode("165.01")
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, utils.ProcessError(err)
 	}
 	acc, err := a.accountingSvc.CreateChartOfAccounts(ctx, accounting.CreateChartOfAccountsInput{
 		CompanyID:      a.companyID(),
@@ -511,7 +511,7 @@ func (a *App) ensureCardGLAccount(ctx context.Context) (uuid.UUID, error) {
 		Description:    "Cuentas por pagar a tarjetas de crédito corporativas (creada automáticamente por Tesorería)",
 	})
 	if err != nil {
-		return uuid.Nil, err
+		return uuid.Nil, utils.ProcessError(err)
 	}
 	return acc.ID, nil
 }
@@ -545,7 +545,7 @@ func toCardProjectionDTO(p treasury.CardPaymentProjection) *CardProjectionDTO {
 func (a *App) GetCardProjections() ([]*CardProjectionDTO, error) {
 	projections, err := a.treasurySvc.ProjectPayments(a.Context(), a.companyID())
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 	items := make([]*CardProjectionDTO, 0, len(projections))
 	for _, p := range projections {
@@ -565,11 +565,11 @@ type PayCreditCardRequest struct {
 func (a *App) PayCreditCard(req PayCreditCardRequest) error {
 	cardID, err := uuid.Parse(req.CardID)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
 	amount, err := valueobjects.MoneyFromString(req.Amount)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
-	return a.treasurySvc.PayCard(a.Context(), cardID, amount)
+	return utils.ProcessError(a.treasurySvc.PayCard(a.Context(), cardID, amount))
 }

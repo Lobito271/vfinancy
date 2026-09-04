@@ -2,10 +2,10 @@ package bindings
 
 import (
 	"time"
-
 	"github.com/google/uuid"
 
 	"vfinancy/backend/internal/features/notifications"
+	"vfinancy/backend/internal/utils"
 )
 
 // NotificationDTO is the serializable view of a device-local
@@ -59,7 +59,7 @@ func (a *App) ListNotifications(req ListNotificationsRequest) (PageResult, error
 		PageRequest: req.toPageRequest(),
 	})
 	if err != nil {
-		return PageResult{}, err
+		return PageResult{}, utils.ProcessError(err)
 	}
 	items := make([]*NotificationDTO, 0, len(page.Items))
 	for _, n := range page.Items {
@@ -71,7 +71,11 @@ func (a *App) ListNotifications(req ListNotificationsRequest) (PageResult, error
 // UnreadNotificationCount returns how many notifications of the active
 // company are still unread (bell badge).
 func (a *App) UnreadNotificationCount() (int, error) {
-	return a.notificationsSvc.UnreadCount(a.Context(), a.companyID())
+	n, err := a.notificationsSvc.UnreadCount(a.Context(), a.companyID())
+	if err != nil {
+		return 0, utils.ProcessError(err)
+	}
+	return n, nil
 }
 
 // MarkNotificationsRead marks the given notifications as read.
@@ -80,32 +84,36 @@ func (a *App) MarkNotificationsRead(ids []string) error {
 	for _, id := range ids {
 		uuidID, err := uuid.Parse(id)
 		if err != nil {
-			return err
+			return utils.ProcessError(err)
 		}
 		parsed = append(parsed, uuidID)
 	}
 	_, err := a.notificationsSvc.MarkRead(a.Context(), a.companyID(), parsed)
-	return err
+	return utils.ProcessError(err)
 }
 
 // MarkAllNotificationsRead marks every notification of the active
 // company as read.
 func (a *App) MarkAllNotificationsRead() error {
 	_, err := a.notificationsSvc.MarkAllRead(a.Context(), a.companyID())
-	return err
+	return utils.ProcessError(err)
 }
 
 // DeleteNotification removes a single notification.
 func (a *App) DeleteNotification(id string) error {
 	uuidID, err := uuid.Parse(id)
 	if err != nil {
-		return err
+		return utils.ProcessError(err)
 	}
-	return a.notificationsSvc.Delete(a.Context(), a.companyID(), uuidID)
+	return utils.ProcessError(a.notificationsSvc.Delete(a.Context(), a.companyID(), uuidID))
 }
 
 // GenerateClearanceNotifications runs the clearance scan on demand and
 // returns how many new notifications were created.
 func (a *App) GenerateClearanceNotifications() (int, error) {
-	return a.notificationsSvc.Generate(a.Context())
+	n, err := a.notificationsSvc.Generate(a.Context())
+	if err != nil {
+		return 0, utils.ProcessError(err)
+	}
+	return n, nil
 }

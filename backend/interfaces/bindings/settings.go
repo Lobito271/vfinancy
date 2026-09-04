@@ -2,10 +2,10 @@ package bindings
 
 import (
 	"encoding/json"
-
 	"github.com/google/uuid"
 
 	"vfinancy/backend/internal/features/administration"
+	"vfinancy/backend/internal/utils"
 )
 
 type BusinessInfoDTO struct {
@@ -69,7 +69,7 @@ func (a *App) GetBusinessInfo() (*BusinessInfoDTO, error) {
 
 	info, err := a.settingsSvc.GetBusinessInfo(ctx, a.companyID())
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 
 	return &BusinessInfoDTO{
@@ -96,7 +96,7 @@ func (a *App) UpdateBusinessInfo(info BusinessInfoDTO) error {
 		Logo:      info.Logo,
 	}
 
-	return a.settingsSvc.UpdateBusinessInfo(ctx, a.companyID(), domainInfo, uuid.Nil)
+	return utils.ProcessError(a.settingsSvc.UpdateBusinessInfo(ctx, a.companyID(), domainInfo, uuid.Nil))
 }
 
 func (a *App) GetPreferences() (*PreferencesDTO, error) {
@@ -104,7 +104,7 @@ func (a *App) GetPreferences() (*PreferencesDTO, error) {
 
 	prefs, err := a.settingsSvc.GetPreferences(ctx, a.companyID())
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 
 	return &PreferencesDTO{
@@ -134,7 +134,7 @@ func (a *App) GetPreferences() (*PreferencesDTO, error) {
 
 func (a *App) UpdatePreference(key string, value string) error {
 	ctx := a.Context()
-	return a.settingsSvc.UpdatePreference(ctx, a.companyID(), key, value, uuid.Nil)
+	return utils.ProcessError(a.settingsSvc.UpdatePreference(ctx, a.companyID(), key, value, uuid.Nil))
 }
 
 func (a *App) GetCurrencies() ([]CurrencyDTO, error) {
@@ -142,7 +142,7 @@ func (a *App) GetCurrencies() ([]CurrencyDTO, error) {
 
 	currencies, err := a.settingsSvc.GetCurrencies(ctx)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 
 	result := make([]CurrencyDTO, len(currencies))
@@ -164,7 +164,7 @@ func (a *App) GetTaxes() ([]TaxDTO, error) {
 
 	taxes, err := a.settingsSvc.GetTaxConfiguration(ctx, nil)
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 
 	result := make([]TaxDTO, len(taxes))
@@ -190,7 +190,7 @@ func (a *App) GetAllSettings() (map[string]interface{}, error) {
 
 	raw, err := a.settingsSvc.GetAllSettings(ctx, a.companyID())
 	if err != nil {
-		return nil, err
+		return nil, utils.ProcessError(err)
 	}
 
 	result := make(map[string]interface{}, len(raw))

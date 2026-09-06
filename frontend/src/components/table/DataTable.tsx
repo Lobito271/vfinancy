@@ -203,9 +203,9 @@ export function DataTable<T>({
                       {col.header}
                       {col.sortable && (
                         <span className="th-sort-icon">
-                          {!isSorted && <ChevronsUpDown />}
-                          {isSorted && state.sort?.direction === 'asc' && <ChevronUp />}
-                          {isSorted && state.sort?.direction === 'desc' && <ChevronDown />}
+                          {!isSorted && <ChevronsUpDown strokeWidth={2.5} />}
+                          {isSorted && state.sort?.direction === 'asc' && <ChevronUp strokeWidth={2.5} />}
+                          {isSorted && state.sort?.direction === 'desc' && <ChevronDown strokeWidth={2.5} />}
                         </span>
                       )}
                     </span>

@@ -62,7 +62,7 @@ export function AlertDialog({
         <DialogHeader>
           <div className="alert-header">
             <div className={cx('alert-icon', variantIconClass[variant])}>
-              <Icon aria-hidden="true" />
+              <Icon aria-hidden="true" strokeWidth={2.5} />
             </div>
             <div className="alert-header__body">
               <DialogTitle>{title}</DialogTitle>

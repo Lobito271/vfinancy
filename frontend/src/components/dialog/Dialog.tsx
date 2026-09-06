@@ -33,7 +33,7 @@ export const DialogContent = React.forwardRef<
     >
       {children}
       <DialogPrimitive.Close className="dialog-close" aria-label="Cerrar">
-        <X />
+        <X strokeWidth={2.5} />
       </DialogPrimitive.Close>
     </DialogPrimitive.Popup>
   </DialogPrimitive.Portal>

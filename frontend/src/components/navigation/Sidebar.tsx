@@ -44,7 +44,7 @@ export function Sidebar({ mobile = false }: { mobile?: boolean }) {
                     >
                       {({ isActive }) => (
                         <>
-                          <Icon aria-hidden="true" />
+                          <Icon aria-hidden="true" strokeWidth={2.5} />
                           {(mobile || !collapsed) && <span className="truncate">{item.label}</span>}
                           {isActive && (mobile || !collapsed) && (
                             <span className="sidebar__dot" aria-hidden="true" />
@@ -73,10 +73,10 @@ export function Sidebar({ mobile = false }: { mobile?: boolean }) {
             className={cx('sidebar__toggle', !collapsed && 'btn--justify-start')}
           >
             {collapsed ? (
-              <ChevronsRight />
+              <ChevronsRight strokeWidth={2.5} />
             ) : (
               <>
-                <ChevronsLeft />
+                <ChevronsLeft strokeWidth={2.5} />
                 <span>Colapsar</span>
               </>
             )}

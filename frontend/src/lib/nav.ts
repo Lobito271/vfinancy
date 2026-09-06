@@ -1,10 +1,11 @@
 import { LayoutDashboard, Users, Truck, Package, Warehouse, ShoppingCart, ShoppingBag, Receipt, Landmark, Settings, Tags } from 'lucide-react';
+import type { LucideProps } from 'lucide-react';
 import { Routes } from '@/constants/routes';
 
 interface NavRoute {
   to: string;
   label: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ComponentType<LucideProps>;
   end?: boolean;
 }
 

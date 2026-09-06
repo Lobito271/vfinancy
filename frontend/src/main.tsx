@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from '@/app/App';
+import { Toaster } from '@/components/feedback';
 import '@/index.css';
 
 const container = document.getElementById('app');
@@ -11,5 +12,6 @@ if (!container) {
 createRoot(container).render(
   <StrictMode>
     <App />
+    <Toaster />
   </StrictMode>,
 );

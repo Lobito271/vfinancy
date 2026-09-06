@@ -83,7 +83,7 @@ export function TablePagination({
             disabled={page <= 1}
             aria-label={t('common.previous')}
           >
-            <ChevronLeft />
+            <ChevronLeft strokeWidth={2.5} />
           </Button>
           {pageNumbers.map((p, i) =>
             p === 'ellipsis' ? (
@@ -110,7 +110,7 @@ export function TablePagination({
             disabled={page >= totalPages}
             aria-label={t('common.next')}
           >
-            <ChevronRight />
+            <ChevronRight strokeWidth={2.5} />
           </Button>
         </div>
       </div>

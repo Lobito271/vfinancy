@@ -61,7 +61,7 @@ function NotificationsBell() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" aria-label={t('notifications.title')}>
-          <Bell />
+          <Bell strokeWidth={2.5} />
           {unread > 0 && (
             <Badge variant="destructive" className="badge--count">
               {unread > 99 ? '99+' : unread}
@@ -148,7 +148,7 @@ export function Topbar() {
         onClick={() => setMobileOpen(true)}
         aria-label="Abrir menú"
       >
-        <MenuIcon />
+        <MenuIcon strokeWidth={2.5} />
       </Button>
 
       <div className="topbar__search">
@@ -165,7 +165,7 @@ export function Topbar() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" aria-label="Cambiar tema">
-              <ThemeIcon />
+              <ThemeIcon strokeWidth={2.5} />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" style={{ width: '10rem' }}>

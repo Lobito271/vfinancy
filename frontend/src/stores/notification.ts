@@ -26,7 +26,7 @@ export const useNotificationStore = create<NotificationState>(() => ({
       title: toast.title,
       description: toast.description,
       type: toast.variant ?? 'info',
-      timeout: toast.duration ?? 5000,
+      timeout: toast.duration ?? 2500,
     }),
   dismiss: (id) => manager.close(id),
 }));

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { z } from 'zod';
 import { Form, TextField } from '@/components/form';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
+import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { Grid } from '@/components/layout';
 import {
@@ -109,12 +109,12 @@ export function CatalogItemFormDialog({ open, onOpenChange, kind, item }: Catalo
         <Form<CatalogItemValues> schema={CatalogItemSchema} defaultValues={defaults} onSubmit={handleSubmit}>
           {({ formState }) => (
             <>
-              <div className="stack dialog-body-scroll">
+              <DialogBody>
                 <Grid cols={2}>
                   <TextField name="code" label="Código" description="Ej.: ABR" required />
                   <TextField name="name" label="Nombre" description="Ej.: Abarrotes" required />
                 </Grid>
-              </div>
+              </DialogBody>
               <DialogFooter>
                 <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={loading}>
                   Cancelar

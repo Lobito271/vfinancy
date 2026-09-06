@@ -12,7 +12,7 @@ import {
   type SaleLineItemFormValues,
   type ProductLineOption,
 } from '@/components/form';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
+import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { useCreateSale } from '@/features/sales/hooks/useSales';
 import { useProducts } from '@/features/products/hooks/useProducts';
@@ -232,7 +232,7 @@ export function SaleFormDialog({ open, onOpenChange }: SaleFormDialogProps) {
         <Form schema={SaleFormSchema} defaultValues={defaults} onSubmit={handleSubmit}>
           {() => (
             <>
-              <div className="dialog-body-scroll">
+              <DialogBody>
                 <div className="form-grid">
                   <CustomerSelectField name="customerId" label="Cliente" required />
                   <DateField name="date" label="Fecha de venta" required />
@@ -249,7 +249,7 @@ export function SaleFormDialog({ open, onOpenChange }: SaleFormDialogProps) {
                 <LineItemsEditor products={productOptions} isSale currency="PEN" />
                 <SaleFinancialSummary productMeta={productMeta} />
                 <TextareaField name="notes" label="Notas" rows={2} />
-              </div>
+              </DialogBody>
               <DialogFooter>
                 <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={create.isPending}>
                   Cancelar

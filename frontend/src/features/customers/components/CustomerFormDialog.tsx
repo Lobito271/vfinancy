@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { z } from 'zod';
 import { Form, TextField, SelectField, MoneyField } from '@/components/form';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
+import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { Grid } from '@/components/layout';
 import { useCreateCustomer, useUpdateCustomer } from '@/features/customers';
@@ -87,7 +87,7 @@ export function CustomerFormDialog({ open, onOpenChange, customer }: CustomerFor
         <Form schema={CustomerFormSchema} defaultValues={defaults} onSubmit={handleSubmit}>
           {({ formState }) => (
             <>
-              <div className="dialog-body-scroll">
+              <DialogBody>
                 <Grid cols={2}>
                   <SelectField name="documentType" label="Tipo de documento" required options={documentOptions} clearable={false} />
                   <TextField name="documentNumber" label="Número de documento" required description="Solo dígitos, sin guiones." />
@@ -107,7 +107,7 @@ export function CustomerFormDialog({ open, onOpenChange, customer }: CustomerFor
                     <SelectField name="status" label="Estado" options={statusOptions} clearable={false} />
                   </Grid>
                 )}
-              </div>
+              </DialogBody>
               <DialogFooter>
                 <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={create.isPending || update.isPending}>
                   Cancelar

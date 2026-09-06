@@ -16,7 +16,7 @@ import {
   type LineItemFormValues,
   type ProductLineOption,
 } from '@/components/form';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
+import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { useCreateCustomerOrder } from '@/features/purchasing/hooks/usePurchases';
 import { useCreditCards } from '@/features/treasury/hooks/useTreasury';
@@ -220,7 +220,7 @@ export function CreateCustomerOrderDialog({ open, onOpenChange }: CreateCustomer
           {({ formState }) => (
             <>
               <ExchangeRateSeed rate={rateQuery.data} />
-              <div className="stack dialog-body-scroll">
+              <DialogBody>
                 <div className="form-grid form-grid--3">
                   <CustomerSelectField name="customerId" label="Cliente" required />
                   <SupplierSelectField name="supplierId" label="Proveedor / Importador" required />
@@ -259,7 +259,7 @@ export function CreateCustomerOrderDialog({ open, onOpenChange }: CreateCustomer
                   <DateField name="anticipoDate" label="Fecha del anticipo" />
                 </div>
                 <TextareaField name="notes" label="Notas" rows={2} />
-              </div>
+              </DialogBody>
               <DialogFooter>
                 <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={create.isPending}>
                   Cancelar

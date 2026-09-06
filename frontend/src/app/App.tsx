@@ -9,7 +9,7 @@ import { queryKeys } from '@/services/queryKeys';
 import { wailsClient } from '@/services/bindings';
 
 const DashboardPage = lazy(() =>
-  import('@/features/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })),
+  import('@/pages/DashboardPage').then((m) => ({ default: m.DashboardPage })),
 );
 const CustomersPage = lazy(() => import('@/pages/CustomersPage').then((m) => ({ default: m.CustomersPage })));
 const SuppliersPage = lazy(() => import('@/pages/SuppliersPage').then((m) => ({ default: m.SuppliersPage })));

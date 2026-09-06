@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
 import { Form, TextField, NumberField, SelectField, MoneyField } from '@/components/form';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
+import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { Grid } from '@/components/layout';
 import { useCreateProduct, useUpdateProduct, useCategories, useBrands } from '@/features/products/hooks/useProducts';
@@ -137,7 +137,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
         <Form<ProductFormValues> schema={ProductSchema} defaultValues={defaults} onSubmit={handleSubmit}>
           {({ formState }) => (
             <>
-              <div className="dialog-body-scroll">
+              <DialogBody>
                 <Grid cols={2}>
                   <TextField name="sku" label="SKU" required description="Código único interno. Letras, números, - _ ." />
                   <TextField name="barcode" label="Código de barras" description="Opcional: código EAN/UPC." />
@@ -169,7 +169,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: ProductFormDi
                     <SelectField name="status" label="Estado" options={statusOptions} clearable={false} />
                   </Grid>
                 )}
-              </div>
+              </DialogBody>
               <DialogFooter>
                 <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={loading}>
                   Cancelar

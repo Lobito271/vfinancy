@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { Form, DateField, SelectField, TextareaField } from '@/components/form';
 import type { SelectOption } from '@/components/form';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
+import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { PaymentMethodOptions } from '@/constants/paymentMethods';
 import { formatCurrency } from '@/utils/format';
@@ -106,7 +106,7 @@ export function RegisterPaymentDialog({
         >
           {({ formState }) => (
             <>
-              <div className="stack stack--lg dialog-body-scroll">
+              <DialogBody>
                 <div className="grid-2">
                   <DateField name="paymentDate" label="Fecha de pago" required />
                   {useCreditCard ? (
@@ -124,7 +124,7 @@ export function RegisterPaymentDialog({
                 </div>
                 <TextareaField name="reference" label="Referencia" rows={1} />
                 <TextareaField name="notes" label="Notas" rows={2} />
-              </div>
+              </DialogBody>
               <DialogFooter>
                 <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={loading}>
                   Cancelar

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { z } from 'zod';
 import { Form, DateField } from '@/components/form';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
+import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 
 const ReceivedSchema = z.object({
@@ -46,9 +46,9 @@ export function MarkReceivedDialog({ open, onOpenChange, documentNumber, loading
         <Form key={documentNumber} schema={ReceivedSchema} defaultValues={defaults} onSubmit={onConfirm}>
           {({ formState }) => (
             <>
-              <div className="stack dialog-body-scroll">
+              <DialogBody>
                 <DateField name="arrivalDate" label="Fecha de llegada" required />
-              </div>
+              </DialogBody>
               <DialogFooter>
                 <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={loading}>
                   Volver

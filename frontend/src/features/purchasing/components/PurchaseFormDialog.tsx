@@ -14,7 +14,7 @@ import {
   type LineItemFormValues,
   type ProductLineOption,
 } from '@/components/form';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
+import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { useCreatePurchase } from '@/features/purchasing/hooks/usePurchases';
 import { useCreditCards } from '@/features/treasury/hooks/useTreasury';
@@ -190,7 +190,7 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
         <Form schema={PurchaseFormSchema} defaultValues={defaults} onSubmit={handleSubmit}>
           {({ formState }) => (
             <>
-              <div className="dialog-body-scroll">
+              <DialogBody>
                 <ExchangeRateSeed rate={rateQuery.data} />
                 <div className="form-grid">
                   <SupplierSelectField name="supplierId" label="Proveedor" required />
@@ -225,7 +225,7 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
                 <OrderFinancialPreview showProfit={false} />
                 <LineItemsEditor products={productOptions} currency="USD" />
                 <TextareaField name="notes" label="Notas" rows={2} />
-              </div>
+              </DialogBody>
               <DialogFooter>
                 <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={create.isPending}>
                   Cancelar

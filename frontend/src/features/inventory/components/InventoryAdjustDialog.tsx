@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { z } from 'zod';
 import { Form, TextField, NumberField } from '@/components/form';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
+import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { useAdjustStock } from '@/features/inventory/hooks/useInventory';
 import { useNotificationStore } from '@/stores/notification';
@@ -61,10 +61,10 @@ export function InventoryAdjustDialog({ open, onOpenChange, batch }: InventoryAd
         <Form schema={AdjustSchema} defaultValues={defaults} onSubmit={handleSubmit}>
           {({ formState }) => (
             <>
-              <div className="stack stack--lg dialog-body-scroll">
+              <DialogBody>
                 <NumberField name="delta" label="Cantidad de ajuste" description="Usa valores negativos para reducir stock." required step={0.01} />
                 <TextField name="reason" label="Motivo" required maxLength={200} />
-              </div>
+              </DialogBody>
               <DialogFooter>
                 <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={adjust.isPending}>
                   Cancelar

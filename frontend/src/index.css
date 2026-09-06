@@ -427,6 +427,24 @@ a {
   background-color: var(--color-muted);
 }
 
+/* Native webview input resets (Wails: WebView2/Blink + WKWebView) */
+input[type="search"] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration,
+input[type="search"]::-webkit-search-results-button,
+input[type="search"]::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type="password"]::-ms-reveal {
+  display: none;
+}
+
 .input--invalid,
 .input[aria-invalid='true'],
 .textarea[aria-invalid='true'] {
@@ -2024,6 +2042,22 @@ a {
 
 .sidebar__toggle {
   width: 100%;
+}
+
+/* Desktop interaction: chrome that should not be selectable/draggable */
+.sidebar__brand,
+.sidebar__link,
+.badge,
+.stat-card,
+.toast,
+.tabs-trigger,
+.table-pagination__info,
+.notif-item {
+  user-select: none;
+}
+
+svg {
+  -webkit-user-drag: none;
 }
 
 /* Topbar */

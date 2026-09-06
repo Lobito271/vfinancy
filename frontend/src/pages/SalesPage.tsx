@@ -7,7 +7,8 @@ import { SaleStatusBadge } from '@/components/badge';
 import { SearchInput } from '@/components/input';
 import { EmptyState } from '@/components/feedback';
 import { Button } from '@/components/button';
-import { CancelDialog, RegisterPaymentDialog, type RegisterPaymentInput } from '@/components/dialog';
+import { CancelDialog } from '@/components/dialog';
+import { RegisterPaymentDialog, type RegisterPaymentInput } from '@/features/treasury/components/RegisterPaymentDialog';
 import { RowActions } from '@/components/misc';
 import {
   Select,

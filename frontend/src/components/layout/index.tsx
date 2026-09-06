@@ -1,6 +1,8 @@
 import * as React from 'react';
 import { cx } from '@/utils/cx';
 
+export { AppLayout } from './AppLayout';
+
 export function PageContainer({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return <div className={cx('page-container', className)} {...props} />;
 }

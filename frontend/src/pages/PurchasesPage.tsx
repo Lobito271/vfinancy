@@ -7,9 +7,10 @@ import { Badge } from '@/components/badge';
 import { EmptyState } from '@/components/feedback';
 import { Button } from '@/components/button';
 import { SearchInput } from '@/components/input';
-import { CancelDialog, RegisterPaymentDialog, type RegisterPaymentInput } from '@/components/dialog';
+import { CancelDialog } from '@/components/dialog';
+import { RegisterPaymentDialog, type RegisterPaymentInput } from '@/features/treasury/components/RegisterPaymentDialog';
 import { RowActions } from '@/components/misc';
-import { useDebounce } from '@/utils/debounce';
+import { useDebounce } from '@/hooks/useDebounce';
 import {
   Select,
   SelectContent,

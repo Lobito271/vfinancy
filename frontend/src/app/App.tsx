@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { AppLayout } from '@/layouts/AppLayout';
+import { AppLayout } from '@/components/layout';
 import { Spinner } from '@/components/feedback';
 import { Providers } from './Providers';
 import { useThemeStore } from '@/stores/theme';

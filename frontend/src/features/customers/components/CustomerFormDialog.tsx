@@ -4,7 +4,7 @@ import { Form, TextField, SelectField, MoneyField } from '@/components/form';
 import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { Grid } from '@/components/layout';
-import { useCreateCustomer, useUpdateCustomer } from '@/features/customers';
+import { useCreateCustomer, useUpdateCustomer } from '@/features/customers/hooks/useCustomers';
 import { CustomerCreateSchema } from '@/features/customers/schemas/customer';
 import type { Customer } from '@/types/domain';
 import { DocumentTypes } from '@/constants/countries';

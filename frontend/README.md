@@ -32,15 +32,14 @@ src/
     navigation/      # Sidebar (collapsible), Topbar, Breadcrumbs
     feedback/        # Spinner, Skeleton, ProgressBar, EmptyState, ErrorState, Toaster
     charts/          # LineChart, BarChart, PieChart (recharts wrappers)
-    layout/          # PageContainer, PageHeader, Section, Stack, Grid
+    layout/          # AppLayout, PageContainer, PageHeader, Section, Stack, Grid
     money/           # MoneyInput, MoneyDisplay
     misc/            # DropdownMenu, Separator, Tooltip
   pages/             # route screens (Dashboard + 1 per module + Login)
-  layouts/           # AppLayout (sidebar + topbar + breadcrumbs)
   stores/            # Zustand: theme, session, sidebar, ui, notification
   locales/           # es-PE translation dictionary + t() helper
   lib/               # nav routes
-  hooks/             # (reserved)
+  hooks/             # useDebounce
   services/          # one folder per business domain, all wired to the Wails bindings (no mocks)
   types/             # shared domain types (Customer, Product, Supplier, Sale, ...)
   assets/            # static files

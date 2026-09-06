@@ -9,7 +9,7 @@ import { Button } from '@/components/button';
 import { SearchInput } from '@/components/input';
 import { CancelDialog } from '@/components/dialog';
 import { RowActions, type RowAction } from '@/components/misc';
-import { useDebounce } from '@/utils/debounce';
+import { useDebounce } from '@/hooks/useDebounce';
 import {
   Select,
   SelectContent,

@@ -124,7 +124,6 @@ frontend/
   src/
     main.tsx
     app/                     # App.tsx (routes + lazy), Providers.tsx, ErrorBoundary.tsx
-    layouts/                 # AppLayout (sidebar + topbar + breadcrumbs)
     pages/                   # route screens (1 per module + SetupWizard + Welcome/Login)
     features/                # feature-based modules (dashboard/, customers/, sales/, settings/)
     components/              # category folders (Base UI wrappers) — see "Component organization" below
@@ -132,7 +131,7 @@ frontend/
     stores/                  # Zustand: theme, sidebar, ui, notification
     hooks/                   # useDebounce
     constants/               # routes, currencies, countries, languages, status, taxes
-    utils/                   # format, validators, debounce, clipboard, download, collection, misc, storage
+    utils/                   # cx, format, storage
     locales/                 # i18n (es-PE) — t() helper
     types/                   # shared domain types (Customer, Product, Supplier, Sale, InventoryItem, ...)
     lib/                     # nav config
@@ -187,13 +186,13 @@ button/      # Button (Base UI) — 5 variants, 5 sizes, loading, render prop
 input/       # Input, Textarea, Label, SearchInput
 select/      # Select (Base UI) + SelectValue/Trigger/Content/Item
 table/       # DataTable (search/filters/sort/pagination/row-actions), TablePagination
-dialog/      # Dialog, AlertDialog (5 variants), ConfirmDialog, CancelDialog, RegisterPaymentDialog
+dialog/      # Dialog + Content/Header/Body/Footer/Title/Description, AlertDialog (5 variants), ConfirmDialog, CancelDialog
 card/        # Card, CardHeader/Title/Description/Content, StatCard
 badge/       # Badge (8 variants), SaleStatusBadge, CustomerStatusBadge
 navigation/  # Sidebar (flat, collapsible, mobile drawer), Topbar, Breadcrumbs
 feedback/    # Spinner, EmptyState, ErrorState, Toaster (Base UI Toast)
 charts/      # LineChart, BarChart (recharts wrappers, token colors)
-layout/      # PageContainer, PageHeader, Section, Grid
+layout/      # AppLayout + PageContainer, PageHeader, Section, Grid
 form/        # Form (RHF + zod) + fields (TextField, NumberField, MoneyField, PercentageField, SelectField, domain selects, LineItemsEditor)
 misc/        # DropdownMenu (Base UI Menu), Tooltip, Drawer (Base UI), RowActions
 ```

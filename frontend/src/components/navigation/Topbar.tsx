@@ -2,10 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Sun, Moon, Monitor, Bell, CheckCheck, Lock, Menu as MenuIcon } from 'lucide-react';
 import { useThemeStore, type Theme } from '@/stores/theme';
-import { useUIStore } from '@/stores/ui';
 import { useSidebarStore } from '@/stores/sidebar';
 import { Button } from '@/components/button';
-import { SearchInput } from '@/components/input';
 import { Badge } from '@/components/badge';
 import { Spinner } from '@/components/feedback';
 import { t } from '@/locales';
@@ -13,6 +11,7 @@ import { formatRelative } from '@/utils/format';
 import { queryKeys } from '@/services/queryKeys';
 import { notificationsService, type AppNotification } from '@/services/notifications';
 import { wailsClient } from '@/services/bindings';
+import { Routes } from '@/constants/routes';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -117,8 +116,6 @@ function NotificationsBell() {
 export function Topbar() {
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
-  const search = useUIStore((s) => s.globalSearch);
-  const setSearch = useUIStore((s) => s.setGlobalSearch);
   const setMobileOpen = useSidebarStore((s) => s.setMobileOpen);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -135,7 +132,7 @@ export function Topbar() {
     mutationFn: () => wailsClient.lockLocalProfile(),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.setup });
-      navigate('/bienvenida', { replace: true });
+      navigate(Routes.Welcome, { replace: true });
     },
   });
 
@@ -150,16 +147,6 @@ export function Topbar() {
       >
         <MenuIcon strokeWidth={2.5} />
       </Button>
-
-      <div className="topbar__search">
-        <SearchInput
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onClear={() => setSearch('')}
-          placeholder="Buscar clientes, productos, ventas…"
-          aria-label="Búsqueda global"
-        />
-      </div>
 
       <div className="topbar__actions">
         <DropdownMenu>

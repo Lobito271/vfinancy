@@ -94,8 +94,8 @@ Base UI parts are styled via `className` + data attributes. Every styled part li
 
 ## 4. Entry flows
 
-- **Not configured** → `/configuracion-inicial` wizard: 3 steps (Empresa → Regional → Acceso), step list + "paso N de 3" text indicator (never a progress bar or percentage), Back enabled from step 2, per-step zod validation, single `SetupWorkspace` submit.
-- **Configured + password set + locked** → `/bienvenida`: full-screen card with the "vfinancy" text logo and the password form (unlock). 
+- **Not configured** → `/setup` wizard: 3 steps (Empresa → Regional → Acceso), step list + "paso N de 3" text indicator (never a progress bar or percentage), Back enabled from step 2, per-step zod validation, single `SetupWorkspace` submit.
+- **Configured + password set + locked** → `/welcome`: full-screen card with the "vfinancy" text logo and the password form (unlock). 
 - **Configured, no password (or unlocked)** → straight into the app.
 - Lock is available from the Topbar and from Settings → Seguridad ("Bloquear ahora").
 
@@ -118,7 +118,7 @@ Feature settings: only Inventory has feature-scoped settings → a **Drawer** ("
 
 ---
 
-## 6. General Settings (`/configuracion`)
+## 6. General Settings (`/settings`)
 
 Sections, each with an explicit **Save** (or explicit action buttons):
 

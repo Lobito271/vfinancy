@@ -9,6 +9,7 @@ import { PasswordInput, Label } from '@/components/input';
 import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
 import { useNotificationStore } from '@/stores/notification';
+import { Routes } from '@/constants/routes';
 
 export function SecuritySection() {
   const navigate = useNavigate();
@@ -54,7 +55,7 @@ export function SecuritySection() {
   const lockNow = () =>
     run(async () => {
       await wailsClient.lockLocalProfile();
-      navigate('/bienvenida', { replace: true });
+      navigate(Routes.Welcome, { replace: true });
     }, 'Aplicación bloqueada');
 
   return (

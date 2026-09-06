@@ -1,7 +1,7 @@
 import { Link, NavLink } from 'react-router-dom';
 import { ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { cx } from '@/utils/cx';
-import { navRoutes } from '@/lib/nav';
+import { navRoutes } from './nav';
 import { useSidebarStore } from '@/stores/sidebar';
 import { Button } from '@/components/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/misc';

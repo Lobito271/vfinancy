@@ -1,9 +1,10 @@
 import type { InventoryItem } from '@/types/domain';
-import type { InventoryMovementTypeCode } from '@/constants/status';
 import type { InventoryBatchDTO, InventoryMovementDTO } from '../wails-types';
 import { wailsClient } from '../bindings';
 import { productsService } from '../products';
 import { daysBetween } from '@/utils/format';
+
+type InventoryMovementTypeCode = 'purchase' | 'sale' | 'adjustment' | 'transfer' | 'return' | 'damage';
 
 interface InventoryMovement {
   id: string;

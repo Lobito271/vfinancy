@@ -1,7 +1,7 @@
 import { Currencies, type CurrencyCode } from '@/constants/currencies';
-import { type LanguageCode, DefaultLanguage } from '@/constants/languages';
 
-const locale: LanguageCode = DefaultLanguage;
+type LanguageCode = 'es-PE' | 'es-MX' | 'es-CO' | 'es-AR' | 'en-US' | 'pt-BR';
+const locale: LanguageCode = 'es-PE';
 
 const currencyFormatters = new Map<string, Intl.NumberFormat>();
 

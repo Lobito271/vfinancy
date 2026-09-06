@@ -7,7 +7,7 @@ import { EmailField, Form, NumberField, TextField, TextareaField } from '@/compo
 import { Label } from '@/components/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select';
 import { PageContainer, PageHeader, Section } from '@/components/layout';
-import { SecuritySection } from '@/features/settings/SecuritySection';
+import { SecuritySection } from '@/features/settings/components/SecuritySection';
 import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
 import { useThemeStore, type Theme } from '@/stores/theme';

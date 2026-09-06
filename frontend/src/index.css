@@ -2040,11 +2040,6 @@ a {
   z-index: var(--z-affix);
 }
 
-.topbar__search {
-  max-width: 22rem;
-  flex: 1;
-}
-
 .topbar__actions {
   display: flex;
   align-items: center;
@@ -2750,10 +2745,6 @@ a {
   .topbar {
     padding-left: 1rem;
     padding-right: 1rem;
-  }
-
-  .topbar__search {
-    max-width: none;
   }
 
   .page-header {

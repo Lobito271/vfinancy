@@ -8,6 +8,7 @@ import { Form, TextField, NumberField, PasswordField, SelectField } from '@/comp
 import { AlertCircle, ArrowLeft, ArrowRight, Plus } from 'lucide-react';
 import { wailsClient } from '@/services/bindings';
 import type { SetupWorkspaceRequest } from '@/services/wails-types';
+import { Routes } from '@/constants/routes';
 
 const setupSchema = z.object({
   legalName: z.string().trim().min(2, 'Ingresa la razón social.'),
@@ -76,7 +77,7 @@ export function SetupWizardPage() {
         password: values.password,
       } satisfies SetupWorkspaceRequest);
       await queryClient.invalidateQueries({ queryKey: ['setup'] });
-      navigate('/', { replace: true });
+      navigate(Routes.Dashboard, { replace: true });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'No se pudo completar la configuración.');
     } finally {

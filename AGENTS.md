@@ -128,14 +128,12 @@ frontend/
     features/                # feature-based modules (dashboard/, customers/, sales/, settings/)
     components/              # category folders (Base UI wrappers) — see "Component organization" below
     services/                # one folder per business domain + queryKeys.ts
-    stores/                  # Zustand: theme, sidebar, ui, notification
+    stores/                  # Zustand: theme, sidebar, notification
     hooks/                   # useDebounce
-    constants/               # routes, currencies, countries, languages, status, taxes
+    constants/               # routes (English slugs), currencies, countries, payment methods
     utils/                   # cx, format, storage
     locales/                 # i18n (es-PE) — t() helper
     types/                   # shared domain types (Customer, Product, Supplier, Sale, InventoryItem, ...)
-    lib/                     # nav config
-    assets/
     vite-env.d.ts
 ```
 

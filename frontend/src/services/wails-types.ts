@@ -899,7 +899,7 @@ export interface AppBindings {
   RegisterPurchasePayment(req: RegisterPurchasePaymentRequest): Promise<PurchaseOrderDTO>;
   MarkPurchaseFaulty(req: MarkPurchaseFaultyRequest): Promise<PurchaseOrderDTO>;
   MarkPurchaseReceived(req: MarkPurchaseReceivedRequest): Promise<PurchaseOrderDTO>;
-  RegisterCustomerOrderPayment(req: RegisterCustomerOrderPaymentRequest): Promise<CustomerOrderPaymentDTO>;
+  RegisterCustomerOrderPayment(req: RegisterCustomerOrderPaymentRequest): Promise<CustomerPaymentDTO>;
 
   ListNotifications(req: ListNotificationsRequest): Promise<PageResult<NotificationDTO>>;
   UnreadNotificationCount(): Promise<number>;
@@ -907,4 +907,7 @@ export interface AppBindings {
   MarkAllNotificationsRead(): Promise<void>;
   DeleteNotification(id: string): Promise<void>;
   GenerateClearanceNotifications(): Promise<number>;
+
+  ExportBackup(): Promise<string>;
+  ImportBackup(): Promise<void>;
 }

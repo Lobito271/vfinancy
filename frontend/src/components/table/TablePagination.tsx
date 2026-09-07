@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/button';
+import { cx } from '@/utils/cx';
 import {
   Select,
   SelectContent,
@@ -97,7 +98,7 @@ export function TablePagination({
                 size="icon-sm"
                 onClick={() => onPageChange(p)}
                 aria-current={p === page ? 'page' : undefined}
-                className="table-pagination__page"
+                className={cx('table-pagination__page', p === page && 'table-pagination__num--active')}
               >
                 {p}
               </Button>

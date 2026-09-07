@@ -6,12 +6,13 @@ interface StatCardProps {
   value: string;
   icon?: LucideIcon;
   hint?: string;
+  accent?: boolean;
   className?: string;
 }
 
-export function StatCard({ label, value, icon: Icon, hint, className }: StatCardProps) {
+export function StatCard({ label, value, icon: Icon, hint, accent, className }: StatCardProps) {
   return (
-    <div className={cx('stat-card', className)}>
+    <div className={cx('stat-card', accent && 'stat-card--accent', className)}>
       <p className="stat-card__label">
         {Icon && <Icon aria-hidden="true" />}
         {label}

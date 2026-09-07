@@ -115,6 +115,18 @@ func (a *App) Init() error {
 		return fmt.Errorf("bindings: postgres driver is not supported for the desktop runtime; use sqlite (DB_DRIVER=sqlite)")
 	}
 
+	if err := a.openDB(); err != nil {
+		return err
+	}
+	if err := a.initializeServices(ctx); err != nil {
+		return err
+	}
+
+	a.log.Info("bindings initialized")
+	return nil
+}
+
+func (a *App) openDB() error {
 	db, err := sqlite.Open(a.cfg.Database.Path, database.Options{
 		MaxOpenConns:    a.cfg.Database.MaxOpen,
 		MaxIdleConns:    a.cfg.Database.MaxIdle,
@@ -126,10 +138,16 @@ func (a *App) Init() error {
 	a.db = db
 	persistence.SetDialect(persistence.DialectSQLite)
 
+	ctx := a.rawContext()
 	runner := migrations.NewRunnerFS(a.migrationsFS, db.DB, a.log, "sqlite")
 	if err := runner.Up(ctx); err != nil {
 		a.log.Error("migrate failed; continuing with degraded schema", "error", err.Error())
 	}
+	return nil
+}
+
+func (a *App) initializeServices(ctx context.Context) error {
+	db := a.db
 
 	settings := adminpostgres.NewSettingRepository(db.DB)
 	currencies := adminpostgres.NewCurrencyRepository(db.DB)
@@ -217,8 +235,18 @@ func (a *App) Init() error {
 	a.startSyncWorker(ctx)
 	a.startNotificationsWorker(ctx)
 
-	a.log.Info("bindings initialized")
 	return nil
+}
+
+func (a *App) stopWorkers() {
+	if a.syncCancel != nil {
+		a.syncCancel()
+		a.syncCancel = nil
+	}
+	if a.notificationsCancel != nil {
+		a.notificationsCancel()
+		a.notificationsCancel = nil
+	}
 }
 
 func (a *App) companyID() uuid.UUID {

@@ -468,4 +468,13 @@ export const wailsClient = {
     const b = await resolveBindings();
     return b.GenerateClearanceNotifications();
   },
+
+  async exportBackup() {
+    const b = await resolveBindings();
+    return b.ExportBackup();
+  },
+  async importBackup() {
+    const b = await resolveBindings();
+    return b.ImportBackup();
+  },
 };

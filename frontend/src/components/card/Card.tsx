@@ -16,9 +16,11 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
 );
 Card.displayName = 'Card';
 
-export const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} className={cx('card-header', className)} {...props} />
+export const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement> & { eyebrow?: string; divider?: boolean }>(
+  ({ className, eyebrow, divider, ...props }, ref) => (
+    <div ref={ref} className={cx('card-header', divider && 'card-header--divider', className)} {...props}>
+      {eyebrow && <span className="card-header__eyebrow">{eyebrow}</span>}
+    </div>
   ),
 );
 CardHeader.displayName = 'CardHeader';

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
+import { DialogBody, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Badge } from '@/components/badge';
 import { DataTable, type Column } from '@/components/table';
 import { Grid } from '@/components/layout';
@@ -140,7 +140,7 @@ export function CustomerOrderDetailDialog({ order, onOpenChange, onMarkReceived,
               </div>
             </DialogHeader>
 
-            <div className="stack dialog-body-scroll">
+            <DialogBody>
               <Grid cols={4}>
                 <div className="fact-tile">
                   <div className="fact-tile__label">Costo real (PEN)</div>
@@ -183,7 +183,7 @@ export function CustomerOrderDetailDialog({ order, onOpenChange, onMarkReceived,
                   <span className="tabular">{formatCurrency(current.refundedAmount)}</span>
                 </div>
               )}
-            </div>
+            </DialogBody>
 
             <DialogFooter>
               {receivable && (

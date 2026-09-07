@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { Form, DateField, SelectField, TextField, TextareaField } from '@/components/form';
 import type { SelectOption } from '@/components/form';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
+import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { formatCurrency } from '@/utils/format';
 
@@ -97,7 +97,7 @@ export function ArrivalAndPaymentDialog({
         >
           {({ formState }) => (
             <>
-              <div className="stack dialog-body-scroll">
+              <DialogBody>
                 <DateField name="arrivalDate" label="Fecha de llegada" required />
                 <TextField name="amount" label="Monto a cobrar (PEN)" required />
                 <SelectField
@@ -112,7 +112,7 @@ export function ArrivalAndPaymentDialog({
                 />
                 <TextareaField name="reference" label="Referencia" rows={1} />
                 <TextareaField name="notes" label="Notas" rows={2} />
-              </div>
+              </DialogBody>
               <DialogFooter>
                 <Button
                   variant="outline"

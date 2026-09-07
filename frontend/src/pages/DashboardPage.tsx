@@ -1,4 +1,4 @@
-import { DashboardGrid, type DashboardGridItem } from './DashboardGrid';
+import { DashboardGrid, type DashboardGridItem } from '@/features/dashboard/DashboardGrid';
 import {
   MonthSalesWidget,
   MonthPurchasesWidget,
@@ -12,7 +12,7 @@ import {
   SalesByStatusWidget,
   TopProductsWidget,
   RecentActivityWidget,
-} from './widgets';
+} from '@/features/dashboard/widgets';
 import { PageContainer, PageHeader } from '@/components/layout';
 
 const defaultLayout: DashboardGridItem[] = [

@@ -9,6 +9,7 @@ import { Label } from '@/components/input';
 import { Spinner } from '@/components/feedback';
 import { queryKeys } from '@/services/queryKeys';
 import { wailsClient } from '@/services/bindings';
+import { Routes } from '@/constants/routes';
 
 export function WelcomePage() {
   const navigate = useNavigate();
@@ -35,8 +36,8 @@ export function WelcomePage() {
     );
   }
 
-  if (!state.data.configured) return <Navigate to="/configuracion-inicial" replace />;
-  if (!state.data.passwordEnabled || state.data.unlocked) return <Navigate to="/" replace />;
+  if (!state.data.configured) return <Navigate to={Routes.Setup} replace />;
+  if (!state.data.passwordEnabled || state.data.unlocked) return <Navigate to={Routes.Dashboard} replace />;
 
   async function enter() {
     setSubmitting(true);
@@ -44,7 +45,7 @@ export function WelcomePage() {
     try {
       await wailsClient.unlockLocalProfile(password);
       await queryClient.invalidateQueries({ queryKey: queryKeys.setup });
-      navigate('/', { replace: true });
+      navigate(Routes.Dashboard, { replace: true });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Contraseña incorrecta.');
     } finally {

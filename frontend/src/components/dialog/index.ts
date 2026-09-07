@@ -1,6 +1,7 @@
 export {
   Dialog,
   DialogContent,
+  DialogBody,
   DialogHeader,
   DialogFooter,
   DialogTitle,
@@ -8,5 +9,3 @@ export {
 } from './Dialog';
 export { AlertDialog, ConfirmDialog } from './AlertDialog';
 export { CancelDialog } from './CancelDialog';
-export { RegisterPaymentDialog } from './RegisterPaymentDialog';
-export type { RegisterPaymentInput } from './RegisterPaymentDialog';

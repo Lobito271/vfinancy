@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -38,7 +39,7 @@ export function CancelDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <div className="stack stack--sm dialog-body-scroll">
+        <DialogBody>
           <Label htmlFor="cancel-reason">Motivo</Label>
           <Textarea
             id="cancel-reason"
@@ -47,7 +48,7 @@ export function CancelDialog({
             value={reason}
             onChange={(e) => setReason(e.target.value)}
           />
-        </div>
+        </DialogBody>
         <DialogFooter>
           <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={loading}>
             Volver

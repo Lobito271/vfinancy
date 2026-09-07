@@ -91,6 +91,17 @@ svg[class*='lucide'] {
 
   --ease: cubic-bezier(0.25, 0.8, 0.35, 1);
   --speed: 160ms;
+
+  /* Layering scale: modal overlays sit above affixed chrome; popovers above modals.
+     Backdrop and its container share a layer, container +1 for explicit order. */
+  --z-affix: 40; /* sticky topbar */
+  --z-drawer: 50;
+  --z-drawer-content: 51;
+  --z-dialog: 60;
+  --z-dialog-content: 61;
+  --z-popover: 70; /* menu, select */
+  --z-tooltip: 80;
+  --z-toast: 100;
 }
 
 .dark {
@@ -443,6 +454,24 @@ a {
   opacity: 0.55;
   cursor: not-allowed;
   background-color: var(--color-muted);
+}
+
+/* Native webview input resets (Wails: WebView2/Blink + WKWebView) */
+input[type="search"] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration,
+input[type="search"]::-webkit-search-results-button,
+input[type="search"]::-webkit-search-results-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type="password"]::-ms-reveal {
+  display: none;
 }
 
 .input--invalid,
@@ -1003,10 +1032,12 @@ a {
 
 .dialog-content {
   position: fixed;
-  inset: 0;
-  margin: auto;
-  z-index: 60;
+  top: 50%;
+  left: 50%;
+  translate: -50% -50%;
+  z-index: var(--z-dialog-content);
   width: min(100vw - 2rem, 32rem);
+  height: auto;
   max-height: min(85dvh, 100dvh - 2rem);
   display: flex;
   flex-direction: column;
@@ -1128,7 +1159,7 @@ a {
    ------------------------------------------------------------ */
 
 .menu-positioner {
-  z-index: 70;
+  z-index: var(--z-popover);
   outline: none;
 }
 
@@ -1142,7 +1173,7 @@ a {
   outline: none;
   transform-origin: var(--transform-origin);
   transition: opacity 150ms var(--ease), transform 150ms var(--ease);
-  z-index: 70;
+  z-index: var(--z-popover);
 }
 
 .menu-content[data-starting-style],
@@ -1230,7 +1261,7 @@ a {
   font-weight: 500;
   box-shadow: var(--shadow-md);
   transition: opacity 150ms var(--ease), transform 150ms var(--ease);
-  z-index: 80;
+  z-index: var(--z-tooltip);
 }
 
 .tooltip-content[data-starting-style],
@@ -1310,7 +1341,7 @@ a {
 }
 
 .select-positioner {
-  z-index: 70;
+  z-index: var(--z-popover);
   outline: none;
 }
 
@@ -1483,7 +1514,7 @@ a {
 .drawer-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: var(--z-drawer);
   background-color: var(--color-overlay);
   transition: opacity 250ms var(--ease);
 }
@@ -1496,7 +1527,7 @@ a {
 .drawer-viewport {
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: var(--z-drawer-content);
   display: flex;
   justify-content: flex-end;
   outline: none;
@@ -1642,7 +1673,7 @@ a {
   position: fixed;
   inset-inline-end: 1rem;
   bottom: 1rem;
-  z-index: 100;
+  z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -1916,12 +1947,50 @@ a {
   font-variant-numeric: tabular-nums;
 }
 
-.dialog-body-scroll {
-  display: grid;
-  gap: 0.875rem;
+.dialog-body {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+}
+
+.dialog-body__viewport {
+  flex: 1;
+  min-height: 0;
+}
+
+.dialog-body__content {
+  display: grid;
+  gap: 0.875rem;
+}
+
+/* Keep form controls clear of the overlay scrollbar once the body actually scrolls. */
+.dialog-body[data-has-overflow-y] .dialog-body__content {
+  padding-inline-end: 0.75rem;
+}
+
+.dialog-body__scrollbar {
+  display: flex;
+  padding: 2px;
+  z-index: 1;
+}
+
+.dialog-body__scrollbar[data-orientation="vertical"] {
+  width: 10px;
+}
+
+.dialog-body__thumb {
+  position: relative;
+  flex: 1;
+  min-height: 2rem;
+  border-radius: 999px;
+  background-color: var(--color-border-strong);
+  transition: background-color var(--speed) var(--ease);
+}
+
+.dialog-body__scrollbar[data-hovering] .dialog-body__thumb,
+.dialog-body__thumb:hover {
+  background-color: var(--color-fg-subtle);
 }
 
 .page-loader {
@@ -2060,6 +2129,22 @@ a {
   width: 100%;
 }
 
+/* Desktop interaction: chrome that should not be selectable/draggable */
+.sidebar__brand,
+.sidebar__link,
+.badge,
+.stat-card,
+.toast,
+.tabs-trigger,
+.table-pagination__info,
+.notif-item {
+  user-select: none;
+}
+
+svg {
+  -webkit-user-drag: none;
+}
+
 /* Topbar */
 .topbar {
   display: flex;
@@ -2071,12 +2156,7 @@ a {
   background-color: var(--color-surface);
   position: sticky;
   top: 0;
-  z-index: 40;
-}
-
-.topbar__search {
-  max-width: 22rem;
-  flex: 1;
+  z-index: var(--z-affix);
 }
 
 .topbar__actions {
@@ -2180,6 +2260,7 @@ a {
   display: grid;
   gap: 1.5rem;
   max-width: 90rem;
+  min-width: 0;
   margin: auto;
 }
 
@@ -2306,6 +2387,7 @@ a {
 .datatable {
   display: grid;
   gap: 0.75rem;
+  min-width: 0;
 }
 
 .datatable-toolbar {
@@ -2352,6 +2434,7 @@ a {
   background-color: var(--color-surface);
   box-shadow: var(--shadow-md);
   overflow-x: auto;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: var(--color-border-strong) transparent;
 }
@@ -2830,10 +2913,6 @@ a {
   .topbar {
     padding-left: 1rem;
     padding-right: 1rem;
-  }
-
-  .topbar__search {
-    max-width: none;
   }
 
   .page-header {

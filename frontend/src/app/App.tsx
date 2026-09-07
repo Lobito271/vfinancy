@@ -1,15 +1,20 @@
 import { lazy, Suspense, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { AppLayout } from '@/layouts/AppLayout';
+import { Routes as RouterRoutes, Route, Navigate } from 'react-router-dom';
+import { AppLayout } from '@/components/layout';
 import { Spinner } from '@/components/feedback';
 import { Providers } from './Providers';
 import { useThemeStore } from '@/stores/theme';
 import { queryKeys } from '@/services/queryKeys';
 import { wailsClient } from '@/services/bindings';
+import { Routes } from '@/constants/routes';
+
+// React Router v6 forbids leading slashes in <Route path>, but to:/Navigate
+// targets are absolute — strip the prefix for the path attribute.
+const rel = (p: string) => p.replace(/^\//, '');
 
 const DashboardPage = lazy(() =>
-  import('@/features/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })),
+  import('@/pages/DashboardPage').then((m) => ({ default: m.DashboardPage })),
 );
 const CustomersPage = lazy(() => import('@/pages/CustomersPage').then((m) => ({ default: m.CustomersPage })));
 const SuppliersPage = lazy(() => import('@/pages/SuppliersPage').then((m) => ({ default: m.SuppliersPage })));
@@ -45,9 +50,9 @@ function SetupState({ children, setup }: { children: React.ReactNode; setup: boo
   if (state.isLoading) return <PageLoader />;
   if (state.isError) return <div className="page-loader">No se pudo comprobar la configuración.</div>;
   if (state.data?.configured !== setup)
-    return <Navigate to={setup ? '/configuracion-inicial' : '/'} replace />;
+    return <Navigate to={setup ? Routes.Setup : Routes.Dashboard} replace />;
   if (setup && state.data?.passwordEnabled && !state.data?.unlocked)
-    return <Navigate to="/bienvenida" replace />;
+    return <Navigate to={Routes.Welcome} replace />;
   return <>{children}</>;
 }
 
@@ -55,8 +60,8 @@ function LockedState({ children }: { children: React.ReactNode }) {
   const state = useQuery({ queryKey: queryKeys.setup, queryFn: () => wailsClient.getLocalAuthState() });
   if (state.isLoading) return <PageLoader />;
   if (state.isError || !state.data) return <PageLoader />;
-  if (!state.data.configured) return <Navigate to="/configuracion-inicial" replace />;
-  if (!state.data.passwordEnabled || state.data.unlocked) return <Navigate to="/" replace />;
+  if (!state.data.configured) return <Navigate to={Routes.Setup} replace />;
+  if (!state.data.passwordEnabled || state.data.unlocked) return <Navigate to={Routes.Dashboard} replace />;
   return <>{children}</>;
 }
 
@@ -65,24 +70,24 @@ export function App() {
     <Providers>
       <ThemeInit />
       <Suspense fallback={<PageLoader />}>
-        <Routes>
-          <Route path="configuracion-inicial" element={<SetupState setup={false}><SetupWizardPage /></SetupState>} />
-          <Route path="bienvenida" element={<LockedState><WelcomePage /></LockedState>} />
+        <RouterRoutes>
+          <Route path={rel(Routes.Setup)} element={<SetupState setup={false}><SetupWizardPage /></SetupState>} />
+          <Route path={rel(Routes.Welcome)} element={<LockedState><WelcomePage /></LockedState>} />
           <Route element={<SetupState setup><AppLayout /></SetupState>}>
             <Route index element={<DashboardPage />} />
-            <Route path="clientes" element={<CustomersPage />} />
-            <Route path="proveedores" element={<SuppliersPage />} />
-            <Route path="productos" element={<ProductsPage />} />
-            <Route path="configuracion-catalogo" element={<CatalogSettingsPage />} />
-            <Route path="inventario" element={<InventoryPage />} />
-            <Route path="compras" element={<PurchasesPage />} />
-            <Route path="pedidos-cliente" element={<CustomerOrdersPage />} />
-            <Route path="ventas" element={<SalesPage />} />
-            <Route path="tesoreria" element={<TreasuryPage />} />
-            <Route path="configuracion" element={<SettingsPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path={rel(Routes.Customers)} element={<CustomersPage />} />
+            <Route path={rel(Routes.Suppliers)} element={<SuppliersPage />} />
+            <Route path={rel(Routes.Products)} element={<ProductsPage />} />
+            <Route path={rel(Routes.CatalogSettings)} element={<CatalogSettingsPage />} />
+            <Route path={rel(Routes.Inventory)} element={<InventoryPage />} />
+            <Route path={rel(Routes.Purchases)} element={<PurchasesPage />} />
+            <Route path={rel(Routes.CustomerOrders)} element={<CustomerOrdersPage />} />
+            <Route path={rel(Routes.Sales)} element={<SalesPage />} />
+            <Route path={rel(Routes.Treasury)} element={<TreasuryPage />} />
+            <Route path={rel(Routes.Settings)} element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to={Routes.Dashboard} replace />} />
           </Route>
-        </Routes>
+        </RouterRoutes>
       </Suspense>
     </Providers>
   );

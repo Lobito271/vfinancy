@@ -4,49 +4,46 @@ React + TypeScript desktop UI. Built with Vite, styled with a hand-rolled plain 
 
 ## Stack
 
-- **React 19** + **TypeScript 5**
-- **Vite 5** for dev server / build
-- **Plain CSS3** styling system in `src/index.css` (tokens + utilities + responsive variants, no Tailwind/PostCSS)
-- **Radix primitives** + `class-variance-authority` for accessible components
-- **React Router 6** for client routing
+- **React 19** + **TypeScript 5**, **Vite 8**
+- **Plain CSS3** design system in `src/index.css` — OKLCH tokens + semantic component classes (no Tailwind/PostCSS)
+- **Base UI** (`@base-ui/react`) — unstyled, accessible primitives wrapped in `src/components/`
+- **React Router 7** for client routing (hash)
 - **TanStack Query 5** for server-state caching
-- **Zustand 4** for local UI / session state (with `persist` middleware)
-- **React Hook Form 7** + **Zod 3** for forms / validation
-- **lucide-react** for icons
-- **recharts** for charts
-- **@fontsource/inter** for self-hosted Inter (latin subset)
+- **Zustand 5** for local UI / session state (with `persist` middleware)
+- **React Hook Form 7** + **Zod 4** for forms / validation
+- **lucide-react** for icons, **recharts** for charts
+- **@fontsource/geist-sans** / **@fontsource/geist-mono** for self-hosted Geist fonts
 
 ## Folder Structure
 
 ```
 src/
-  components/        # category-folders, not by feature
-    button/          # Button + variants (default/secondary/outline/ghost/link/destructive/success)
-    input/           # Input, Textarea, Field, Label, SearchInput
-    select/          # Select (Radix)
-    checkbox/        # Checkbox, RadioGroup, Switch
+  app/               # App.tsx (route table), Providers.tsx, ErrorBoundary.tsx
+  pages/             # route screens (1 per module + SetupWizard + Welcome)
+  features/          # feature-based modules (dashboard/, customers/, sales/, ...)
+  components/        # category folders, not by feature
+    button/          # Button (Base UI) — variants + sizes + loading
+    input/           # Input, Textarea, Label, SearchInput, PasswordInput
+    select/          # Select (Base UI)
+    form/            # Form (RHF + zod) + field components
     table/           # DataTable, TablePagination
-    dialog/          # Dialog, AlertDialog (5 variants), ConfirmDialog
+    dialog/          # Dialog + Body/Header/Footer, AlertDialog, ConfirmDialog, CancelDialog
     card/            # Card, StatCard
-    badge/           # Badge + 3 status-specific variants
-    navigation/      # Sidebar (collapsible), Topbar, Breadcrumbs
-    feedback/        # Spinner, Skeleton, ProgressBar, EmptyState, ErrorState, Toaster
-    charts/          # LineChart, BarChart, PieChart (recharts wrappers)
-    layout/          # PageContainer, PageHeader, Section, Stack, Grid
-    money/           # MoneyInput, MoneyDisplay
-    misc/            # DropdownMenu, Separator, Tooltip
-  pages/             # route screens (Dashboard + 1 per module + Login)
-  layouts/           # AppLayout (sidebar + topbar + breadcrumbs)
-  stores/            # Zustand: theme, session, sidebar, ui, notification
+    badge/           # Badge + status-specific variants
+    navigation/      # Sidebar, Topbar, Breadcrumbs, nav config (nav.ts)
+    layout/          # AppLayout, PageContainer, PageHeader, Section, Grid
+    misc/            # DropdownMenu, Tooltip, Drawer, RowActions
+    feedback/        # Spinner, EmptyState, ErrorState, Toaster
+    charts/          # LineChart, BarChart (recharts wrappers, token colors)
+    tabs/            # Tabs (Base UI)
+  services/          # one folder per business domain + queryKeys.ts, bindings.ts, wails-types.ts
+  stores/            # Zustand: theme, sidebar, notification
+  hooks/             # useDebounce
+  constants/         # routes (English slugs), currencies, countries, payment methods
+  utils/             # cx, format, storage
   locales/           # es-PE translation dictionary + t() helper
-  lib/               # nav routes
-  hooks/             # (reserved)
-  services/          # one folder per business domain, all wired to the Wails bindings (no mocks)
   types/             # shared domain types (Customer, Product, Supplier, Sale, ...)
-  assets/            # static files
   main.tsx           # Vite entrypoint
-  App.tsx            # router config
-  index.css          # plain CSS3 design system (tokens + semantic component classes) + Inter font
 ```
 
 Every `components/<category>/` has an `index.ts` barrel — **import from `@/components/<category>`**, not from individual files.
@@ -70,11 +67,10 @@ wails build         # produce desktop binary in build/bin/
 ## Conventions
 
 - The frontend **must not** access the database directly. All calls go through Wails bindings exposed by the Go `App` and `bindings.App` structs.
-- All UI text is in **Spanish (es-PE)** via `t('key')` from `@/locales`. No hardcoded strings in components.
+- All UI text is in **Spanish (es-PE)**. Route slugs are English (see `@/constants/routes`).
 - All numbers / dates / currency use `Intl.*` helpers in `@/utils/format`. **Never** use `toFixed` for money or `toLocaleString` ad-hoc.
 - Path alias `@/*` resolves to `src/*`.
 - All style tokens (CSS variables) and semantic component classes live in `src/index.css`. Use the component classes (`.btn`, `.card`, `.input`, …) — never hardcode colors. This is the only stylesheet.
 - Use `cx()` from `@/utils/cx` for conditional class composition. Don't write raw string concatenation.
 - Destructive actions go through `<AlertDialog variant="destructive">` or `<ConfirmDialog>`.
-- Forms use `react-hook-form` + `zod` (when forms are added in later phases).
-- After running `wails dev`/`wails build`, real generated Wails types appear in `src/wailsjs/go/main/` — import from those, not from the placeholder `AppBindings` interface in `src/vite-env.d.ts`.
+- Forms use `react-hook-form` + `zod`.

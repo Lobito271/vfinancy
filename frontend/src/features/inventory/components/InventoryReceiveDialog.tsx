@@ -11,7 +11,7 @@ import {
   NumberField,
   MoneyField,
 } from '@/components/form';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
+import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { useReceiveStock } from '@/features/inventory/hooks/useInventory';
 import { wailsClient } from '@/services/bindings';
@@ -97,7 +97,7 @@ export function InventoryReceiveDialog({ open, onOpenChange }: InventoryReceiveD
         <Form schema={ReceiveSchema} defaultValues={defaults} onSubmit={handleSubmit}>
           {({ formState }) => (
             <>
-              <div className="dialog-body-scroll">
+              <DialogBody>
                 <DefaultWarehouseSeed />
                 <ProductSelectField name="productId" label="Producto" required />
                 <WarehouseSelectField name="warehouseId" label="Almacén" required />
@@ -109,7 +109,7 @@ export function InventoryReceiveDialog({ open, onOpenChange }: InventoryReceiveD
                   <NumberField name="quantity" label="Cantidad" required min={0} step={0.01} description="Unidades ingresadas al almacén." />
                   <MoneyField name="unitCost" label="Costo unitario" description="Costo de adquisición por unidad (PEN)." />
                 </div>
-              </div>
+              </DialogBody>
               <DialogFooter>
                 <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={receive.isPending}>
                   Cancelar

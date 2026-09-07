@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/select';
-import { useCustomers, useDeleteCustomer } from '@/features/customers';
+import { useCustomers, useDeleteCustomer } from '@/features/customers/hooks/useCustomers';
 import { CustomerFormDialog } from '@/features/customers/components/CustomerFormDialog';
 import type { Customer } from '@/types/domain';
 import { formatCurrency } from '@/utils/format';

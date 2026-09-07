@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { z } from 'zod';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/dialog';
+import { DialogBody, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/dialog';
 import { Form, TextField, NumberField, SelectField } from '@/components/form';
 import { Button } from '@/components/button';
 import { useCreateCreditCard, useUpdateCreditCard } from '../hooks/useTreasury';
@@ -92,7 +92,7 @@ export function CreditCardFormDialog({ open, onOpenChange, editCard }: CreditCar
           </DialogDescription>
         </DialogHeader>
         <Form<FormValues> schema={schema} defaultValues={defaultValues} onSubmit={handleSubmit}>
-          <div className="stack dialog-body-scroll">
+          <DialogBody>
             <SelectField
               name="issuer"
               label="Emisor"
@@ -119,7 +119,7 @@ export function CreditCardFormDialog({ open, onOpenChange, editCard }: CreditCar
               ]}
               required
             />
-          </div>
+          </DialogBody>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
               Cancelar

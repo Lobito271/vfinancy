@@ -45,7 +45,8 @@ The palette is **monochrome/grayscale by design** — a terminal/skeuomorphic-sq
 
 - Radii: `--radius-sm` / `--radius` / `--radius-lg` are **all `0`** (square corners — sharp, terminal-like edges); `--radius-full` (`999px`) is reserved for badges, dots, and circular avatars only.
 - Depth is **flat with hard-offset shadows** (no blur): `--shadow-sm` `0.0625rem 0.0625rem 0`, `--shadow-md` `0.125rem 0.125rem 0`, `--shadow-lg` `0.25rem 0.25rem 0` over `rgb(0 0 0 / 12–16%)`. Dark mode uses **no shadow** (`none`) — elevation is expressed through the charcoal surface layers and muted dark-grey borders instead of pure-white chrome.
-- **Layering (ascending z-index):** table sticky header 2 → topbar 40 → drawer 50 → dialog 60 → menu/select 70 → tooltip 80 → toaster 90. Overlays are portals into `body`; only the topbar/table participate in page stacking, so every overlay must sit above the topbar (40).
+- **Layering:** one tokenized scale in `src/index.css` `:root` — `--z-affix` 40 (topbar) → `--z-drawer` 50 / `--z-drawer-content` 51 → `--z-dialog` 60 / `--z-dialog-content` 61 → `--z-popover` 70 (menu/select) → `--z-tooltip` 80 → `--z-toast` 100. Container sits **one above its backdrop**. Dialog/Drawer backdrops + containers are Base UI portals into `body` (no ancestor stacking traps), so they always stack above the affixed topbar and page content.
+- **Wide tables never escape their card:** `.datatable` / `.page-container` carry `min-width: 0`, so a wide table scrolls *inside* `.datatable-scroll` (`overflow-x: auto`, `scrollbar-gutter: stable`) instead of widening the document — the page-level (viewport) scrollbar, which browsers always paint above `position: fixed` overlays, can therefore never appear over a Dialog or Drawer.
 - Motion: ~160ms for hover/state, ~200ms for dialogs/toasts, 250ms for the drawer. Easing `--ease` (`cubic-bezier(0.25,0.8,0.35,1)`).
 - Enter/exit animations use Base UI's `data-starting-style` / `data-ending-style` attributes. All motion is disabled under `prefers-reduced-motion: reduce`.
 
@@ -67,7 +68,7 @@ Base UI parts are styled via `className` + data attributes. Every styled part li
 | Actions | `button` — variants: primary, secondary, outline, ghost, destructive; sizes: sm, md, lg, icon, icon-sm; `loading` spinner | `Button` (+ `render` prop for element composition) |
 | Inputs | `input` — `Input`, `Textarea`, `Label`, `SearchInput` | native, plain CSS |
 | Pickers | `select` — `Select`, `SelectValue`, `SelectTrigger`(`invalid`), `SelectContent`, `SelectItem` | `Select` (Portal → Positioner → Popup; `items` on Root enables labeled trigger values) |
-| Overlays | `dialog` — `Dialog`, `DialogContent`(`size` sm/md/lg/xl), Header/Footer/Title/Description; `AlertDialog` (variants: success/warning/destructive/info/confirmation), `ConfirmDialog` (destructive confirm), `CancelDialog`, `RegisterPaymentDialog` | `Dialog` (Portal → Backdrop → Popup + Close) |
+| Overlays | `dialog` — `Dialog`, `DialogContent`(`size` sm/md/lg/xl), `DialogBody` (Base UI `ScrollArea`, right-gutter + themed scrollbar), Header/Footer/Title/Description; `AlertDialog` (variants: success/warning/destructive/info/confirmation), `ConfirmDialog` (destructive confirm), `CancelDialog` | `Dialog` (Portal → Backdrop → Popup + Close); `RegisterPaymentDialog` lives in `features/treasury/` |
 | Menus | `misc` — `DropdownMenu*` (items support `onSelect`, `danger`, `inset`; radio groups for theme), `RowActions` (row `⋯` menu from `RowAction[]`), `Tooltip*` (`asChild` → `render` bridged), `Drawer` (controlled side panel w/ swipe) | `Menu`, `Tooltip`, `Drawer` |
 | Tabs | `tabs` — `Tabs`, `TabsList`, `TabsTrigger` (`data-active`), `TabsContent` | `Tabs` |
 | Feedback | `feedback` — `Spinner`, `EmptyState` (icon+title+description+action), `ErrorState`, `Toaster` (Base UI Toast; imperative API `useNotificationStore.getState().push({title, description?, variant, duration?})`) | `Toast` (Provider/Root/Title/Description/Close/Viewport) |
@@ -93,8 +94,8 @@ Base UI parts are styled via `className` + data attributes. Every styled part li
 
 ## 4. Entry flows
 
-- **Not configured** → `/configuracion-inicial` wizard: 3 steps (Empresa → Regional → Acceso), step list + "paso N de 3" text indicator (never a progress bar or percentage), Back enabled from step 2, per-step zod validation, single `SetupWorkspace` submit.
-- **Configured + password set + locked** → `/bienvenida`: full-screen card with the "vfinancy" text logo and the password form (unlock). 
+- **Not configured** → `/setup` wizard: 3 steps (Empresa → Regional → Acceso), step list + "paso N de 3" text indicator (never a progress bar or percentage), Back enabled from step 2, per-step zod validation, single `SetupWorkspace` submit.
+- **Configured + password set + locked** → `/welcome`: full-screen card with the "vfinancy" text logo and the password form (unlock). 
 - **Configured, no password (or unlocked)** → straight into the app.
 - Lock is available from the Topbar and from Settings → Seguridad ("Bloquear ahora").
 
@@ -117,7 +118,7 @@ Feature settings: only Inventory has feature-scoped settings → a **Drawer** ("
 
 ---
 
-## 6. General Settings (`/configuracion`)
+## 6. General Settings (`/settings`)
 
 Sections, each with an explicit **Save** (or explicit action buttons):
 

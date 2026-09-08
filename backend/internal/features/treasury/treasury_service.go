@@ -15,7 +15,7 @@ import (
 	derrors "vfinancy/backend/internal/domain/errors"
 	"vfinancy/backend/internal/domain/repositories"
 	"vfinancy/backend/internal/domain/valueobjects"
-	"vfinancy/backend/internal/shared/logger"
+	"vfinancy/backend/infrastructure/logger"
 )
 
 // TreasuryService owns the bank / card / exchange workflows.
@@ -57,7 +57,6 @@ type OpenAccountInput struct {
 	AccountNumber string
 	AccountType   string // "checking" | "savings"
 	CurrencyCode  valueobjects.CurrencyCode
-	GLAccountID   uuid.UUID
 	IsDefault     bool
 }
 
@@ -72,7 +71,6 @@ func (s *TreasuryService) OpenAccount(ctx context.Context, in OpenAccountInput) 
 			AccountNumber: in.AccountNumber,
 			AccountType:   in.AccountType,
 			CurrencyCode:  in.CurrencyCode,
-			GLAccountID:   in.GLAccountID,
 			IsDefault:     in.IsDefault,
 		})
 		if err != nil {
@@ -217,10 +215,6 @@ func (s *TreasuryService) RegisterTransaction(ctx context.Context, in RegisterTr
 	return out, nil
 }
 
-// ReconcileTransactionInput is a placeholder for the reconciliation
-// workflow, which is scheduled for a later phase once the
-// bank_transactions schema is in place.
-
 // IssueCardInput creates a company-issued credit card.
 type IssueCardInput struct {
 	CompanyID       uuid.UUID
@@ -234,7 +228,6 @@ type IssueCardInput struct {
 	CutOffDay       int
 	PaymentDueDay   int
 	CurrencyCode    valueobjects.CurrencyCode
-	GLAccountID     uuid.UUID
 }
 
 // IssueCard creates a new card with zero opening balance.
@@ -257,7 +250,6 @@ func (s *TreasuryService) IssueCard(ctx context.Context, in IssueCardInput) (*Cr
 			CutOffDay:       in.CutOffDay,
 			PaymentDueDay:   in.PaymentDueDay,
 			CurrencyCode:    in.CurrencyCode,
-			GLAccountID:     in.GLAccountID,
 		})
 		if err != nil {
 			return err

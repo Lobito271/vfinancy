@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -117,6 +118,19 @@ func (r *repository) UpdateCompany(ctx context.Context, c *workspace.Company) er
 	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q, c.ID, c.Code, c.LegalName,
 		c.TradeName, c.TaxID, c.Address, c.Phone, c.Email, c.CountryCode,
 		c.FunctionalCurrency, c.Timezone, c.FiscalYearStartMonth, c.IsActive, c.UpdatedAt)
+	if err != nil {
+		return persistence.Translate(err)
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return repositories.ErrNotFound
+	}
+	return nil
+}
+
+func (r *repository) DeleteCompany(ctx context.Context, id uuid.UUID) error {
+	const q = `UPDATE companies SET deleted_at = $2, is_active = FALSE, updated_at = $3 WHERE id = $1 AND deleted_at IS NULL`
+	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q, id, time.Now().UTC(), time.Now().UTC())
 	if err != nil {
 		return persistence.Translate(err)
 	}

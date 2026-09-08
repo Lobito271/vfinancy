@@ -1,11 +1,9 @@
 // Package purchasing implements the business logic for the purchase
 // workflow: creation, approval, receipt, payment, AP management.
 //
-// The PurchasingService does NOT generate the corresponding journal
-// entries — that is the AccountingService's job. The application use
-// case layer (Phase 1.5) composes the two: it calls
-// PurchasingService.ApproveAndReceive and then
-// AccountingService.PostPurchaseApproval in the same transaction.
+// Approval and receipt run inside the service and inject the received
+// goods into inventory as batches. Purchases do not yet generate
+// accounting journal entries.
 package purchasing
 
 import (
@@ -20,7 +18,7 @@ import (
 	"vfinancy/backend/internal/domain/repositories"
 	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/features/inventory"
-	"vfinancy/backend/internal/shared/logger"
+	"vfinancy/backend/infrastructure/logger"
 )
 
 // StockLedger is the narrow inventory contract consumed by the purchase
@@ -305,8 +303,8 @@ func (s *PurchasingService) Create(ctx context.Context, in CreateInput) (*Purcha
 
 // Approve transitions a purchase order from "pending" to "received".
 // Approve can only be called once; a second call returns an error.
-// The application layer is expected to generate the corresponding
-// journal entry in the same transaction via AccountingService.
+// Received goods are injected into inventory as batches on the same
+// transaction.
 func (s *PurchasingService) Approve(ctx context.Context, id uuid.UUID) error {
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
 		po, err := s.orders.GetByID(ctx, id)

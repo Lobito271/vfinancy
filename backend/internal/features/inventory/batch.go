@@ -1,12 +1,3 @@
-// Package inventory contains the domain entities that model physical
-// stock movement, batches, transfers and adjustments.
-//
-// CRITICAL DESIGN RULE: stock is NEVER stored on the product. It is
-// computed as the sum of InventoryMovement rows for a (product,
-// warehouse) pair. The InventoryBatch entity carries a denormalized
-// current_quantity for fast lookup, but that field is maintained by
-// the application layer through the movement log and is always
-// recomputable from the source of truth.
 package inventory
 
 import (
@@ -110,7 +101,8 @@ func NewInventoryBatch(now time.Time, opts NewInventoryBatchOptions) (*Inventory
 	}, nil
 }
 
-// maximum sale date uses the default clearance period.
+// MaximumSaleDate returns the last date the batch may be sold at full
+// price: arrival date plus the default clearance period.
 func (b *InventoryBatch) MaximumSaleDate() valueobjects.Date {
 	return b.MaximumSaleDateAfter(ClearanceDays)
 }
@@ -128,12 +120,14 @@ func (b *InventoryBatch) DaysInStock(today valueobjects.Date) int {
 	return int(today.Sub(b.ArrivalDate).Hours() / 24)
 }
 
-// days until clearance returns the remaining days before clearance.
+// DaysUntilClearance returns the remaining days before the batch
+// reaches its clearance date.
 func (b *InventoryBatch) DaysUntilClearance(today valueobjects.Date) int {
 	return int(b.MaximumSaleDate().Sub(today).Hours() / 24)
 }
 
-// is clearance reports whether a stocked batch passed its clearance date.
+// IsClearance reports whether a stocked batch has passed its
+// clearance date.
 func (b *InventoryBatch) IsClearance(today valueobjects.Date) bool {
 	return b.IsClearanceAfter(today, ClearanceDays)
 }
@@ -146,7 +140,8 @@ func (b *InventoryBatch) IsClearanceAfter(today valueobjects.Date, days int) boo
 	return today.After(date) || today.Equal(date)
 }
 
-// needs clearance soon reports whether a stocked batch is near clearance.
+// NeedsClearanceSoon reports whether a stocked batch is near its
+// clearance date.
 func (b *InventoryBatch) NeedsClearanceSoon(today valueobjects.Date) bool {
 	return b.NeedsClearanceSoonAfter(today, ClearanceDays, 3)
 }

@@ -91,8 +91,7 @@ func (l LotNumber) String() string { return string(l) }
 func (l LotNumber) IsEmpty() bool  { return string(l) == "" }
 
 // ShortCode is a generic short identifier (1..20 chars, uppercase,
-// letters/digits/dots/dashes). Used for company codes, branch codes,
-// company and branch codes.
+// letters/digits/dots/dashes). Used for company and branch codes.
 type ShortCode string
 
 func NewShortCode(s string) (ShortCode, error) {

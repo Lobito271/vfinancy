@@ -123,74 +123,6 @@ CREATE TABLE local_profiles (
 CREATE UNIQUE INDEX uq_local_profiles_singleton ON local_profiles ((TRUE));
 
 
-CREATE TABLE audit_logs (
-    id              UUID         NOT NULL DEFAULT gen_random_uuid(),
-    occurred_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    company_id      UUID         NOT NULL,
-    user_id         UUID,
-    table_name      VARCHAR(100) NOT NULL,
-    record_id       UUID,
-    action          VARCHAR(30)  NOT NULL,
-    old_value       JSONB,
-    new_value       JSONB,
-    changed_fields  TEXT[],
-    ip_address      INET,
-    user_agent      TEXT,
-    device          VARCHAR(200),
-
-    PRIMARY KEY (id, occurred_at),
-
-    CONSTRAINT fk_audit_logs_company
-        FOREIGN KEY (company_id) REFERENCES companies(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
-
-    CONSTRAINT ck_audit_logs_action
-        CHECK (action IN (
-            'INSERT', 'UPDATE', 'DELETE', 'HARD_DELETE',
-            'APPROVE', 'REJECT', 'CANCEL',
-            'CONCILIATE', 'CLOSE_PERIOD', 'REOPEN_PERIOD',
-            'EXPORT', 'PRINT', 'SEND'
-        ))
-);
-
-CREATE INDEX idx_audit_logs_company_time
-    ON audit_logs (company_id, occurred_at DESC);
-
-CREATE INDEX idx_audit_logs_record
-    ON audit_logs (table_name, record_id, occurred_at DESC)
-    WHERE record_id IS NOT NULL;
-
-CREATE INDEX idx_audit_logs_user_time
-    ON audit_logs (user_id, occurred_at DESC)
-    WHERE user_id IS NOT NULL;
-
-CREATE INDEX idx_audit_logs_action_time
-    ON audit_logs (action, occurred_at DESC);
-
-CREATE INDEX idx_audit_logs_company_action_time
-    ON audit_logs (company_id, action, occurred_at DESC);
-
-CREATE OR REPLACE FUNCTION audit_logs_forbid_mutation()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    RAISE EXCEPTION 'audit_logs is append-only; % is not allowed', TG_OP;
-END;
-$$;
-
-CREATE TRIGGER trg_audit_logs_no_update
-    BEFORE UPDATE ON audit_logs
-    FOR EACH ROW
-    EXECUTE FUNCTION audit_logs_forbid_mutation();
-
-CREATE TRIGGER trg_audit_logs_no_delete
-    BEFORE DELETE ON audit_logs
-    FOR EACH ROW
-    EXECUTE FUNCTION audit_logs_forbid_mutation();
-
-
-
 CREATE TABLE application_settings (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id   UUID         NOT NULL,
@@ -436,59 +368,6 @@ CREATE UNIQUE INDEX uq_exchange_rates_pair_date
 
 CREATE INDEX idx_exchange_rates_lookup
     ON exchange_rates (from_currency, to_currency, rate_date DESC);
-
-
-CREATE TABLE audit_events (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id   UUID         NOT NULL,
-    user_id      UUID,
-    session_id   UUID,
-    event_type   VARCHAR(50)  NOT NULL
-        CHECK (event_type IN (
-            'CONFIG_UPDATE',
-            'BACKUP_CREATE', 'EXPORT_DATA'
-        )),
-    target_type  VARCHAR(100),
-    target_id    UUID,
-    description  TEXT,
-    metadata     JSONB        NOT NULL DEFAULT '{}',
-    ip_address   INET,
-    device       VARCHAR(100),
-    occurred_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT fk_audit_events_company
-        FOREIGN KEY (company_id) REFERENCES companies(id)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-
-    CONSTRAINT ck_audit_events_target_type_nonblank
-        CHECK (target_type IS NULL OR length(trim(target_type)) > 0)
-);
-
-CREATE INDEX idx_audit_events_company_time
-    ON audit_events (company_id, occurred_at DESC);
-
-CREATE INDEX idx_audit_events_user
-    ON audit_events (user_id, occurred_at DESC)
-    WHERE user_id IS NOT NULL;
-
-CREATE INDEX idx_audit_events_type
-    ON audit_events (event_type, occurred_at DESC);
-
-CREATE INDEX idx_audit_events_target
-    ON audit_events (target_type, target_id)
-    WHERE target_type IS NOT NULL AND target_id IS NOT NULL;
-
-CREATE OR REPLACE FUNCTION reject_audit_events_mutation()
-RETURNS TRIGGER AS $$
-BEGIN
-    RAISE EXCEPTION 'audit_events is append-only: UPDATE and DELETE are not allowed';
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER trg_audit_events_no_mutation
-    BEFORE UPDATE OR DELETE ON audit_events
-    FOR EACH ROW
-    EXECUTE FUNCTION reject_audit_events_mutation();
 
 
 CREATE TABLE sync_devices (
@@ -848,164 +727,6 @@ CREATE TRIGGER trg_products_set_updated_at
     EXECUTE FUNCTION set_updated_at();
 
 
-CREATE TABLE fiscal_periods (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id   UUID           NOT NULL,
-    name         VARCHAR(100)   NOT NULL,
-    period_start DATE           NOT NULL,
-    period_end   DATE           NOT NULL,
-    status       VARCHAR(20)    NOT NULL DEFAULT 'open'
-        CHECK (status IN ('open', 'closing', 'closed')),
-    closed_at    TIMESTAMPTZ,
-    closed_by    UUID,
-    created_at   TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
-    updated_at   TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
-    created_by   UUID,
-    updated_by   UUID,
-
-    CONSTRAINT fk_fiscal_periods_company
-        FOREIGN KEY (company_id) REFERENCES companies(id)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT ck_fiscal_periods_range
-        CHECK (period_end >= period_start)
-);
-
-CREATE UNIQUE INDEX uq_fiscal_periods_name
-    ON fiscal_periods (company_id, name);
-
-CREATE UNIQUE INDEX uq_fiscal_periods_range
-    ON fiscal_periods (company_id, period_start, period_end);
-
-CREATE TRIGGER trg_fiscal_periods_set_updated_at
-    BEFORE UPDATE ON fiscal_periods
-    FOR EACH ROW
-    EXECUTE FUNCTION set_updated_at();
-
-
-CREATE TABLE chart_of_accounts (
-    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id       UUID           NOT NULL,
-    code             VARCHAR(20)    NOT NULL,
-    name             VARCHAR(200)   NOT NULL,
-    type             VARCHAR(20)    NOT NULL
-        CHECK (type IN ('asset', 'liability', 'equity', 'income', 'expense')),
-    parent_id        UUID,
-    path             VARCHAR(100),
-    depth            INTEGER        NOT NULL DEFAULT 1
-        CHECK (depth >= 1),
-    is_active        BOOLEAN        NOT NULL DEFAULT TRUE,
-    allows_movement  BOOLEAN        NOT NULL DEFAULT TRUE,
-    description      TEXT,
-    created_at       TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
-    updated_at       TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
-    created_by       UUID,
-    updated_by       UUID,
-
-    CONSTRAINT fk_chart_of_accounts_company
-        FOREIGN KEY (company_id) REFERENCES companies(id)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_chart_of_accounts_parent
-        FOREIGN KEY (parent_id) REFERENCES chart_of_accounts(id)
-        ON UPDATE CASCADE ON DELETE SET NULL,
-    CONSTRAINT ck_chart_of_accounts_name_nonblank
-        CHECK (length(trim(name)) > 0)
-);
-
-CREATE UNIQUE INDEX uq_chart_of_accounts_code
-    ON chart_of_accounts (company_id, code);
-
-CREATE INDEX idx_chart_of_accounts_type
-    ON chart_of_accounts (company_id, type)
-    WHERE is_active = TRUE;
-
-CREATE INDEX idx_chart_of_accounts_parent
-    ON chart_of_accounts (parent_id);
-
-CREATE TRIGGER trg_chart_of_accounts_set_updated_at
-    BEFORE UPDATE ON chart_of_accounts
-    FOR EACH ROW
-    EXECUTE FUNCTION set_updated_at();
-
-
-CREATE TABLE journal_entries (
-    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id        UUID           NOT NULL,
-    fiscal_period_id  UUID           NOT NULL,
-    number            VARCHAR(30)    NOT NULL,
-    entry_date        DATE           NOT NULL,
-    posting_date      DATE,
-    description       TEXT,
-    source            VARCHAR(20)    NOT NULL
-        CHECK (source IN ('sale', 'purchase', 'payment', 'manual', 'adjustment', 'closing', 'opening')),
-    source_id         UUID,
-    status            VARCHAR(20)    NOT NULL DEFAULT 'draft'
-        CHECK (status IN ('draft', 'posted', 'reversed')),
-    reverses_entry_id UUID,
-    reversed_by_entry_id UUID,
-    posted_at         TIMESTAMPTZ,
-    created_at        TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
-    updated_at        TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
-    created_by        UUID,
-    posted_by         UUID,
-
-    CONSTRAINT fk_journal_entries_company
-        FOREIGN KEY (company_id) REFERENCES companies(id)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_journal_entries_period
-        FOREIGN KEY (fiscal_period_id) REFERENCES fiscal_periods(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT fk_journal_entries_reverses
-        FOREIGN KEY (reverses_entry_id) REFERENCES journal_entries(id)
-        ON UPDATE CASCADE ON DELETE SET NULL
-);
-
-CREATE UNIQUE INDEX uq_journal_entries_number
-    ON journal_entries (company_id, number);
-
-CREATE INDEX idx_journal_entries_period
-    ON journal_entries (company_id, fiscal_period_id, entry_date);
-
-CREATE INDEX idx_journal_entries_source
-    ON journal_entries (source, source_id);
-
-CREATE TABLE journal_entry_lines (
-    id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    journal_entry_id      UUID           NOT NULL,
-    line_number           INTEGER        NOT NULL DEFAULT 1
-        CHECK (line_number >= 1),
-    account_id            UUID           NOT NULL,
-    description           TEXT,
-    debit                 NUMERIC(18,2)  NOT NULL DEFAULT 0
-        CHECK (debit >= 0),
-    credit                NUMERIC(18,2)  NOT NULL DEFAULT 0
-        CHECK (credit >= 0),
-    currency_code         VARCHAR(3)     NOT NULL DEFAULT 'PEN',
-    exchange_rate         NUMERIC(18,6)  NOT NULL DEFAULT 1,
-    amount_in_txn_currency NUMERIC(18,2) NOT NULL DEFAULT 0,
-    created_at            TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT fk_journal_entry_lines_entry
-        FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_journal_entry_lines_account
-        FOREIGN KEY (account_id) REFERENCES chart_of_accounts(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT ck_journal_entry_lines_one_side
-        CHECK ((debit > 0) <> (credit > 0))
-);
-
-CREATE INDEX idx_journal_entry_lines_entry
-    ON journal_entry_lines (journal_entry_id, line_number);
-
-CREATE INDEX idx_journal_entry_lines_account
-    ON journal_entry_lines (account_id);
-
-CREATE TRIGGER trg_journal_entries_set_updated_at
-    BEFORE UPDATE ON journal_entries
-    FOR EACH ROW
-    EXECUTE FUNCTION set_updated_at();
-
-
 CREATE TABLE bank_accounts (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id       UUID           NOT NULL,
@@ -1015,7 +736,6 @@ CREATE TABLE bank_accounts (
     account_type     VARCHAR(20)    NOT NULL DEFAULT 'checking'
         CHECK (account_type IN ('checking', 'savings')),
     currency_code    VARCHAR(3)     NOT NULL DEFAULT 'PEN',
-    gl_account_id    UUID           NOT NULL,
     current_balance  NUMERIC(18,2)  NOT NULL DEFAULT 0,
     is_default       BOOLEAN        NOT NULL DEFAULT FALSE,
     is_active        BOOLEAN        NOT NULL DEFAULT TRUE,
@@ -1030,10 +750,7 @@ CREATE TABLE bank_accounts (
         ON UPDATE CASCADE ON DELETE CASCADE,
     CONSTRAINT fk_bank_accounts_branch
         FOREIGN KEY (branch_id) REFERENCES branches(id)
-        ON UPDATE CASCADE ON DELETE SET NULL,
-    CONSTRAINT fk_bank_accounts_gl
-        FOREIGN KEY (gl_account_id) REFERENCES chart_of_accounts(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT
+        ON UPDATE CASCADE ON DELETE SET NULL
 );
 
 CREATE UNIQUE INDEX uq_bank_accounts_number
@@ -1062,8 +779,7 @@ CREATE TABLE credit_cards (
         CHECK (cut_off_day BETWEEN 1 AND 31),
     payment_due_day   INTEGER        NOT NULL DEFAULT 1
         CHECK (payment_due_day BETWEEN 1 AND 31),
-    currency_code     VARCHAR(3)     NOT NULL DEFAULT 'PEN',
-    gl_account_id     UUID           NOT NULL,
+currency_code     VARCHAR(3)     NOT NULL DEFAULT 'PEN',
     is_active         BOOLEAN        NOT NULL DEFAULT TRUE,
     created_at        TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
     updated_at        TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
@@ -1076,10 +792,7 @@ CREATE TABLE credit_cards (
         ON UPDATE CASCADE ON DELETE CASCADE,
     CONSTRAINT fk_credit_cards_branch
         FOREIGN KEY (branch_id) REFERENCES branches(id)
-        ON UPDATE CASCADE ON DELETE SET NULL,
-    CONSTRAINT fk_credit_cards_gl
-        FOREIGN KEY (gl_account_id) REFERENCES chart_of_accounts(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT
+        ON UPDATE CASCADE ON DELETE SET NULL
 );
 
 CREATE INDEX idx_credit_cards_company
@@ -1100,16 +813,12 @@ CREATE TABLE bank_transactions (
     is_reconciled    BOOLEAN        NOT NULL DEFAULT FALSE,
     reconciled_at    TIMESTAMPTZ,
     reconciled_by    UUID,
-    journal_entry_id UUID,
     created_at       TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
     updated_at       TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
 
     CONSTRAINT fk_bank_transactions_account
         FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_bank_transactions_journal
-        FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id)
-        ON UPDATE CASCADE ON DELETE SET NULL
+        ON UPDATE CASCADE ON DELETE CASCADE
 );
 
 CREATE INDEX idx_bank_transactions_account_date
@@ -1131,72 +840,6 @@ CREATE TRIGGER trg_credit_cards_set_updated_at
 
 CREATE TRIGGER trg_bank_transactions_set_updated_at
     BEFORE UPDATE ON bank_transactions
-    FOR EACH ROW
-    EXECUTE FUNCTION set_updated_at();
-
-
-CREATE TABLE international_returns (
-    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id       UUID           NOT NULL,
-    supplier_id      UUID           NOT NULL,
-    number           VARCHAR(30)    NOT NULL,
-    return_date      DATE           NOT NULL,
-    currency_code    VARCHAR(3)     NOT NULL DEFAULT 'USD',
-    exchange_rate    NUMERIC(18,6)  NOT NULL DEFAULT 1,
-    subtotal         NUMERIC(18,2)  NOT NULL DEFAULT 0,
-    total            NUMERIC(18,2)  NOT NULL DEFAULT 0,
-    reason           TEXT,
-    status           VARCHAR(20)    NOT NULL DEFAULT 'pending'
-        CHECK (status IN ('pending', 'authorized', 'received', 'reconciled', 'cancelled')),
-    authorized_at    TIMESTAMPTZ,
-    authorized_by    UUID,
-    received_at      TIMESTAMPTZ,
-    reconciled_at    TIMESTAMPTZ,
-    created_at       TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
-    updated_at       TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
-    created_by       UUID,
-    updated_by       UUID,
-
-    CONSTRAINT fk_international_returns_company
-        FOREIGN KEY (company_id) REFERENCES companies(id)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_international_returns_supplier
-        FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT ck_international_returns_total
-        CHECK (total >= 0)
-);
-
-CREATE UNIQUE INDEX uq_international_returns_number
-    ON international_returns (company_id, number);
-
-CREATE TABLE international_return_items (
-    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    international_return_id UUID           NOT NULL,
-    product_id              UUID           NOT NULL,
-    quantity                NUMERIC(18,4)  NOT NULL DEFAULT 0
-        CHECK (quantity > 0),
-    unit_cost               NUMERIC(18,2)  NOT NULL DEFAULT 0
-        CHECK (unit_cost >= 0),
-    line_total              NUMERIC(18,2)  NOT NULL DEFAULT 0,
-    created_at              TIMESTAMPTZ    NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT fk_intl_return_items_return
-        FOREIGN KEY (international_return_id) REFERENCES international_returns(id)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_intl_return_items_product
-        FOREIGN KEY (product_id) REFERENCES products(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT
-);
-
-CREATE INDEX idx_intl_return_items_return
-    ON international_return_items (international_return_id);
-
-CREATE INDEX idx_intl_return_items_product
-    ON international_return_items (product_id);
-
-CREATE TRIGGER trg_international_returns_set_updated_at
-    BEFORE UPDATE ON international_returns
     FOR EACH ROW
     EXECUTE FUNCTION set_updated_at();
 

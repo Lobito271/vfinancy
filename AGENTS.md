@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**vfinancy** is a custom Desktop ERP (Enterprise Resource Planning) system built with Wails v2 (Go + React + TypeScript) backed by PostgreSQL. It replaces manual business processes with a centralized platform for purchasing, sales, inventory, treasury, accounting, and financial reporting.
+**vfinancy** is a custom Desktop ERP (Enterprise Resource Planning) system built with Wails v2 (Go + React + TypeScript) backed by PostgreSQL. It replaces manual business processes with a centralized platform for purchasing, sales, inventory, treasury, and financial reporting.
 
 ## Target Stack (mandatory)
 
@@ -67,7 +67,7 @@ Desktop Application (Wails)
 - The **service is the only orchestrator**. Cross-feature operations (e.g. creating a sale touches sales + customer debt) are composed inside the owning feature's service, in a single transaction. There is **no** use case / workflow / application-service layer.
 - The **service talks to repositories and other services** — never to SQL. Only the `postgres/` subpackage of the same feature (via `infrastructure/persistence` helpers) knows SQL.
 - Cross-feature composition happens through **service-to-service or service-to-repository calls inside `repositories.TransactionManager.WithinTransaction`**. The TxManager joins an already-active transaction in `ctx`, so nested calls stay on one DB transaction (BEGIN → … → COMMIT, ROLLBACK on error).
-- Shared application-level error sentinels (`ErrValidation`, `ErrNotFound`, `ErrConflict`, `ErrUnauthorized`, `ErrInternal`), `apperrors.Errorf`, and `apperrors.MapError` live in `internal/shared/apperrors`. Feature-specific typed errors (e.g. `auth.ErrAuthLocked`) live in the feature package.
+- Shared application-level error sentinels (`ErrValidation`, `ErrConflict`, `ErrCustomerBlocked`), `apperrors.Errorf` live in `internal/shared/apperrors`. Feature-specific typed errors live in the feature package.
 
 ## Backend Layout (current)
 
@@ -85,16 +85,15 @@ backend/
     migrations/          # file-based SQL migration runner (dialect-aware bookkeeping)
     persistence/         # Querier, TxManager, dialect switch, scan/decode/builder/error-map helpers
   interfaces/
-    bindings/            # Wails-exposed methods (auth, profile, settings, system) + sync worker bootstrap
+    bindings/            # Wails-exposed methods (workspace, settings, sync/backup, catalog, ...) + sync/notifications worker bootstrap
   internal/
     domain/              # cross-feature domain primitives
-      enums/             # 20+ enums (sale_status, journal_type, ...)
+      enums/             # 20+ enums (sale_status, batch_status, payment_method, ...)
       errors/            # derrors: business, validation, notfound, conflict
       valueobjects/      # Money, Percentage, Quantity, Email, SKU, ...
       repositories/      # shared repo interfaces (pagination, transaction, errors)
     shared/
-      apperrors/         # shared app-level error sentinels + MapError/Errorf helpers
-      logger/            # slog-based app logger
+      apperrors/         # shared app-level error sentinels + Errorf helper
     features/            # one vertical slice per business module
       <feature>/         # entity(ies) + repository interface + service (orchestration lives here)
       <feature>/postgres/# concrete repository implementations
@@ -102,10 +101,9 @@ backend/
   migrations/
     sqlite/              # SQLite schema migrations (up.sql only) — local runtime DB
     postgres/            # PostgreSQL mirror (same version set/order as sqlite)
-  pkg/                   # reusable packages
 ```
 
-Each feature (`auth`, `administration`, `customer`, `supplier`, `product`, `inventory`, `purchasing`, `sales`, `treasury`, `accounting`, `customerpayments`, `reporting`, `notifications`) is a **vertical slice**: it owns its entity definitions, its repository interface, and its business service. When an operation spans multiple features, the owning feature's service composes the other features' services/repositories inside a single transaction (e.g. `sales.SalesService.Create` records the sale AND the customer debt; `auth.AuthenticationService.Login` authenticates, creates the session and records the audit event). Concrete SQL lives only in the feature's `postgres/` subpackage.
+Each feature (`workspace`, `administration`, `customer`, `supplier`, `product`, `inventory`, `purchasing`, `sales`, `customerpayments`, `treasury`, `notifications`, `sync`) is a **vertical slice**: it owns its entity definitions, its repository interface, and its business service. When an operation spans multiple features, the owning feature's service composes the other features' services/repositories inside a single transaction (e.g. `sales.SalesService.Create` records the sale AND the customer debt). Concrete SQL lives only in the feature's `postgres/` subpackage.
 
 The root `main.go` and `app.go` are the Wails entrypoint. `app.go` initializes config + logger, ensures the database exists, opens a connection, and runs pending migrations on startup. It binds two structs: the root `App` (config accessors for the frontend) and `bindings.App` (Wails-exposed methods).
 
@@ -211,20 +209,19 @@ Cada carpeta tiene su `index.ts` barrel — importar de `@/components/<categorí
 
 - **Money types:** always `NUMERIC(18,2)` or `DECIMAL(18,2)`. **Never** `FLOAT`/`REAL` — this is the #1 cause of accounting rounding bugs.
 - **PKs:** surrogate UUIDs (use `github.com/google/uuid`).
-- **Audit columns** on every important entity: `id`, `created_at`, `updated_at`, `deleted_at` (soft delete), `created_by`, `updated_by`. Feature entities carry these fields directly (e.g. `auth.User`, `customer.Customer`).
+- **Audit columns** on every important entity: `id`, `created_at`, `updated_at`, `deleted_at` (soft delete), `created_by`, `updated_by`. Feature entities carry these fields directly (e.g. `customer.Customer`).
 - **3NF**, FK constraints, optimized indexes.
-- **Audit log** (`audit_logs` table) records every INSERT/UPDATE/DELETE/LOGIN/LOGOUT with `user_id`, `table_name`, `record_id`, `action`, `old_value`, `new_value`, `timestamp`, `ip_address`, `device`.
 
 ## Transactional Rules (non-negotiable)
 
-- Every **sale** (and any operation that mutates inventory + receivables + accounting) **must** run inside a DB transaction. Use `repositories.TransactionManager.WithinTransaction(ctx, fn)` (backed by `database.DB.WithTx`) — it begins/commits/rolls back, joins an already-active transaction in `ctx` (so composed service calls share one DB transaction), and ignores `sql.ErrTxDone` on already-rolled-back txns.
+- Every **sale** (and any operation that mutates inventory or receivables) **must** run inside a DB transaction. Use `repositories.TransactionManager.WithinTransaction(ctx, fn)` (backed by `database.DB.WithTx`) — it begins/commits/rolls back, joins an already-active transaction in `ctx` (so composed service calls share one DB transaction), and ignores `sql.ErrTxDone` on already-rolled-back txns.
 - Inside the transaction, use `SELECT ... FOR UPDATE` to lock the inventory row before reading quantity.
 - On any error: `ROLLBACK`. No partial writes.
-- Pattern: `BEGIN → SELECT FOR UPDATE → UPDATE inventory → INSERT sale → INSERT sale_items → INSERT journal → INSERT receivable → COMMIT`.
+- Pattern: `BEGIN → SELECT FOR UPDATE → UPDATE inventory → INSERT sale → INSERT sale_items → INSERT receivable → COMMIT`.
 
 ## Security Rules
 
-- Passwords: **Argon2id** (not bcrypt, not plain SHA). Tunables live in `config.AuthConfig` (`AUTH_ARGON_*` env vars).
+- Passwords: **Argon2id** (not bcrypt, not plain SHA) — methods live in `internal/features/workspace/password.go` for the local profile password.
 - All SQL parameterized; never string concatenation.
 - All errors handled explicitly; structured logging via `slog` everywhere.
 - Sensitive config encrypted; account lockout; session expiration.
@@ -243,8 +240,8 @@ Cada carpeta tiene su `index.ts` barrel — importar de `@/components/<categorí
 
 - **Local SQLite is the runtime DB.** The background worker in `interfaces/bindings/app.go` (`startSyncWorker`, gated on `SYNC_ENABLED`) pushes/pulls changes to the self-hosted sync server (`backend/cmd/syncserver`, cloud PostgreSQL mirror).
 - **Model:** watermark-diff replication with last-writer-wins. Rows travel as "all rows whose time column > per-table cursor" in both directions; hard deletes are captured by the `AFTER DELETE` triggers in `migrations/sqlite/0000_initial_schema` into `sync_tombstones`. The postgres 0000 has no triggers — the server records tombstones explicitly. There are no INSERT/UPDATE triggers (no outbox echo).
-- The generic engine lives in `internal/features/sync` (entities, registry of 13 replicated tables, `Repository` interface, `HTTPClient`) and `internal/features/sync/postgres` (dialect-safe implementation). `internal/features/sync/server.go` is the server-side handler.
-- Replicated tables are the master-data/auth set: `companies`, `branches`, `roles`, `users`, `user_roles`, `user_profiles`, `user_sessions`, `application_settings`, `taxes`, `currencies`, `countries`. `audit_logs`, `audit_events`, `login_history`, `exchange_rates` are intentionally excluded.
+- The generic engine lives in `internal/features/sync` (entities, registry of 6 replicated tables, `Repository` interface, `HTTPClient`) and `internal/features/sync/postgres` (dialect-safe implementation). `internal/features/sync/server.go` is the server-side handler.
+- Replicated tables are the master-data set: `companies`, `branches`, `application_settings`, `taxes`, `currencies`, `countries`. `exchange_rates` is intentionally excluded (device-local value). There is no user/role/auth E-R set; the local workspace profile (`local_profiles`) is deliberately device-local.
 - Config: `SYNC_ENABLED=true`, `SYNC_SERVER_URL`, `SYNC_API_KEY`, `SYNC_POLL_INTERVAL_SEC=30`.
 
 ## Notifications (device-local feed)
@@ -275,6 +272,17 @@ Inventory aging rule: `max_sale_date = arrival_date + 25 days`. Items past that 
 - Small focused functions; document exported funcs; semantic versioning.
 - Unit tests per module; integration tests for critical business processes (sales, payments, inventory movements).
 - **No comments in code unless explicitly asked.**
+
+## Comment Rules (Go)
+
+Follow the official [Go comment conventions](https://go.dev/doc/comment) (`godoc` format):
+
+- Exported declarations (package, type, func, method, const, var) are documented with a comment that **starts with the declared name**: `// MoneyFromString parses a numeric string into Money.`
+- Comments are complete sentences, correctly capitalized, with normal punctuation. No awkward line wrapping mid-thought.
+- **Changelog-style comments are prohibited.** Never write `// Fixed issue with...`, `// Refactored on <date>`, `// Added in v1.3`, or phase references in comments. State what the code *does*, not what changed to get here.
+- **Minimal, state-focused documentation.** Comment the "why" and the invariants a reader cannot recover from the signature. Omit obvious restatements of the code (`// increments i` above `i++`), and do not add comments just to "document" a self-explanatory name.
+- Comments must describe the **current** behavior. If code changes, update the comment in the same change; never leave a comment describing a past or planned state (including planned features that do not exist yet).
+- Section headers (`// --- Category CRUD ---`) are only acceptable above unexported groupings that are immediately followed by a real godoc comment; they must not serve as the doc comment of an exported declaration.
 
 ## Useful References
 

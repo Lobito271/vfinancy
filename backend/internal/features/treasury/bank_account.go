@@ -14,22 +14,21 @@ import (
 // are recorded; the entity exposes a SetBalance for the persistence
 // layer to use during rehydration.
 type BankAccount struct {
-	ID            uuid.UUID
-	CompanyID     uuid.UUID
-	BranchID      *uuid.UUID
-	BankName      string
-	AccountNumber string
-	AccountType   string
-	CurrencyCode  valueobjects.CurrencyCode
-	GLAccountID   uuid.UUID
+	ID             uuid.UUID
+	CompanyID      uuid.UUID
+	BranchID       *uuid.UUID
+	BankName       string
+	AccountNumber  string
+	AccountType    string
+	CurrencyCode   valueobjects.CurrencyCode
 	CurrentBalance valueobjects.Money
-	IsDefault     bool
-	IsActive      bool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     *time.Time
-	CreatedBy     *uuid.UUID
-	UpdatedBy     *uuid.UUID
+	IsDefault      bool
+	IsActive       bool
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	DeletedAt      *time.Time
+	CreatedBy      *uuid.UUID
+	UpdatedBy      *uuid.UUID
 }
 
 // NewBankAccountOptions is the input to NewBankAccount.
@@ -40,7 +39,6 @@ type NewBankAccountOptions struct {
 	AccountNumber string
 	AccountType   string
 	CurrencyCode  valueobjects.CurrencyCode
-	GLAccountID   uuid.UUID
 	IsDefault     bool
 }
 
@@ -56,9 +54,6 @@ func NewBankAccount(now time.Time, opts NewBankAccountOptions) (*BankAccount, er
 	if opts.AccountNumber == "" {
 		return nil, derrors.Wrap(derrors.ErrRequired, errField("account number is required"))
 	}
-	if opts.GLAccountID == uuid.Nil {
-		return nil, derrors.Wrap(derrors.ErrRequired, errField("gl account is required"))
-	}
 	return &BankAccount{
 		ID:             uuid.New(),
 		CompanyID:      opts.CompanyID,
@@ -67,7 +62,6 @@ func NewBankAccount(now time.Time, opts NewBankAccountOptions) (*BankAccount, er
 		AccountNumber:  opts.AccountNumber,
 		AccountType:    opts.AccountType,
 		CurrencyCode:   opts.CurrencyCode,
-		GLAccountID:    opts.GLAccountID,
 		CurrentBalance: valueobjects.Zero(),
 		IsDefault:      opts.IsDefault,
 		IsActive:       true,

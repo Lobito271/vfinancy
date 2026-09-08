@@ -24,20 +24,20 @@ func NewBankAccountRepository(db *sql.DB) *bankAccountRepository {
 
 const bankAccountColumns = `
 	id, company_id, branch_id, bank_name, account_number,
-	account_type, currency_code, gl_account_id, current_balance,
+	account_type, currency_code, current_balance,
 	is_default, is_active, created_at, updated_at, deleted_at, created_by, updated_by
 `
 
 func (r *bankAccountRepository) Create(ctx context.Context, a *treasury.BankAccount) error {
 	const q = `INSERT INTO bank_accounts (
 		id, company_id, branch_id, bank_name, account_number,
-		account_type, currency_code, gl_account_id, current_balance,
+		account_type, currency_code, current_balance,
 		is_default, is_active, created_at, updated_at, deleted_at, created_by, updated_by
-	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`
+	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`
 	_, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
 		a.ID, a.CompanyID, persistence.NullIfEmptyUUID(a.BranchID),
 		a.BankName, a.AccountNumber, a.AccountType, a.CurrencyCode.String(),
-		a.GLAccountID, a.CurrentBalance.String(), a.IsDefault, a.IsActive,
+		a.CurrentBalance.String(), a.IsDefault, a.IsActive,
 		a.CreatedAt, a.UpdatedAt, persistence.NullIfZeroTime(a.DeletedAt),
 		persistence.NullIfEmptyUUID(a.CreatedBy), persistence.NullIfEmptyUUID(a.UpdatedBy),
 	)
@@ -47,12 +47,12 @@ func (r *bankAccountRepository) Create(ctx context.Context, a *treasury.BankAcco
 func (r *bankAccountRepository) Update(ctx context.Context, a *treasury.BankAccount) error {
 	const q = `UPDATE bank_accounts SET
 		bank_name = $1, account_number = $2, account_type = $3, currency_code = $4,
-		gl_account_id = $5, current_balance = $6, is_default = $7, is_active = $8,
-		branch_id = $9, updated_at = $10, updated_by = $11
-	 WHERE id = $12 AND deleted_at IS NULL`
+		current_balance = $5, is_default = $6, is_active = $7,
+		branch_id = $8, updated_at = $9, updated_by = $10
+	 WHERE id = $11 AND deleted_at IS NULL`
 	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
 		a.BankName, a.AccountNumber, a.AccountType, a.CurrencyCode.String(),
-		a.GLAccountID, a.CurrentBalance.String(), a.IsDefault, a.IsActive,
+		a.CurrentBalance.String(), a.IsDefault, a.IsActive,
 		persistence.NullIfEmptyUUID(a.BranchID), time.Now().UTC(), persistence.NullIfEmptyUUID(a.UpdatedBy),
 		a.ID,
 	)
@@ -144,7 +144,7 @@ func scanBankAccount(row *sql.Row) (*treasury.BankAccount, error) {
 	)
 	err := persistence.ScanRow(row,
 		&a.ID, &a.CompanyID, &branchID, &a.BankName, &a.AccountNumber,
-		&a.AccountType, &currencyCode, &a.GLAccountID, &currentBalance,
+		&a.AccountType, &currencyCode, &currentBalance,
 		&a.IsDefault, &a.IsActive, &a.CreatedAt, &a.UpdatedAt,
 		&deletedAt, &createdBy, &updatedBy,
 	)
@@ -166,7 +166,7 @@ func scanBankAccountFromRows(rows *sql.Rows) (*treasury.BankAccount, error) {
 	)
 	if err := rows.Scan(
 		&a.ID, &a.CompanyID, &branchID, &a.BankName, &a.AccountNumber,
-		&a.AccountType, &currencyCode, &a.GLAccountID, &currentBalance,
+		&a.AccountType, &currencyCode, &currentBalance,
 		&a.IsDefault, &a.IsActive, &a.CreatedAt, &a.UpdatedAt,
 		&deletedAt, &createdBy, &updatedBy,
 	); err != nil {

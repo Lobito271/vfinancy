@@ -98,67 +98,6 @@ CREATE UNIQUE INDEX uq_local_profiles_singleton ON local_profiles ((1));
 
 
 
-CREATE TABLE audit_logs (
-    id              TEXT         NOT NULL DEFAULT (lower(hex(randomblob(16)))),
-    occurred_at     TIMESTAMP    NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-    company_id      TEXT         NOT NULL,
-    user_id         TEXT,
-    table_name      VARCHAR(100) NOT NULL,
-    record_id       TEXT,
-    action          VARCHAR(30)  NOT NULL,
-    old_value       TEXT,
-    new_value       TEXT,
-    changed_fields  TEXT,
-    ip_address      TEXT,
-    user_agent      TEXT,
-    device          VARCHAR(200),
-
-    PRIMARY KEY (id, occurred_at),
-
-    CONSTRAINT fk_audit_logs_company
-        FOREIGN KEY (company_id) REFERENCES companies(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
-
-    CONSTRAINT ck_audit_logs_action
-        CHECK (action IN (
-            'INSERT', 'UPDATE', 'DELETE', 'HARD_DELETE',
-            'APPROVE', 'REJECT', 'CANCEL',
-            'CONCILIATE', 'CLOSE_PERIOD', 'REOPEN_PERIOD',
-            'EXPORT', 'PRINT', 'SEND'
-        ))
-);
-
-CREATE INDEX idx_audit_logs_company_time
-    ON audit_logs (company_id, occurred_at DESC);
-
-CREATE INDEX idx_audit_logs_record
-    ON audit_logs (table_name, record_id, occurred_at DESC)
-    WHERE record_id IS NOT NULL;
-
-CREATE INDEX idx_audit_logs_user_time
-    ON audit_logs (user_id, occurred_at DESC)
-    WHERE user_id IS NOT NULL;
-
-CREATE INDEX idx_audit_logs_action_time
-    ON audit_logs (action, occurred_at DESC);
-
-CREATE INDEX idx_audit_logs_company_action_time
-    ON audit_logs (company_id, action, occurred_at DESC);
-
-CREATE TRIGGER trg_audit_logs_no_update
-    BEFORE UPDATE ON audit_logs
-BEGIN
-    SELECT RAISE(ABORT, 'audit_logs is append-only; UPDATE is not allowed');
-END;
-
-CREATE TRIGGER trg_audit_logs_no_delete
-    BEFORE DELETE ON audit_logs
-BEGIN
-    SELECT RAISE(ABORT, 'audit_logs is append-only; DELETE is not allowed');
-END;
-
-
-
 CREATE TABLE application_settings (
     id           TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
     company_id   TEXT         NOT NULL,
@@ -386,59 +325,6 @@ CREATE UNIQUE INDEX uq_exchange_rates_pair_date
 
 CREATE INDEX idx_exchange_rates_lookup
     ON exchange_rates (from_currency, to_currency, rate_date DESC);
-
-
-CREATE TABLE audit_events (
-    id           TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-    company_id   TEXT         NOT NULL,
-    user_id      TEXT,
-    session_id   TEXT,
-    event_type   VARCHAR(50)  NOT NULL
-        CHECK (event_type IN (
-            'CONFIG_UPDATE',
-            'BACKUP_CREATE', 'EXPORT_DATA'
-        )),
-    target_type  VARCHAR(100),
-    target_id    TEXT,
-    description  TEXT,
-    metadata     TEXT         NOT NULL DEFAULT '{}',
-    ip_address   TEXT,
-    device       VARCHAR(100),
-    occurred_at  TIMESTAMP    NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-
-    CONSTRAINT fk_audit_events_company
-        FOREIGN KEY (company_id) REFERENCES companies(id)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-
-    CONSTRAINT ck_audit_events_target_type_nonblank
-        CHECK (target_type IS NULL OR length(trim(target_type)) > 0)
-);
-
-CREATE INDEX idx_audit_events_company_time
-    ON audit_events (company_id, occurred_at DESC);
-
-CREATE INDEX idx_audit_events_user
-    ON audit_events (user_id, occurred_at DESC)
-    WHERE user_id IS NOT NULL;
-
-CREATE INDEX idx_audit_events_type
-    ON audit_events (event_type, occurred_at DESC);
-
-CREATE INDEX idx_audit_events_target
-    ON audit_events (target_type, target_id)
-    WHERE target_type IS NOT NULL AND target_id IS NOT NULL;
-
-CREATE TRIGGER trg_audit_events_no_update
-    BEFORE UPDATE ON audit_events
-BEGIN
-    SELECT RAISE(ABORT, 'audit_events is append-only: UPDATE is not allowed');
-END;
-
-CREATE TRIGGER trg_audit_events_no_delete
-    BEFORE DELETE ON audit_events
-BEGIN
-    SELECT RAISE(ABORT, 'audit_events is append-only: DELETE is not allowed');
-END;
 
 
 CREATE TABLE sync_devices (
@@ -799,149 +685,6 @@ CREATE INDEX idx_products_brand
     WHERE deleted_at IS NULL;
 
 
-CREATE TABLE fiscal_periods (
-    id           TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-    company_id   TEXT           NOT NULL,
-    name         VARCHAR(100)   NOT NULL,
-    period_start TIMESTAMP      NOT NULL,
-    period_end   TIMESTAMP      NOT NULL,
-    status       VARCHAR(20)    NOT NULL DEFAULT 'open'
-        CHECK (status IN ('open', 'closing', 'closed')),
-    closed_at    TIMESTAMP,
-    closed_by    TEXT,
-    created_at   TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-    updated_at   TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-    created_by   TEXT,
-    updated_by   TEXT,
-
-    CONSTRAINT fk_fiscal_periods_company
-        FOREIGN KEY (company_id) REFERENCES companies(id)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT ck_fiscal_periods_range
-        CHECK (period_end >= period_start)
-);
-
-CREATE UNIQUE INDEX uq_fiscal_periods_name
-    ON fiscal_periods (company_id, name);
-
-CREATE UNIQUE INDEX uq_fiscal_periods_range
-    ON fiscal_periods (company_id, period_start, period_end);
-
-
-CREATE TABLE chart_of_accounts (
-    id               TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-    company_id       TEXT           NOT NULL,
-    code             VARCHAR(20)    NOT NULL,
-    name             VARCHAR(200)   NOT NULL,
-    type             VARCHAR(20)    NOT NULL
-        CHECK (type IN ('asset', 'liability', 'equity', 'income', 'expense')),
-    parent_id        TEXT,
-    path             VARCHAR(100),
-    depth            INTEGER        NOT NULL DEFAULT 1
-        CHECK (depth >= 1),
-    is_active        BOOLEAN        NOT NULL DEFAULT TRUE,
-    allows_movement  BOOLEAN        NOT NULL DEFAULT TRUE,
-    description      TEXT,
-    created_at       TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-    updated_at       TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-    created_by       TEXT,
-    updated_by       TEXT,
-
-    CONSTRAINT fk_chart_of_accounts_company
-        FOREIGN KEY (company_id) REFERENCES companies(id)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_chart_of_accounts_parent
-        FOREIGN KEY (parent_id) REFERENCES chart_of_accounts(id)
-        ON UPDATE CASCADE ON DELETE SET NULL,
-    CONSTRAINT ck_chart_of_accounts_name_nonblank
-        CHECK (length(trim(name)) > 0)
-);
-
-CREATE UNIQUE INDEX uq_chart_of_accounts_code
-    ON chart_of_accounts (company_id, code);
-
-CREATE INDEX idx_chart_of_accounts_type
-    ON chart_of_accounts (company_id, type)
-    WHERE is_active = TRUE;
-
-CREATE INDEX idx_chart_of_accounts_parent
-    ON chart_of_accounts (parent_id);
-
-
-CREATE TABLE journal_entries (
-    id                TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-    company_id        TEXT           NOT NULL,
-    fiscal_period_id  TEXT           NOT NULL,
-    number            VARCHAR(30)    NOT NULL,
-    entry_date        TIMESTAMP      NOT NULL,
-    posting_date      TIMESTAMP,
-    description       TEXT,
-    source            VARCHAR(20)    NOT NULL
-        CHECK (source IN ('sale', 'purchase', 'payment', 'manual', 'adjustment', 'closing', 'opening')),
-    source_id         TEXT,
-    status            VARCHAR(20)    NOT NULL DEFAULT 'draft'
-        CHECK (status IN ('draft', 'posted', 'reversed')),
-    reverses_entry_id TEXT,
-    reversed_by_entry_id TEXT,
-    posted_at         TIMESTAMP,
-    created_at        TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-    updated_at        TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-    created_by        TEXT,
-    posted_by         TEXT,
-
-    CONSTRAINT fk_journal_entries_company
-        FOREIGN KEY (company_id) REFERENCES companies(id)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_journal_entries_period
-        FOREIGN KEY (fiscal_period_id) REFERENCES fiscal_periods(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT fk_journal_entries_reverses
-        FOREIGN KEY (reverses_entry_id) REFERENCES journal_entries(id)
-        ON UPDATE CASCADE ON DELETE SET NULL
-);
-
-CREATE UNIQUE INDEX uq_journal_entries_number
-    ON journal_entries (company_id, number);
-
-CREATE INDEX idx_journal_entries_period
-    ON journal_entries (company_id, fiscal_period_id, entry_date);
-
-CREATE INDEX idx_journal_entries_source
-    ON journal_entries (source, source_id);
-
-CREATE TABLE journal_entry_lines (
-    id                    TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-    journal_entry_id      TEXT           NOT NULL,
-    line_number           INTEGER        NOT NULL DEFAULT 1
-        CHECK (line_number >= 1),
-    account_id            TEXT           NOT NULL,
-    description           TEXT,
-    debit                 TEXT           NOT NULL DEFAULT '0.00'
-        CHECK (CAST(debit AS REAL) >= 0),
-    credit                TEXT           NOT NULL DEFAULT '0.00'
-        CHECK (CAST(credit AS REAL) >= 0),
-    currency_code         VARCHAR(3)     NOT NULL DEFAULT 'PEN',
-    exchange_rate         TEXT           NOT NULL DEFAULT '1.000000',
-    amount_in_txn_currency TEXT          NOT NULL DEFAULT '0.00',
-    created_at            TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-
-    CONSTRAINT fk_journal_entry_lines_entry
-        FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_journal_entry_lines_account
-        FOREIGN KEY (account_id) REFERENCES chart_of_accounts(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT ck_journal_entry_lines_one_side
-        CHECK ((CAST(debit AS REAL) > 0) <> (CAST(credit AS REAL) > 0))
-);
-
-CREATE INDEX idx_journal_entry_lines_entry
-    ON journal_entry_lines (journal_entry_id, line_number);
-
-CREATE INDEX idx_journal_entry_lines_account
-    ON journal_entry_lines (account_id);
-
-
 CREATE TABLE bank_accounts (
     id               TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
     company_id       TEXT           NOT NULL,
@@ -951,7 +694,6 @@ CREATE TABLE bank_accounts (
     account_type     VARCHAR(20)    NOT NULL DEFAULT 'checking'
         CHECK (account_type IN ('checking', 'savings')),
     currency_code    VARCHAR(3)     NOT NULL DEFAULT 'PEN',
-    gl_account_id    TEXT           NOT NULL,
     current_balance  TEXT           NOT NULL DEFAULT '0.00',
     is_default       BOOLEAN        NOT NULL DEFAULT FALSE,
     is_active        BOOLEAN        NOT NULL DEFAULT TRUE,
@@ -966,10 +708,7 @@ CREATE TABLE bank_accounts (
         ON UPDATE CASCADE ON DELETE CASCADE,
     CONSTRAINT fk_bank_accounts_branch
         FOREIGN KEY (branch_id) REFERENCES branches(id)
-        ON UPDATE CASCADE ON DELETE SET NULL,
-    CONSTRAINT fk_bank_accounts_gl
-        FOREIGN KEY (gl_account_id) REFERENCES chart_of_accounts(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT
+        ON UPDATE CASCADE ON DELETE SET NULL
 );
 
 CREATE UNIQUE INDEX uq_bank_accounts_number
@@ -999,7 +738,6 @@ CREATE TABLE credit_cards (
     payment_due_day   INTEGER        NOT NULL DEFAULT 1
         CHECK (payment_due_day BETWEEN 1 AND 31),
     currency_code     VARCHAR(3)     NOT NULL DEFAULT 'PEN',
-    gl_account_id     TEXT           NOT NULL,
     is_active         BOOLEAN        NOT NULL DEFAULT TRUE,
     created_at        TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
     updated_at        TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
@@ -1012,10 +750,7 @@ CREATE TABLE credit_cards (
         ON UPDATE CASCADE ON DELETE CASCADE,
     CONSTRAINT fk_credit_cards_branch
         FOREIGN KEY (branch_id) REFERENCES branches(id)
-        ON UPDATE CASCADE ON DELETE SET NULL,
-    CONSTRAINT fk_credit_cards_gl
-        FOREIGN KEY (gl_account_id) REFERENCES chart_of_accounts(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT
+        ON UPDATE CASCADE ON DELETE SET NULL
 );
 
 CREATE INDEX idx_credit_cards_company
@@ -1036,16 +771,12 @@ CREATE TABLE bank_transactions (
     is_reconciled    BOOLEAN        NOT NULL DEFAULT FALSE,
     reconciled_at    TIMESTAMP,
     reconciled_by    TEXT,
-    journal_entry_id TEXT,
     created_at       TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
     updated_at       TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
 
     CONSTRAINT fk_bank_transactions_account
         FOREIGN KEY (bank_account_id) REFERENCES bank_accounts(id)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_bank_transactions_journal
-        FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id)
-        ON UPDATE CASCADE ON DELETE SET NULL
+        ON UPDATE CASCADE ON DELETE CASCADE
 );
 
 CREATE INDEX idx_bank_transactions_account_date
@@ -1054,67 +785,6 @@ CREATE INDEX idx_bank_transactions_account_date
 CREATE INDEX idx_bank_transactions_unreconciled
     ON bank_transactions (bank_account_id, is_reconciled)
     WHERE is_reconciled = FALSE;
-
-
-CREATE TABLE international_returns (
-    id               TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-    company_id       TEXT           NOT NULL,
-    supplier_id      TEXT           NOT NULL,
-    number           VARCHAR(30)    NOT NULL,
-    return_date      TIMESTAMP      NOT NULL,
-    currency_code    VARCHAR(3)     NOT NULL DEFAULT 'USD',
-    exchange_rate    TEXT           NOT NULL DEFAULT '1.000000',
-    subtotal         TEXT           NOT NULL DEFAULT '0.00',
-    total            TEXT           NOT NULL DEFAULT '0.00',
-    reason           TEXT,
-    status           VARCHAR(20)    NOT NULL DEFAULT 'pending'
-        CHECK (status IN ('pending', 'authorized', 'received', 'reconciled', 'cancelled')),
-    authorized_at    TIMESTAMP,
-    authorized_by    TEXT,
-    received_at      TIMESTAMP,
-    reconciled_at    TIMESTAMP,
-    created_at       TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-    updated_at       TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-    created_by       TEXT,
-    updated_by       TEXT,
-
-    CONSTRAINT fk_international_returns_company
-        FOREIGN KEY (company_id) REFERENCES companies(id)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_international_returns_supplier
-        FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT ck_international_returns_total
-        CHECK (CAST(total AS REAL) >= 0)
-);
-
-CREATE UNIQUE INDEX uq_international_returns_number
-    ON international_returns (company_id, number);
-
-CREATE TABLE international_return_items (
-    id                      TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-    international_return_id TEXT           NOT NULL,
-    product_id              TEXT           NOT NULL,
-    quantity                TEXT           NOT NULL DEFAULT '0.0000'
-        CHECK (CAST(quantity AS REAL) > 0),
-    unit_cost               TEXT           NOT NULL DEFAULT '0.00'
-        CHECK (CAST(unit_cost AS REAL) >= 0),
-    line_total               TEXT          NOT NULL DEFAULT '0.00',
-    created_at              TIMESTAMP      NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-
-    CONSTRAINT fk_intl_return_items_return
-        FOREIGN KEY (international_return_id) REFERENCES international_returns(id)
-        ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_intl_return_items_product
-        FOREIGN KEY (product_id) REFERENCES products(id)
-        ON UPDATE CASCADE ON DELETE RESTRICT
-);
-
-CREATE INDEX idx_intl_return_items_return
-    ON international_return_items (international_return_id);
-
-CREATE INDEX idx_intl_return_items_product
-    ON international_return_items (product_id);
 
 
 CREATE TABLE purchase_orders (

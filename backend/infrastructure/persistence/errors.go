@@ -97,7 +97,7 @@ func sqliteConstraintCode(err error) error {
 	}
 }
 
-// isPgNoRows reports whether the error is the standard "no rows in
+// IsPgNoRows reports whether the error is the standard "no rows in
 // result set" error. Repositories return repositories.ErrNotFound
 // in that case; this helper centralises the test.
 func IsPgNoRows(err error) bool {

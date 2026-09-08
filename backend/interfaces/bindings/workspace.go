@@ -2,7 +2,7 @@ package bindings
 
 import (
 	"errors"
-	"time"
+
 	"github.com/google/uuid"
 
 	"vfinancy/backend/internal/features/workspace"
@@ -42,11 +42,6 @@ type CompanyDTO struct {
 	Timezone             string `json:"timezone"`
 	FiscalYearStartMonth int    `json:"fiscalYearStartMonth"`
 	IsActive             bool   `json:"isActive"`
-}
-
-type CreateLocalProfileRequest struct {
-	Name      string `json:"name"`
-	CompanyID string `json:"companyId"`
 }
 
 type CompanyRequest struct {
@@ -118,18 +113,6 @@ func (a *App) UpdateLocalProfile(req UpdateLocalProfileRequest) (*LocalProfileDT
 	return localProfileDTO(p), nil
 }
 
-func (a *App) InitializeLocalProfile(req CreateLocalProfileRequest) (*LocalProfileDTO, error) {
-	companyID, err := uuid.Parse(req.CompanyID)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	p, err := a.workspaceSvc.CreateProfile(a.rawContext(), req.Name, companyID)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return localProfileDTO(p), nil
-}
-
 func (a *App) UnlockLocalProfile(password string) error {
 	return a.workspaceSvc.Unlock(a.rawContext(), password)
 }
@@ -144,50 +127,6 @@ func (a *App) RemoveLocalPassword(current string) error {
 
 func (a *App) LockLocalProfile() {
 	a.workspaceSvc.Lock()
-}
-
-func (a *App) ListCompanies() ([]*CompanyDTO, error) {
-	companies, err := a.workspaceSvc.ListCompanies(a.Context())
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	out := make([]*CompanyDTO, 0, len(companies))
-	for _, c := range companies {
-		out = append(out, companyDTO(c))
-	}
-	return out, nil
-}
-
-func (a *App) GetActiveCompany() (*CompanyDTO, error) {
-	id, err := a.workspaceSvc.CurrentCompanyID()
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	c, err := a.workspaceSvc.GetCompany(a.Context(), id)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return companyDTO(c), nil
-}
-
-func (a *App) SetActiveCompany(id string) error {
-	companyID, err := uuid.Parse(id)
-	if err != nil {
-		return utils.ProcessError(err)
-	}
-	return utils.ProcessError(a.workspaceSvc.SetActiveCompany(a.rawContext(), companyID))
-}
-
-func (a *App) CreateCompany(req CompanyRequest) (*CompanyDTO, error) {
-	c := &workspace.Company{ID: uuid.New(), Code: req.Code, LegalName: req.LegalName,
-		TradeName: req.TradeName, TaxID: req.TaxID, Address: req.Address, Phone: req.Phone,
-		Email: req.Email, CountryCode: req.CountryCode, FunctionalCurrency: req.FunctionalCurrency,
-		Timezone: req.Timezone, FiscalYearStartMonth: req.FiscalYearStartMonth,
-		CreatedAt: time.Now().UTC()}
-	if err := a.workspaceSvc.CreateCompany(a.rawContext(), c); err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return companyDTO(c), nil
 }
 
 type SetupWorkspaceRequest struct {
@@ -218,12 +157,55 @@ func (a *App) SetupWorkspace(req SetupWorkspaceRequest) (*CompanyDTO, error) {
 	return companyDTO(company), nil
 }
 
-func (a *App) UpdateCompany(req CompanyRequest) (*CompanyDTO, error) {
-	id, err := uuid.Parse(req.ID)
+func (a *App) ListCompanies() ([]*CompanyDTO, error) {
+	companies, err := a.workspaceSvc.ListCompanies(a.rawContext())
 	if err != nil {
 		return nil, utils.ProcessError(err)
 	}
-	c, err := a.workspaceSvc.GetCompany(a.Context(), id)
+	result := make([]*CompanyDTO, 0, len(companies))
+	for _, c := range companies {
+		result = append(result, companyDTO(c))
+	}
+	return result, nil
+}
+
+func (a *App) GetActiveCompany() (*CompanyDTO, error) {
+	id, err := a.workspaceSvc.CurrentCompanyID()
+	if err != nil {
+		return nil, utils.ProcessError(err)
+	}
+	c, err := a.workspaceSvc.GetCompany(a.rawContext(), id)
+	if err != nil {
+		return nil, utils.ProcessError(err)
+	}
+	return companyDTO(c), nil
+}
+
+func (a *App) SetActiveCompany(id string) error {
+	companyID, err := uuid.Parse(id)
+	if err != nil {
+		return utils.ProcessError(workspace.ErrInvalidCompany)
+	}
+	return utils.ProcessError(a.workspaceSvc.SetActiveCompany(a.rawContext(), companyID))
+}
+
+func (a *App) CreateCompany(req CompanyRequest) (*CompanyDTO, error) {
+	c := &workspace.Company{Code: req.Code, LegalName: req.LegalName,
+		TradeName: req.TradeName, TaxID: req.TaxID, Address: req.Address, Phone: req.Phone,
+		Email: req.Email, CountryCode: req.CountryCode, FunctionalCurrency: req.FunctionalCurrency,
+		Timezone: req.Timezone, FiscalYearStartMonth: req.FiscalYearStartMonth}
+	if err := a.workspaceSvc.CreateCompany(a.rawContext(), c); err != nil {
+		return nil, utils.ProcessError(err)
+	}
+	return companyDTO(c), nil
+}
+
+func (a *App) UpdateCompany(req CompanyRequest) (*CompanyDTO, error) {
+	id, err := uuid.Parse(req.ID)
+	if err != nil {
+		return nil, utils.ProcessError(workspace.ErrInvalidCompany)
+	}
+	c, err := a.workspaceSvc.GetCompany(a.rawContext(), id)
 	if err != nil {
 		return nil, utils.ProcessError(err)
 	}
@@ -238,8 +220,16 @@ func (a *App) UpdateCompany(req CompanyRequest) (*CompanyDTO, error) {
 	c.FunctionalCurrency = req.FunctionalCurrency
 	c.Timezone = req.Timezone
 	c.FiscalYearStartMonth = req.FiscalYearStartMonth
-	if err := a.workspaceSvc.UpdateCompany(a.Context(), c); err != nil {
+	if err := a.workspaceSvc.UpdateCompany(a.rawContext(), c); err != nil {
 		return nil, utils.ProcessError(err)
 	}
 	return companyDTO(c), nil
+}
+
+func (a *App) DeactivateCompany(id string) error {
+	companyID, err := uuid.Parse(id)
+	if err != nil {
+		return utils.ProcessError(workspace.ErrInvalidCompany)
+	}
+	return utils.ProcessError(a.workspaceSvc.DeactivateCompany(a.rawContext(), companyID))
 }

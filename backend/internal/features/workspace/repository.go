@@ -14,4 +14,5 @@ type Repository interface {
 	GetCompany(ctx context.Context, id uuid.UUID) (*Company, error)
 	CreateCompany(ctx context.Context, company *Company) error
 	UpdateCompany(ctx context.Context, company *Company) error
+	DeleteCompany(ctx context.Context, id uuid.UUID) error
 }

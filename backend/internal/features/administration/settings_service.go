@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	derrors "vfinancy/backend/internal/domain/errors"
-	"vfinancy/backend/internal/shared/logger"
+	"vfinancy/backend/infrastructure/logger"
 )
 
 type SettingsService struct {

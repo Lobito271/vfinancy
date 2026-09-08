@@ -133,9 +133,8 @@ func (li *SaleItem) ChangeDiscountAmount(amount valueobjects.Money) error {
 	return nil
 }
 
-// MoneyFromDecimal is a tiny helper that wraps decimal.NewFromBigInt-or-
-// like construction. Lives in this file to avoid an import cycle with
-// the valueobjects package.
+// MoneyFromDecimal wraps valueobjects.MoneyFromDecimal, ignoring the
+// error for decimals already known to be valid.
 func MoneyFromDecimal(d decimal.Decimal) valueobjects.Money {
 	m, _ := valueobjects.MoneyFromDecimal(d)
 	return m

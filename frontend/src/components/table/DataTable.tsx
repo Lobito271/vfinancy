@@ -189,6 +189,7 @@ export function DataTable<T>({
                       sticky && 'sticky-cell',
                       col.headerClassName,
                     )}
+                    data-active-sort={isSorted ? true : undefined}
                     tabIndex={col.sortable ? 0 : undefined}
                     role={col.sortable ? 'button' : undefined}
                     onClick={() => col.sortable && handleSort(col.id)}

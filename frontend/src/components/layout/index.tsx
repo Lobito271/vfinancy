@@ -11,16 +11,19 @@ export function PageHeader({
   title,
   subtitle,
   actions,
+  eyebrow,
   className,
 }: {
   title: string;
   subtitle?: string;
   actions?: React.ReactNode;
+  eyebrow?: string;
   className?: string;
 }) {
   return (
     <div className={cx('page-header', className)}>
       <div className="page-header__titles">
+        {eyebrow && <span className="page-header__eyebrow">{eyebrow}</span>}
         <h1 className="page-title">{title}</h1>
         {subtitle && <p className="page-subtitle">{subtitle}</p>}
       </div>
@@ -35,19 +38,21 @@ export function Section({
   actions,
   className,
   children,
+  withTick,
 }: {
   title?: string;
   description?: string;
   actions?: React.ReactNode;
   className?: string;
   children: React.ReactNode;
+  withTick?: boolean;
 }) {
   return (
     <section className={cx('section', className)}>
       {(title || actions) && (
         <div className="section__head">
           <div className="section__head-titles">
-            {title && <h2 className="section-title">{title}</h2>}
+            {title && <h2 className={cx('section-title', withTick && 'section-title--with-tick')}>{title}</h2>}
             {description && <p className="section-description">{description}</p>}
           </div>
           {actions}

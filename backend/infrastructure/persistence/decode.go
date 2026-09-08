@@ -11,8 +11,8 @@ import (
 	"vfinancy/backend/internal/domain/valueobjects"
 )
 
-// --- Money ---
-
+// ParseMoney parses a numeric string into Money. An empty string
+// yields zero.
 func ParseMoney(s string) (valueobjects.Money, error) {
 	if s == "" {
 		return valueobjects.Zero(), nil
@@ -20,15 +20,15 @@ func ParseMoney(s string) (valueobjects.Money, error) {
 	return valueobjects.MoneyFromString(s)
 }
 
-// --- Document number ---
-
+// ParseDocument builds a DocumentNumber from its type and number,
+// normalizing the type to uppercase.
 func ParseDocument(docType, number string) (valueobjects.DocumentNumber, error) {
 	dt := enums.DocumentType(strings.ToUpper(docType))
 	return valueobjects.NewDocumentNumber(dt, number)
 }
 
-// --- FullName ---
-
+// ParseFullName parses a name string, returning the zero value when
+// empty.
 func ParseFullName(s string) valueobjects.FullName {
 	if s == "" {
 		return valueobjects.FullName{}
@@ -37,8 +37,8 @@ func ParseFullName(s string) valueobjects.FullName {
 	return n
 }
 
-// --- Email ---
-
+// ParseEmail parses an email address, returning the zero value when
+// empty.
 func ParseEmail(s string) valueobjects.Email {
 	if s == "" {
 		return valueobjects.Email{}
@@ -47,8 +47,8 @@ func ParseEmail(s string) valueobjects.Email {
 	return e
 }
 
-// --- Phone ---
-
+// ParsePhone parses a phone number, returning the zero value when
+// empty.
 func ParsePhone(s string) valueobjects.Phone {
 	if s == "" {
 		return valueobjects.Phone{}
@@ -57,8 +57,8 @@ func ParsePhone(s string) valueobjects.Phone {
 	return p
 }
 
-// --- Address ---
-
+// ParseAddress parses an address string, returning the zero value
+// when empty.
 func ParseAddress(s string) valueobjects.Address {
 	if s == "" {
 		return valueobjects.Address{}
@@ -67,15 +67,14 @@ func ParseAddress(s string) valueobjects.Address {
 	return a
 }
 
-// --- UUID ---
-
+// ParseUUID parses a UUID string, returning the zero value when it is
+// malformed.
 func ParseUUID(s string) uuid.UUID {
 	id, _ := uuid.Parse(s)
 	return id
 }
 
-// --- TaxCategory ---
-
+// ParseTaxCategory parses a tax category, returning "" when invalid.
 func ParseTaxCategory(s string) enums.TaxCategory {
 	tc := enums.TaxCategory(s)
 	if !tc.Valid() {
@@ -84,8 +83,8 @@ func ParseTaxCategory(s string) enums.TaxCategory {
 	return tc
 }
 
-// --- CustomerStatus ---
-
+// ParseCustomerStatus parses a customer status, returning "" when
+// invalid.
 func ParseCustomerStatus(s string) enums.CustomerStatus {
 	st := enums.CustomerStatus(s)
 	if !st.Valid() {
@@ -94,8 +93,8 @@ func ParseCustomerStatus(s string) enums.CustomerStatus {
 	return st
 }
 
-// --- SupplierStatus ---
-
+// ParseSupplierStatus parses a supplier status, returning "" when
+// invalid.
 func ParseSupplierStatus(s string) enums.SupplierStatus {
 	st := enums.SupplierStatus(s)
 	if !st.Valid() {
@@ -104,8 +103,7 @@ func ParseSupplierStatus(s string) enums.SupplierStatus {
 	return st
 }
 
-// --- SaleStatus ---
-
+// ParseSaleStatus parses a sale status, returning "" when invalid.
 func ParseSaleStatus(s string) enums.SaleStatus {
 	st := enums.SaleStatus(s)
 	if !st.Valid() {
@@ -114,8 +112,8 @@ func ParseSaleStatus(s string) enums.SaleStatus {
 	return st
 }
 
-// --- PurchaseStatus ---
-
+// ParsePurchaseStatus parses a purchase status, returning "" when
+// invalid.
 func ParsePurchaseStatus(s string) enums.PurchaseStatus {
 	st := enums.PurchaseStatus(s)
 	if !st.Valid() {
@@ -124,38 +122,8 @@ func ParsePurchaseStatus(s string) enums.PurchaseStatus {
 	return st
 }
 
-// --- AccountType ---
-
-func ParseAccountType(s string) enums.AccountType {
-	at := enums.AccountType(s)
-	if !at.Valid() {
-		return enums.AccountType("")
-	}
-	return at
-}
-
-// --- JournalStatus ---
-
-func ParseJournalStatus(s string) enums.JournalStatus {
-	js := enums.JournalStatus(s)
-	if !js.Valid() {
-		return enums.JournalStatus("")
-	}
-	return js
-}
-
-// --- JournalType ---
-
-func ParseJournalType(s string) enums.JournalType {
-	jt := enums.JournalType(s)
-	if !jt.Valid() {
-		return enums.JournalType("")
-	}
-	return jt
-}
-
-// --- InventoryMovementType ---
-
+// ParseMovementType parses an inventory movement type, returning ""
+// when invalid.
 func ParseMovementType(s string) enums.InventoryMovementType {
 	mt := enums.InventoryMovementType(s)
 	if !mt.Valid() {
@@ -164,8 +132,8 @@ func ParseMovementType(s string) enums.InventoryMovementType {
 	return mt
 }
 
-// --- PaymentMethod ---
-
+// ParsePaymentMethod parses a payment method, returning "" when
+// invalid.
 func ParsePaymentMethod(s string) enums.PaymentMethod {
 	pm := enums.PaymentMethod(s)
 	if !pm.Valid() {
@@ -174,8 +142,8 @@ func ParsePaymentMethod(s string) enums.PaymentMethod {
 	return pm
 }
 
-// --- SQL Null helpers ---
-
+// NullIfEmptyFullName returns nil when the full name is empty,
+// otherwise its string form. Used to write nullable columns.
 func NullIfEmptyFullName(n valueobjects.FullName) any {
 	if n.String() == "" {
 		return nil
@@ -204,8 +172,7 @@ func NullIfZeroTime(t *time.Time) any {
 	return *t
 }
 
-// --- Date helpers ---
-
+// DateToString formats a Date as "2006-01-02", or "" when zero.
 func DateToString(d valueobjects.Date) string {
 	if d.IsZero() {
 		return ""
@@ -213,8 +180,8 @@ func DateToString(d valueobjects.Date) string {
 	return d.Format("2006-01-02")
 }
 
-// --- Decimal helpers ---
-
+// DecimalFromString parses a decimal string, defaulting to zero when
+// malformed.
 func DecimalFromString(s string) decimal.Decimal {
 	d, _ := decimal.NewFromString(s)
 	return d

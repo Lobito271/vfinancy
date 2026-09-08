@@ -8,6 +8,7 @@ import { Label } from '@/components/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select';
 import { PageContainer, PageHeader, Section } from '@/components/layout';
 import { SecuritySection } from '@/features/settings/components/SecuritySection';
+import { BackupSection, CloudSyncSection } from '@/features/settings/components/SyncAndBackupSection';
 import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
 import { useThemeStore, type Theme } from '@/stores/theme';
@@ -286,6 +287,8 @@ export function SettingsPage() {
         </Card>
       </Section>
 
+      <CloudSyncSection />
+      <BackupSection />
       <SecuritySection />
     </PageContainer>
   );

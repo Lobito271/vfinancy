@@ -19,7 +19,7 @@ type CustomerPaymentFilter struct {
 }
 
 // CustomerPaymentRepository persists customer payments and their
-// allocations to 
+// allocations to sales. 
 type CustomerPaymentRepository interface {
 	Create(ctx context.Context, p *CustomerPayment) error
 	Update(ctx context.Context, p *CustomerPayment) error
@@ -36,7 +36,7 @@ type CustomerPaymentRepository interface {
 
 // CustomerAdvanceRepository persists customer advances (payments
 // received before an invoice). Customers apply advances to one or
-// more future 
+// more future sales. 
 type CustomerAdvanceRepository interface {
 	Create(ctx context.Context, a *CustomerAdvance) error
 	Update(ctx context.Context, a *CustomerAdvance) error

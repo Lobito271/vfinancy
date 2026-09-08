@@ -11,10 +11,9 @@ import (
 // units (kg, m, L, etc.).
 const QuantityPrecision int32 = 4
 
-// Quantity is an immutable product count. Zero is allowed (e.g. an
-// adjustment that sets stock to zero); negative values are valid only
-// for in-flight inventory movements (which carry a signed quantity)
-// and are NOT used by Quantity.
+// Quantity is an immutable product count. Values are rounded to
+// QuantityPrecision; negative values are permitted for signed inventory
+// movements.
 type Quantity struct {
 	d decimal.Decimal
 }
@@ -24,7 +23,8 @@ func ZeroQuantity() Quantity {
 	return Quantity{d: decimal.Zero}
 }
 
-// QuantityFromDecimal rounds and validates a quantity value.
+// QuantityFromDecimal builds a Quantity, rounding to QuantityPrecision.
+// It accepts negative values for signed inventory movements.
 func QuantityFromDecimal(d decimal.Decimal) (Quantity, error) {
 	return Quantity{d: d.Round(QuantityPrecision)}, nil
 }

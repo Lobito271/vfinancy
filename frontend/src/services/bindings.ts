@@ -1,17 +1,11 @@
 import type {
   AdjustStockRequest,
   AppBindings,
-  AppSettingsDTO,
   BusinessInfoDTO,
   CancelPurchaseOrderRequest,
-  CompanyDTO,
-  CompanyRequest,
   CancelSaleRequest,
-  ConnectionConfigDTO,
+  CompanyRequest,
   CreateCustomerRequest,
-  CreateLocalProfileRequest,
-  CreateBankAccountRequest,
-  CreateBankTransactionRequest,
   CreateProductRequest,
   CreatePurchaseOrderRequest,
   CreateSaleRequest,
@@ -21,8 +15,6 @@ import type {
   IssueCreditCardRequest,
   IssueStockRequest,
   SetupWorkspaceRequest,
-  ListBankTransactionsRequest,
-  ListCustomerPaymentsRequest,
   ListCustomersRequest,
   ListInventoryBatchesRequest,
   ListInventoryMovementsRequest,
@@ -37,7 +29,6 @@ import type {
   RegisterCustomerOrderPaymentRequest,
   RegisterPurchasePaymentRequest,
   RegisterSalePaymentRequest,
-  UpdateBankAccountRequest,
   UpdateCategoryRequest,
   UpdateBrandRequest,
   UpdateCreditCardRequest,
@@ -45,9 +36,16 @@ import type {
   UpdateLocalProfileRequest,
   UpdateProductRequest,
   UpdateSupplierRequest,
-  UpsertExchangeRateRequest,
   VoidStockRequest,
 } from './wails-types';
+
+// ponytail: not yet in wails-types.ts; wails regen will remove.
+interface SyncConfigDTO {
+  serverUrl: string;
+  apiKey: string;
+  enabled: boolean;
+  pollIntervalSec: number;
+}
 let resolved: AppBindings | null = null;
 
 function isWailsRuntime(): boolean {
@@ -76,10 +74,6 @@ export const wailsClient = {
     const b = await resolveBindings();
     return b.GetLocalProfile();
   },
-  async initializeLocalProfile(req: CreateLocalProfileRequest) {
-    const b = await resolveBindings();
-    return b.InitializeLocalProfile(req);
-  },
   async updateLocalProfile(req: UpdateLocalProfileRequest) {
     const b = await resolveBindings();
     return b.UpdateLocalProfile(req);
@@ -100,7 +94,11 @@ export const wailsClient = {
     const b = await resolveBindings();
     return b.LockLocalProfile();
   },
-  async listCompanies(): Promise<CompanyDTO[]> {
+  async setupWorkspace(req: SetupWorkspaceRequest) {
+    const b = await resolveBindings();
+    return b.SetupWorkspace(req);
+  },
+  async listCompanies() {
     const b = await resolveBindings();
     return b.ListCompanies();
   },
@@ -116,13 +114,13 @@ export const wailsClient = {
     const b = await resolveBindings();
     return b.CreateCompany(req);
   },
-  async setupWorkspace(req: SetupWorkspaceRequest) {
-    const b = await resolveBindings();
-    return b.SetupWorkspace(req);
-  },
   async updateCompany(req: CompanyRequest) {
     const b = await resolveBindings();
     return b.UpdateCompany(req);
+  },
+  async deactivateCompany(id: string) {
+    const b = await resolveBindings();
+    return (b as any).DeactivateCompany(id);
   },
   async getBusinessInfo() {
     const b = await resolveBindings();
@@ -151,38 +149,6 @@ export const wailsClient = {
   async getAllSettings() {
     const b = await resolveBindings();
     return b.GetAllSettings();
-  },
-  async getAuditLog(page: number, pageSize: number, eventType: string) {
-    const b = await resolveBindings();
-    return b.GetAuditLog(page, pageSize, eventType);
-  },
-  async getConnectionConfig() {
-    const b = await resolveBindings();
-    return b.GetConnectionConfig();
-  },
-  async testDatabaseConnection(cfg: ConnectionConfigDTO) {
-    const b = await resolveBindings();
-    return b.TestDatabaseConnection(cfg);
-  },
-  async saveConnectionConfig(cfg: ConnectionConfigDTO) {
-    const b = await resolveBindings();
-    return b.SaveConnectionConfig(cfg);
-  },
-  async getAppSettings() {
-    const b = await resolveBindings();
-    return b.GetAppSettings();
-  },
-  async saveAppSettings(settings: AppSettingsDTO) {
-    const b = await resolveBindings();
-    return b.SaveAppSettings(settings);
-  },
-  async getModules() {
-    const b = await resolveBindings();
-    return b.GetModules();
-  },
-  async setModuleEnabled(id: string, enabled: boolean) {
-    const b = await resolveBindings();
-    return b.SetModuleEnabled(id, enabled);
   },
 
   async listCustomers(req: ListCustomersRequest) {
@@ -304,39 +270,7 @@ export const wailsClient = {
     const b = await resolveBindings();
     return b.RegisterSalePayment(req);
   },
-  async listCustomerPayments(req: ListCustomerPaymentsRequest) {
-    const b = await resolveBindings();
-    return b.ListCustomerPayments(req);
-  },
-  async listCustomerAdvances(customerId: string) {
-    const b = await resolveBindings();
-    return b.ListCustomerAdvances(customerId);
-  },
 
-  async listBankAccounts() {
-    const b = await resolveBindings();
-    return b.ListBankAccounts();
-  },
-  async getBankAccount(id: string) {
-    const b = await resolveBindings();
-    return b.GetBankAccount(id);
-  },
-  async createBankAccount(req: CreateBankAccountRequest) {
-    const b = await resolveBindings();
-    return b.CreateBankAccount(req);
-  },
-  async updateBankAccount(req: UpdateBankAccountRequest) {
-    const b = await resolveBindings();
-    return b.UpdateBankAccount(req);
-  },
-  async deleteBankAccount(id: string) {
-    const b = await resolveBindings();
-    return b.DeleteBankAccount(id);
-  },
-  async listBankTransactions(req: ListBankTransactionsRequest) {
-    const b = await resolveBindings();
-    return b.ListBankTransactions(req);
-  },
   async listCreditCards() {
     const b = await resolveBindings();
     return b.ListCreditCards();
@@ -361,18 +295,6 @@ export const wailsClient = {
     const b = await resolveBindings();
     return b.PayCreditCard({ cardId, amount: amount.toFixed(2) });
   },
-  async createBankTransaction(req: CreateBankTransactionRequest) {
-    const b = await resolveBindings();
-    return b.CreateBankTransaction(req);
-  },
-  async reconcileBankTransaction(id: string) {
-    const b = await resolveBindings();
-    return b.ReconcileBankTransaction(id);
-  },
-  async upsertExchangeRate(req: UpsertExchangeRateRequest) {
-    const b = await resolveBindings();
-    return b.UpsertExchangeRate(req);
-  },
   async latestExchangeRate(from: string, to: string) {
     const b = await resolveBindings();
     return b.LatestExchangeRate(from, to);
@@ -385,10 +307,6 @@ export const wailsClient = {
   async listInventoryMovements(req: ListInventoryMovementsRequest) {
     const b = await resolveBindings();
     return b.ListInventoryMovements(req);
-  },
-  async getClearanceCandidates() {
-    const b = await resolveBindings();
-    return b.GetClearanceCandidates();
   },
   async receiveStock(req: ReceiveStockRequest) {
     const b = await resolveBindings();
@@ -467,5 +385,22 @@ export const wailsClient = {
   async generateClearanceNotifications() {
     const b = await resolveBindings();
     return b.GenerateClearanceNotifications();
+  },
+
+  async createBackup() {
+    const b = await resolveBindings();
+    return (b as any).CreateBackup();
+  },
+  async getSyncConfig() {
+    const b = await resolveBindings();
+    return (b as any).GetSyncConfig();
+  },
+  async saveSyncConfig(cfg: SyncConfigDTO) {
+    const b = await resolveBindings();
+    return (b as any).SaveSyncConfig(cfg);
+  },
+  async testSyncConnection(serverUrl: string, apiKey: string) {
+    const b = await resolveBindings();
+    return (b as any).TestSyncConnection(serverUrl, apiKey);
   },
 };

@@ -62,4 +62,8 @@ export const queryKeys = {
   },
   profile: (token: string) => ['profile', token] as const,
   auditLog: (page: number, eventType: string) => ['auditLog', page, eventType] as const,
+  companies: {
+    all: ['companies'] as const,
+    active: ['companies', 'active'] as const,
+  },
 } as const;

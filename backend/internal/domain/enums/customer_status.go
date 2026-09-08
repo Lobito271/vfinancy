@@ -1,7 +1,3 @@
-// Package enums defines strongly typed enumerations used across the
-// domain. Each enum is a typed string with a closed set of valid values,
-// constructor functions that validate on creation, and a parse function
-// to recover the value from the database.
 package enums
 
 // CustomerStatus is the lifecycle state of a customer.

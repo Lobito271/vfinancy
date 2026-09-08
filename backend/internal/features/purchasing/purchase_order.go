@@ -33,7 +33,7 @@ type PurchaseOrder struct {
 	ReceivedDate       *valueobjects.Date
 	Notes              string
 
-	// Imports-ERP fields (0040).
+	// OrderType and partner links set on orders imported from the ERP.
 	OrderType          enums.OrderType
 	CustomerID         *uuid.UUID
 	CreditCardID       *uuid.UUID

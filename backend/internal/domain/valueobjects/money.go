@@ -19,8 +19,7 @@ const MoneyPrecision int32 = 2
 // Money is an immutable monetary value with two-decimal precision.
 //
 // Internally it wraps shopspring/decimal. We do NOT use float64 anywhere
-// in the financial path; decimal preserves the exact half-to-even
-// rounding semantics required for accounting.
+// in the financial path.
 type Money struct {
 	d decimal.Decimal
 }
@@ -34,7 +33,7 @@ func Zero() Money {
 }
 
 // MoneyFromDecimal constructs a Money from an existing decimal.Decimal,
-// rounding to MoneyPrecision with banker's rounding.
+// rounding to MoneyPrecision.
 func MoneyFromDecimal(d decimal.Decimal) (Money, error) {
 	return Money{d: d.Round(MoneyPrecision)}, nil
 }
@@ -61,9 +60,6 @@ func MoneyFromInt64(units int64) Money {
 
 // MoneyFromFloat64 is a TEST-ONLY convenience. Production code must use
 // decimal literals, not floats. Float input is rounded to MoneyPrecision.
-//
-// The unused parameter `bits` (any int) lets callers pass a precision hint
-// without enabling the linter to fire on the float64 literal in code.
 func MoneyFromFloat64(f float64) (Money, error) {
 	return MoneyFromDecimal(decimal.NewFromFloat(f))
 }
@@ -147,9 +143,8 @@ func (m Money) String() string {
 	return m.d.StringFixed(MoneyPrecision)
 }
 
-// RoundToCurrencyPrecision rounds the value to MoneyPrecision using
-// banker's rounding. Used by services that compute tax and need a
-// final normalized result.
+// RoundToCurrencyPrecision rounds the value to MoneyPrecision. Used by
+// services that compute tax and need a final normalized result.
 func (m Money) RoundToCurrencyPrecision() Money {
 	return Money{d: m.d.Round(MoneyPrecision)}
 }

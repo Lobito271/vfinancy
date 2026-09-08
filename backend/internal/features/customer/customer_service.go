@@ -14,7 +14,7 @@ import (
 	"vfinancy/backend/internal/domain/repositories"
 	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/shared/apperrors"
-	"vfinancy/backend/internal/shared/logger"
+	"vfinancy/backend/infrastructure/logger"
 )
 
 // CustomerService is the entry point for all customer-related
@@ -57,7 +57,7 @@ type CreateInput struct {
 	BranchID        *uuid.UUID
 }
 
-// CreateInput also has a "now" for testability.
+// now returns the current UTC time.
 func (in CreateInput) now() time.Time { return time.Now().UTC() }
 
 // CreateCustomer validates the input, constructs a Customer entity

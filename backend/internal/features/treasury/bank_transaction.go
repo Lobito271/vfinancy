@@ -28,7 +28,6 @@ type BankTransaction struct {
 	IsReconciled    bool
 	ReconciledAt    *time.Time
 	ReconciledBy    *uuid.UUID
-	JournalEntryID  *uuid.UUID
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
 }

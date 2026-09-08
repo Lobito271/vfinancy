@@ -2081,6 +2081,13 @@ svg {
   margin-left: auto;
 }
 
+.topbar__company {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  max-width: 14rem;
+}
+
 .topbar__divider {
   width: 1px;
   height: 1.25rem;
@@ -2104,6 +2111,11 @@ svg {
   width: 1rem;
   height: 1rem;
   color: var(--color-fg-subtle);
+  flex: none;
+}
+
+.company-switch__edit {
+  margin-left: auto;
   flex: none;
 }
 

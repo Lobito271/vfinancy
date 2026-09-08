@@ -25,21 +25,21 @@ func NewBankTransactionRepository(db *sql.DB) *bankTransactionRepository {
 const bankTransactionColumns = `
 	id, bank_account_id, transaction_date, value_date, description, amount,
 	type, reference, balance_after, is_reconciled, reconciled_at,
-	reconciled_by, journal_entry_id, created_at, updated_at
+	reconciled_by, created_at, updated_at
 `
 
 func (r *bankTransactionRepository) Create(ctx context.Context, t *treasury.BankTransaction) error {
 	const q = `INSERT INTO bank_transactions (
 		id, bank_account_id, transaction_date, value_date, description, amount,
 		type, reference, balance_after, is_reconciled, reconciled_at,
-		reconciled_by, journal_entry_id, created_at, updated_at
-	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`
+		reconciled_by, created_at, updated_at
+	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`
 	_, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
 		t.ID, t.BankAccountID, t.TransactionDate, persistence.NullIfZeroTime(&t.ValueDate),
 		persistence.NullIfEmpty(t.Description), t.Amount.String(), t.Type.String(),
 		persistence.NullIfEmpty(t.Reference), t.BalanceAfter.String(), t.IsReconciled,
 		persistence.NullIfZeroTime(t.ReconciledAt),
-		persistence.NullIfEmptyUUID(t.ReconciledBy), persistence.NullIfEmptyUUID(t.JournalEntryID),
+		persistence.NullIfEmptyUUID(t.ReconciledBy),
 		t.CreatedAt, t.UpdatedAt,
 	)
 	return persistence.Translate(err)
@@ -49,14 +49,14 @@ func (r *bankTransactionRepository) Update(ctx context.Context, t *treasury.Bank
 	const q = `UPDATE bank_transactions SET
 		transaction_date = $1, value_date = $2, description = $3, amount = $4,
 		type = $5, reference = $6, balance_after = $7, is_reconciled = $8,
-		reconciled_at = $9, reconciled_by = $10, journal_entry_id = $11, updated_at = $12
-	 WHERE id = $13`
+		reconciled_at = $9, reconciled_by = $10, updated_at = $11
+	 WHERE id = $12`
 	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
 		t.TransactionDate, persistence.NullIfZeroTime(&t.ValueDate),
 		persistence.NullIfEmpty(t.Description), t.Amount.String(), t.Type.String(),
 		persistence.NullIfEmpty(t.Reference), t.BalanceAfter.String(), t.IsReconciled,
 		persistence.NullIfZeroTime(t.ReconciledAt),
-		persistence.NullIfEmptyUUID(t.ReconciledBy), persistence.NullIfEmptyUUID(t.JournalEntryID),
+		persistence.NullIfEmptyUUID(t.ReconciledBy),
 		time.Now().UTC(), t.ID,
 	)
 	if err != nil {
@@ -134,21 +134,20 @@ func (r *bankTransactionRepository) List(ctx context.Context, filter treasury.Ba
 func scanBankTransaction(row *sql.Row) (*treasury.BankTransaction, error) {
 	t := &treasury.BankTransaction{}
 	var (
-		valueDate, reconciledAt                 sql.NullTime
-		reference, description, reconciledBy    sql.NullString
-		journalEntryID                          sql.NullString
-		balanceAfter                            sql.NullString
-		amount, txType                          string
+		valueDate, reconciledAt              sql.NullTime
+		reference, description, reconciledBy sql.NullString
+		balanceAfter                         sql.NullString
+		amount, txType                       string
 	)
 	err := persistence.ScanRow(row,
 		&t.ID, &t.BankAccountID, &t.TransactionDate, &valueDate, &description,
 		&amount, &txType, &reference, &balanceAfter, &t.IsReconciled,
-		&reconciledAt, &reconciledBy, &journalEntryID, &t.CreatedAt, &t.UpdatedAt,
+		&reconciledAt, &reconciledBy, &t.CreatedAt, &t.UpdatedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
-	if err := decodeBankTransaction(t, valueDate, reconciledAt, reference, description, reconciledBy, journalEntryID, amount, balanceAfter, txType); err != nil {
+	if err := decodeBankTransaction(t, valueDate, reconciledAt, reference, description, reconciledBy, amount, balanceAfter, txType); err != nil {
 		return nil, err
 	}
 	return t, nil
@@ -157,26 +156,25 @@ func scanBankTransaction(row *sql.Row) (*treasury.BankTransaction, error) {
 func scanBankTransactionFromRows(rows *sql.Rows) (*treasury.BankTransaction, error) {
 	t := &treasury.BankTransaction{}
 	var (
-		valueDate, reconciledAt                 sql.NullTime
-		reference, description, reconciledBy    sql.NullString
-		journalEntryID                          sql.NullString
-		balanceAfter                            sql.NullString
-		amount, txType                          string
+		valueDate, reconciledAt              sql.NullTime
+		reference, description, reconciledBy sql.NullString
+		balanceAfter                         sql.NullString
+		amount, txType                       string
 	)
 	if err := rows.Scan(
 		&t.ID, &t.BankAccountID, &t.TransactionDate, &valueDate, &description,
 		&amount, &txType, &reference, &balanceAfter, &t.IsReconciled,
-		&reconciledAt, &reconciledBy, &journalEntryID, &t.CreatedAt, &t.UpdatedAt,
+		&reconciledAt, &reconciledBy, &t.CreatedAt, &t.UpdatedAt,
 	); err != nil {
 		return nil, persistence.Translate(err)
 	}
-	if err := decodeBankTransaction(t, valueDate, reconciledAt, reference, description, reconciledBy, journalEntryID, amount, balanceAfter, txType); err != nil {
+	if err := decodeBankTransaction(t, valueDate, reconciledAt, reference, description, reconciledBy, amount, balanceAfter, txType); err != nil {
 		return nil, err
 	}
 	return t, nil
 }
 
-func decodeBankTransaction(t *treasury.BankTransaction, valueDate, reconciledAt sql.NullTime, reference, description, reconciledBy, journalEntryID sql.NullString, amount string, balanceAfter sql.NullString, txType string) error {
+func decodeBankTransaction(t *treasury.BankTransaction, valueDate, reconciledAt sql.NullTime, reference, description, reconciledBy sql.NullString, amount string, balanceAfter sql.NullString, txType string) error {
 	if valueDate.Valid {
 		t.ValueDate = valueDate.Time
 	}
@@ -206,10 +204,6 @@ func decodeBankTransaction(t *treasury.BankTransaction, valueDate, reconciledAt 
 	if reconciledBy.Valid {
 		id := persistence.ParseUUID(reconciledBy.String)
 		t.ReconciledBy = &id
-	}
-	if journalEntryID.Valid {
-		id := persistence.ParseUUID(journalEntryID.String)
-		t.JournalEntryID = &id
 	}
 	return nil
 }

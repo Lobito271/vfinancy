@@ -17,7 +17,7 @@ import (
 	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/features/customer"
 	"vfinancy/backend/internal/features/sales"
-	"vfinancy/backend/internal/shared/logger"
+	"vfinancy/backend/infrastructure/logger"
 )
 
 // CustomerPaymentService handles customer payments and their

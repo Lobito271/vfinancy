@@ -27,9 +27,9 @@ type AppConfig struct {
 	Height      int
 }
 
-// Driver identifies the primary runtime database engine. The desktop
-// app runs on SQLite by default ("sqlite"); "postgres" is supported
-// for the cloud mirror and development.
+// DatabaseConfig holds the connection settings for the runtime
+// database. The desktop app runs on SQLite by default ("sqlite");
+// "postgres" is supported for the cloud mirror and development.
 type DatabaseConfig struct {
 	Driver       string
 	Path         string

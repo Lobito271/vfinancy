@@ -12,6 +12,7 @@ import { queryKeys } from '@/services/queryKeys';
 import { notificationsService, type AppNotification } from '@/services/notifications';
 import { wailsClient } from '@/services/bindings';
 import { Routes } from '@/constants/routes';
+import { CompanySwitcher } from '@/features/workspace/components/CompanySwitcher';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -149,6 +150,7 @@ export function Topbar() {
       </Button>
 
       <div className="topbar__actions">
+        <CompanySwitcher />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" aria-label="Cambiar tema">

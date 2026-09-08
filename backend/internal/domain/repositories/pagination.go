@@ -1,14 +1,3 @@
-// Package repositories defines the persistence abstractions used by the
-// application layer. The domain itself does not depend on any of these
-// types — entities flow through repositories owned by the application
-// layer, but the application layer only ever sees these interfaces, never
-// the concrete PostgreSQL implementations.
-//
-// The package itself depends on:
-//   * the standard library (context, time, uuid)
-//   * the domain entities and value objects (for typing)
-//
-// It must NOT depend on PostgreSQL, Wails, HTTP, or any infrastructure.
 package repositories
 
 import (

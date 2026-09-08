@@ -5,9 +5,9 @@ import (
 	"strings"
 )
 
-// barcodeRe validates an EAN-13 barcode (the global standard). EAN-8
-// and UPC-A barcodes are not yet supported but can be added by
-// extending this regex.
+// ean13Re matches an EAN-13 barcode (the global standard). EAN-8 and
+// UPC-A barcodes are not yet supported but can be added by extending
+// this regex.
 var ean13Re = regexp.MustCompile(`^\d{13}$`)
 
 // Barcode is a globally unique product barcode.

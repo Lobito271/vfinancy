@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"vfinancy/backend/internal/shared/logger"
+	"vfinancy/backend/infrastructure/logger"
 )
 
 type Migration struct {

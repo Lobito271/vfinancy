@@ -69,6 +69,16 @@ func (r *memoryRepository) UpdateCompany(_ context.Context, c *Company) error {
 	return nil
 }
 
+func (r *memoryRepository) DeleteCompany(_ context.Context, id uuid.UUID) error {
+	c, ok := r.companies[id]
+	if !ok {
+		return repositories.ErrNotFound
+	}
+	c.DeletedAt = new(time.Time)
+	c.IsActive = false
+	return nil
+}
+
 func TestLocalProfileUsesActiveCompanyAndOptionalPassword(t *testing.T) {
 	companyID := uuid.New()
 	repo := &memoryRepository{companies: map[uuid.UUID]*Company{companyID: {
@@ -103,6 +113,29 @@ func TestSetupCompanyRejectsWeakPasswordBeforeAnyInsert(t *testing.T) {
 	}
 	if repo.profile != nil {
 		t.Fatal("weak password should not have inserted the profile")
+	}
+}
+
+func TestDeactivateCompanyRejectsActiveAndRemovesInactive(t *testing.T) {
+	activeID := uuid.New()
+	inactiveID := uuid.New()
+	repo := &memoryRepository{companies: map[uuid.UUID]*Company{
+		activeID:   {ID: activeID, Code: "ACT", LegalName: "Active", TaxID: "1", IsActive: true, FiscalYearStartMonth: 1},
+		inactiveID: {ID: inactiveID, Code: "OTH", LegalName: "Other", TaxID: "2", IsActive: true, FiscalYearStartMonth: 1},
+	}}
+	service := newTestService(repo)
+	if _, err := service.CreateProfile(context.Background(), "Owner", activeID); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := service.DeactivateCompany(context.Background(), activeID); err == nil {
+		t.Fatal("expected deactivating the active company to be rejected")
+	}
+	if err := service.DeactivateCompany(context.Background(), inactiveID); err != nil {
+		t.Fatal(err)
+	}
+	if repo.companies[inactiveID].IsActive {
+		t.Fatal("expected company to be deactivated")
 	}
 }
 

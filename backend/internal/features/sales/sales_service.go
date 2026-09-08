@@ -4,9 +4,9 @@
 //
 // SalesService owns the whole "create a sale" operation: it validates
 // the customer and credit limit, persists the sale with its lines,
-// and records the resulting debt on the customer — all inside a single
-// transaction. Inventory and accounting side-effects are added here in
-// later phases using the same transaction pattern.
+// records the resulting debt on the customer, and deducts stock (FIFO)
+// for physical products — all inside a single transaction. Accounting
+// entries are not yet recorded.
 package sales
 
 import (
@@ -20,7 +20,7 @@ import (
 	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/features/customer"
 	"vfinancy/backend/internal/features/inventory"
-	"vfinancy/backend/internal/shared/logger"
+	"vfinancy/backend/infrastructure/logger"
 )
 
 // StockLedger is the narrow inventory contract consumed by the sales

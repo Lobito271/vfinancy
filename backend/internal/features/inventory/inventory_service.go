@@ -2,6 +2,13 @@
 // aggregate: stock entries / exits / transfers / adjustments, aging,
 // and the 25-day clearance rule.
 //
+// CRITICAL DESIGN RULE: stock is NEVER stored on the product. It is
+// computed as the sum of InventoryMovement rows for a (product,
+// warehouse) pair. The InventoryBatch entity carries a denormalized
+// current_quantity for fast lookup, but that field is maintained by
+// the service through the movement log and is always recomputable
+// from the source of truth.
+//
 // Clearance rule: any batch with arrival_date + 25 days in the
 // past and current_quantity > 0 is "on clearance". This is computed
 // lazily and exposed via the domain entity's MaximumSaleDate /
@@ -20,7 +27,7 @@ import (
 	derrors "vfinancy/backend/internal/domain/errors"
 	"vfinancy/backend/internal/domain/repositories"
 	"vfinancy/backend/internal/domain/valueobjects"
-	"vfinancy/backend/internal/shared/logger"
+	"vfinancy/backend/infrastructure/logger"
 )
 
 // InventoryService owns the inventory slice.
@@ -107,12 +114,6 @@ func (s *InventoryService) Receive(ctx context.Context, in ReceiveInput) (*Inven
 		}
 		// Companion movement row (append-only ledger).
 		now := time.Now().UTC()
-		ref, _ := valueobjects.NewReference(enums.ReferenceTypePurchase, batch.ID)
-		// The movement is inbound (positive) and matches the batch's
-		// initial quantity. We do not embed the reference in the
-		// inbound movement because the batch is the source-of-truth
-		// for the initial quantity.
-		_ = ref
 		movement, err := NewInventoryMovement(NewInventoryMovementOptions{
 			CompanyID:    in.CompanyID,
 			ProductID:    in.ProductID,

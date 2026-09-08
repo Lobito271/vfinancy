@@ -10,7 +10,7 @@ import (
 	"vfinancy/backend/internal/domain/repositories"
 	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/features/inventory"
-	"vfinancy/backend/internal/shared/logger"
+	"vfinancy/backend/infrastructure/logger"
 )
 
 // NotificationsService owns the device-local notification feed. Its

@@ -8,7 +8,7 @@ import (
 
 	"vfinancy/backend/infrastructure/config"
 	"vfinancy/backend/infrastructure/database"
-	"vfinancy/backend/internal/shared/logger"
+	"vfinancy/backend/infrastructure/logger"
 	"vfinancy/backend/infrastructure/migrations"
 	"vfinancy/backend/infrastructure/persistence"
 	"vfinancy/backend/infrastructure/postgres"

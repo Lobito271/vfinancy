@@ -21,6 +21,7 @@ const (
 const (
 	pathRegister = "/api/v1/devices/register"
 	pathSync     = "/api/v1/sync"
+	pathHealth   = "/api/v1/health"
 )
 
 func newID() string {

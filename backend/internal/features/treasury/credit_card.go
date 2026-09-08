@@ -12,42 +12,40 @@ import (
 // CreditCard is a company-issued credit card. The current_balance
 // represents the outstanding debt (positive = money owed to the issuer).
 type CreditCard struct {
-	ID            uuid.UUID
-	CompanyID     uuid.UUID
-	BranchID      *uuid.UUID
-	Issuer        string
-	LastFour      string
-	CardHolder    string
+	ID              uuid.UUID
+	CompanyID       uuid.UUID
+	BranchID        *uuid.UUID
+	Issuer          string
+	LastFour        string
+	CardHolder      string
 	ExpirationMonth int
 	ExpirationYear  int
-	CreditLimit   valueobjects.Money
-	CurrentBalance valueobjects.Money
-	CutOffDay     int
-	PaymentDueDay int
-	CurrencyCode  valueobjects.CurrencyCode
-	GLAccountID   uuid.UUID
-	IsActive      bool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	DeletedAt     *time.Time
-	CreatedBy     *uuid.UUID
-	UpdatedBy     *uuid.UUID
+	CreditLimit     valueobjects.Money
+	CurrentBalance  valueobjects.Money
+	CutOffDay       int
+	PaymentDueDay   int
+	CurrencyCode    valueobjects.CurrencyCode
+	IsActive        bool
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	DeletedAt       *time.Time
+	CreatedBy       *uuid.UUID
+	UpdatedBy       *uuid.UUID
 }
 
 // NewCreditCardOptions is the input to NewCreditCard.
 type NewCreditCardOptions struct {
-	CompanyID     uuid.UUID
-	BranchID      *uuid.UUID
-	Issuer        string
-	LastFour      string
-	CardHolder    string
+	CompanyID       uuid.UUID
+	BranchID        *uuid.UUID
+	Issuer          string
+	LastFour        string
+	CardHolder      string
 	ExpirationMonth int
 	ExpirationYear  int
-	CreditLimit   valueobjects.Money
-	CutOffDay     int
-	PaymentDueDay int
-	CurrencyCode  valueobjects.CurrencyCode
-	GLAccountID   uuid.UUID
+	CreditLimit     valueobjects.Money
+	CutOffDay       int
+	PaymentDueDay   int
+	CurrencyCode    valueobjects.CurrencyCode
 }
 
 // NewCreditCard validates and constructs a credit card.
@@ -76,9 +74,6 @@ func NewCreditCard(now time.Time, opts NewCreditCardOptions) (*CreditCard, error
 	if opts.PaymentDueDay < 1 || opts.PaymentDueDay > 31 {
 		return nil, derrors.Wrap(derrors.ErrOutOfRange, errField("payment-due day must be 1..31"))
 	}
-	if opts.GLAccountID == uuid.Nil {
-		return nil, derrors.Wrap(derrors.ErrRequired, errField("gl account is required"))
-	}
 	return &CreditCard{
 		ID:              uuid.New(),
 		CompanyID:       opts.CompanyID,
@@ -93,7 +88,6 @@ func NewCreditCard(now time.Time, opts NewCreditCardOptions) (*CreditCard, error
 		CutOffDay:       opts.CutOffDay,
 		PaymentDueDay:   opts.PaymentDueDay,
 		CurrencyCode:    opts.CurrencyCode,
-		GLAccountID:     opts.GLAccountID,
 		IsActive:        true,
 		CreatedAt:       now,
 		UpdatedAt:       now,

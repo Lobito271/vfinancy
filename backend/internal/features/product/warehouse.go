@@ -78,5 +78,6 @@ func (w *Warehouse) Rename(name valueobjects.FullName) { w.Name = name }
 // (post-25-day) batches for sale.
 func (w *Warehouse) SetAllowsClearance(v bool) { w.AllowsClearance = v }
 
-// DefaultCategoryLabel is used in reports; kept here for tests.
+// DefaultCategoryLabel is the display label for products with no
+// category. Used in reports and tests.
 const DefaultCategoryLabel = "Sin categoría"

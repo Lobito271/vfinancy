@@ -12,7 +12,7 @@ import (
 	"vfinancy/backend/infrastructure/sqlite"
 	"vfinancy/backend/internal/features/sync"
 	syncpostgres "vfinancy/backend/internal/features/sync/postgres"
-	"vfinancy/backend/internal/shared/logger"
+	"vfinancy/backend/infrastructure/logger"
 )
 
 const migrationDir = "../../../../../backend/migrations/sqlite"

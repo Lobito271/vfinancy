@@ -15,8 +15,6 @@ import (
 	"vfinancy/backend/infrastructure/migrations"
 	"vfinancy/backend/infrastructure/persistence"
 	"vfinancy/backend/infrastructure/sqlite"
-	"vfinancy/backend/internal/features/accounting"
-	accountingpostgres "vfinancy/backend/internal/features/accounting/postgres"
 	"vfinancy/backend/internal/features/administration"
 	adminpostgres "vfinancy/backend/internal/features/administration/postgres"
 	"vfinancy/backend/internal/features/customer"
@@ -51,21 +49,17 @@ type App struct {
 	migrationsFS fs.FS
 
 	settingsSvc  *administration.SettingsService
-	auditSvc     *administration.AuditService
 	workspaceSvc *workspace.Service
 
 	treasurySvc        *treasury.TreasuryService
 	salesSvc           *sales.SalesService
 	paymentSvc         *customerpayments.CustomerPaymentService
 	inventorySvc       *inventory.InventoryService
-	accountingSvc      *accounting.AccountingService
 	purchasingSvc      *purchasing.PurchasingService
 	customersSvc       *customer.CustomerService
 	productsSvc        *product.ProductService
 	suppliersSvc       *supplier.SupplierService
 	notificationsSvc   *notifications.NotificationsService
-	accountsReceivable sales.AccountsReceivableRepository
-	accountsPayable    purchasing.AccountsPayableRepository
 
 	syncCancel          context.CancelFunc
 	notificationsCancel context.CancelFunc
@@ -153,7 +147,6 @@ func (a *App) initializeServices(ctx context.Context) error {
 	currencies := adminpostgres.NewCurrencyRepository(db.DB)
 	taxes := adminpostgres.NewTaxRepository(db.DB)
 	countries := adminpostgres.NewCountryRepository(db.DB)
-	auditEvents := adminpostgres.NewAuditEventRepository(db.DB)
 
 	txm := persistence.NewTxManager(db)
 	customers := customerpostgres.NewCustomerRepository(db.DB)
@@ -173,16 +166,9 @@ func (a *App) initializeServices(ctx context.Context) error {
 	orders := salespostgres.NewSaleRepository(db.DB)
 	payments := salespostgres.NewCustomerPaymentRepository(db.DB)
 	advances := salespostgres.NewCustomerAdvanceRepository(db.DB)
-	a.accountsReceivable = salespostgres.NewAccountsReceivableRepository(db.DB)
 
 	purchaseOrders := purchasingpostgres.NewPurchaseRepository(db.DB)
 	supplierPayments := purchasingpostgres.NewSupplierPaymentRepository(db.DB)
-	a.accountsPayable = purchasingpostgres.NewAccountsPayableRepository(db.DB)
-
-	journalEntries := accountingpostgres.NewJournalRepository(db.DB)
-	chartOfAccounts := accountingpostgres.NewChartOfAccountRepository(db.DB)
-	ledger := accountingpostgres.NewLedgerRepository(db.DB)
-	fiscalPeriods := accountingpostgres.NewFiscalPeriodRepository(db.DB)
 
 	a.workspaceSvc = workspace.NewService(workspacepostgres.NewRepository(db.DB), txm)
 	if _, err := a.workspaceSvc.Initialize(ctx); err != nil && !errors.Is(err, workspace.ErrProfileNotFound) {
@@ -190,7 +176,6 @@ func (a *App) initializeServices(ctx context.Context) error {
 	}
 
 	a.settingsSvc = administration.NewSettingsService(settings, currencies, taxes, countries, a.log)
-	a.auditSvc = administration.NewAuditService(auditEvents, a.log)
 
 	a.treasurySvc = treasury.New(bankAccounts, creditCards, bankTransactions, exchangeRates, txm, a.log)
 	a.inventorySvc = inventory.New(batches, movements, warehouseResolver, productClassifier, txm, a.log)
@@ -208,7 +193,6 @@ func (a *App) initializeServices(ctx context.Context) error {
 	a.inventorySvc.SetClearanceSettings(clearanceSettings)
 	a.salesSvc = sales.New(orders, customers, a.inventorySvc, productClassifier, txm, a.log)
 	a.paymentSvc = customerpayments.New(payments, advances, orders, customers, txm, a.log)
-	a.accountingSvc = accounting.New(journalEntries, chartOfAccounts, ledger, fiscalPeriods, txm, a.log)
 	a.purchasingSvc = purchasing.New(purchaseOrders, supplierPayments, a.inventorySvc, txm, a.log)
 	a.customersSvc = customer.New(customers, txm, a.log)
 	a.productsSvc = product.New(products, txm, a.log)

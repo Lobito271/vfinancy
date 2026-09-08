@@ -170,22 +170,6 @@ func (a *App) ListInventoryMovements(req ListInventoryMovementsRequest) (PageRes
 	return PageResult{Items: items, Total: page.Total, Page: page.Offset/page.Limit + 1, PageSize: page.Limit}, nil
 }
 
-// GetClearanceCandidates returns all batches currently on clearance.
-func (a *App) GetClearanceCandidates() ([]*InventoryBatchDTO, error) {
-	ctx := a.Context()
-	now := time.Now().UTC()
-	batches, err := a.inventorySvc.GenerateClearanceCandidates(ctx, a.companyID(), now)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	today := valueobjects.Date(now)
-	items := make([]*InventoryBatchDTO, 0, len(batches))
-	for _, b := range batches {
-		items = append(items, toInventoryBatchDTO(today, b))
-	}
-	return items, nil
-}
-
 // ReceiveStockRequest receives stock into a new batch.
 type ReceiveStockRequest struct {
 	ProductID    string `json:"productId"`

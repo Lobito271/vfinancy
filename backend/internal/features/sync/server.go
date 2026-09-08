@@ -30,7 +30,18 @@ func (s *Server) Routes(apiKey string) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc(pathRegister, s.handleRegister)
 	mux.HandleFunc(pathSync, s.handleSync)
+	mux.HandleFunc(pathHealth, s.handleHealth)
 	return withAPIKey(mux, apiKey)
+}
+
+// handleHealth answers liveness checks. It sits behind the API-key
+// middleware, so a 200 is also proof the key is valid.
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {

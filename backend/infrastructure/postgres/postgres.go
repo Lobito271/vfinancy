@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -12,7 +11,7 @@ import (
 
 	"vfinancy/backend/infrastructure/config"
 	"vfinancy/backend/infrastructure/database"
-	"vfinancy/backend/internal/shared/logger"
+	"vfinancy/backend/infrastructure/logger"
 )
 
 const DriverName = "pgx"
@@ -85,4 +84,4 @@ func sanitizeIdentifier(name string) string {
 	return `"` + quoted + `"`
 }
 
-var ErrNotFound = errors.New("postgres: record not found")
+

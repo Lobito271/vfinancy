@@ -47,20 +47,6 @@ type SaleDTO struct {
 	Items        []*SaleItemDTO `json:"items"`
 }
 
-// CustomerPaymentDTO is the serializable view of a customer payment.
-type CustomerPaymentDTO struct {
-	ID           string `json:"id"`
-	Number       string `json:"number"`
-	CustomerID   string `json:"customerId"`
-	PaymentDate  string `json:"paymentDate"`
-	Amount       string `json:"amount"`
-	CurrencyCode string `json:"currencyCode"`
-	Method       string `json:"method"`
-	Status       string `json:"status"`
-	Reference    string `json:"reference"`
-	Notes        string `json:"notes"`
-}
-
 // CustomerAdvanceDTO is the serializable view of a customer advance.
 type CustomerAdvanceDTO struct {
 	ID           string `json:"id"`
@@ -343,73 +329,6 @@ func (a *App) RegisterSalePayment(req RegisterSalePaymentRequest) (*SaleDTO, err
 		return nil, utils.ProcessError(err)
 	}
 	return toSaleDTO(ctx, a.customersSvc, s), nil
-}
-
-// ListCustomerPaymentsRequest lists payments for a customer.
-type ListCustomerPaymentsRequest struct {
-	CustomerID string `json:"customerId"`
-	PaginationRequest
-}
-
-// ListCustomerPayments returns paged customer payments.
-func (a *App) ListCustomerPayments(req ListCustomerPaymentsRequest) (PageResult, error) {
-	ctx := a.Context()
-	cid, err := uuid.Parse(req.CustomerID)
-	if err != nil {
-		return PageResult{}, utils.ProcessError(err)
-	}
-	filter := sales.CustomerPaymentFilter{
-		CompanyID:   a.companyIDPtr(),
-		CustomerID:  &cid,
-		PageRequest: req.toPageRequest(),
-	}
-	page, err := a.paymentSvc.ListPayments(ctx, filter)
-	if err != nil {
-		return PageResult{}, utils.ProcessError(err)
-	}
-	items := make([]*CustomerPaymentDTO, 0, len(page.Items))
-	for _, p := range page.Items {
-		items = append(items, &CustomerPaymentDTO{
-			ID:           p.ID.String(),
-			Number:       p.Number,
-			CustomerID:   p.CustomerID.String(),
-			PaymentDate:  p.PaymentDate.Format("2006-01-02"),
-			Amount:       p.Amount.String(),
-			CurrencyCode: p.CurrencyCode.String(),
-			Method:       p.Method.String(),
-			Status:       p.Status,
-			Reference:    p.Reference,
-			Notes:        p.Notes,
-		})
-	}
-	return PageResult{Items: items, Total: page.Total, Page: page.Offset/page.Limit + 1, PageSize: page.Limit}, nil
-}
-
-// ListCustomerAdvances returns the advances of a customer.
-func (a *App) ListCustomerAdvances(customerID string) ([]*CustomerAdvanceDTO, error) {
-	ctx := a.Context()
-	cid, err := uuid.Parse(customerID)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	advances, err := a.paymentSvc.ListAdvances(ctx, cid)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	items := make([]*CustomerAdvanceDTO, 0, len(advances))
-	for _, ad := range advances {
-		items = append(items, &CustomerAdvanceDTO{
-			ID:           ad.ID.String(),
-			Number:       ad.Number,
-			CustomerID:   ad.CustomerID.String(),
-			AdvanceDate:  ad.AdvanceDate.Format("2006-01-02"),
-			Amount:       ad.Amount.String(),
-			CurrencyCode: ad.CurrencyCode.String(),
-			Method:       ad.Method.String(),
-			Remaining:    ad.Remaining().String(),
-		})
-	}
-	return items, nil
 }
 
 type RegisterCustomerAdvanceRequest struct {

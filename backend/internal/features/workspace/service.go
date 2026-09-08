@@ -361,6 +361,16 @@ func (s *Service) SetActiveCompany(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (s *Service) DeactivateCompany(ctx context.Context, id uuid.UUID) error {
+	s.mu.RLock()
+	active := s.profile != nil && s.profile.ActiveCompanyID == id
+	s.mu.RUnlock()
+	if active {
+		return ErrCompanyActive
+	}
+	return s.repo.DeleteCompany(ctx, id)
+}
+
 func cloneProfile(p *LocalProfile) *LocalProfile {
 	copy := *p
 	return &copy

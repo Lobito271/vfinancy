@@ -19,5 +19,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "wailsjs"]
+  "include": ["src", "wailsjs"],
+  "exclude": ["src/pages/_archive", "src/features/_archive"]
 }

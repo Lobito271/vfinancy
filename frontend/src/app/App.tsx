@@ -16,13 +16,8 @@ const rel = (p: string) => p.replace(/^\//, '');
 const DashboardPage = lazy(() =>
   import('@/pages/DashboardPage').then((m) => ({ default: m.DashboardPage })),
 );
-const CustomersPage = lazy(() => import('@/pages/CustomersPage').then((m) => ({ default: m.CustomersPage })));
-const SuppliersPage = lazy(() => import('@/pages/SuppliersPage').then((m) => ({ default: m.SuppliersPage })));
-const ProductsPage = lazy(() => import('@/pages/ProductsPage').then((m) => ({ default: m.ProductsPage })));
-const CatalogSettingsPage = lazy(() => import('@/pages/CatalogSettingsPage').then((m) => ({ default: m.CatalogSettingsPage })));
 const InventoryPage = lazy(() => import('@/pages/InventoryPage').then((m) => ({ default: m.InventoryPage })));
 const PurchasesPage = lazy(() => import('@/pages/PurchasesPage').then((m) => ({ default: m.PurchasesPage })));
-const CustomerOrdersPage = lazy(() => import('@/pages/CustomerOrdersPage').then((m) => ({ default: m.CustomerOrdersPage })));
 const SalesPage = lazy(() => import('@/pages/SalesPage').then((m) => ({ default: m.SalesPage })));
 const TreasuryPage = lazy(() => import('@/pages/TreasuryPage').then((m) => ({ default: m.TreasuryPage })));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
@@ -75,20 +70,14 @@ export function App() {
           <Route path={rel(Routes.Welcome)} element={<LockedState><WelcomePage /></LockedState>} />
           <Route element={<SetupState setup><AppLayout /></SetupState>}>
             <Route index element={<DashboardPage />} />
-            <Route path={rel(Routes.Customers)} element={<CustomersPage />} />
-            <Route path={rel(Routes.Suppliers)} element={<SuppliersPage />} />
-            <Route path={rel(Routes.Products)} element={<ProductsPage />} />
-            <Route path={rel(Routes.CatalogSettings)} element={<CatalogSettingsPage />} />
             <Route path={rel(Routes.Inventory)} element={<InventoryPage />} />
+            <Route path={rel(Routes.InventoryClearance)} element={<InventoryPage />} />
             <Route path={rel(Routes.Purchases)} element={<PurchasesPage />} />
             <Route path={rel(Routes.PurchasesLots)} element={<PurchasesPage />} />
-            <Route path={rel(Routes.CustomerOrders)} element={<CustomerOrdersPage />} />
             <Route path={rel(Routes.Sales)} element={<SalesPage />} />
             <Route path={rel(Routes.SalesPayments)} element={<SalesPage />} />
             <Route path={rel(Routes.Treasury)} element={<TreasuryPage />} />
             <Route path={rel(Routes.TreasuryCycles)} element={<TreasuryPage />} />
-            <Route path={rel(Routes.Inventory)} element={<InventoryPage />} />
-            <Route path={rel(Routes.InventoryClearance)} element={<InventoryPage />} />
             <Route path={rel(Routes.Settings)} element={<SettingsPage />} />
             <Route path="*" element={<Navigate to={Routes.Dashboard} replace />} />
           </Route>

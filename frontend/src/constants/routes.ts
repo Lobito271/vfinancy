@@ -7,9 +7,13 @@ export const Routes = {
   Products: '/products',
   CatalogSettings: '/catalog-settings',
   Inventory: '/inventory',
+  InventoryClearance: '/inventory/clearance',
   Purchases: '/purchases',
+  PurchasesLots: '/purchases/lots',
   CustomerOrders: '/customer-orders',
   Sales: '/sales',
+  SalesPayments: '/sales/payments',
   Treasury: '/treasury',
+  TreasuryCycles: '/treasury/cycles',
   Settings: '/settings',
 } as const;

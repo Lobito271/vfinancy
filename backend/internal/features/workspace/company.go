@@ -7,60 +7,45 @@ import (
 	"github.com/google/uuid"
 )
 
-type Company struct {
-	ID                   uuid.UUID
-	Code                 string
-	LegalName            string
-	TradeName            string
-	TaxID                string
-	Address              string
-	Phone                string
-	Email                string
-	CountryCode          string
-	FunctionalCurrency   string
-	Timezone             string
-	FiscalYearStartMonth int
-	IsActive             bool
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
-	DeletedAt            *time.Time
-}
-
+// LocalProfile is the singleton workspace owner record backed by the
+// local_profiles table. It carries the optional password state used to
+// lock and unlock the desktop app.
 type LocalProfile struct {
 	ID                uuid.UUID
 	Name              string
 	PasswordHash      string
-	PasswordEnabled   bool
 	RecoveryTokenHash string
+	PasswordEnabled   bool
 	FailedAttempts    int
 	LockedUntil       *time.Time
-	ActiveCompanyID   uuid.UUID
-	Theme             string
-	Language          string
-	DateFormat        string
-	NumberFormat      string
-	DecimalPlaces     int
-	Timezone          string
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }
 
+// NewLocalProfile builds a profile with a fresh ID and UTC timestamps.
+// The name is trimmed and must not be blank.
+func NewLocalProfile(name string) (*LocalProfile, error) {
+	p := &LocalProfile{
+		ID:        uuid.New(),
+		Name:      strings.TrimSpace(name),
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+	if err := p.Validate(); err != nil {
+		return nil, err
+	}
+	return p, nil
+}
+
+// Touch stamps UpdatedAt with the current UTC time.
+func (p *LocalProfile) Touch() {
+	p.UpdatedAt = time.Now().UTC()
+}
+
+// Validate reports whether the profile carries a usable name.
 func (p *LocalProfile) Validate() error {
 	if strings.TrimSpace(p.Name) == "" {
 		return ErrInvalidProfile
-	}
-	if p.ActiveCompanyID == uuid.Nil {
-		return ErrCompanyRequired
-	}
-	return nil
-}
-
-func (c *Company) Validate() error {
-	if strings.TrimSpace(c.Code) == "" || strings.TrimSpace(c.LegalName) == "" || strings.TrimSpace(c.TaxID) == "" {
-		return ErrInvalidCompany
-	}
-	if c.FiscalYearStartMonth < 1 || c.FiscalYearStartMonth > 12 {
-		return ErrInvalidCompany
 	}
 	return nil
 }

@@ -1,13 +1,16 @@
 package bindings
 
 import (
-	"errors"
-
-	"github.com/google/uuid"
+	"fmt"
 
 	"vfinancy/backend/internal/features/workspace"
-	"vfinancy/backend/internal/utils"
 )
+
+type LocalProfileDTO struct {
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	PasswordEnabled bool   `json:"passwordEnabled"`
+}
 
 type LocalAuthStateDTO struct {
 	Configured      bool `json:"configured"`
@@ -15,231 +18,109 @@ type LocalAuthStateDTO struct {
 	Unlocked        bool `json:"unlocked"`
 }
 
-type LocalProfileDTO struct {
-	ID              string `json:"id"`
-	Name            string `json:"name"`
-	PasswordEnabled bool   `json:"passwordEnabled"`
-	ActiveCompanyID string `json:"activeCompanyId"`
-	Theme           string `json:"theme"`
-	Language        string `json:"language"`
-	DateFormat      string `json:"dateFormat"`
-	NumberFormat    string `json:"numberFormat"`
-	DecimalPlaces   int    `json:"decimalPlaces"`
-	Timezone        string `json:"timezone"`
+func profileDTO(p *workspace.LocalProfile) LocalProfileDTO {
+	return LocalProfileDTO{ID: p.ID.String(), Name: p.Name, PasswordEnabled: p.PasswordEnabled}
 }
 
-type CompanyDTO struct {
-	ID                   string `json:"id"`
-	Code                 string `json:"code"`
-	LegalName            string `json:"legalName"`
-	TradeName            string `json:"tradeName"`
-	TaxID                string `json:"taxId"`
-	Address              string `json:"address"`
-	Phone                string `json:"phone"`
-	Email                string `json:"email"`
-	CountryCode          string `json:"countryCode"`
-	FunctionalCurrency   string `json:"functionalCurrency"`
-	Timezone             string `json:"timezone"`
-	FiscalYearStartMonth int    `json:"fiscalYearStartMonth"`
-	IsActive             bool   `json:"isActive"`
-}
-
-type CompanyRequest struct {
-	ID                   string `json:"id"`
-	Code                 string `json:"code"`
-	LegalName            string `json:"legalName"`
-	TradeName            string `json:"tradeName"`
-	TaxID                string `json:"taxId"`
-	Address              string `json:"address"`
-	Phone                string `json:"phone"`
-	Email                string `json:"email"`
-	CountryCode          string `json:"countryCode"`
-	FunctionalCurrency   string `json:"functionalCurrency"`
-	Timezone             string `json:"timezone"`
-	FiscalYearStartMonth int    `json:"fiscalYearStartMonth"`
-}
-
-func localProfileDTO(p *workspace.LocalProfile) *LocalProfileDTO {
-	return &LocalProfileDTO{ID: p.ID.String(), Name: p.Name, PasswordEnabled: p.PasswordEnabled,
-		ActiveCompanyID: p.ActiveCompanyID.String(), Theme: p.Theme, Language: p.Language,
-		DateFormat: p.DateFormat, NumberFormat: p.NumberFormat, DecimalPlaces: p.DecimalPlaces,
-		Timezone: p.Timezone}
-}
-
-func companyDTO(c *workspace.Company) *CompanyDTO {
-	return &CompanyDTO{ID: c.ID.String(), Code: c.Code, LegalName: c.LegalName, TradeName: c.TradeName,
-		TaxID: c.TaxID, Address: c.Address, Phone: c.Phone, Email: c.Email, CountryCode: c.CountryCode,
-		FunctionalCurrency: c.FunctionalCurrency, Timezone: c.Timezone,
-		FiscalYearStartMonth: c.FiscalYearStartMonth, IsActive: c.IsActive}
-}
-
+// GetLocalAuthState reports the profile state so the UI can route
+// between the setup wizard, the lock screen and the dashboard. It runs
+// even while the profile is locked.
 func (a *App) GetLocalAuthState() (LocalAuthStateDTO, error) {
-	if a.workspaceSvc == nil {
-		return LocalAuthStateDTO{}, nil
+	p, err := a.workspaceSvc.Profile()
+	if err != nil {
+		return LocalAuthStateDTO{Configured: false}, nil
+	}
+	return LocalAuthStateDTO{
+		Configured:      true,
+		PasswordEnabled: p.PasswordEnabled,
+		Unlocked:        a.workspaceSvc.IsUnlocked(),
+	}, nil
+}
+
+// GetLocalProfile returns the current local profile.
+func (a *App) GetLocalProfile() (LocalProfileDTO, error) {
+	p, err := a.workspaceSvc.Profile()
+	if err != nil {
+		return LocalProfileDTO{}, err
+	}
+	return profileDTO(p), nil
+}
+
+// SetupWorkspaceRequest is the reduced first-run wizard payload: a
+// profile name and an optional password.
+type SetupWorkspaceRequest struct {
+	Name     string `json:"name"`
+	Password string `json:"password"`
+}
+
+// SetupWorkspace creates the single local profile. It runs before any
+// lock can exist, so it uses the raw runtime context.
+func (a *App) SetupWorkspace(req SetupWorkspaceRequest) (LocalProfileDTO, error) {
+	p, err := a.workspaceSvc.Setup(a.rawContext(), req.Name, req.Password)
+	if err != nil {
+		return LocalProfileDTO{}, err
+	}
+	return profileDTO(p), nil
+}
+
+// UnlockLocalProfile verifies the password and lifts the lock.
+func (a *App) UnlockLocalProfile(password string) (LocalProfileDTO, error) {
+	if err := a.workspaceSvc.Unlock(a.rawContext(), password); err != nil {
+		return LocalProfileDTO{}, err
 	}
 	p, err := a.workspaceSvc.Profile()
 	if err != nil {
-		if errors.Is(err, workspace.ErrProfileNotFound) {
-			return LocalAuthStateDTO{}, nil
-		}
-		return LocalAuthStateDTO{}, utils.ProcessError(err)
+		return LocalProfileDTO{}, err
 	}
-	return LocalAuthStateDTO{Configured: true, PasswordEnabled: p.PasswordEnabled, Unlocked: a.workspaceSvc.IsUnlocked()}, nil
+	return profileDTO(p), nil
 }
 
-func (a *App) GetLocalProfile() (*LocalProfileDTO, error) {
+// RecoverWithTokenRequest unlocks the profile with the one-time
+// recovery token and sets a new password.
+type RecoverWithTokenRequest struct {
+	Token       string `json:"token"`
+	NewPassword string `json:"newPassword"`
+}
+
+// RecoverWithToken implements the lost-password flow (edge case: the
+// offline single account has no reset channel).
+func (a *App) RecoverWithToken(req RecoverWithTokenRequest) (LocalProfileDTO, error) {
+	if err := a.workspaceSvc.UnlockWithRecoveryToken(a.rawContext(), req.Token, req.NewPassword); err != nil {
+		return LocalProfileDTO{}, err
+	}
 	p, err := a.workspaceSvc.Profile()
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return LocalProfileDTO{}, err
 	}
-	return localProfileDTO(p), nil
+	return profileDTO(p), nil
 }
 
-type UpdateLocalProfileRequest struct {
-	Name          string `json:"name"`
-	Theme         string `json:"theme"`
-	Language      string `json:"language"`
-	DateFormat    string `json:"dateFormat"`
-	NumberFormat  string `json:"numberFormat"`
-	DecimalPlaces int    `json:"decimalPlaces"`
-	Timezone      string `json:"timezone"`
+type ChangePasswordRequest struct {
+	Current string `json:"current"`
+	Next    string `json:"next"`
 }
 
-func (a *App) UpdateLocalProfile(req UpdateLocalProfileRequest) (*LocalProfileDTO, error) {
-	p, err := a.workspaceSvc.UpdateProfile(a.rawContext(), req.Name, req.Theme, req.Language, req.DateFormat, req.NumberFormat, req.Timezone, req.DecimalPlaces)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return localProfileDTO(p), nil
+// SetLocalPassword sets or replaces the local password.
+func (a *App) SetLocalPassword(req ChangePasswordRequest) error {
+	return a.workspaceSvc.SetPassword(a.Context(), req.Current, req.Next)
 }
 
-func (a *App) UnlockLocalProfile(password string) error {
-	return a.workspaceSvc.Unlock(a.rawContext(), password)
-}
-
-func (a *App) SetLocalPassword(current, next string) error {
-	return utils.ProcessError(a.workspaceSvc.SetPassword(a.rawContext(), current, next))
-}
-
+// RemoveLocalPassword disables the password gate.
 func (a *App) RemoveLocalPassword(current string) error {
-	return utils.ProcessError(a.workspaceSvc.RemovePassword(a.rawContext(), current))
+	return a.workspaceSvc.RemovePassword(a.Context(), current)
 }
 
-// GetRecoveryToken issues the one-time recovery secret for the local
-// profile. It is only available before any token has been generated.
+// GetRecoveryToken returns the one-time recovery token. It can only be
+// issued once per profile.
 func (a *App) GetRecoveryToken() (string, error) {
-	token, err := a.workspaceSvc.GenerateRecoveryToken(a.rawContext())
+	token, err := a.workspaceSvc.GenerateRecoveryToken(a.Context())
 	if err != nil {
-		return "", utils.ProcessError(err)
+		return "", fmt.Errorf("recovery token: %w", err)
 	}
 	return token, nil
 }
 
+// LockLocalProfile engages the password gate immediately.
 func (a *App) LockLocalProfile() {
 	a.workspaceSvc.Lock()
-}
-
-type SetupWorkspaceRequest struct {
-	Code                 string `json:"code"`
-	LegalName            string `json:"legalName"`
-	TradeName            string `json:"tradeName"`
-	TaxID                string `json:"taxId"`
-	Address              string `json:"address"`
-	Phone                string `json:"phone"`
-	Email                string `json:"email"`
-	CountryCode          string `json:"countryCode"`
-	FunctionalCurrency   string `json:"functionalCurrency"`
-	Timezone             string `json:"timezone"`
-	FiscalYearStartMonth int    `json:"fiscalYearStartMonth"`
-	ProfileName          string `json:"profileName"`
-	Password             string `json:"password"`
-}
-
-func (a *App) SetupWorkspace(req SetupWorkspaceRequest) (*CompanyDTO, error) {
-	c := &workspace.Company{Code: req.Code, LegalName: req.LegalName,
-		TradeName: req.TradeName, TaxID: req.TaxID, Address: req.Address, Phone: req.Phone,
-		Email: req.Email, CountryCode: req.CountryCode, FunctionalCurrency: req.FunctionalCurrency,
-		Timezone: req.Timezone, FiscalYearStartMonth: req.FiscalYearStartMonth}
-	company, err := a.workspaceSvc.SetupCompany(a.rawContext(), c, req.ProfileName, req.Password)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return companyDTO(company), nil
-}
-
-func (a *App) ListCompanies() ([]*CompanyDTO, error) {
-	companies, err := a.workspaceSvc.ListCompanies(a.rawContext())
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	result := make([]*CompanyDTO, 0, len(companies))
-	for _, c := range companies {
-		result = append(result, companyDTO(c))
-	}
-	return result, nil
-}
-
-func (a *App) GetActiveCompany() (*CompanyDTO, error) {
-	id, err := a.workspaceSvc.CurrentCompanyID()
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	c, err := a.workspaceSvc.GetCompany(a.rawContext(), id)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return companyDTO(c), nil
-}
-
-func (a *App) SetActiveCompany(id string) error {
-	companyID, err := uuid.Parse(id)
-	if err != nil {
-		return utils.ProcessError(workspace.ErrInvalidCompany)
-	}
-	return utils.ProcessError(a.workspaceSvc.SetActiveCompany(a.rawContext(), companyID))
-}
-
-func (a *App) CreateCompany(req CompanyRequest) (*CompanyDTO, error) {
-	c := &workspace.Company{Code: req.Code, LegalName: req.LegalName,
-		TradeName: req.TradeName, TaxID: req.TaxID, Address: req.Address, Phone: req.Phone,
-		Email: req.Email, CountryCode: req.CountryCode, FunctionalCurrency: req.FunctionalCurrency,
-		Timezone: req.Timezone, FiscalYearStartMonth: req.FiscalYearStartMonth}
-	if err := a.workspaceSvc.CreateCompany(a.rawContext(), c); err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return companyDTO(c), nil
-}
-
-func (a *App) UpdateCompany(req CompanyRequest) (*CompanyDTO, error) {
-	id, err := uuid.Parse(req.ID)
-	if err != nil {
-		return nil, utils.ProcessError(workspace.ErrInvalidCompany)
-	}
-	c, err := a.workspaceSvc.GetCompany(a.rawContext(), id)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	c.Code = req.Code
-	c.LegalName = req.LegalName
-	c.TradeName = req.TradeName
-	c.TaxID = req.TaxID
-	c.Address = req.Address
-	c.Phone = req.Phone
-	c.Email = req.Email
-	c.CountryCode = req.CountryCode
-	c.FunctionalCurrency = req.FunctionalCurrency
-	c.Timezone = req.Timezone
-	c.FiscalYearStartMonth = req.FiscalYearStartMonth
-	if err := a.workspaceSvc.UpdateCompany(a.rawContext(), c); err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return companyDTO(c), nil
-}
-
-func (a *App) DeactivateCompany(id string) error {
-	companyID, err := uuid.Parse(id)
-	if err != nil {
-		return utils.ProcessError(workspace.ErrInvalidCompany)
-	}
-	return utils.ProcessError(a.workspaceSvc.DeactivateCompany(a.rawContext(), companyID))
 }

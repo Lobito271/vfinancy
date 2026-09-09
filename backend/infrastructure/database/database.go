@@ -55,6 +55,15 @@ func (d *DB) Close() error {
 	return d.DB.Close()
 }
 
+// Checkpoint truncates the SQLite write-ahead log so a file copy is a
+// consistent snapshot.
+func (d *DB) Checkpoint() error {
+	if _, err := d.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+		return fmt.Errorf("database: wal checkpoint: %w", err)
+	}
+	return nil
+}
+
 func (d *DB) WithTx(ctx context.Context, fn func(tx *Tx) error) error {
 	tx, err := d.BeginTx(ctx, nil)
 	if err != nil {

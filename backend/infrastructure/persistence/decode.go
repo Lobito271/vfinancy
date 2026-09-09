@@ -74,31 +74,12 @@ func ParseUUID(s string) uuid.UUID {
 	return id
 }
 
-// ParseTaxCategory parses a tax category, returning "" when invalid.
-func ParseTaxCategory(s string) enums.TaxCategory {
-	tc := enums.TaxCategory(s)
-	if !tc.Valid() {
-		return enums.TaxCategory("")
-	}
-	return tc
-}
-
 // ParseCustomerStatus parses a customer status, returning "" when
 // invalid.
 func ParseCustomerStatus(s string) enums.CustomerStatus {
 	st := enums.CustomerStatus(s)
 	if !st.Valid() {
 		return enums.CustomerStatus("")
-	}
-	return st
-}
-
-// ParseSupplierStatus parses a supplier status, returning "" when
-// invalid.
-func ParseSupplierStatus(s string) enums.SupplierStatus {
-	st := enums.SupplierStatus(s)
-	if !st.Valid() {
-		return enums.SupplierStatus("")
 	}
 	return st
 }

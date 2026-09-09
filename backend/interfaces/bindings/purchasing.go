@@ -9,714 +9,444 @@ import (
 	"vfinancy/backend/internal/domain/enums"
 	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/features/purchasing"
-	"vfinancy/backend/internal/utils"
 )
 
-// PurchaseItemDTO is a serializable purchase order line.
 type PurchaseItemDTO struct {
-	ID              string `json:"id"`
-	ProductID       string `json:"productId"`
-	LineNumber      int    `json:"lineNumber"`
-	Quantity        string `json:"quantity"`
-	UnitPrice       string `json:"unitPrice"`
-	DiscountPercent string `json:"discountPercent"`
-	DiscountAmount  string `json:"discountAmount"`
-	TaxRate         string `json:"taxRate"`
-	TaxAmount       string `json:"taxAmount"`
-	Description     string `json:"description"`
+	ID               string  `json:"id"`
+	ProductID        string  `json:"productId"`
+	LineNumber       int     `json:"lineNumber"`
+	Description      string  `json:"description"`
+	UnitCode         string  `json:"unitCode"`
+	Quantity         float64 `json:"quantity"`
+	QuantityReceived float64 `json:"quantityReceived"`
+	UnitCostUSD      float64 `json:"unitCostUsd"`
+	LineTotalUSD     float64 `json:"lineTotalUsd"`
+	SalePricePen     float64 `json:"salePricePen"`
 }
 
-// PurchaseOrderDTO is the serializable view of a purchase order.
 type PurchaseOrderDTO struct {
-	ID                  string                    `json:"id"`
-	Number              string                    `json:"number"`
-	SupplierID          string                    `json:"supplierId"`
-	CustomerID          string                    `json:"customerId"`
-	CreditCardID        string                    `json:"creditCardId"`
-	OrderType           string                    `json:"orderType"`
-	OrderDate           string                    `json:"orderDate"`
-	Status              string                    `json:"status"`
-	Subtotal            string                    `json:"subtotal"`
-	Discount            string                    `json:"discount"`
-	Tax                 string                    `json:"tax"`
-	Total               string                    `json:"total"`
-	Paid                string                    `json:"paid"`
-	CostUSD             string                    `json:"costUSD"`
-	SalePricePEN        string                    `json:"salePricePEN"`
-	RealCostPEN         string                    `json:"realCostPEN"`
-	ProjectedProfitPEN  string                    `json:"projectedProfitPEN"`
-	Anticipo            string                    `json:"anticipo"`
-	AnticipoDate        string                    `json:"anticipoDate"`
-	PorCobrar           string                    `json:"porCobrar"`
-	Faulty              bool                      `json:"faulty"`
-	FaultyReason        string                    `json:"faultyReason"`
-	RefundedAmount      string                    `json:"refundedAmount"`
-	ArrivalDate         string                    `json:"arrivalDate"`
-	SupplierOrderNumber string                    `json:"supplierOrderNumber"`
-	Notes               string                    `json:"notes"`
-	Items               []*PurchaseItemDTO        `json:"items"`
-	Payments            []*CustomerOrderPaymentDTO `json:"payments"`
+	ID                 string             `json:"id"`
+	Number             string             `json:"number"`
+	OrderDate          string             `json:"orderDate"`
+	ExpectedDate       string             `json:"expectedDate"`
+	ReceivedDate       string             `json:"receivedDate"`
+	ArrivalDate        string             `json:"arrivalDate"`
+	Status             string             `json:"status"`
+	CurrencyCode       string             `json:"currencyCode"`
+	ExchangeRate       float64            `json:"exchangeRate"`
+	Notes              string             `json:"notes"`
+	OrderType          string             `json:"orderType"`
+	CustomerID         string             `json:"customerId"`
+	CreditCardID       string             `json:"creditCardId"`
+	CostUSD            float64            `json:"costUsd"`
+	SalePricePen       float64            `json:"salePricePen"`
+	RealCostPen        float64            `json:"realCostPen"`
+	ProjectedProfitPen float64            `json:"projectedProfitPen"`
+	RefundAmount       float64            `json:"refundAmount"`
+	Faulty             bool               `json:"faulty"`
+	FaultyReason       string             `json:"faultyReason"`
+	CancelledAt        string             `json:"cancelledAt"`
+	CancelledReason    string             `json:"cancelledReason"`
+	Items              []PurchaseItemDTO  `json:"items"`
 }
 
-func toPurchaseOrderDTO(po *purchasing.PurchaseOrder) *PurchaseOrderDTO {
-	items := make([]*PurchaseItemDTO, 0, len(po.Items))
+func purchaseDTO(po *purchasing.PurchaseOrder) PurchaseOrderDTO {
+	items := make([]PurchaseItemDTO, 0, len(po.Items))
 	for _, it := range po.Items {
-		items = append(items, &PurchaseItemDTO{
-			ID:              it.ID.String(),
-			ProductID:       it.ProductID.String(),
-			LineNumber:      it.LineNumber,
-			Quantity:        it.Quantity.String(),
-			UnitPrice:       it.UnitPrice.String(),
-			DiscountPercent: it.DiscountPercent.String(),
-			DiscountAmount:  it.DiscountAmount.String(),
-			TaxRate:         it.TaxRate.String(),
-			TaxAmount:       it.TaxAmount.String(),
-			Description:     it.Description,
+		items = append(items, PurchaseItemDTO{
+			ID:               it.ID.String(),
+			ProductID:        uuidPtrString(it.ProductID),
+			LineNumber:       it.LineNumber,
+			Description:      it.Description,
+			UnitCode:         it.UnitCode,
+			Quantity:         quantityFloat(it.QuantityOrdered),
+			QuantityReceived: quantityFloat(it.QuantityReceived),
+			UnitCostUSD:      moneyFloat(it.UnitCostUSD),
+			LineTotalUSD:     moneyFloat(it.LineTotalUSD),
+			SalePricePen:     moneyFloat(it.SalePricePen),
 		})
 	}
-	payments := make([]*CustomerOrderPaymentDTO, 0, len(po.CustomerPayments))
-	for _, pm := range po.CustomerPayments {
-		payments = append(payments, toCustomerOrderPaymentDTO(pm))
-	}
-	return &PurchaseOrderDTO{
-		ID:                  po.ID.String(),
-		Number:              po.Number,
-		SupplierID:          po.SupplierID.String(),
-		CustomerID:          persistenceStringFromUUID(po.CustomerID),
-		CreditCardID:        persistenceStringFromUUID(po.CreditCardID),
-		OrderType:           po.OrderType.String(),
-		OrderDate:           po.OrderDate.Format("2006-01-02"),
-		Status:              po.Status.String(),
-		Subtotal:            po.Subtotal.String(),
-		Discount:            po.DiscountAmount.String(),
-		Tax:                 po.TaxAmount.String(),
-		Total:               po.Total.String(),
-		Paid:                po.Paid.String(),
-		CostUSD:             po.CostUSD.String(),
-		SalePricePEN:        po.SalePricePEN.String(),
-		RealCostPEN:         po.RealCostPEN.String(),
-		ProjectedProfitPEN:  po.ProjectedProfitPEN.String(),
-		Anticipo:            po.Anticipo.String(),
-		AnticipoDate:        dateString(po.AnticipoDate),
-		PorCobrar:           po.PorCobrar().String(),
-		Faulty:              po.Faulty,
-		FaultyReason:        po.FaultyReason,
-		RefundedAmount:      po.RefundedAmount.String(),
-		ArrivalDate:         dateString(po.ArrivalDate),
-		SupplierOrderNumber: po.SupplierOrderNumber,
-		Notes:               po.Notes,
-		Items:               items,
-		Payments:            payments,
+	return PurchaseOrderDTO{
+		ID:                 po.ID.String(),
+		Number:             po.Number,
+		OrderDate:          dayStr(po.OrderDate),
+		ExpectedDate:       dayStrPtr(po.ExpectedDate),
+		ReceivedDate:       dayStrPtr(po.ReceivedDate),
+		ArrivalDate:        dayStrPtr(po.ArrivalDate),
+		Status:             string(po.Status),
+		CurrencyCode:       po.CurrencyCode,
+		ExchangeRate:       po.ExchangeRate.Decimal().InexactFloat64(),
+		Notes:              po.Notes,
+		OrderType:          string(po.OrderType),
+		CustomerID:         uuidPtrString(po.CustomerID),
+		CreditCardID:       uuidPtrString(po.CreditCardID),
+		CostUSD:            moneyFloat(po.CostUSD),
+		SalePricePen:       moneyFloat(po.SalePricePen),
+		RealCostPen:        moneyFloat(po.RealCostPen),
+		ProjectedProfitPen: moneyFloat(po.ProjectedProfitPen),
+		RefundAmount:       moneyFloat(po.RefundAmount),
+		Faulty:             po.Faulty,
+		FaultyReason:       po.FaultyReason,
+		CancelledAt:        dayStrPtr(po.CancelledAt),
+		CancelledReason:    po.CancelledReason,
+		Items:              items,
 	}
 }
 
-func persistenceStringFromUUID(u *uuid.UUID) string {
-	if u == nil {
-		return ""
-	}
-	return u.String()
-}
-
-func dateString(d *valueobjects.Date) string {
-	if d == nil {
-		return ""
-	}
-	return d.Format("2006-01-02")
-}
-
-// ListPurchaseOrdersRequest filters the purchase order listing.
-type ListPurchaseOrdersRequest struct {
-	Status    string `json:"status"`
-	OrderType string `json:"orderType"`
-	Search    string `json:"search"`
+type PurchaseFilterRequest struct {
 	PaginationRequest
+	Search       string `json:"search"`
+	Status       string `json:"status"`
+	OrderType    string `json:"orderType"`
+	CreditCardID string `json:"creditCardId"`
+	ImportLotID  string `json:"importLotId"`
+	From         string `json:"from"`
+	To           string `json:"to"`
 }
 
-// ListPurchaseOrders returns paged purchase orders.
-func (a *App) ListPurchaseOrders(req ListPurchaseOrdersRequest) (PageResult, error) {
-	ctx := a.Context()
-	filter := purchasing.PurchaseFilter{
-		CompanyID:   a.companyIDPtr(),
-		Status:      req.Status,
-		OrderType:   req.OrderType,
-		Search:      req.Search,
-		PageRequest: req.toPageRequest(),
-	}
-	page, err := a.purchasingSvc.List(ctx, filter)
+// ListPurchaseOrders supports the advanced filters drawer (lot, date
+// range, credit card).
+func (a *App) ListPurchaseOrders(req PurchaseFilterRequest) (PageResult, error) {
+	cardID, err := parseOptionalUUID(req.CreditCardID)
 	if err != nil {
-		return PageResult{}, utils.ProcessError(err)
+		return PageResult{}, err
 	}
-	items := make([]*PurchaseOrderDTO, 0, len(page.Items))
+	lotID, err := parseOptionalUUID(req.ImportLotID)
+	if err != nil {
+		return PageResult{}, err
+	}
+	from, err := parseDayPtr(req.From)
+	if err != nil {
+		return PageResult{}, err
+	}
+	to, err := parseDayPtr(req.To)
+	if err != nil {
+		return PageResult{}, err
+	}
+	page, err := a.purchasingSvc.List(a.Context(), purchasing.PurchaseFilter{
+		Search:       req.Search,
+		Status:       req.Status,
+		OrderType:    req.OrderType,
+		CreditCardID: cardID,
+		ImportLotID:  lotID,
+		From:         from,
+		To:           to,
+		PageRequest:  req.toPageRequest(),
+	})
+	if err != nil {
+		return PageResult{}, err
+	}
+	items := make([]PurchaseOrderDTO, 0, len(page.Items))
 	for _, po := range page.Items {
-		items = append(items, toPurchaseOrderDTO(po))
+		items = append(items, purchaseDTO(po))
 	}
-	return PageResult{Items: items, Total: page.Total, Page: page.Offset/page.Limit + 1, PageSize: page.Limit}, nil
+	return PageResult{Items: items, Total: page.Total, Page: req.Page, PageSize: req.PageSize}, nil
 }
 
-// GetPurchaseOrder returns a single purchase order with its lines.
-func (a *App) GetPurchaseOrder(id string) (*PurchaseOrderDTO, error) {
-	pid, err := uuid.Parse(id)
+// GetPurchaseOrder returns one order with its items.
+func (a *App) GetPurchaseOrder(id string) (PurchaseOrderDTO, error) {
+	oid, err := parseUUID(id)
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return PurchaseOrderDTO{}, err
 	}
-	po, err := a.purchasingSvc.GetByID(a.Context(), pid)
+	po, err := a.purchasingSvc.GetByID(a.Context(), oid)
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return PurchaseOrderDTO{}, err
 	}
-	return toPurchaseOrderDTO(po), nil
+	return purchaseDTO(po), nil
 }
 
-// CreatePurchaseOrderItemRequest is one line of a new purchase order.
-type CreatePurchaseOrderItemRequest struct {
-	ProductID       string `json:"productId"`
-	Quantity        string `json:"quantity"`
-	UnitPrice       string `json:"unitPrice"`
-	DiscountPercent string `json:"discountPercent"`
-	DiscountAmount  string `json:"discountAmount"`
-	TaxRate         string `json:"taxRate"`
-	TaxAmount       string `json:"taxAmount"`
-	Description     string `json:"description"`
+type PurchaseItemRequest struct {
+	ProductID    string  `json:"productId"`
+	Description  string  `json:"description"`
+	Quantity     float64 `json:"quantity"`
+	UnitCostUSD  float64 `json:"unitCostUsd"`
+	SalePricePen float64 `json:"salePricePen"`
 }
 
-// CreatePurchaseOrderRequest creates a purchase order.
-type CreatePurchaseOrderRequest struct {
-	SupplierID          string                           `json:"supplierId"`
-	CustomerID          string                           `json:"customerId"`
-	CreditCardID        string                           `json:"creditCardId"`
-	OrderType           string                           `json:"orderType"`
-	CurrencyCode        string                           `json:"currencyCode"`
-	ExchangeRate        string                           `json:"exchangeRate"`
-	OrderDate           string                           `json:"orderDate"`
-	SupplierOrderNumber string                           `json:"supplierOrderNumber"`
-	CostUSD             string                           `json:"costUSD"`
-	SalePricePEN        string                           `json:"salePricePEN"`
-	Anticipo            string                           `json:"anticipo"`
-	AnticipoDate        string                           `json:"anticipoDate"`
-	Notes               string                           `json:"notes"`
-	Items               []CreatePurchaseOrderItemRequest `json:"items"`
+type CreatePurchaseRequest struct {
+	OrderType    string                `json:"orderType"`
+	CustomerID   string                `json:"customerId"`
+	CreditCardID string                `json:"creditCardId"`
+	ExchangeRate float64               `json:"exchangeRate"`
+	OrderDate    string                `json:"orderDate"`
+	ExpectedDate string                `json:"expectedDate"`
+	Notes        string                `json:"notes"`
+	Items        []PurchaseItemRequest `json:"items"`
 }
 
-// CreatePurchaseOrder persists a purchase order.
-func (a *App) CreatePurchaseOrder(req CreatePurchaseOrderRequest) (*PurchaseOrderDTO, error) {
-	ctx := a.Context()
-	supplierID, err := uuid.Parse(req.SupplierID)
+// CreatePurchase registers a USD order (general or client) tied to a
+// credit card, applying the TC and the import cost factor.
+func (a *App) CreatePurchase(req CreatePurchaseRequest) (PurchaseOrderDTO, error) {
+	in, err := a.purchaseInput(req)
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return PurchaseOrderDTO{}, err
 	}
-	cc, err := valueobjects.NewCurrencyCode(req.CurrencyCode)
+	po, err := a.purchasingSvc.Create(a.Context(), in)
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return PurchaseOrderDTO{}, err
 	}
-	rate, err := valueobjects.ExchangeRateFromString(req.ExchangeRate)
+	return purchaseDTO(po), nil
+}
+
+func (a *App) purchaseInput(req CreatePurchaseRequest) (purchasing.CreateInput, error) {
+	cardID, err := parseOptionalUUID(req.CreditCardID)
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return purchasing.CreateInput{}, err
 	}
-	orderDate, err := time.Parse("2006-01-02", req.OrderDate)
+	customerID, err := parseOptionalUUID(req.CustomerID)
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return purchasing.CreateInput{}, err
 	}
-	orderType := enums.OrderType(req.OrderType)
-	if orderType == "" {
-		orderType = enums.OrderTypeGeneral
-	}
-	var customerID *uuid.UUID
-	if req.CustomerID != "" {
-		cid, err := uuid.Parse(req.CustomerID)
+	orderDate := time.Now().UTC()
+	if req.OrderDate != "" {
+		t, err := parseDay(req.OrderDate)
 		if err != nil {
-			return nil, utils.ProcessError(err)
+			return purchasing.CreateInput{}, err
 		}
-		customerID = &cid
+		orderDate = t
 	}
-	var creditCardID *uuid.UUID
-	if req.CreditCardID != "" {
-		cid, err := uuid.Parse(req.CreditCardID)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		creditCardID = &cid
-	}
-	costUSD, err := valueobjects.MoneyFromString(req.CostUSD)
+	expected, err := parseDayPtr(req.ExpectedDate)
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return purchasing.CreateInput{}, err
 	}
-	salePricePEN, err := valueobjects.MoneyFromString(req.SalePricePEN)
+	rate, err := valueobjects.ExchangeRateFromDecimal(rated(req.ExchangeRate))
 	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	anticipo, err := valueobjects.MoneyFromString(req.Anticipo)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	var anticipoDate *valueobjects.Date
-	if req.AnticipoDate != "" {
-		t, err := time.Parse("2006-01-02", req.AnticipoDate)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		ad := valueobjects.Date(t)
-		anticipoDate = &ad
+		return purchasing.CreateInput{}, err
 	}
 	items := make([]purchasing.CreateItemInput, 0, len(req.Items))
 	for _, it := range req.Items {
-		productID, err := uuid.Parse(it.ProductID)
+		pid, err := parseOptionalUUID(it.ProductID)
 		if err != nil {
-			return nil, utils.ProcessError(err)
+			return purchasing.CreateInput{}, err
 		}
-		qty, err := valueobjects.QuantityFromString(it.Quantity)
+		qty, err := quantityFromFloat(it.Quantity)
 		if err != nil {
-			return nil, utils.ProcessError(err)
+			return purchasing.CreateInput{}, err
 		}
-		unitPrice, err := valueobjects.MoneyFromString(it.UnitPrice)
+		cost, err := moneyFromFloat(it.UnitCostUSD)
 		if err != nil {
-			return nil, utils.ProcessError(err)
+			return purchasing.CreateInput{}, err
 		}
-		discountPct, err := valueobjects.PercentageFromString(it.DiscountPercent)
+		price, err := moneyFromFloat(it.SalePricePen)
 		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		discountAmount, err := valueobjects.MoneyFromString(it.DiscountAmount)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		taxRate, err := valueobjects.PercentageFromString(it.TaxRate)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		taxAmount, err := valueobjects.MoneyFromString(it.TaxAmount)
-		if err != nil {
-			return nil, utils.ProcessError(err)
+			return purchasing.CreateInput{}, err
 		}
 		items = append(items, purchasing.CreateItemInput{
-			ProductID:       productID,
-			Quantity:        qty,
-			UnitPrice:       unitPrice,
-			DiscountPercent: discountPct,
-			DiscountAmount:  discountAmount,
-			TaxRate:         taxRate,
-			TaxAmount:       taxAmount,
-			Description:     it.Description,
+			ProductID:    pid,
+			Description:  it.Description,
+			Quantity:     qty,
+			UnitCostUSD:  cost,
+			SalePricePen: price,
 		})
 	}
-	in := purchasing.CreateInput{
-		CompanyID:           a.companyID(),
-		Number:              "",
-		SupplierID:          supplierID,
-		CustomerID:          customerID,
-		CreditCardID:        creditCardID,
-		OrderType:           orderType,
-		CurrencyCode:        cc,
-		ExchangeRate:        rate,
-		OrderDate:           valueobjects.Date(orderDate),
-		SupplierOrderNumber: req.SupplierOrderNumber,
-		CostUSD:             costUSD,
-		SalePricePEN:        salePricePEN,
-		Anticipo:            anticipo,
-		AnticipoDate:        anticipoDate,
-		Notes:               req.Notes,
-		Items:               items,
-	}
-	po, err := a.purchasingSvc.Create(ctx, in)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return toPurchaseOrderDTO(po), nil
+	return purchasing.CreateInput{
+		OrderType:    enums.OrderType(req.OrderType),
+		CustomerID:   customerID,
+		CreditCardID: cardID,
+		ExchangeRate: rate,
+		OrderDate:    orderDate,
+		ExpectedDate: expected,
+		Notes:        req.Notes,
+		Items:        items,
+	}, nil
 }
 
-// MarkPurchaseReceivedRequest marks a purchase order as received.
-type MarkPurchaseReceivedRequest struct {
-	ID          string `json:"id"`
-	ArrivalDate string `json:"arrivalDate"`
-}
-
-// MarkPurchaseReceived records that the goods physically arrived (step 2
-// of the order flow) and injects them into inventory as batches.
-func (a *App) MarkPurchaseReceived(req MarkPurchaseReceivedRequest) (*PurchaseOrderDTO, error) {
-	ctx := a.Context()
-	pid, err := uuid.Parse(req.ID)
+// MarkPurchaseReceived routes the goods into the main warehouse and
+// starts the permanence clock for the clearance rule.
+func (a *App) MarkPurchaseReceived(id string, receivedDate string) error {
+	oid, err := parseUUID(id)
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return err
 	}
-	var ad valueobjects.Date
-	if req.ArrivalDate != "" {
-		t, err := time.Parse("2006-01-02", req.ArrivalDate)
+	at := valueobjects.NewDateFromTime(time.Now().UTC())
+	if receivedDate != "" {
+		d, err := parseDate(receivedDate)
 		if err != nil {
-			return nil, utils.ProcessError(err)
+			return err
 		}
-		ad = valueobjects.Date(t)
-	} else {
-		ad = valueobjects.Date(time.Now().UTC())
+		at = d
 	}
-	if err := a.purchasingSvc.MarkAsReceived(ctx, pid, ad); err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	po, err := a.purchasingSvc.GetByID(ctx, pid)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return toPurchaseOrderDTO(po), nil
+	return a.purchasingSvc.MarkAsReceived(a.Context(), oid, at)
 }
 
-// RegisterPurchasePaymentRequest registers a full payment for a purchase.
-type RegisterPurchasePaymentRequest struct {
-	ID          string `json:"id"`
-	PaymentDate string `json:"paymentDate"`
-	Method      string `json:"method"`
-	Reference   string `json:"reference"`
-	Notes       string `json:"notes"`
-}
-
-// RegisterPurchasePayment records a supplier payment covering the
-// purchase's full balance and marks the purchase as paid.
-func (a *App) RegisterPurchasePayment(req RegisterPurchasePaymentRequest) (*PurchaseOrderDTO, error) {
-	ctx := a.Context()
-	pid, err := uuid.Parse(req.ID)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	var pd valueobjects.Date
-	if req.PaymentDate != "" {
-		t, err := time.Parse("2006-01-02", req.PaymentDate)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		pd = valueobjects.Date(t)
-	} else {
-		pd = valueobjects.Date(time.Now().UTC())
-	}
-	method := enums.PaymentMethod(req.Method)
-	if !method.Valid() {
-		method = enums.PaymentMethodCash
-	}
-	po, err := a.purchasingSvc.MarkPaid(ctx, pid, purchasing.MarkPaidInput{
-		CompanyID:   a.companyID(),
-		PaymentDate: pd,
-		Method:      method,
-		Reference:   req.Reference,
-		Notes:       req.Notes,
-	})
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return toPurchaseOrderDTO(po), nil
-}
-
-// CancelPurchaseOrderRequest cancels an existing purchase order.
-type CancelPurchaseOrderRequest struct {
+type CancelPurchaseRequest struct {
 	ID     string `json:"id"`
 	Reason string `json:"reason"`
 }
 
-// CancelPurchaseOrder cancels an existing purchase order.
-func (a *App) CancelPurchaseOrder(req CancelPurchaseOrderRequest) error {
-	pid, err := uuid.Parse(req.ID)
+// CancelPurchase annuls the order: reverts stock and releases the card
+// charge; when the billing cycle was already settled the amount is
+// recorded as a refund credit (edge case 4.1).
+func (a *App) CancelPurchase(req CancelPurchaseRequest) (PurchaseOrderDTO, error) {
+	oid, err := parseUUID(req.ID)
 	if err != nil {
-		return utils.ProcessError(err)
+		return PurchaseOrderDTO{}, err
 	}
-	return utils.ProcessError(a.purchasingSvc.Cancel(a.Context(), pid, req.Reason))
+	po, err := a.purchasingSvc.Cancel(a.Context(), oid, req.Reason)
+	if err != nil {
+		return PurchaseOrderDTO{}, err
+	}
+	return purchaseDTO(po), nil
 }
 
-// MarkPurchaseFaultyRequest marks a customer order as faulty ("Llegó en
-// mal estado"), voiding it and refunding its down payments.
-type MarkPurchaseFaultyRequest struct {
-	ID          string `json:"id"`
-	ArrivalDate string `json:"arrivalDate"`
-	Reason      string `json:"reason"`
+// MarkPurchaseFaulty records an arrival in bad condition and annuls the
+// order with a full refund.
+func (a *App) MarkPurchaseFaulty(req CancelPurchaseRequest) (PurchaseOrderDTO, error) {
+	oid, err := parseUUID(req.ID)
+	if err != nil {
+		return PurchaseOrderDTO{}, err
+	}
+	po, err := a.purchasingSvc.MarkFaulty(a.Context(), purchasing.FaultyInput{ID: oid, Reason: req.Reason})
+	if err != nil {
+		return PurchaseOrderDTO{}, err
+	}
+	return purchaseDTO(po), nil
 }
 
-// MarkPurchaseFaulty voids a customer order that arrived in bad state
-// and refunds every down payment recorded against it.
-func (a *App) MarkPurchaseFaulty(req MarkPurchaseFaultyRequest) (*PurchaseOrderDTO, error) {
-	pid, err := uuid.Parse(req.ID)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	var ad valueobjects.Date
-	if req.ArrivalDate != "" {
-		t, err := time.Parse("2006-01-02", req.ArrivalDate)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		ad = valueobjects.Date(t)
-	} else {
-		ad = valueobjects.Date(time.Now().UTC())
-	}
-	po, err := a.purchasingSvc.MarkFaulty(a.Context(), purchasing.FaultyInput{
-		ID:          pid,
-		ArrivalDate: ad,
-		Reason:      req.Reason,
-	})
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return toPurchaseOrderDTO(po), nil
-}
-
-// RegisterCustomerOrderPaymentRequest records a down payment (anticipo)
-// against a customer order.
-type RegisterCustomerOrderPaymentRequest struct {
-	PurchaseID   string `json:"purchaseId"`
-	PaymentDate  string `json:"paymentDate"`
-	Amount       string `json:"amount"`
-	CurrencyCode string `json:"currencyCode"`
-	ExchangeRate string `json:"exchangeRate"`
-	Method       string `json:"method"`
-	Reference    string `json:"reference"`
-	Notes        string `json:"notes"`
-}
-
-// CustomerOrderPaymentDTO is the serializable view of a down payment.
-type CustomerOrderPaymentDTO struct {
-	ID              string `json:"id"`
-	PurchaseOrderID string `json:"purchaseOrderId"`
-	Number          string `json:"number"`
-	PaymentDate     string `json:"paymentDate"`
-	Amount          string `json:"amount"`
-	Method          string `json:"method"`
-	CurrencyCode    string `json:"currencyCode"`
-	ExchangeRate    string `json:"exchangeRate"`
-	Reference       string `json:"reference"`
-	Notes           string `json:"notes"`
-	Status          string `json:"status"`
-	RefundedAmount  string `json:"refundedAmount"`
-	RefundedAt      string `json:"refundedAt"`
-	RefundReason    string `json:"refundReason"`
-}
-
-func toCustomerOrderPaymentDTO(pm *purchasing.CustomerOrderPayment) *CustomerOrderPaymentDTO {
-	dto := &CustomerOrderPaymentDTO{
-		ID:              pm.ID.String(),
-		PurchaseOrderID: pm.PurchaseOrderID.String(),
-		Number:          pm.Number,
-		PaymentDate:     pm.PaymentDate.Format("2006-01-02"),
-		Amount:          pm.Amount.String(),
-		Method:          pm.Method.String(),
-		CurrencyCode:    pm.CurrencyCode.String(),
-		ExchangeRate:    pm.ExchangeRate.String(),
-		Reference:       pm.Reference,
-		Notes:           pm.Notes,
-		Status:          pm.Status,
-		RefundedAmount:  pm.RefundedAmount.String(),
-		RefundReason:    pm.RefundReason,
-	}
-	if pm.RefundedAt != nil {
-		dto.RefundedAt = pm.RefundedAt.Format("2006-01-02T15:04:05Z07:00")
-	}
-	return dto
-}
-
-// RegisterCustomerOrderPayment persists a customer down payment and
-// advances the order's anticipo.
-func (a *App) RegisterCustomerOrderPayment(req RegisterCustomerOrderPaymentRequest) (*CustomerOrderPaymentDTO, error) {
-	pid, err := uuid.Parse(req.PurchaseID)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	amount, err := valueobjects.MoneyFromString(req.Amount)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	cc, err := valueobjects.NewCurrencyCode(req.CurrencyCode)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	rate, err := valueobjects.ExchangeRateFromString(req.ExchangeRate)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	var pd valueobjects.Date
-	if req.PaymentDate != "" {
-		t, err := time.Parse("2006-01-02", req.PaymentDate)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		pd = valueobjects.Date(t)
-	} else {
-		pd = valueobjects.Date(time.Now().UTC())
-	}
-	method := enums.PaymentMethod(req.Method)
-	if !method.Valid() {
-		method = enums.PaymentMethodCash
-	}
-	pm, err := a.purchasingSvc.RegisterCustomerOrderPayment(a.Context(), pid, purchasing.CustomerPaymentInput{
-		CompanyID:    a.companyID(),
-		PaymentDate:  pd,
-		Amount:       amount,
-		CurrencyCode: cc,
-		ExchangeRate: rate,
-		Method:       method,
-		Reference:    req.Reference,
-		Notes:        req.Notes,
-	})
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return toCustomerOrderPaymentDTO(pm), nil
-}
-
-// ImportLotDTO is the serializable view of an import lot.
 type ImportLotDTO struct {
-	ID              string `json:"id"`
-	Code            string `json:"code"`
-	Description     string `json:"description"`
-	Status          string `json:"status"`
-	TotalUSD        string `json:"totalUSD"`
-	CustomsLimitUSD string `json:"customsLimitUSD"`
-	OverLimit       bool   `json:"overLimit"`
-	MemberCount     int    `json:"memberCount"`
-	CreatedAt       string `json:"createdAt"`
+	ID             string             `json:"id"`
+	Code           string             `json:"code"`
+	Description    string             `json:"description"`
+	Status         string             `json:"status"`
+	TotalUSD       float64            `json:"totalUsd"`
+	OverLimit      bool               `json:"overLimit"`
+	CustomsLimitUSD float64           `json:"customsLimitUsd"`
+	Members        []PurchaseOrderDTO `json:"members"`
 }
 
-// customsLimitUSD returns the configured simplified customs cap in USD,
-// defaulting to $220 when unset.
-func (a *App) customsLimitUSD() float64 {
-	prefs, err := a.settingsSvc.GetPreferences(a.Context(), a.companyID())
-	if err != nil || prefs.CustomsLimitUSD <= 0 {
-		return 220
+// CreateImportLot groups orders for customs control. A total above the
+// customs cap returns the lot with OverLimit=true (non-blocking
+// warning; the UI asks for explicit confirmation).
+func (a *App) CreateImportLot(description string, purchaseIDs []string) (ImportLotDTO, error) {
+	ids, err := parseUUIDs(purchaseIDs)
+	if err != nil {
+		return ImportLotDTO{}, err
 	}
-	return prefs.CustomsLimitUSD
+	lot, total, over, err := a.purchasingSvc.CreateImportLot(a.Context(), purchasing.ImportLotInput{Description: description, PurchaseIDs: ids})
+	if err != nil {
+		return ImportLotDTO{}, err
+	}
+	return lotDTO(a, lot, total, over), nil
 }
 
-func (a *App) importLotDTO(lot *purchasing.ImportLot, total valueobjects.Money) *ImportLotDTO {
-	limit := a.customsLimitUSD()
-	over := total.Decimal().GreaterThan(decimal.NewFromFloat(limit))
-	return &ImportLotDTO{
+// AddToImportLot adds orders to an existing lot and re-evaluates the
+// customs cap.
+func (a *App) AddToImportLot(lotID string, purchaseIDs []string) (ImportLotDTO, error) {
+	lid, err := parseUUID(lotID)
+	if err != nil {
+		return ImportLotDTO{}, err
+	}
+	ids, err := parseUUIDs(purchaseIDs)
+	if err != nil {
+		return ImportLotDTO{}, err
+	}
+	total, over, err := a.purchasingSvc.AddToImportLot(a.Context(), lid, ids)
+	if err != nil {
+		return ImportLotDTO{}, err
+	}
+	lot, _, _, err := a.purchasingSvc.GetImportLot(a.Context(), lid)
+	if err != nil {
+		return ImportLotDTO{}, err
+	}
+	return lotDTO(a, lot, total, over), nil
+}
+
+// RemoveFromImportLot detaches an order from its lot.
+func (a *App) RemoveFromImportLot(lotID, purchaseID string) (ImportLotDTO, error) {
+	lid, err := parseUUID(lotID)
+	if err != nil {
+		return ImportLotDTO{}, err
+	}
+	pid, err := parseUUID(purchaseID)
+	if err != nil {
+		return ImportLotDTO{}, err
+	}
+	total, err := a.purchasingSvc.RemoveFromImportLot(a.Context(), lid, pid)
+	if err != nil {
+		return ImportLotDTO{}, err
+	}
+	lot, _, over, err := a.purchasingSvc.GetImportLot(a.Context(), lid)
+	if err != nil {
+		return ImportLotDTO{}, err
+	}
+	return lotDTO(a, lot, total, over), nil
+}
+
+// GetImportLot returns one lot with members and the customs status.
+func (a *App) GetImportLot(id string) (ImportLotDTO, error) {
+	lid, err := parseUUID(id)
+	if err != nil {
+		return ImportLotDTO{}, err
+	}
+	lot, total, over, err := a.purchasingSvc.GetImportLot(a.Context(), lid)
+	if err != nil {
+		return ImportLotDTO{}, err
+	}
+	return lotDTO(a, lot, total, over), nil
+}
+
+// ListImportLots returns the import groups.
+func (a *App) ListImportLots(req PaginationRequest, search string) (PageResult, error) {
+	page, err := a.purchasingSvc.ListImportLots(a.Context(), purchasing.ImportLotFilter{Search: search, PageRequest: req.toPageRequest()})
+	if err != nil {
+		return PageResult{}, err
+	}
+	items := make([]ImportLotDTO, 0, len(page.Items))
+	for _, lot := range page.Items {
+		_, total, over, err := a.purchasingSvc.GetImportLot(a.Context(), lot.ID)
+		if err != nil {
+			return PageResult{}, err
+		}
+		items = append(items, lotDTO(a, lot, total, over))
+	}
+	return PageResult{Items: items, Total: page.Total, Page: req.Page, PageSize: req.PageSize}, nil
+}
+
+// ListLotMembers returns the orders grouped in a lot.
+func (a *App) ListLotMembers(lotID string) ([]PurchaseOrderDTO, error) {
+	lid, err := parseUUID(lotID)
+	if err != nil {
+		return nil, err
+	}
+	members, err := a.purchasingSvc.ListLotMembers(a.Context(), lid)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]PurchaseOrderDTO, 0, len(members))
+	for _, po := range members {
+		items = append(items, purchaseDTO(po))
+	}
+	return items, nil
+}
+
+func lotDTO(a *App, lot *purchasing.ImportLot, total valueobjects.Money, over bool) ImportLotDTO {
+	return ImportLotDTO{
 		ID:              lot.ID.String(),
 		Code:            lot.Code,
 		Description:     lot.Description,
-		Status:          lot.Status,
-		TotalUSD:        total.String(),
-		CustomsLimitUSD: decimal.NewFromFloat(limit).StringFixed(2),
+		Status:          string(lot.Status),
+		TotalUSD:        moneyFloat(total),
 		OverLimit:       over,
-		MemberCount:     len(lot.Members),
-		CreatedAt:       lot.CreatedAt.Format(time.RFC3339),
+		CustomsLimitUSD: a.customsLimit(a.Context()),
 	}
 }
 
-// ListImportLotsRequest filters the import-lot listing.
-type ListImportLotsRequest struct {
-	Status string `json:"status"`
-	Search string `json:"search"`
-	PaginationRequest
-}
-
-// ListImportLots returns paged import lots with their totals.
-func (a *App) ListImportLots(req ListImportLotsRequest) (PageResult, error) {
-	filter := purchasing.ImportLotFilter{
-		CompanyID:   a.companyIDPtr(),
-		Status:      req.Status,
-		Search:      req.Search,
-		PageRequest: req.toPageRequest(),
-	}
-	page, err := a.purchasingSvc.ListImportLots(a.Context(), filter)
-	if err != nil {
-		return PageResult{}, utils.ProcessError(err)
-	}
-	items := make([]*ImportLotDTO, 0, len(page.Items))
-	for _, lot := range page.Items {
-		full, total, err := a.purchasingSvc.GetImportLot(a.Context(), lot.ID)
-		if err != nil {
-			continue
-		}
-		items = append(items, a.importLotDTO(full, total))
-	}
-	return PageResult{Items: items, Total: page.Total, Page: page.Offset/page.Limit + 1, PageSize: page.Limit}, nil
-}
-
-// GetImportLot returns a single import lot with its total.
-func (a *App) GetImportLot(id string) (*ImportLotDTO, error) {
-	lid, err := uuid.Parse(id)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	lot, total, err := a.purchasingSvc.GetImportLot(a.Context(), lid)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return a.importLotDTO(lot, total), nil
-}
-
-// CreateImportLotRequest creates a new import lot.
-type CreateImportLotRequest struct {
-	Description string   `json:"description"`
-	PurchaseIDs []string `json:"purchaseIds"`
-}
-
-// CreateImportLot creates an import lot, adding the given purchase
-// orders, and returns the lot with its resulting customs total.
-func (a *App) CreateImportLot(req CreateImportLotRequest) (*ImportLotDTO, error) {
-	ids, err := parseUUIDList(req.PurchaseIDs)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	lot, total, err := a.purchasingSvc.CreateImportLot(a.Context(), purchasing.ImportLotInput{
-		CompanyID:   a.companyID(),
-		Description: req.Description,
-		PurchaseIDs: ids,
-	})
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return a.importLotDTO(lot, total), nil
-}
-
-// AddToImportLotRequest adds purchase orders to a lot.
-type AddToImportLotRequest struct {
-	ID          string   `json:"id"`
-	PurchaseIDs []string `json:"purchaseIds"`
-}
-
-// AddToImportLot assigns purchase orders to an import lot and returns
-// the lot with its updated customs total.
-func (a *App) AddToImportLot(req AddToImportLotRequest) (*ImportLotDTO, error) {
-	lid, err := uuid.Parse(req.ID)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	ids, err := parseUUIDList(req.PurchaseIDs)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	lot, total, err := a.purchasingSvc.AddToImportLot(a.Context(), lid, ids)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return a.importLotDTO(lot, total), nil
-}
-
-// RemoveFromImportLotRequest removes one purchase order from a lot.
-type RemoveFromImportLotRequest struct {
-	ID         string `json:"id"`
-	PurchaseID string `json:"purchaseId"`
-}
-
-// RemoveFromImportLot removes a purchase order from an import lot.
-func (a *App) RemoveFromImportLot(req RemoveFromImportLotRequest) (*ImportLotDTO, error) {
-	lid, err := uuid.Parse(req.ID)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	pid, err := uuid.Parse(req.PurchaseID)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	if _, err := a.purchasingSvc.RemoveFromImportLot(a.Context(), lid, pid); err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	lot, total, err := a.purchasingSvc.GetImportLot(a.Context(), lid)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return a.importLotDTO(lot, total), nil
-}
-
-func parseUUIDList(ids []string) ([]uuid.UUID, error) {
+func parseUUIDs(ids []string) ([]uuid.UUID, error) {
 	out := make([]uuid.UUID, 0, len(ids))
 	for _, s := range ids {
-		id, err := uuid.Parse(s)
+		id, err := parseUUID(s)
 		if err != nil {
 			return nil, err
 		}
 		out = append(out, id)
 	}
 	return out, nil
+}
+
+func rated(f float64) decimal.Decimal {
+	if f <= 0 {
+		return decimal.NewFromFloat(1)
+	}
+	return decimal.NewFromFloat(f)
 }

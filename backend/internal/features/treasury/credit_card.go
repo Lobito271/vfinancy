@@ -9,93 +9,108 @@ import (
 	"vfinancy/backend/internal/domain/valueobjects"
 )
 
-// CreditCard is a company-issued credit card. The current_balance
-// represents the outstanding debt (positive = money owed to the issuer).
+// CreditCard is a company-issued credit card. Cards are USD by
+// definition; the current_balance represents the outstanding debt
+// (positive = money owed to the issuer).
 type CreditCard struct {
-	ID              uuid.UUID
-	CompanyID       uuid.UUID
-	BranchID        *uuid.UUID
-	Issuer          string
-	LastFour        string
-	CardHolder      string
-	ExpirationMonth int
-	ExpirationYear  int
-	CreditLimit     valueobjects.Money
-	CurrentBalance  valueobjects.Money
-	CutOffDay       int
-	PaymentDueDay   int
-	CurrencyCode    valueobjects.CurrencyCode
-	IsActive        bool
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	DeletedAt       *time.Time
-	CreatedBy       *uuid.UUID
-	UpdatedBy       *uuid.UUID
+	ID             uuid.UUID
+	Issuer         string
+	LastFour       string
+	CreditLimit    valueobjects.Money
+	CurrentBalance valueobjects.Money
+	CutOffDay      int
+	PaymentDueDay  int
+	IsActive       bool
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	DeletedAt      *time.Time
+	CreatedBy      *uuid.UUID
+	UpdatedBy      *uuid.UUID
 }
 
 // NewCreditCardOptions is the input to NewCreditCard.
 type NewCreditCardOptions struct {
-	CompanyID       uuid.UUID
-	BranchID        *uuid.UUID
-	Issuer          string
-	LastFour        string
-	CardHolder      string
-	ExpirationMonth int
-	ExpirationYear  int
-	CreditLimit     valueobjects.Money
-	CutOffDay       int
-	PaymentDueDay   int
-	CurrencyCode    valueobjects.CurrencyCode
+	Issuer        string
+	LastFour      string
+	CreditLimit   valueobjects.Money
+	CutOffDay     int
+	PaymentDueDay int
+}
+
+// Validate enforces the card invariants: non-blank issuer, exactly 4
+// digits as last_four, cut-off and payment-due days 1..31 and a
+// non-negative credit limit.
+func (c *CreditCard) Validate() error {
+	if len(c.Issuer) > 100 || isBlank(c.Issuer) {
+		return derrors.Wrap(derrors.ErrRequired, errField("issuer is required"))
+	}
+	if len(c.LastFour) != 4 || !allDigits(c.LastFour) {
+		return derrors.Wrap(derrors.ErrOutOfRange, errField("last four must be 4 digits"))
+	}
+	if c.CutOffDay < 1 || c.CutOffDay > 31 {
+		return derrors.Wrap(derrors.ErrOutOfRange, errField("cut-off day must be 1..31"))
+	}
+	if c.PaymentDueDay < 1 || c.PaymentDueDay > 31 {
+		return derrors.Wrap(derrors.ErrOutOfRange, errField("payment-due day must be 1..31"))
+	}
+	if c.CreditLimit.IsNegative() {
+		return derrors.Wrap(derrors.ErrNegativeMoney, errField("credit limit cannot be negative"))
+	}
+	return nil
+}
+
+// allDigits reports whether s consists of exactly four arabic digits.
+// Empty strings fail because len is checked by the caller.
+func allDigits(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // NewCreditCard validates and constructs a credit card.
 func NewCreditCard(now time.Time, opts NewCreditCardOptions) (*CreditCard, error) {
-	if opts.CompanyID == uuid.Nil {
-		return nil, derrors.Wrap(derrors.ErrRequired, errField("company id is required"))
-	}
-	if opts.Issuer == "" {
+	if opts.Issuer == "" || isBlank(opts.Issuer) {
 		return nil, derrors.Wrap(derrors.ErrRequired, errField("issuer is required"))
 	}
-	if len(opts.LastFour) != 4 {
+	if len(opts.LastFour) != 4 || !allDigits(opts.LastFour) {
 		return nil, derrors.Wrap(derrors.ErrOutOfRange, errField("last four must be 4 digits"))
 	}
-	if opts.ExpirationMonth < 1 || opts.ExpirationMonth > 12 {
-		return nil, derrors.Wrap(derrors.ErrOutOfRange, errField("expiration month must be 1..12"))
+	card := &CreditCard{
+		ID:             uuid.New(),
+		Issuer:         opts.Issuer,
+		LastFour:       opts.LastFour,
+		CreditLimit:    opts.CreditLimit,
+		CurrentBalance: valueobjects.Zero(),
+		CutOffDay:      opts.CutOffDay,
+		PaymentDueDay:  opts.PaymentDueDay,
+		IsActive:       true,
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}
-	if opts.ExpirationYear < 2000 || opts.ExpirationYear > 2100 {
-		return nil, derrors.Wrap(derrors.ErrOutOfRange, errField("expiration year out of range"))
+	if err := card.Validate(); err != nil {
+		return nil, err
 	}
-	if opts.CreditLimit.IsNegative() {
-		return nil, derrors.Wrap(derrors.ErrNegativeMoney, errField("credit limit cannot be negative"))
+	return card, nil
+}
+
+// isBlank reports whether s is empty or whitespace only.
+func isBlank(s string) bool {
+	if s == "" {
+		return true
 	}
-	if opts.CutOffDay < 1 || opts.CutOffDay > 31 {
-		return nil, derrors.Wrap(derrors.ErrOutOfRange, errField("cut-off day must be 1..31"))
+	for i := 0; i < len(s); i++ {
+		if s[i] != ' ' && s[i] != '\t' && s[i] != '\n' && s[i] != '\r' {
+			return false
+		}
 	}
-	if opts.PaymentDueDay < 1 || opts.PaymentDueDay > 31 {
-		return nil, derrors.Wrap(derrors.ErrOutOfRange, errField("payment-due day must be 1..31"))
-	}
-	return &CreditCard{
-		ID:              uuid.New(),
-		CompanyID:       opts.CompanyID,
-		BranchID:        opts.BranchID,
-		Issuer:          opts.Issuer,
-		LastFour:        opts.LastFour,
-		CardHolder:      opts.CardHolder,
-		ExpirationMonth: opts.ExpirationMonth,
-		ExpirationYear:  opts.ExpirationYear,
-		CreditLimit:     opts.CreditLimit,
-		CurrentBalance:  valueobjects.Zero(),
-		CutOffDay:       opts.CutOffDay,
-		PaymentDueDay:   opts.PaymentDueDay,
-		CurrencyCode:    opts.CurrencyCode,
-		IsActive:        true,
-		CreatedAt:       now,
-		UpdatedAt:       now,
-	}, nil
+	return true
 }
 
 // Charge adds a purchase amount to the card balance. Rejects charges
-// that would exceed the credit limit.
+// that are not positive or that would exceed the credit limit.
 func (c *CreditCard) Charge(amount valueobjects.Money) error {
 	if !amount.IsPositive() {
 		return derrors.Wrap(derrors.ErrInvalidPayment, errField("charge amount must be positive"))
@@ -107,15 +122,22 @@ func (c *CreditCard) Charge(amount valueobjects.Money) error {
 	return nil
 }
 
-// Pay reduces the card balance by a payment amount.
+// Release reverses a charge, floors at zero.
+func (c *CreditCard) Release(amount valueobjects.Money) error {
+	if !amount.IsPositive() {
+		return derrors.Wrap(derrors.ErrInvalidPayment, errField("release amount must be positive"))
+	}
+	c.CurrentBalance = subFloorZero(c.CurrentBalance, amount)
+	return nil
+}
+
+// Pay reduces the card balance by a payment amount. Overpayments
+// liquidate the balance to zero instead of failing.
 func (c *CreditCard) Pay(amount valueobjects.Money) error {
 	if !amount.IsPositive() {
 		return derrors.Wrap(derrors.ErrInvalidPayment, errField("payment amount must be positive"))
 	}
-	if amount.GreaterThan(c.CurrentBalance) {
-		return derrors.Wrap(derrors.ErrPaymentExceedsBalance, errField("payment exceeds outstanding balance"))
-	}
-	c.CurrentBalance = c.CurrentBalance.Sub(amount)
+	c.CurrentBalance = subFloorZero(c.CurrentBalance, amount)
 	return nil
 }
 
@@ -126,4 +148,12 @@ func (c *CreditCard) AvailableCredit() valueobjects.Money {
 		return valueobjects.Zero()
 	}
 	return avail
+}
+
+// subFloorZero returns a - b, clamped to 0 when b exceeds a.
+func subFloorZero(a, b valueobjects.Money) valueobjects.Money {
+	if b.GreaterThan(a) {
+		return valueobjects.Zero()
+	}
+	return a.Sub(b)
 }

@@ -3,14 +3,12 @@ package workspace
 import "errors"
 
 var (
-	ErrProfileNotFound = errors.New("workspace: local profile not found")
-	ErrInvalidProfile  = errors.New("workspace: invalid local profile")
-	ErrInvalidCompany  = errors.New("workspace: invalid company")
-	ErrCompanyRequired = errors.New("workspace: active company is required")
-	ErrCompanyInactive = errors.New("workspace: company is inactive")
-	ErrCompanyActive   = errors.New("workspace: cannot deactivate the active company")
-	ErrProfileLocked   = errors.New("workspace: local profile is locked")
-	ErrPasswordWrong   = errors.New("workspace: invalid local password")
-	ErrPasswordWeak    = errors.New("workspace: local password is too weak")
-	ErrRecoveryIssued  = errors.New("workspace: recovery token already issued")
+	ErrProfileNotFound      = errors.New("workspace: local profile not found")
+	ErrInvalidProfile       = errors.New("workspace: invalid local profile")
+	ErrProfileExists        = errors.New("workspace: local profile already exists")
+	ErrProfileLocked        = errors.New("workspace: local profile is locked")
+	ErrPasswordWrong        = errors.New("workspace: invalid local password")
+	ErrPasswordWeak         = errors.New("workspace: local password is too weak")
+	ErrRecoveryIssued       = errors.New("workspace: recovery token already issued")
+	ErrRecoveryTokenInvalid = errors.New("workspace: invalid recovery token")
 )

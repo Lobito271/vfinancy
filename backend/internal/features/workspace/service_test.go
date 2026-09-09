@@ -2,10 +2,8 @@ package workspace
 
 import (
 	"context"
+	"errors"
 	"testing"
-	"time"
-
-	"github.com/google/uuid"
 
 	"vfinancy/backend/internal/domain/repositories"
 )
@@ -21,146 +19,236 @@ func newTestService(repo Repository) *Service {
 }
 
 type memoryRepository struct {
-	profile   *LocalProfile
-	companies map[uuid.UUID]*Company
+	profile *LocalProfile
 }
 
 func (r *memoryRepository) GetProfile(context.Context) (*LocalProfile, error) {
 	if r.profile == nil {
 		return nil, ErrProfileNotFound
 	}
-	copy := *r.profile
-	return &copy, nil
+	copied := *r.profile
+	return &copied, nil
 }
 
 func (r *memoryRepository) CreateProfile(_ context.Context, p *LocalProfile) error {
-	r.profile = p
+	copied := *p
+	r.profile = &copied
 	return nil
 }
 
 func (r *memoryRepository) UpdateProfile(_ context.Context, p *LocalProfile) error {
-	r.profile = p
+	copied := *p
+	r.profile = &copied
 	return nil
 }
 
-func (r *memoryRepository) ListCompanies(context.Context) ([]*Company, error) {
-	result := make([]*Company, 0, len(r.companies))
-	for _, c := range r.companies {
-		result = append(result, c)
+func setupService(t *testing.T, password string) (*Service, *memoryRepository) {
+	t.Helper()
+	repo := &memoryRepository{}
+	service := newTestService(repo)
+	if _, err := service.Setup(context.Background(), "Owner", password); err != nil {
+		t.Fatal(err)
 	}
-	return result, nil
+	return service, repo
 }
 
-func (r *memoryRepository) GetCompany(_ context.Context, id uuid.UUID) (*Company, error) {
-	c, ok := r.companies[id]
-	if !ok {
-		return nil, ErrInvalidCompany
-	}
-	return c, nil
-}
-
-func (r *memoryRepository) CreateCompany(_ context.Context, c *Company) error {
-	r.companies[c.ID] = c
-	return nil
-}
-
-func (r *memoryRepository) UpdateCompany(_ context.Context, c *Company) error {
-	r.companies[c.ID] = c
-	return nil
-}
-
-func (r *memoryRepository) DeleteCompany(_ context.Context, id uuid.UUID) error {
-	c, ok := r.companies[id]
-	if !ok {
-		return repositories.ErrNotFound
-	}
-	c.DeletedAt = new(time.Time)
-	c.IsActive = false
-	return nil
-}
-
-func TestLocalProfileUsesActiveCompanyAndOptionalPassword(t *testing.T) {
-	companyID := uuid.New()
-	repo := &memoryRepository{companies: map[uuid.UUID]*Company{companyID: {
-		ID: companyID, Code: "ACME", LegalName: "Acme", TaxID: "123", IsActive: true,
-		FiscalYearStartMonth: 1, CreatedAt: time.Now(), UpdatedAt: time.Now(),
-	}}}
+func TestSetupCreatesTrimmedUnlockedProfileWithoutPassword(t *testing.T) {
+	repo := &memoryRepository{}
 	service := newTestService(repo)
 
-	profile, err := service.CreateProfile(context.Background(), "Owner", companyID)
+	profile, err := service.Setup(context.Background(), "  Owner  ", "")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if profile.Name != "Owner" {
+		t.Fatalf("name = %q, want trimmed Owner", profile.Name)
 	}
 	if profile.PasswordEnabled || !service.IsUnlocked() {
-		t.Fatal("profile without password should start unlocked")
+		t.Fatal("password-less profile should start unlocked")
 	}
-	if got, err := service.CurrentCompanyID(); err != nil || got != companyID {
-		t.Fatalf("active company = %v, %v", got, err)
+	if !service.IsConfigured() {
+		t.Fatal("setup should configure the service")
 	}
-}
-
-func TestSetupCompanyRejectsWeakPasswordBeforeAnyInsert(t *testing.T) {
-	repo := &memoryRepository{companies: map[uuid.UUID]*Company{}}
-	service := newTestService(repo)
-	company := &Company{Code: "ACME", LegalName: "Acme", TaxID: "123"}
-
-	if _, err := service.SetupCompany(context.Background(), company, "Owner", "short"); err == nil {
-		t.Fatal("expected weak password to be rejected")
-	}
-
-	if len(repo.companies) != 0 {
-		t.Fatal("weak password should not have inserted the company")
-	}
-	if repo.profile != nil {
-		t.Fatal("weak password should not have inserted the profile")
+	if got, err := service.Profile(); err != nil || got.ID != profile.ID {
+		t.Fatalf("Profile() = %v, %v", got, err)
 	}
 }
 
-func TestDeactivateCompanyRejectsActiveAndRemovesInactive(t *testing.T) {
-	activeID := uuid.New()
-	inactiveID := uuid.New()
-	repo := &memoryRepository{companies: map[uuid.UUID]*Company{
-		activeID:   {ID: activeID, Code: "ACT", LegalName: "Active", TaxID: "1", IsActive: true, FiscalYearStartMonth: 1},
-		inactiveID: {ID: inactiveID, Code: "OTH", LegalName: "Other", TaxID: "2", IsActive: true, FiscalYearStartMonth: 1},
-	}}
-	service := newTestService(repo)
-	if _, err := service.CreateProfile(context.Background(), "Owner", activeID); err != nil {
-		t.Fatal(err)
-	}
+func TestSetupEnablesPassword(t *testing.T) {
+	_, repo := setupService(t, "Correct-horse-1")
 
-	if err := service.DeactivateCompany(context.Background(), activeID); err == nil {
-		t.Fatal("expected deactivating the active company to be rejected")
-	}
-	if err := service.DeactivateCompany(context.Background(), inactiveID); err != nil {
-		t.Fatal(err)
-	}
-	if repo.companies[inactiveID].IsActive {
-		t.Fatal("expected company to be deactivated")
-	}
-}
-
-func TestSetupCompanyInsertsCompanyAndProfile(t *testing.T) {
-	repo := &memoryRepository{companies: map[uuid.UUID]*Company{}}
-	service := newTestService(repo)
-	company := &Company{Code: "ACME", LegalName: "Acme", TaxID: "123"}
-
-	got, err := service.SetupCompany(context.Background(), company, "Owner", "Correct-horse-battery-1")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Code != "ACME" {
-		t.Fatalf("expected company to be returned, got %+v", got)
-	}
-	if len(repo.companies) != 1 {
-		t.Fatalf("expected 1 company inserted, got %d", len(repo.companies))
-	}
-	if repo.profile == nil {
-		t.Fatal("expected profile inserted")
-	}
 	if !repo.profile.PasswordEnabled || repo.profile.PasswordHash == "" {
 		t.Fatal("expected profile to be password-enabled")
 	}
-	if repo.profile.ActiveCompanyID != got.ID {
-		t.Fatal("profile should reference the created company")
+	if ok, err := VerifyPassword("Correct-horse-1", repo.profile.PasswordHash); err != nil || !ok {
+		t.Fatalf("stored hash should verify against the setup password: %v", err)
+	}
+}
+
+func TestSetupRejectsWeakPasswordWithoutCreatingProfile(t *testing.T) {
+	repo := &memoryRepository{}
+	service := newTestService(repo)
+
+	if _, err := service.Setup(context.Background(), "Owner", "short"); err == nil {
+		t.Fatal("expected weak password to be rejected")
+	}
+	if repo.profile != nil {
+		t.Fatal("weak password should not have created the profile")
+	}
+}
+
+func TestSetupRejectsExistingProfile(t *testing.T) {
+	repo := &memoryRepository{}
+	service := newTestService(repo)
+
+	if _, err := service.Setup(context.Background(), "Owner", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Setup(context.Background(), "Second", ""); !errors.Is(err, ErrProfileExists) {
+		t.Fatalf("err = %v, want ErrProfileExists", err)
+	}
+}
+
+func TestInitializeMarksPasswordProfilesLocked(t *testing.T) {
+	_, repo := setupService(t, "Correct-horse-1")
+
+	fresh := newTestService(repo)
+	if _, err := fresh.Initialize(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if fresh.IsUnlocked() {
+		t.Fatal("password-protected profile should start locked")
+	}
+	if !fresh.PasswordEnabled() {
+		t.Fatal("profile should report password enabled")
+	}
+	if err := fresh.RequireUnlocked(); !errors.Is(err, ErrProfileLocked) {
+		t.Fatalf("RequireUnlocked() = %v, want ErrProfileLocked", err)
+	}
+}
+
+func TestLockoutAfterFiveWrongAttempts(t *testing.T) {
+	service, repo := setupService(t, "Correct-horse-1")
+	service.Lock()
+
+	for i := 0; i < 5; i++ {
+		if err := service.Unlock(context.Background(), "wrong"); !errors.Is(err, ErrPasswordWrong) {
+			t.Fatalf("attempt %d: err = %v, want ErrPasswordWrong", i+1, err)
+		}
+	}
+	if err := service.Unlock(context.Background(), "Correct-horse-1"); !errors.Is(err, ErrProfileLocked) {
+		t.Fatalf("err = %v, want ErrProfileLocked after lockout", err)
+	}
+	if service.IsUnlocked() {
+		t.Fatal("locked profile should not unlock")
+	}
+	if repo.profile.LockedUntil == nil {
+		t.Fatal("lockout should persist a LockedUntil timestamp")
+	}
+}
+
+func TestUnlockResetsFailedAttempts(t *testing.T) {
+	service, repo := setupService(t, "Correct-horse-1")
+	service.Lock()
+
+	for i := 0; i < 2; i++ {
+		if err := service.Unlock(context.Background(), "wrong"); !errors.Is(err, ErrPasswordWrong) {
+			t.Fatalf("attempt %d: err = %v", i+1, err)
+		}
+	}
+	if err := service.Unlock(context.Background(), "Correct-horse-1"); err != nil {
+		t.Fatal(err)
+	}
+	if !service.IsUnlocked() {
+		t.Fatal("correct password should unlock")
+	}
+	if repo.profile.FailedAttempts != 0 || repo.profile.LockedUntil != nil {
+		t.Fatal("unlock should reset the lockout state")
+	}
+}
+
+func TestSetPasswordVerifiesCurrent(t *testing.T) {
+	service, repo := setupService(t, "Correct-horse-1")
+
+	if err := service.SetPassword(context.Background(), "wrong", "Another-Pass-1"); !errors.Is(err, ErrPasswordWrong) {
+		t.Fatalf("err = %v, want ErrPasswordWrong", err)
+	}
+	if err := service.SetPassword(context.Background(), "Correct-horse-1", "short"); err == nil {
+		t.Fatal("expected weak new password to be rejected")
+	}
+	if err := service.SetPassword(context.Background(), "Correct-horse-1", "Another-Pass-1"); err != nil {
+		t.Fatal(err)
+	}
+	if ok, err := VerifyPassword("Another-Pass-1", repo.profile.PasswordHash); err != nil || !ok {
+		t.Fatalf("password should be replaced: %v", err)
+	}
+}
+
+func TestSetPasswordWithoutCurrentPassword(t *testing.T) {
+	service, repo := setupService(t, "")
+
+	if err := service.SetPassword(context.Background(), "", "Another-Pass-1"); err != nil {
+		t.Fatal(err)
+	}
+	if !repo.profile.PasswordEnabled {
+		t.Fatal("expected password to be enabled")
+	}
+	if ok, err := VerifyPassword("Another-Pass-1", repo.profile.PasswordHash); err != nil || !ok {
+		t.Fatalf("stored hash should verify: %v", err)
+	}
+}
+
+func TestRecoveryTokenIssuedOnce(t *testing.T) {
+	service, _ := setupService(t, "Correct-horse-1")
+
+	if _, err := service.GenerateRecoveryToken(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.GenerateRecoveryToken(context.Background()); !errors.Is(err, ErrRecoveryIssued) {
+		t.Fatalf("err = %v, want ErrRecoveryIssued", err)
+	}
+}
+
+func TestRecoveryTokenResetsPassword(t *testing.T) {
+	service, repo := setupService(t, "Correct-horse-1")
+
+	token, err := service.GenerateRecoveryToken(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.UnlockWithRecoveryToken(context.Background(), "bad-token", "Another-Pass-1"); !errors.Is(err, ErrRecoveryTokenInvalid) {
+		t.Fatalf("err = %v, want ErrRecoveryTokenInvalid", err)
+	}
+	if err := service.UnlockWithRecoveryToken(context.Background(), token, "weak"); err == nil {
+		t.Fatal("expected weak new password to be rejected")
+	}
+	if err := service.UnlockWithRecoveryToken(context.Background(), token, "Another-Pass-1"); err != nil {
+		t.Fatal(err)
+	}
+	if !service.IsUnlocked() {
+		t.Fatal("recovery should unlock the workspace")
+	}
+	if ok, err := VerifyPassword("Another-Pass-1", repo.profile.PasswordHash); err != nil || !ok {
+		t.Fatalf("password should be reset: %v", err)
+	}
+	if repo.profile.RecoveryTokenHash != "" {
+		t.Fatal("recovery token should be cleared after use")
+	}
+	if repo.profile.FailedAttempts != 0 || repo.profile.LockedUntil != nil {
+		t.Fatal("recovery should reset the lockout state")
+	}
+	if err := service.UnlockWithRecoveryToken(context.Background(), token, "Third-Pass-1"); !errors.Is(err, ErrRecoveryTokenInvalid) {
+		t.Fatal("recovery token should not be reusable")
+	}
+}
+
+func TestUnlockWithRecoveryTokenWithoutPasswordIsNoop(t *testing.T) {
+	service, repo := setupService(t, "")
+
+	if err := service.UnlockWithRecoveryToken(context.Background(), "any", "Another-Pass-1"); err != nil {
+		t.Fatal(err)
+	}
+	if repo.profile.PasswordEnabled {
+		t.Fatal("password should stay disabled")
 	}
 }

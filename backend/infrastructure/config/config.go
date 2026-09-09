@@ -10,35 +10,27 @@ import (
 )
 
 type Config struct {
-	App           AppConfig
-	Database      DatabaseConfig
-	Logger        LoggerConfig
-	Sync          SyncConfig
-	Notifications NotificationsConfig
+	App      AppConfig
+	Database DatabaseConfig
+	Logger   LoggerConfig
+	Sync     SyncConfig
 }
 
 type AppConfig struct {
 	Name        string
 	Env         string
 	Version     string
-	Port        int
 	WindowTitle string
 	Width       int
 	Height      int
 }
 
-// DatabaseConfig holds the connection settings for the runtime
-// database. The desktop app runs on SQLite by default ("sqlite");
-// "postgres" is supported for the cloud mirror and development.
+// DatabaseConfig holds the connection settings for the local runtime
+// database. The desktop app runs on SQLite (offline-first, single
+// source of truth).
 type DatabaseConfig struct {
 	Driver       string
 	Path         string
-	Host         string
-	Port         int
-	User         string
-	Password     string
-	Name         string
-	SSLMode      string
 	MaxOpen      int
 	MaxIdle      int
 	MaxLifetime  time.Duration
@@ -51,22 +43,17 @@ type LoggerConfig struct {
 	Output string
 }
 
-// SyncConfig configures the background synchronizer that pushes local
-// writes to the cloud PostgreSQL mirror and pulls remote changes back.
-// When Disabled the app runs fully offline (SQLite remains the runtime
-// database either way).
+// SyncConfig configures the background replication to the cloud
+// PostgreSQL mirror over a direct connection. When Disabled the app
+// runs fully offline (SQLite remains the runtime database either way).
 type SyncConfig struct {
 	Enabled      bool
-	ServerURL    string
-	APIKey       string
-	PollInterval time.Duration
-}
-
-// NotificationsConfig configures the background worker that scans the
-// inventory for clearance batches and feeds the device-local
-// notification bell.
-type NotificationsConfig struct {
-	Enabled      bool
+	Host         string
+	Port         int
+	Name         string
+	User         string
+	Password     string
+	SSLMode      string
 	PollInterval time.Duration
 }
 
@@ -77,7 +64,6 @@ func Load() (*Config, error) {
 			Name:        getEnv("APP_NAME", "vfinancy"),
 			Env:         getEnv("APP_ENV", "development"),
 			Version:     getEnv("APP_VERSION", "0.0.0"),
-			Port:        getEnvInt("APP_PORT", 0),
 			WindowTitle: getEnv("APP_WINDOW_TITLE", "vfinancy"),
 			Width:       getEnvInt("APP_WIDTH", 1280),
 			Height:      getEnvInt("APP_HEIGHT", 800),
@@ -85,12 +71,6 @@ func Load() (*Config, error) {
 		Database: DatabaseConfig{
 			Driver:       getEnv("DB_DRIVER", "sqlite"),
 			Path:         getEnv("DB_PATH", "data/vfinancy.db"),
-			Host:         getEnv("DB_HOST", "localhost"),
-			Port:         getEnvInt("DB_PORT", 5432),
-			User:         getEnv("DB_USER", "postgres"),
-			Password:     getEnv("DB_PASSWORD", "casa123"),
-			Name:         getEnv("DB_NAME", "vfinancy"),
-			SSLMode:      getEnv("DB_SSLMODE", "disable"),
 			MaxOpen:      getEnvInt("DB_MAX_OPEN", 25),
 			MaxIdle:      getEnvInt("DB_MAX_IDLE", 5),
 			MaxLifetime:  time.Duration(getEnvInt("DB_MAX_LIFETIME_MIN", 30)) * time.Minute,
@@ -103,13 +83,13 @@ func Load() (*Config, error) {
 		},
 		Sync: SyncConfig{
 			Enabled:      getEnvBool("SYNC_ENABLED", false),
-			ServerURL:    getEnv("SYNC_SERVER_URL", ""),
-			APIKey:       getEnv("SYNC_API_KEY", ""),
+			Host:         getEnv("SYNC_DB_HOST", ""),
+			Port:         getEnvInt("SYNC_DB_PORT", 5432),
+			Name:         getEnv("SYNC_DB_NAME", ""),
+			User:         getEnv("SYNC_DB_USER", ""),
+			Password:     getEnv("SYNC_DB_PASSWORD", ""),
+			SSLMode:      getEnv("SYNC_SSLMODE", "require"),
 			PollInterval: time.Duration(getEnvInt("SYNC_POLL_INTERVAL_SEC", 30)) * time.Second,
-		},
-		Notifications: NotificationsConfig{
-			Enabled:      getEnvBool("NOTIFICATIONS_ENABLED", true),
-			PollInterval: time.Duration(getEnvInt("NOTIFICATIONS_POLL_INTERVAL_SEC", 60)) * time.Second,
 		},
 	}
 
@@ -128,41 +108,17 @@ func (c *Config) validate() error {
 	if c.Database.Driver == "sqlite" && c.Database.Path == "" {
 		return fmt.Errorf("config: DB_PATH is required when DB_DRIVER=sqlite")
 	}
-	if c.Database.Driver == "postgres" {
-		if c.Database.Host == "" {
-			return fmt.Errorf("config: DB_HOST is required")
-		}
-		if c.Database.Name == "" {
-			return fmt.Errorf("config: DB_NAME is required")
-		}
-	}
-	if c.Sync.Enabled && c.Sync.ServerURL == "" {
-		return fmt.Errorf("config: SYNC_SERVER_URL is required when sync is enabled")
+	if c.Sync.Enabled && (c.Sync.Host == "" || c.Sync.Name == "" || c.Sync.User == "") {
+		return fmt.Errorf("config: SYNC_DB_HOST, SYNC_DB_NAME and SYNC_DB_USER are required when sync is enabled")
 	}
 	return nil
 }
 
-// ListenAddr returns the address the sync server should bind to, using
-// APP_PORT (default 8787).
-func (c *Config) ListenAddr() string {
-	port := c.App.Port
-	if port == 0 {
-		port = 8787
-	}
-	return fmt.Sprintf(":%d", port)
-}
-
-func (c *DatabaseConfig) DSN() string {
+// DSN returns the PostgreSQL connection string for the cloud mirror.
+func (c *SyncConfig) DSN() string {
 	return fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
 		c.User, c.Password, c.Host, c.Port, c.Name, c.SSLMode,
-	)
-}
-
-func (c *DatabaseConfig) AdminDSN() string {
-	return fmt.Sprintf(
-		"postgres://%s:%s@%s:%d/postgres?sslmode=%s",
-		c.User, c.Password, c.Host, c.Port, c.SSLMode,
 	)
 }
 

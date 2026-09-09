@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**vfinancy** is a custom Desktop ERP (Enterprise Resource Planning) system built with Wails v2 (Go + React + TypeScript) backed by PostgreSQL. It replaces manual business processes with a centralized platform for purchasing, sales, inventory, treasury, and financial reporting.
+**vfinancy** is a custom Desktop ERP (Enterprise Resource Planning) system built with Wails v2 (Go + React + TypeScript) backed by SQLite. It replaces manual business processes with a centralized platform for purchasing, sales, inventory, treasury, and financial reporting.
 
 ## Target Stack (mandatory)
 
@@ -12,7 +12,7 @@
 - **State / data:** Zustand, TanStack Query, React Hook Form, Zod
 - **UI primitives:** **Base UI** (`@base-ui/react` v1) — the primary component system; all Radix packages removed
 - **Styling:** plain CSS3 in `src/index.css` (OKLCH design tokens + Base UI part styling via data-attributes) — **no Tailwind, no PostCSS**
-- **DB:** hybrid — local **SQLite** (primary runtime DB, `modernc.org/sqlite`, pure Go) + cloud **PostgreSQL** mirror (via `github.com/jackc/pgx/v5/stdlib`) synchronized by the built-in sync engine.
+- **DB:** local **SQLite** (runtime DB + single source of truth, `modernc.org/sqlite`, pure Go); optional **PostgreSQL** cloud mirror replicated over a **direct pgx connection** (`github.com/jackc/pgx/v5/stdlib`) by the built-in sync engine.
 
 ## Key Commands
 
@@ -31,10 +31,6 @@ pnpm check         # tsc --noEmit
 go run ./backend/cmd/cli migrate [--postgres]   # apply pending migrations (default: local SQLite via migrations/sqlite)
 go run ./backend/cmd/cli status  [--postgres]   # show migration status
 
-# Sync server (cloud PostgreSQL mirror)
-DB_DRIVER=postgres DB_MIGRATION_DIR=backend/migrations/postgres SYNC_ENABLED=false \
-  go run ./backend/cmd/syncserver
-
 # Go tests
 go test ./backend/...
 ```
@@ -43,7 +39,7 @@ Toolchain notes for this dev container:
 
 - **Go IS available** at `/usr/local/go/bin/go` (used for `go build`, `go vet`, `go test`). `pnpm` is on PATH too. Only the `wails` CLI and `psql` are missing.
 - `modernc.org/sqlite` is a declared dependency (pure Go, no CGO) — needed to build the desktop app offline.
-- The backend assumes a working directory of the repo root: set `DB_MIGRATION_DIR=backend/migrations/sqlite` (or `backend/migrations/postgres`) and `SYNC_ENABLED=false` unless a sync server URL is configured.
+- The backend assumes a working directory of the repo root: set `DB_MIGRATION_DIR=backend/migrations/sqlite`. Cloud sync config (host/port/db/user/password, opt-in) lives in `%UserConfigDir%/vfinancy/settings.json` (editable in-app) with `SYNC_*` env vars as fallback.
 
 ## Architecture: feature-based vertical slices (Service + Repository)
 
@@ -75,20 +71,19 @@ Desktop Application (Wails)
 backend/
   cmd/
     cli/                 # standalone CLI: `migrate`, `status` (default: local SQLite; `--postgres` for cloud)
-    syncserver/          # self-hosted HTTP sync server (cloud PostgreSQL mirror)
   infrastructure/        # NOT under internal/ on purpose (see "Internal packages" below)
     config/              # env-based config loader (DB_DRIVER, DB_PATH, SYNC_*, ...)
     logger/              # structured slog logger (json | text, levels debug..error)
     database/            # *sql.DB wrapper + WithTx(ctx, fn) helper
-    postgres/            # Connect(), EnsureDatabase(), DSN helpers
+    postgres/            # ConnectDSN() helper for the CLI (cloud mirror)
     sqlite/              # embedded SQLite driver (pure Go, modernc.org/sqlite)
     migrations/          # file-based SQL migration runner (dialect-aware bookkeeping)
     persistence/         # Querier, TxManager, dialect switch, scan/decode/builder/error-map helpers
   interfaces/
-    bindings/            # Wails-exposed methods (workspace, settings, sync/backup, catalog, ...) + sync/notifications worker bootstrap
+    bindings/            # Wails-exposed methods (auth/profile, settings, sales, purchases, inventory, treasury, backup, sync) + workers (sync, clearance, scheduled backups)
   internal/
     domain/              # cross-feature domain primitives
-      enums/             # 20+ enums (sale_status, batch_status, payment_method, ...)
+      enums/             # ~10 enums (sale_status, sale_type, batch_status, payment_method, document_type, ...)
       errors/            # derrors: business, validation, notfound, conflict
       valueobjects/      # Money, Percentage, Quantity, Email, SKU, ...
       repositories/      # shared repo interfaces (pagination, transaction, errors)
@@ -103,7 +98,7 @@ backend/
     postgres/            # PostgreSQL mirror (same version set/order as sqlite)
 ```
 
-Each feature (`workspace`, `administration`, `customer`, `supplier`, `product`, `inventory`, `purchasing`, `sales`, `customerpayments`, `treasury`, `notifications`, `sync`) is a **vertical slice**: it owns its entity definitions, its repository interface, and its business service. When an operation spans multiple features, the owning feature's service composes the other features' services/repositories inside a single transaction (e.g. `sales.SalesService.Create` records the sale AND the customer debt). Concrete SQL lives only in the feature's `postgres/` subpackage.
+Each feature (`workspace`, `administration`, `customer`, `product`, `inventory`, `purchasing`, `sales`, `treasury`, `sync`) is a **vertical slice**: it owns its entity definitions, its repository interface, and its business service. When an operation spans multiple features, the owning feature's service composes the other features' services/repositories inside a single transaction (e.g. `sales.SalesService.Create` records the sale, the customer debt AND — for client orders — the linked import order, all in one tx). Concrete SQL lives only in the feature's `postgres/` subpackage.
 
 The root `main.go` and `app.go` are the Wails entrypoint. `app.go` initializes config + logger, ensures the database exists, opens a connection, and runs pending migrations on startup. It binds two structs: the root `App` (config accessors for the frontend) and `bindings.App` (Wails-exposed methods).
 
@@ -230,7 +225,7 @@ Cada carpeta tiene su `index.ts` barrel — importar de `@/components/<categorí
 
 - Files live in `backend/migrations/` under two dialect directories: `sqlite/` (the local runtime DB) and `postgres/` (the cloud mirror). Both contain the same versions in the same creation order; keep them in sync.
 - Only `.up.sql` exists today: this is a pre-release app with no production data, so rollback scripts were intentionally dropped and the runner exposes no rollback command (the `cli` has only `migrate` and `status`).
-- Filename must be `VERSION_name.up.sql` (single underscore between version and name; name may contain underscores but no dots). The initial schema is written in FK-safe creation order (companies/branches first, then reference data, then purchasing → inventory → sales). FKs must never reference a table created later in the file: PostgreSQL rejects forward references at CREATE time, while SQLite silently tolerates them.
+- Filename must be `VERSION_name.up.sql` (single underscore between version and name; name may contain underscores but no dots). The initial schema is written in FK-safe creation order (FK-safe order: local_profiles/settings → customers/products/cards → orders → inventory → sales). FKs must never reference a table created later in the file: PostgreSQL rejects forward references at CREATE time, while SQLite silently tolerates them.
 - Each file is a version. Runner records applied versions in `schema_migrations(version, name, applied_at)`.
 - Apply with `go run ./backend/cmd/cli migrate` (default: local SQLite; add `--postgres` for the cloud). Status with `go run ./backend/cmd/cli status`.
 - The Wails app also auto-runs pending migrations on `OnStartup`.
@@ -238,18 +233,11 @@ Cada carpeta tiene su `index.ts` barrel — importar de `@/components/<categorí
 
 ## Sync architecture
 
-- **Local SQLite is the runtime DB.** The background worker in `interfaces/bindings/app.go` (`startSyncWorker`, gated on `SYNC_ENABLED`) pushes/pulls changes to the self-hosted sync server (`backend/cmd/syncserver`, cloud PostgreSQL mirror).
-- **Model:** watermark-diff replication with last-writer-wins. Rows travel as "all rows whose time column > per-table cursor" in both directions; hard deletes are captured by the `AFTER DELETE` triggers in `migrations/sqlite/0000_initial_schema` into `sync_tombstones`. The postgres 0000 has no triggers — the server records tombstones explicitly. There are no INSERT/UPDATE triggers (no outbox echo).
-- The generic engine lives in `internal/features/sync` (entities, registry of 6 replicated tables, `Repository` interface, `HTTPClient`) and `internal/features/sync/postgres` (dialect-safe implementation). `internal/features/sync/server.go` is the server-side handler.
-- Replicated tables are the master-data set: `companies`, `branches`, `application_settings`, `taxes`, `currencies`, `countries`. `exchange_rates` is intentionally excluded (device-local value). There is no user/role/auth E-R set; the local workspace profile (`local_profiles`) is deliberately device-local.
-- Config: `SYNC_ENABLED=true`, `SYNC_SERVER_URL`, `SYNC_API_KEY`, `SYNC_POLL_INTERVAL_SEC=30`.
-
-## Notifications (device-local feed)
-
-- `internal/features/notifications` owns the in-app notification feed (`notifications` table: `type`, `title`, `message`, `record_type`, `record_id`, `dedup_key`, `read_at`, soft delete). Unread = `read_at IS NULL`; dedup via `UNIQUE (company_id, type, dedup_key)`.
-- The only generator today is **inventory clearance**: `notifications.NotificationsService.Generate` scans `InventoryService.GenerateClearanceCandidates`, inserts one notification per on-clearance batch (`dedup_key = batch id`), and soft-deletes **unread** notifications whose batch left clearance (read ones stay as history).
-- The `startNotificationsWorker` goroutine in `interfaces/bindings/app.go` (gated on `NOTIFICATIONS_ENABLED`, default `true`; interval `NOTIFICATIONS_POLL_INTERVAL_SEC`, default `60`) runs `InventoryService.RefreshClearanceFlags` (reconciles the persisted `is_clearance` column, which is otherwise only refreshed on batch writes) and then `Generate`. It skips when no company is active.
-- Delivery is **in-app only** (Topbar bell, `services/notifications`); notifications are device-local and intentionally excluded from the sync engine.
+- **Local SQLite is the runtime DB and source of truth.** The background worker in `interfaces/bindings/app.go` (`startSyncWorker`) replicates to the cloud **PostgreSQL mirror over a direct pgx connection** (no HTTP sync server).
+- **Config:** opt-in. Runtime fields (host/port/database/user/password/sslmode/interval + toggle) live in `%UserConfigDir%/vfinancy/settings.json` (edited in-app, bound via `GetSyncConfig/SaveSyncConfig/TestSyncConnection`); `SYNC_DB_HOST/PORT/NAME/USER/PASSWORD`, `SYNC_SSLMODE`, `SYNC_ENABLED`, `SYNC_POLL_INTERVAL_SEC` are env fallbacks. The mirror schema (`backend/migrations/postgres`) is ensured automatically on first connect.
+- **Model:** watermark-diff replication with last-writer-wins. Cursors are per table per direction (`<table>:push` / `<table>:pull` rows in `sync_cursors`). Hard deletes are captured locally by `AFTER DELETE` triggers in `migrations/sqlite/0000` into `sync_tombstones` and pushed to the mirror; tombstones are forgotten after being pushed. Remote rows are applied only when not older than the local copy (LWW, divergence recorded in `sync_conflicts`); SQLite always wins ties.
+- The engine lives in `internal/features/sync` (`registry.go` — 15 replicated tables, `LocalStore`/`RemoteStore` interfaces, LWW) and `internal/features/sync/postgres` (`NewLocal(*sql.DB)`, `NewRemote(dsn, log)`).
+- Replicated set: every business table (`application_settings`, `exchange_rates`, `customers`, `products`, `credit_cards`, `purchase_orders(+items)`, `inventory_batches/movements`, `sales(+items)`, `customer_payments(+allocations)`, `import_lots(+members)`). Device-local only: `local_profiles`, the settings file, and the sync bookkeeping tables.
 
 ## Wails / Build Gotchas
 

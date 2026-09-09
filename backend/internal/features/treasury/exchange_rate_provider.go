@@ -20,9 +20,9 @@ const (
 	// LiveRateBudget bounds the whole multi-provider resolution.
 	LiveRateBudget = 10 * time.Second
 
-	// FallbackUSDPEN is returned when every source fails, so forms
-	// can still render and the user keeps a sane editable default.
-	FallbackUSDPEN = "3.75"
+	// DefaultFallbackUSDPEN is the default PEN/USD rate used when
+	// every source fails and no preference is configured.
+	DefaultFallbackUSDPEN = 3.75
 
 	sunatAPIURL  = "https://api.apis.net.pe/v1/tipo-cambio-sunat?currency=pen"
 	erAPIURLTmpl = "https://open.er-api.com/v6/latest/%s"
@@ -36,12 +36,20 @@ const (
 )
 
 // liveRateProvider fetches reference exchange rates from public APIs.
+// The URL fields are injectable so tests can point at an httptest
+// server.
 type liveRateProvider struct {
-	client *http.Client
+	client   *http.Client
+	sunatURL string
+	erAPIURL string
 }
 
 func newLiveRateProvider() *liveRateProvider {
-	return &liveRateProvider{client: &http.Client{Timeout: LiveRateTimeout}}
+	return &liveRateProvider{
+		client:   &http.Client{Timeout: LiveRateTimeout},
+		sunatURL: sunatAPIURL,
+		erAPIURL: erAPIURLTmpl,
+	}
 }
 
 // Fetch resolves from->to against the configured providers in order
@@ -74,7 +82,7 @@ func (p *liveRateProvider) Fetch(ctx context.Context, from, to string) (string, 
 
 // fetchSunat queries the SUNAT daily rate (venta) via apis.net.pe.
 func (p *liveRateProvider) fetchSunat(ctx context.Context) (string, error) {
-	body, err := p.getJSON(ctx, sunatAPIURL)
+	body, err := p.getJSON(ctx, p.sunatURL)
 	if err != nil {
 		return "", err
 	}
@@ -96,10 +104,9 @@ func (p *liveRateProvider) fetchSunat(ctx context.Context) (string, error) {
 }
 
 // fetchOpenERAPI queries open.er-api.com, which supports any base
-// currency and therefore acts as the generic fallback source.
+// currency and therefore acts as the generic rate source.
 func (p *liveRateProvider) fetchOpenERAPI(ctx context.Context, from, to string) (string, error) {
-	target := fmt.Sprintf(erAPIURLTmpl, url.PathEscape(from))
-	body, err := p.getJSON(ctx, target)
+	body, err := p.getJSON(ctx, fmt.Sprintf(p.erAPIURL, url.PathEscape(from)))
 	if err != nil {
 		return "", err
 	}

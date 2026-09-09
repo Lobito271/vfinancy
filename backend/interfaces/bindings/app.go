@@ -7,8 +7,6 @@ import (
 	"io/fs"
 	"time"
 
-	"github.com/google/uuid"
-
 	"vfinancy/backend/infrastructure/config"
 	"vfinancy/backend/infrastructure/database"
 	"vfinancy/backend/infrastructure/logger"
@@ -19,19 +17,14 @@ import (
 	adminpostgres "vfinancy/backend/internal/features/administration/postgres"
 	"vfinancy/backend/internal/features/customer"
 	customerpostgres "vfinancy/backend/internal/features/customer/postgres"
-	"vfinancy/backend/internal/features/customerpayments"
 	"vfinancy/backend/internal/features/inventory"
 	inventorypostgres "vfinancy/backend/internal/features/inventory/postgres"
-	"vfinancy/backend/internal/features/notifications"
-	notificationspostgres "vfinancy/backend/internal/features/notifications/postgres"
 	"vfinancy/backend/internal/features/product"
 	productpostgres "vfinancy/backend/internal/features/product/postgres"
 	"vfinancy/backend/internal/features/purchasing"
 	purchasingpostgres "vfinancy/backend/internal/features/purchasing/postgres"
 	"vfinancy/backend/internal/features/sales"
 	salespostgres "vfinancy/backend/internal/features/sales/postgres"
-	"vfinancy/backend/internal/features/supplier"
-	supplierpostgres "vfinancy/backend/internal/features/supplier/postgres"
 	"vfinancy/backend/internal/features/sync"
 	syncpostgres "vfinancy/backend/internal/features/sync/postgres"
 	"vfinancy/backend/internal/features/treasury"
@@ -40,51 +33,56 @@ import (
 	workspacepostgres "vfinancy/backend/internal/features/workspace/postgres"
 )
 
+// App is the struct bound to the Wails frontend. Exported methods form
+// the whole JavaScript-callable API.
 type App struct {
 	ctx context.Context
 	db  *database.DB
 	cfg *config.Config
 	log *logger.Logger
 
-	migrationsFS fs.FS
+	sqliteMigrationsFS fs.FS
+	pgMigrationsFS     fs.FS
 
-	settingsSvc  *administration.SettingsService
-	workspaceSvc *workspace.Service
+	workspaceSvc  *workspace.Service
+	settingsSvc   *administration.SettingsService
+	treasurySvc   *treasury.TreasuryService
+	salesSvc      *sales.SalesService
+	inventorySvc  *inventory.InventoryService
+	purchasingSvc *purchasing.PurchasingService
+	customersSvc  *customer.CustomerService
+	productsSvc   *product.ProductService
+	syncSvc       *sync.Service
 
-	treasurySvc        *treasury.TreasuryService
-	salesSvc           *sales.SalesService
-	paymentSvc         *customerpayments.CustomerPaymentService
-	inventorySvc       *inventory.InventoryService
-	purchasingSvc      *purchasing.PurchasingService
-	customersSvc       *customer.CustomerService
-	productsSvc        *product.ProductService
-	suppliersSvc       *supplier.SupplierService
-	notificationsSvc   *notifications.NotificationsService
-
-	syncCancel          context.CancelFunc
-	notificationsCancel context.CancelFunc
+	clearanceCancel context.CancelFunc
+	syncCancel      context.CancelFunc
+	backupCancel    context.CancelFunc
 }
 
-func New(cfg *config.Config, log *logger.Logger, migrationsFS fs.FS) *App {
-	return &App{cfg: cfg, log: log, migrationsFS: migrationsFS}
+// New builds the binding container. The migration filesystems are the
+// embedded local (SQLite) and mirror (PostgreSQL) schema sets.
+func New(cfg *config.Config, log *logger.Logger, sqliteMigrationsFS, pgMigrationsFS fs.FS) *App {
+	return &App{cfg: cfg, log: log, sqliteMigrationsFS: sqliteMigrationsFS, pgMigrationsFS: pgMigrationsFS}
 }
 
+// Startup captures the Wails runtime context.
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 }
 
+// Shutdown stops the workers and closes the local database. The
+// on-close backup runs before the connection drops.
 func (a *App) Shutdown(ctx context.Context) {
-	if a.syncCancel != nil {
-		a.syncCancel()
-	}
-	if a.notificationsCancel != nil {
-		a.notificationsCancel()
-	}
+	a.stopWorkers()
+	a.backupOnClose()
+	a.closeSync()
 	if a.db != nil {
 		_ = a.db.Close()
 	}
 }
 
+// Context returns the runtime context, cancelled while the local
+// profile is locked so every gated binding fails fast.
 func (a *App) Context() context.Context {
 	ctx := a.rawContext()
 	if a.workspaceSvc != nil && !a.workspaceSvc.IsUnlocked() {
@@ -102,19 +100,24 @@ func (a *App) rawContext() context.Context {
 	return a.ctx
 }
 
+// Init opens the local database, migrates, wires the services and
+// starts the background workers.
 func (a *App) Init() error {
 	ctx := a.Context()
 
-	if a.cfg.Database.Driver == "postgres" {
-		return fmt.Errorf("bindings: postgres driver is not supported for the desktop runtime; use sqlite (DB_DRIVER=sqlite)")
+	if a.cfg.Database.Driver != "sqlite" {
+		return fmt.Errorf("bindings: DB_DRIVER must be sqlite for the desktop runtime, got %q", a.cfg.Database.Driver)
 	}
-
 	if err := a.openDB(); err != nil {
 		return err
 	}
 	if err := a.initializeServices(ctx); err != nil {
 		return err
 	}
+
+	a.startClearanceWorker(ctx)
+	a.startSyncWorker()
+	a.startBackupWorker(ctx)
 
 	a.log.Info("bindings initialized")
 	return nil
@@ -132,9 +135,8 @@ func (a *App) openDB() error {
 	a.db = db
 	persistence.SetDialect(persistence.DialectSQLite)
 
-	ctx := a.rawContext()
-	runner := migrations.NewRunnerFS(a.migrationsFS, db.DB, a.log, "sqlite")
-	if err := runner.Up(ctx); err != nil {
+	runner := migrations.NewRunnerFS(a.sqliteMigrationsFS, db.DB, a.log, "sqlite")
+	if err := runner.Up(a.rawContext()); err != nil {
 		a.log.Error("migrate failed; continuing with degraded schema", "error", err.Error())
 	}
 	return nil
@@ -142,186 +144,115 @@ func (a *App) openDB() error {
 
 func (a *App) initializeServices(ctx context.Context) error {
 	db := a.db
-
-	settings := adminpostgres.NewSettingRepository(db.DB)
-	currencies := adminpostgres.NewCurrencyRepository(db.DB)
-	taxes := adminpostgres.NewTaxRepository(db.DB)
-	countries := adminpostgres.NewCountryRepository(db.DB)
-
 	txm := persistence.NewTxManager(db)
-	customers := customerpostgres.NewCustomerRepository(db.DB)
-	products := productpostgres.NewProductRepository(db.DB)
-	suppliers := supplierpostgres.NewSupplierRepository(db.DB)
 
-	bankAccounts := treasurypostgres.NewBankAccountRepository(db.DB)
-	creditCards := treasurypostgres.NewCreditCardRepository(db.DB)
-	bankTransactions := treasurypostgres.NewBankTransactionRepository(db.DB)
-	exchangeRates := treasurypostgres.NewExchangeRateRepository(db.DB)
-
-	batches := inventorypostgres.NewInventoryBatchRepository(db.DB)
-	movements := inventorypostgres.NewInventoryMovementRepository(db.DB)
-	warehouseResolver := inventorypostgres.NewWarehouseResolver(db.DB)
-	productClassifier := inventorypostgres.NewProductClassifier(db.DB)
-
-	orders := salespostgres.NewSaleRepository(db.DB)
-	payments := salespostgres.NewCustomerPaymentRepository(db.DB)
-	advances := salespostgres.NewCustomerAdvanceRepository(db.DB)
-
-	purchaseOrders := purchasingpostgres.NewPurchaseRepository(db.DB)
-	supplierPayments := purchasingpostgres.NewSupplierPaymentRepository(db.DB)
-
+	settingsRepo := adminpostgres.NewSettingRepository(db.DB)
 	a.workspaceSvc = workspace.NewService(workspacepostgres.NewRepository(db.DB), txm)
 	if _, err := a.workspaceSvc.Initialize(ctx); err != nil && !errors.Is(err, workspace.ErrProfileNotFound) {
 		a.log.Warn("load local profile failed; starting unconfigured", "error", err.Error())
 	}
+	a.settingsSvc = administration.NewSettingsService(settingsRepo, a.log)
 
-	a.settingsSvc = administration.NewSettingsService(settings, currencies, taxes, countries, a.log)
+	customersRepo := customerpostgres.NewCustomerRepository(db.DB)
+	productsRepo := productpostgres.NewProductRepository(db.DB)
+	cardsRepo := treasurypostgres.NewCreditCardRepository(db.DB)
+	ratesRepo := treasurypostgres.NewExchangeRateRepository(db.DB)
+	batchesRepo := inventorypostgres.NewInventoryBatchRepository(db.DB)
+	movementsRepo := inventorypostgres.NewInventoryMovementRepository(db.DB)
+	ordersRepo := salespostgres.NewSaleRepository(db.DB)
+	paymentsRepo := salespostgres.NewCustomerPaymentRepository(db.DB)
+	purchaseRepo := purchasingpostgres.NewPurchaseRepository(db.DB)
+	lotsRepo := purchasingpostgres.NewImportLotRepository(db.DB)
 
-	a.treasurySvc = treasury.New(bankAccounts, creditCards, bankTransactions, exchangeRates, txm, a.log)
-	a.inventorySvc = inventory.New(batches, movements, warehouseResolver, productClassifier, txm, a.log)
-	clearanceSettings := func(ctx context.Context, companyID uuid.UUID) (int, int) {
-		prefs, err := a.settingsSvc.GetPreferences(ctx, companyID)
-		if err != nil {
-			return inventory.ClearanceDays, 3
-		}
-		days := prefs.ClearanceDays
-		if prefs.ClearanceDaysThreshold > 0 {
-			days = prefs.ClearanceDaysThreshold
-		}
-		return days, prefs.ClearanceWarningDays
-	}
-	a.inventorySvc.SetClearanceSettings(clearanceSettings)
-	a.salesSvc = sales.New(orders, customers, a.inventorySvc, productClassifier, txm, a.log)
-	a.paymentSvc = customerpayments.New(payments, advances, orders, customers, txm, a.log)
-	a.purchasingSvc = purchasing.New(purchaseOrders, supplierPayments, a.inventorySvc, txm, a.log)
-	a.purchasingSvc.SetImportLots(purchasingpostgres.NewImportLotRepository(db.DB))
-	a.purchasingSvc.SetImportFactor(func(ctx context.Context, companyID uuid.UUID) float64 {
-		prefs, err := a.settingsSvc.GetPreferences(ctx, companyID)
-		if err != nil {
-			return 0.07
-		}
-		return prefs.ImportCostFactor
-	})
-	a.customersSvc = customer.New(customers, txm, a.log)
-	a.productsSvc = product.New(products, txm, a.log)
-	a.suppliersSvc = supplier.New(suppliers, txm, a.log)
-
-	a.notificationsSvc = notifications.New(
-		notificationspostgres.NewNotificationRepository(db.DB),
-		a.log,
-	)
-	a.notificationsSvc.SetClearanceSource(a.inventorySvc)
-	a.notificationsSvc.SetClearanceDays(func(ctx context.Context, companyID uuid.UUID) int {
-		days, _ := clearanceSettings(ctx, companyID)
-		return days
-	})
-	a.notificationsSvc.SetProductInfo(func(ctx context.Context, productID uuid.UUID) (string, string, error) {
-		p, err := a.productsSvc.GetByID(ctx, productID)
-		if err != nil {
-			return "", "", err
-		}
-		return p.Description, p.SKU.String(), nil
-	})
-	a.notificationsSvc.SetActiveCompany(a.companyID)
-
-	a.startSyncWorker(ctx)
-	a.startNotificationsWorker(ctx)
+	a.customersSvc = customer.NewService(customersRepo, txm, a.log)
+	a.productsSvc = product.NewService(productsRepo, txm, a.log)
+	a.inventorySvc = inventory.New(batchesRepo, movementsRepo, txm, a.log)
+	a.inventorySvc.SetClearanceSettings(a.clearanceSettings)
+	a.treasurySvc = treasury.New(cardsRepo, ratesRepo, txm, a.log)
+	a.treasurySvc.SetFallbackRate(a.fallbackRate)
+	a.purchasingSvc = purchasing.New(purchaseRepo, a.inventorySvc, txm, a.log)
+	a.purchasingSvc.SetImportLots(lotsRepo)
+	a.purchasingSvc.SetProducts(a.productsSvc, a.productsSvc)
+	a.purchasingSvc.SetTreasury(a.treasurySvc)
+	a.purchasingSvc.SetImportFactor(a.importFactor)
+	a.purchasingSvc.SetCustomsLimit(a.customsLimit)
+	a.salesSvc = sales.New(ordersRepo, paymentsRepo, a.customersSvc, a.productsSvc, a.inventorySvc, a.purchasingSvc, txm, a.log)
 
 	return nil
 }
 
 func (a *App) stopWorkers() {
+	if a.clearanceCancel != nil {
+		a.clearanceCancel()
+		a.clearanceCancel = nil
+	}
+	if a.backupCancel != nil {
+		a.backupCancel()
+		a.backupCancel = nil
+	}
+}
+
+func (a *App) closeSync() {
 	if a.syncCancel != nil {
 		a.syncCancel()
 		a.syncCancel = nil
 	}
-	if a.notificationsCancel != nil {
-		a.notificationsCancel()
-		a.notificationsCancel = nil
+	if a.syncSvc != nil {
+		a.syncSvc.Close()
+		a.syncSvc = nil
 	}
 }
 
-func (a *App) companyID() uuid.UUID {
-	if a.workspaceSvc == nil {
-		return uuid.Nil
-	}
-	id, err := a.workspaceSvc.CurrentCompanyID()
+// clearanceSettings resolves the configured days-for-clearance and the
+// early-warning window.
+func (a *App) clearanceSettings(ctx context.Context) (int, int) {
+	prefs, err := a.settingsSvc.GetPreferences(ctx)
 	if err != nil {
-		return uuid.Nil
+		return 25, 3
 	}
-	return id
+	return prefs.ClearanceDays, prefs.ClearanceWarningDays
 }
 
-func (a *App) companyIDPtr() *uuid.UUID {
-	id := a.companyID()
-	return &id
+func (a *App) fallbackRate(ctx context.Context) float64 {
+	prefs, err := a.settingsSvc.GetPreferences(ctx)
+	if err != nil {
+		return 3.75
+	}
+	return prefs.FallbackExchangeRate
 }
 
-// startSyncWorker launches the background replication loop when sync is
-// enabled. It is best-effort: any failure is logged and the worker
-// retries on the next tick, so the app keeps running fully offline.
-func (a *App) startSyncWorker(ctx context.Context) {
-	if !a.cfg.Sync.Enabled {
-		return
+func (a *App) importFactor(ctx context.Context) float64 {
+	prefs, err := a.settingsSvc.GetPreferences(ctx)
+	if err != nil {
+		return 0.07
 	}
-	repo := syncpostgres.NewSyncRepository(a.db.DB)
-	client := sync.NewHTTPClient(a.cfg.Sync.ServerURL, a.cfg.Sync.APIKey)
-	svc := sync.NewService(repo, client, a.log.Logger, "vfinancy-desktop", "desktop")
+	return prefs.ImportCostFactor
+}
 
+func (a *App) customsLimit(ctx context.Context) float64 {
+	prefs, err := a.settingsSvc.GetPreferences(ctx)
+	if err != nil {
+		return 220
+	}
+	return prefs.CustomsLimitUSD
+}
+
+// startClearanceWorker reconciles the persisted clearance flags on a
+// ticker so badges stay current without a full app reload.
+func (a *App) startClearanceWorker(ctx context.Context) {
 	wctx, cancel := context.WithCancel(ctx)
-	a.syncCancel = cancel
-	go func() {
-		run := func() {
-			if err := svc.RunOnce(wctx); err != nil {
-				a.log.Warn("sync: run failed", "error", err.Error())
-			}
-		}
-		run()
-		ticker := time.NewTicker(a.cfg.Sync.PollInterval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-wctx.Done():
-				return
-			case <-ticker.C:
-				run()
-			}
-		}
-	}()
-	a.log.Info("sync worker started",
-		"server", a.cfg.Sync.ServerURL,
-		"interval", a.cfg.Sync.PollInterval.String(),
-	)
-}
-
-// startNotificationsWorker runs the clearance scan on a background
-// ticker and feeds the device-local notification bell. It is
-// best-effort: failures are logged and retried on the next tick so the
-// app keeps working offline.
-func (a *App) startNotificationsWorker(ctx context.Context) {
-	if !a.cfg.Notifications.Enabled {
-		return
-	}
-	wctx, cancel := context.WithCancel(ctx)
-	a.notificationsCancel = cancel
+	a.clearanceCancel = cancel
 	go func() {
 		run := func() {
 			if a.workspaceSvc == nil || !a.workspaceSvc.IsUnlocked() {
 				return
 			}
-			companyID := a.companyID()
-			if companyID == uuid.Nil {
-				return
-			}
-			if _, err := a.inventorySvc.RefreshClearanceFlags(wctx, companyID, time.Now().UTC()); err != nil {
-				a.log.Warn("notifications: refresh clearance flags failed", "error", err.Error())
-			}
-			if _, err := a.notificationsSvc.Generate(wctx); err != nil {
-				a.log.Warn("notifications: generate failed", "error", err.Error())
+			if _, err := a.inventorySvc.RefreshClearanceFlags(wctx, time.Now().UTC()); err != nil {
+				a.log.Warn("clearance refresh failed", "error", err.Error())
 			}
 		}
 		run()
-		ticker := time.NewTicker(a.cfg.Notifications.PollInterval)
+		ticker := time.NewTicker(time.Minute)
 		defer ticker.Stop()
 		for {
 			select {
@@ -332,7 +263,46 @@ func (a *App) startNotificationsWorker(ctx context.Context) {
 			}
 		}
 	}()
-	a.log.Info("notifications worker started",
-		"interval", a.cfg.Notifications.PollInterval.String(),
+}
+
+// startSyncWorker launches the background replication loop when sync
+// is enabled (env or the runtime settings file). Best-effort: failures
+// are logged and retried on the next tick.
+func (a *App) startSyncWorker() {
+	a.closeSync()
+	cfg, err := a.effectiveSyncConfig()
+	if err != nil {
+		a.log.Warn("sync config invalid; worker not started", "error", err.Error())
+		return
+	}
+	if !cfg.Enabled || cfg.DSN() == "" {
+		return
+	}
+	a.syncSvc = sync.NewService(
+		syncpostgres.NewLocal(a.db.DB),
+		syncpostgres.NewRemote(cfg.DSN(), a.log),
+		sync.Config{Enabled: true, DSN: cfg.DSN(), PollInterval: cfg.PollInterval, MigrationsFS: a.pgMigrationsFS},
+		a.log.Logger,
 	)
+	wctx, cancel := context.WithCancel(a.rawContext())
+	a.syncCancel = cancel
+	go func() {
+		run := func() {
+			if err := a.syncSvc.RunOnce(wctx); err != nil {
+				a.log.Warn("sync: run failed", "error", err.Error())
+			}
+		}
+		run()
+		ticker := time.NewTicker(cfg.PollInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-wctx.Done():
+				return
+			case <-ticker.C:
+				run()
+			}
+		}
+	}()
+	a.log.Info("sync worker started", "interval", cfg.PollInterval.String())
 }

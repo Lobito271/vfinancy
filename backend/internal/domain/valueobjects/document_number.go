@@ -7,54 +7,70 @@ import (
 	"vfinancy/backend/internal/domain/enums"
 )
 
-// dniRe is 8 digits; rucRe is 11 digits starting with 10 or 20.
 var (
-	dniRe  = regexp.MustCompile(`^\d{8}$`)
-	rucRe  = regexp.MustCompile(`^[12]0\d{9}$`)
-	ceRe   = regexp.MustCompile(`^\d{9,12}$`)
+	dniRe = regexp.MustCompile(`^[0-9]{8}$`)
+	rucRe = regexp.MustCompile(`^(?:10|20)[0-9]{9}$`)
 )
 
-// DocumentNumber is a country-aware identification number. It pairs a
-// document type (DNI / RUC / CE / PASSPORT) with the raw number and
-// validates that the number matches the expected pattern for its type.
+// DocumentNumber pairs an identification document type with its raw
+// number. The zero value is a valid, optional document.
 type DocumentNumber struct {
 	docType enums.DocumentType
 	value   string
 }
 
-// NewDocumentNumber validates the (type, number) pair.
-func NewDocumentNumber(docType enums.DocumentType, number string) (DocumentNumber, error) {
-	if !docType.Valid() {
-		return DocumentNumber{}, wrapInvalid("document type is invalid: " + string(docType))
-	}
+// NewDocumentNumber validates the (type, number) pair. An empty number
+// yields the zero value (no document). When a number is present the
+// type must be DNI or RUC and the number must match its pattern.
+func NewDocumentNumber(t enums.DocumentType, number string) (DocumentNumber, error) {
 	number = strings.TrimSpace(number)
-	switch docType {
+	if number == "" {
+		return DocumentNumber{}, nil
+	}
+	if t != enums.DocumentTypeDNI && t != enums.DocumentTypeRUC {
+		return DocumentNumber{}, wrapInvalid("document type must be DNI or RUC when a number is present")
+	}
+	if err := ValidateDocument(t, number); err != nil {
+		return DocumentNumber{}, err
+	}
+	return DocumentNumber{docType: t, value: number}, nil
+}
+
+// ValidateDocument checks a DNI (8 digits) / RUC (11 digits, prefix
+// 10|20) pair. An empty type+number pair is valid (optional document).
+func ValidateDocument(t enums.DocumentType, number string) error {
+	if t == enums.TypeNone && number == "" {
+		return nil
+	}
+	if t == enums.TypeNone {
+		return wrapInvalid("document type is required when a number is present")
+	}
+	if number == "" {
+		return wrapInvalid("document number is required when a type is present")
+	}
+	switch t {
 	case enums.DocumentTypeDNI:
 		if !dniRe.MatchString(number) {
-			return DocumentNumber{}, wrapInvalid("DNI must be 8 digits")
+			return wrapInvalid("DNI must be 8 digits")
 		}
 	case enums.DocumentTypeRUC:
 		if !rucRe.MatchString(number) {
-			return DocumentNumber{}, wrapInvalid("RUC must be 11 digits starting with 10 or 20")
+			return wrapInvalid("RUC must be 11 digits starting with 10 or 20")
 		}
-	case enums.DocumentTypeCE:
-		if !ceRe.MatchString(number) {
-			return DocumentNumber{}, wrapInvalid("CE must be 9-12 digits")
-		}
-	case enums.DocumentTypePassport:
-		if len(number) < 5 || len(number) > 20 {
-			return DocumentNumber{}, wrapInvalid("passport length out of range")
-		}
+	default:
+		return wrapInvalid("document type is invalid: " + string(t))
 	}
-	return DocumentNumber{docType: docType, value: number}, nil
+	return nil
 }
 
 func (d DocumentNumber) Type() enums.DocumentType { return d.docType }
-func (d DocumentNumber) Number() string         { return d.value }
-func (d DocumentNumber) String() string         { return string(d.docType) + ":" + d.value }
+func (d DocumentNumber) Number() string           { return d.value }
+
+func (d DocumentNumber) String() string {
+	if d.value == "" {
+		return ""
+	}
+	return string(d.docType) + ":" + d.value
+}
 
 func (d DocumentNumber) IsZero() bool { return d.value == "" }
-
-func (d DocumentNumber) Equals(other DocumentNumber) bool {
-	return d.docType == other.docType && d.value == other.value
-}

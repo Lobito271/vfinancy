@@ -1,47 +1,54 @@
 package sync
 
 import (
-	"encoding/json"
 	"fmt"
+	"strings"
 )
 
-// TableMeta describes a replicated table for the generic replication
-// engine: how to identify a row (PKColumns), which column carries the
-// LWW timestamp (TimeColumn), which columns hold timestamps that must
-// round-trip between the two engines as RFC3339, and which columns are
-// exact-precision decimals that travel as decimal strings.
+// TableMeta describes one replicated table: its primary key, the
+// column that carries the last-writer-wins timestamp, and the columns
+// whose values need cross-engine coercion (booleans stored as integers
+// on SQLite, DATE values scanned as timestamps by both drivers).
 type TableMeta struct {
-	Name        string
-	PKColumns   []string
-	TimeColumn  string
-	TimeColumns []string
-	Decimals    []string
+	Name       string
+	PKs        []string
+	TimeColumn string
+	Bools      []string
+	Dates      []string
 }
 
-// SyncedTables is the authoritative list of replicated business and master
-// data tables. Local profiles and audit records stay on the device.
-var SyncedTables = []*TableMeta{
-	{Name: "companies", PKColumns: []string{"id"}, TimeColumn: "updated_at", TimeColumns: []string{"created_at", "updated_at", "deleted_at"}},
-	{Name: "branches", PKColumns: []string{"id"}, TimeColumn: "updated_at", TimeColumns: []string{"created_at", "updated_at", "deleted_at"}},
-	{Name: "application_settings", PKColumns: []string{"id"}, TimeColumn: "updated_at", TimeColumns: []string{"created_at", "updated_at"}},
-	{Name: "taxes", PKColumns: []string{"id"}, TimeColumn: "updated_at", TimeColumns: []string{"created_at", "updated_at", "deleted_at"}, Decimals: []string{"default_rate"}},
-	{Name: "currencies", PKColumns: []string{"code"}, TimeColumn: "updated_at", TimeColumns: []string{"created_at", "updated_at"}},
-	{Name: "countries", PKColumns: []string{"code"}, TimeColumn: "created_at", TimeColumns: []string{"created_at"}},
+var syncedTables = []TableMeta{
+	{Name: "application_settings", PKs: []string{"id"}, TimeColumn: "updated_at"},
+	{Name: "exchange_rates", PKs: []string{"id"}, TimeColumn: "created_at", Dates: []string{"rate_date"}},
+	{Name: "customers", PKs: []string{"id"}, TimeColumn: "updated_at"},
+	{Name: "products", PKs: []string{"id"}, TimeColumn: "updated_at", Bools: []string{"is_active"}},
+	{Name: "credit_cards", PKs: []string{"id"}, TimeColumn: "updated_at", Bools: []string{"is_active"}},
+	{Name: "purchase_orders", PKs: []string{"id"}, TimeColumn: "updated_at", Bools: []string{"faulty"}},
+	{Name: "purchase_order_items", PKs: []string{"id"}, TimeColumn: "created_at"},
+	{Name: "inventory_batches", PKs: []string{"id"}, TimeColumn: "updated_at", Bools: []string{"is_clearance"}},
+	{Name: "inventory_movements", PKs: []string{"id"}, TimeColumn: "created_at"},
+	{Name: "sales", PKs: []string{"id"}, TimeColumn: "updated_at"},
+	{Name: "sale_items", PKs: []string{"id"}, TimeColumn: "created_at"},
+	{Name: "customer_payments", PKs: []string{"id"}, TimeColumn: "updated_at"},
+	{Name: "customer_payment_allocations", PKs: []string{"id"}, TimeColumn: "created_at"},
+	{Name: "import_lots", PKs: []string{"id"}, TimeColumn: "updated_at"},
+	{Name: "import_lot_purchase_orders", PKs: []string{"import_lot_id", "purchase_order_id"}, TimeColumn: "added_at"},
 }
 
-// LookupTable returns the metadata for a replicated table name.
-func LookupTable(name string) *TableMeta {
-	for _, m := range SyncedTables {
-		if m.Name == name {
-			return m
-		}
-	}
-	return nil
+// SyncedTables returns the replicated tables in FK-safe order:
+// referenced tables before referencing ones.
+func SyncedTables() []TableMeta {
+	return syncedTables
 }
 
-// IsTimeCol reports whether col is one of the table's timestamp columns.
-func (m *TableMeta) IsTimeCol(col string) bool {
-	for _, c := range m.TimeColumns {
+func (m TableMeta) singlePK() bool {
+	return len(m.PKs) == 1
+}
+
+// IsBoolCol reports whether col holds a boolean that SQLite stores as
+// an integer.
+func (m TableMeta) IsBoolCol(col string) bool {
+	for _, c := range m.Bools {
 		if c == col {
 			return true
 		}
@@ -49,9 +56,9 @@ func (m *TableMeta) IsTimeCol(col string) bool {
 	return false
 }
 
-// IsDecimalCol reports whether col holds an exact-precision decimal.
-func (m *TableMeta) IsDecimalCol(col string) bool {
-	for _, c := range m.Decimals {
+// IsDateCol reports whether col holds a DATE value.
+func (m TableMeta) IsDateCol(col string) bool {
+	for _, c := range m.Dates {
 		if c == col {
 			return true
 		}
@@ -59,65 +66,30 @@ func (m *TableMeta) IsDecimalCol(col string) bool {
 	return false
 }
 
-// SinglePK reports whether the table is keyed by a single column.
-func (m *TableMeta) SinglePK() bool {
-	return len(m.PKColumns) == 1
-}
-
-// RecordID renders the primary-key values of a payload as the opaque
-// record id used on the wire and in sync_tombstones: the bare value for
-// single-column keys, a JSON array for composite keys.
-func (m *TableMeta) RecordID(payload map[string]any) (string, error) {
-	if m.SinglePK() {
-		v, ok := payload[m.PKColumns[0]]
+// PKOf renders the primary key of row as the opaque record id used in
+// sync_tombstones: the bare value for single-column keys, colon-joined
+// values for composite keys.
+func (m TableMeta) PKOf(row map[string]any) (string, error) {
+	vals := make([]string, 0, len(m.PKs))
+	for _, c := range m.PKs {
+		v, ok := row[c]
 		if !ok || v == nil {
-			return "", errf("record has no pk column %q", m.PKColumns[0])
+			return "", fmt.Errorf("sync: %s: row has no pk column %q", m.Name, c)
 		}
-		return scalarString(v), nil
-	}
-	vals := make([]string, 0, len(m.PKColumns))
-	for _, c := range m.PKColumns {
-		v, ok := payload[c]
-		if !ok || v == nil {
-			return "", errf("record has no pk column %q", c)
+		s, ok := v.(string)
+		if !ok {
+			return "", fmt.Errorf("sync: %s: pk column %q is %T, want string", m.Name, c, v)
 		}
-		vals = append(vals, scalarString(v))
+		vals = append(vals, s)
 	}
-	b, err := json.Marshal(vals)
-	if err != nil {
-		return "", errf("marshal record id: %w", err)
-	}
-	return string(b), nil
+	return strings.Join(vals, ":"), nil
 }
 
-// PKArgs turns an opaque record id into the primary-key values, in
-// PKColumns order, to bind in a WHERE clause.
-func (m *TableMeta) PKArgs(recordID string) ([]string, error) {
-	if m.SinglePK() {
-		return []string{recordID}, nil
+// PKArgs splits an opaque record id back into primary-key values in
+// PKs order.
+func (m TableMeta) PKArgs(id string) []string {
+	if m.singlePK() {
+		return []string{id}
 	}
-	var vals []string
-	if err := json.Unmarshal([]byte(recordID), &vals); err != nil {
-		return nil, errf("invalid composite record id %q: %w", recordID, err)
-	}
-	if len(vals) != len(m.PKColumns) {
-		return nil, errf("composite record id %q has %d values, expected %d", recordID, len(vals), len(m.PKColumns))
-	}
-	return vals, nil
-}
-
-func scalarString(v any) string {
-	switch s := v.(type) {
-	case string:
-		return s
-	default:
-		if b, err := json.Marshal(v); err == nil {
-			return string(b)
-		}
-		return ""
-	}
-}
-
-func errf(format string, args ...any) error {
-	return fmt.Errorf(format, args...)
+	return strings.SplitN(id, ":", len(m.PKs))
 }

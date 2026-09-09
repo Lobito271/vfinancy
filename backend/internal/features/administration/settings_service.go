@@ -6,369 +6,201 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/google/uuid"
-
-	derrors "vfinancy/backend/internal/domain/errors"
 	"vfinancy/backend/infrastructure/logger"
+	derrors "vfinancy/backend/internal/domain/errors"
 )
 
-type SettingsService struct {
-	settings   SettingRepository
-	currencies CurrencyRepository
-	taxes      TaxRepository
-	countries  CountryRepository
-	log        *logger.Logger
+const keyPrefix = "preferences."
+
+const (
+	keyClearanceDays        = keyPrefix + "clearance_days"
+	keyClearanceWarningDays = keyPrefix + "clearance_warning_days"
+	keyImportCostFactor     = keyPrefix + "import_cost_factor"
+	keyFallbackExchangeRate = keyPrefix + "fallback_exchange_rate"
+	keyCustomsLimitUSD      = keyPrefix + "customs_limit_usd"
+	keyBackupFolder         = keyPrefix + "backup_folder"
+	keyBackupFrequency      = keyPrefix + "backup_frequency"
+)
+
+// SystemPreferences is the typed view of the stored device preferences.
+type SystemPreferences struct {
+	ClearanceDays        int
+	ClearanceWarningDays int
+	ImportCostFactor     float64
+	FallbackExchangeRate float64
+	CustomsLimitUSD      float64
+	BackupFolder         string
+	BackupFrequency      string
 }
 
-func NewSettingsService(
-	settings SettingRepository,
-	currencies CurrencyRepository,
-	taxes TaxRepository,
-	countries CountryRepository,
-	log *logger.Logger,
-) *SettingsService {
+type SettingsService struct {
+	settings SettingRepository
+	log      *logger.Logger
+}
+
+// NewSettingsService builds the settings service over the setting
+// repository and the application logger.
+func NewSettingsService(settings SettingRepository, log *logger.Logger) *SettingsService {
 	if settings == nil {
 		panic("administration: nil settings repository")
-	}
-	if currencies == nil {
-		panic("administration: nil currencies repository")
-	}
-	if taxes == nil {
-		panic("administration: nil taxes repository")
-	}
-	if countries == nil {
-		panic("administration: nil countries repository")
 	}
 	if log == nil {
 		panic("administration: nil logger")
 	}
-	return &SettingsService{
-		settings:   settings,
-		currencies: currencies,
-		taxes:      taxes,
-		countries:  countries,
-		log:        log,
-	}
+	return &SettingsService{settings: settings, log: log}
 }
 
-type BusinessInfo struct {
-	Name      string
-	TradeName string
-	TaxID     string
-	Address   string
-	Phone     string
-	Email     string
-	Logo      string
-}
-
-type SystemPreferences struct {
-	DefaultCurrency      string
-	DefaultTaxCode       string
-	ExpiryAlertDays      int
-	DefaultCountry       string
-	DateFormat           string
-	NumberFormat         string
-	DecimalPlaces        int
-	Language             string
-	Theme                string
-	Timezone             string
-	FiscalYearStart      int
-	BackupFolder         string
-	ExportFolder         string
-	BackupFrequency      string
-	ClearanceDays          int
-	ClearanceWarningDays   int
-	ClearanceDaysThreshold int
-	ImportCostFactor       float64
-	FallbackExchangeRate   float64
-	CustomsLimitUSD        float64
-	SaleNumberPrefix       string
-	PurchaseNumberPrefix   string
-}
-
-func (s *SettingsService) GetBusinessInfo(ctx context.Context, companyID uuid.UUID) (*BusinessInfo, error) {
-	if companyID == uuid.Nil {
-		return nil, derrors.New("REQUIRED", "company id is required")
-	}
-
-	info := &BusinessInfo{}
-
-	settings, err := s.settings.ListByCategory(ctx, companyID, "business")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get business settings: %w", err)
-	}
-
-	for _, setting := range settings {
-		switch setting.Key {
-		case "business.name":
-			info.Name = setting.StringValue()
-		case "business.trade_name":
-			info.TradeName = setting.StringValue()
-		case "business.tax_id":
-			info.TaxID = setting.StringValue()
-		case "business.address":
-			info.Address = setting.StringValue()
-		case "business.phone":
-			info.Phone = setting.StringValue()
-		case "business.email":
-			info.Email = setting.StringValue()
-		case "business.logo":
-			info.Logo = setting.StringValue()
-		}
-	}
-
-	return info, nil
-}
-
-func (s *SettingsService) UpdateBusinessInfo(ctx context.Context, companyID uuid.UUID, info *BusinessInfo, updatedBy uuid.UUID) error {
-	if companyID == uuid.Nil {
-		return derrors.New("REQUIRED", "company id is required")
-	}
-	if info == nil {
-		return derrors.New("REQUIRED", "business info is required")
-	}
-
-	updates := map[string]string{
-		"business.name":       info.Name,
-		"business.trade_name": info.TradeName,
-		"business.tax_id":     info.TaxID,
-		"business.address":    info.Address,
-		"business.phone":      info.Phone,
-		"business.email":      info.Email,
-		"business.logo":       info.Logo,
-	}
-
-	for key, value := range updates {
-		jsonValue, err := json.Marshal(value)
-		if err != nil {
-			return fmt.Errorf("failed to marshal value: %w", err)
-		}
-
-		setting, err := s.settings.GetByKey(ctx, companyID, key)
-		if err != nil {
-			setting, err = NewApplicationSetting(
-				companyID,
-				key,
-				"business",
-				key,
-				"",
-				jsonValue,
-				false,
-			)
-			if err != nil {
-				return fmt.Errorf("failed to create setting: %w", err)
-			}
-		} else {
-			setting.Update(jsonValue, updatedBy)
-		}
-
-		if err := s.settings.Upsert(ctx, setting); err != nil {
-			return fmt.Errorf("failed to upsert setting %s: %w", key, err)
-		}
-	}
-
-	s.log.InfoContext(ctx, "business info updated", "company_id", companyID, "updated_by", updatedBy)
-	return nil
-}
-
-func (s *SettingsService) GetPreferences(ctx context.Context, companyID uuid.UUID) (*SystemPreferences, error) {
-	if companyID == uuid.Nil {
-		return nil, derrors.New("REQUIRED", "company id is required")
-	}
-
+// GetPreferences returns the stored preferences layered over their defaults.
+func (s *SettingsService) GetPreferences(ctx context.Context) (*SystemPreferences, error) {
 	prefs := &SystemPreferences{
-		DefaultCurrency:      "PEN",
-		DefaultTaxCode:       "IGV",
-		ExpiryAlertDays:      30,
-		DefaultCountry:       "PE",
-		DateFormat:           "DD/MM/YYYY",
-		NumberFormat:         "es-PE",
-		DecimalPlaces:        2,
-		Language:             "es-PE",
-		Theme:                "system",
-		Timezone:             "America/Lima",
-		FiscalYearStart:      1,
-		BackupFrequency:        "daily",
-		ClearanceDays:          25,
-		ClearanceWarningDays:   3,
-		ClearanceDaysThreshold: 25,
-		ImportCostFactor:       0.07,
-		FallbackExchangeRate:   3.75,
-		CustomsLimitUSD:        220,
-		SaleNumberPrefix:       "V",
-		PurchaseNumberPrefix:   "PO",
+		ClearanceDays:        25,
+		ClearanceWarningDays: 3,
+		ImportCostFactor:     0.07,
+		FallbackExchangeRate: 3.75,
+		CustomsLimitUSD:      220,
+		BackupFrequency:      "off",
 	}
-
-	settings, err := s.settings.ListByCompany(ctx, companyID)
+	settings, err := s.settings.List(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get preferences: %w", err)
+		return nil, err
 	}
-
 	for _, setting := range settings {
 		switch setting.Key {
-		case "preferences.default_currency", "defaults.currency":
-			prefs.DefaultCurrency = setting.StringValue()
-		case "preferences.default_tax_code", "defaults.tax_code":
-			prefs.DefaultTaxCode = setting.StringValue()
-		case "preferences.expiry_alert_days", "defaults.expiry_alert_days":
-			prefs.ExpiryAlertDays = setting.IntValue()
-		case "preferences.default_country", "defaults.country":
-			prefs.DefaultCountry = setting.StringValue()
-		case "preferences.date_format", "format.date":
-			prefs.DateFormat = setting.StringValue()
-		case "preferences.number_format", "format.number":
-			prefs.NumberFormat = setting.StringValue()
-		case "preferences.decimal_places", "format.decimals":
-			prefs.DecimalPlaces = setting.IntValue()
-		case "preferences.language", "system.language":
-			prefs.Language = setting.StringValue()
-		case "preferences.theme", "system.theme":
-			prefs.Theme = setting.StringValue()
-		case "preferences.timezone", "system.timezone":
-			prefs.Timezone = setting.StringValue()
-		case "preferences.fiscal_year_start", "system.fiscal_year_start":
-			prefs.FiscalYearStart = setting.IntValue()
-		case "preferences.backup_folder", "backup.folder":
-			prefs.BackupFolder = setting.StringValue()
-		case "preferences.export_folder", "backup.export_folder":
-			prefs.ExportFolder = setting.StringValue()
-		case "preferences.backup_frequency", "backup.auto_frequency":
-			prefs.BackupFrequency = setting.StringValue()
-		case "preferences.clearance_days":
+		case keyClearanceDays:
 			prefs.ClearanceDays = setting.IntValue()
-		case "preferences.clearance_warning_days":
+		case keyClearanceWarningDays:
 			prefs.ClearanceWarningDays = setting.IntValue()
-		case "preferences.clearance_days_threshold":
-			prefs.ClearanceDaysThreshold = setting.IntValue()
-		case "preferences.import_cost_factor":
+		case keyImportCostFactor:
 			prefs.ImportCostFactor = setting.Float64Value()
-		case "preferences.fallback_exchange_rate":
+		case keyFallbackExchangeRate:
 			prefs.FallbackExchangeRate = setting.Float64Value()
-		case "preferences.customs_limit_usd":
+		case keyCustomsLimitUSD:
 			prefs.CustomsLimitUSD = setting.Float64Value()
-		case "preferences.sale_number_prefix":
-			prefs.SaleNumberPrefix = setting.StringValue()
-		case "preferences.purchase_number_prefix":
-			prefs.PurchaseNumberPrefix = setting.StringValue()
+		case keyBackupFolder:
+			prefs.BackupFolder = setting.StringValue()
+		case keyBackupFrequency:
+			prefs.BackupFrequency = setting.StringValue()
 		}
 	}
-
 	return prefs, nil
 }
 
-func (s *SettingsService) UpdatePreference(ctx context.Context, companyID uuid.UUID, key string, value interface{}, updatedBy uuid.UUID) error {
-	if companyID == uuid.Nil {
-		return derrors.New("REQUIRED", "company id is required")
-	}
-	if key == "" {
-		return derrors.New("REQUIRED", "key is required")
+// UpdatePreference validates and stores one preference value. The key
+// is the bare preference name; unknown keys are rejected.
+func (s *SettingsService) UpdatePreference(ctx context.Context, key string, value interface{}) error {
+	fullKey := keyPrefix + key
+	switch fullKey {
+	case keyClearanceDays:
+		n, ok := coerceInt(value)
+		if !ok || n < 1 || n > 365 {
+			return derrors.New("INVALID", "clearance days must be between 1 and 365")
+		}
+		value = n
+	case keyClearanceWarningDays:
+		n, ok := coerceInt(value)
+		if !ok || n < 1 {
+			return derrors.New("INVALID", "clearance warning days must be at least 1")
+		}
+		value = n
+	case keyImportCostFactor:
+		f, ok := coerceFloat(value)
+		if !ok {
+			return derrors.New("INVALID", "import cost factor must be a decimal number")
+		}
+		value = f
+	case keyFallbackExchangeRate:
+		f, ok := coerceFloat(value)
+		if !ok || f < 0.01 || f > 100 {
+			return derrors.New("INVALID", "fallback exchange rate must be between 0.01 and 100")
+		}
+		value = f
+	case keyCustomsLimitUSD:
+		f, ok := coerceFloat(value)
+		if !ok || f < 0 || f > 1_000_000 {
+			return derrors.New("INVALID", "customs limit must be between 0 and 1000000")
+		}
+		value = f
+	case keyBackupFolder:
+		str, ok := coerceString(value)
+		if !ok {
+			return derrors.New("INVALID", "backup folder must be a string")
+		}
+		value = str
+	case keyBackupFrequency:
+		str, ok := coerceString(value)
+		if !ok || !allowedBackupFrequency(str) {
+			return derrors.New("INVALID", "backup frequency must be one of: off, on_close, daily, weekly")
+		}
+		value = str
+	default:
+		return derrors.New("INVALID", "unknown preference: "+key)
 	}
 
-	if raw, ok := value.(string); ok {
-		switch key {
-		case "clearance_days", "clearance_warning_days", "clearance_days_threshold", "decimal_places", "fiscal_year_start", "expiry_alert_days":
-			n, err := strconv.Atoi(raw)
-			if err != nil {
-				return derrors.New("INVALID", "preference must be an integer")
-			}
-			value = n
-		case "import_cost_factor", "fallback_exchange_rate", "customs_limit_usd":
-			f, err := strconv.ParseFloat(raw, 64)
-			if err != nil {
-				return derrors.New("INVALID", "preference must be a decimal number")
-			}
-			value = f
-		}
-	}
 	jsonValue, err := json.Marshal(value)
 	if err != nil {
-		return fmt.Errorf("failed to marshal value: %w", err)
+		return fmt.Errorf("administration: marshaling preference value: %w", err)
 	}
-
-	fullKey := "preferences." + key
-
-	setting, err := s.settings.GetByKey(ctx, companyID, fullKey)
-	if err != nil {
-		setting, err = NewApplicationSetting(
-			companyID,
-			fullKey,
-			"preferences",
-			fullKey,
-			"",
-			jsonValue,
-			false,
-		)
-		if err != nil {
-			return fmt.Errorf("failed to create setting: %w", err)
-		}
-	} else {
-		setting.Update(jsonValue, updatedBy)
+	if err := s.settings.Upsert(ctx, NewApplicationSetting(fullKey, jsonValue)); err != nil {
+		return err
 	}
-
-	if err := s.settings.Upsert(ctx, setting); err != nil {
-		return fmt.Errorf("failed to upsert setting: %w", err)
-	}
-
-	s.log.InfoContext(ctx, "preference updated", "company_id", companyID, "key", key, "updated_by", updatedBy)
+	s.log.InfoContext(ctx, "preference updated", "key", fullKey)
 	return nil
 }
 
-func (s *SettingsService) GetDefaultCurrency(ctx context.Context, companyID uuid.UUID) (string, error) {
-	if companyID == uuid.Nil {
-		return "", derrors.New("REQUIRED", "company id is required")
-	}
-
-	setting, err := s.settings.GetByKey(ctx, companyID, "preferences.default_currency")
+// GetAllSettings returns every stored setting keyed by its full key.
+func (s *SettingsService) GetAllSettings(ctx context.Context) (map[string]json.RawMessage, error) {
+	settings, err := s.settings.List(ctx)
 	if err != nil {
-		return "PEN", nil
+		return nil, err
 	}
-
-	currency := setting.StringValue()
-	if currency == "" {
-		return "PEN", nil
-	}
-
-	return currency, nil
-}
-
-func (s *SettingsService) GetTaxConfiguration(ctx context.Context, companyID *uuid.UUID) ([]*Tax, error) {
-	taxes, err := s.taxes.List(ctx, companyID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list taxes: %w", err)
-	}
-	return taxes, nil
-}
-
-func (s *SettingsService) GetCurrencies(ctx context.Context) ([]*Currency, error) {
-	currencies, err := s.currencies.List(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list currencies: %w", err)
-	}
-	return currencies, nil
-}
-
-func (s *SettingsService) GetCountries(ctx context.Context) ([]*Country, error) {
-	countries, err := s.countries.List(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list countries: %w", err)
-	}
-	return countries, nil
-}
-
-func (s *SettingsService) GetAllSettings(ctx context.Context, companyID uuid.UUID) (map[string]json.RawMessage, error) {
-	if companyID == uuid.Nil {
-		return nil, derrors.New("REQUIRED", "company id is required")
-	}
-
-	settings, err := s.settings.ListByCompany(ctx, companyID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list settings: %w", err)
-	}
-
 	result := make(map[string]json.RawMessage, len(settings))
 	for _, setting := range settings {
 		result[setting.Key] = setting.Value
 	}
-
 	return result, nil
+}
+
+// allowedBackupFrequency reports whether v is a supported backup schedule.
+func allowedBackupFrequency(v string) bool {
+	switch v {
+	case "off", "on_close", "daily", "weekly":
+		return true
+	}
+	return false
+}
+
+// coerceInt converts a string, int, or whole float to an int.
+func coerceInt(value interface{}) (int, bool) {
+	switch v := value.(type) {
+	case int:
+		return v, true
+	case float64:
+		return int(v), float64(int(v)) == v
+	case string:
+		n, err := strconv.Atoi(v)
+		return n, err == nil
+	default:
+		return 0, false
+	}
+}
+
+// coerceFloat converts a string, int, or float to a float64.
+func coerceFloat(value interface{}) (float64, bool) {
+	switch v := value.(type) {
+	case int:
+		return float64(v), true
+	case float64:
+		return v, true
+	case string:
+		f, err := strconv.ParseFloat(v, 64)
+		return f, err == nil
+	default:
+		return 0, false
+	}
+}
+
+// coerceString extracts a string value.
+func coerceString(value interface{}) (string, bool) {
+	v, ok := value.(string)
+	return v, ok
 }

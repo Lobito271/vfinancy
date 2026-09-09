@@ -1,9 +1,7 @@
 // Package purchasing implements the business logic for the purchase
-// workflow: creation, approval, receipt, payment, AP management.
-//
-// Approval and receipt run inside the service and inject the received
-// goods into inventory as batches. Purchases do not yet generate
-// accounting journal entries.
+// workflow: order creation (with automatic card charge), receipt into
+// inventory, cancellation with card-charge release and cycle-settled
+// refunds, and customs import lots.
 package purchasing
 
 import (
@@ -13,32 +11,73 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
+	"vfinancy/backend/infrastructure/logger"
 	"vfinancy/backend/internal/domain/enums"
 	derrors "vfinancy/backend/internal/domain/errors"
 	"vfinancy/backend/internal/domain/repositories"
 	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/features/inventory"
-	"vfinancy/backend/infrastructure/logger"
+	"vfinancy/backend/internal/features/product"
+	"vfinancy/backend/internal/shared/apperrors"
 )
 
-// StockLedger is the narrow inventory contract consumed by the purchase
-// slice. It is satisfied by *inventory.InventoryService and lets the
-// purchasing service inject batch stock on receipt and deduct it on
-// cancel without depending on the full inventory surface.
-type StockLedger interface {
+// defaultImportFactor is the additive USD surcharge (customs, freight,
+// logistics) applied to every order when no provider is configured.
+const defaultImportFactor = 0.07
+
+// defaultCustomsLimitUSD is the simplified customs limit per import
+// lot when no provider is configured.
+const defaultCustomsLimitUSD = 220
+
+// cardCharger is the narrow treasury contract consumed by the purchase
+// slice. It is satisfied by *treasury.TreasuryService.
+type cardCharger interface {
+	ChargeCard(ctx context.Context, cardID uuid.UUID, amount valueobjects.Money) error
+	ReleaseCardCharge(ctx context.Context, cardID uuid.UUID, amount valueobjects.Money) error
+	CurrentCycleStart(ctx context.Context, cardID uuid.UUID) (time.Time, error)
+}
+
+// productCreator creates (or finds) products from a line description.
+type productCreator interface {
+	GetOrCreate(ctx context.Context, in product.CreateInput) (*product.Product, error)
+}
+
+// productGetter loads an existing product by id.
+type productGetter interface {
+	GetByID(ctx context.Context, id uuid.UUID) (*product.Product, error)
+}
+
+// stockReceiver is the narrow inventory contract consumed by the
+// purchase slice. It is satisfied by *inventory.InventoryService.
+type stockReceiver interface {
 	ReceiveFromPurchase(ctx context.Context, in inventory.ReceiveFromPurchaseInput) (*inventory.InventoryBatch, error)
-	VoidPurchaseReceipt(ctx context.Context, companyID uuid.UUID, purchaseLineIDs []uuid.UUID) error
+	VoidPurchaseReceipt(ctx context.Context, purchaseLineIDs []uuid.UUID) error
 }
 
 // PurchasingService owns the purchase slice.
 type PurchasingService struct {
 	orders       PurchaseRepository
-	payments     SupplierPaymentRepository
 	lots         ImportLotRepository
-	stock        StockLedger
+	stock        stockReceiver
+	products     productCreator
+	productByID  productGetter
+	cards        cardCharger
 	txm          repositories.TransactionManager
 	log          *logger.Logger
-	importFactor func(ctx context.Context, companyID uuid.UUID) float64
+	importFactor func(context.Context) float64
+	customsLimit func(context.Context) float64
+}
+
+// New returns a PurchasingService ready for use. The inventory
+// service is taken through the narrow stockReceiver interface;
+// *inventory.InventoryService satisfies it.
+func New(repo PurchaseRepository, inventorySvc stockReceiver, txm repositories.TransactionManager, log *logger.Logger) *PurchasingService {
+	return &PurchasingService{
+		orders: repo,
+		stock:  inventorySvc,
+		txm:    txm,
+		log:    log,
+	}
 }
 
 // SetImportLots injects the import-lot repository used for customs
@@ -47,273 +86,212 @@ func (s *PurchasingService) SetImportLots(lots ImportLotRepository) {
 	s.lots = lots
 }
 
-// New returns a PurchasingService ready for use.
-func New(
-	orders PurchaseRepository,
-	payments SupplierPaymentRepository,
-	stock StockLedger,
-	txm repositories.TransactionManager,
-	log *logger.Logger,
-) *PurchasingService {
-	return &PurchasingService{
-		orders:   orders,
-		payments: payments,
-		stock:    stock,
-		txm:      txm,
-		log:      log,
-	}
+// SetProducts injects the product service used to auto-create products
+// from line descriptions and to resolve existing ones.
+func (s *PurchasingService) SetProducts(creator productCreator, getter productGetter) {
+	s.products = creator
+	s.productByID = getter
 }
 
-// SetImportFactor injects a provider for the per-dollar import
-// surcharge (customs, freight, logistics). When unset, the package
-// default importSurcharge is used.
-func (s *PurchasingService) SetImportFactor(fn func(ctx context.Context, companyID uuid.UUID) float64) {
+// SetTreasury injects the treasury service used to charge and release
+// credit-card charges.
+func (s *PurchasingService) SetTreasury(cards cardCharger) {
+	s.cards = cards
+}
+
+// SetImportFactor injects a provider for the additive USD factor
+// (customs, freight, logistics) per order. When unset, the package
+// default importFactor is used.
+func (s *PurchasingService) SetImportFactor(fn func(context.Context) float64) {
 	s.importFactor = fn
 }
 
-// importSurcharge is the fixed per-dollar overhead (customs, freight,
-// logistics) added to the official exchange rate when computing the
-// real landed cost of an import in PEN.
-const importSurcharge = 0.07
-
-// RealCostPEN computes the landed cost in PEN for an order bought in
-// USD: cost_usd * (exchange_rate + importSurcharge).
-func RealCostPEN(costUSD valueobjects.Money, rate valueobjects.ExchangeRate) valueobjects.Money {
-	m, _ := valueobjects.MoneyFromDecimal(
-		costUSD.Decimal().Mul(rate.Decimal().Add(decimal.NewFromFloat(importSurcharge))),
-	)
-	return m
+// SetCustomsLimit injects a provider for the customs limit in USD per
+// import lot. When unset, the package default customs limit is used.
+func (s *PurchasingService) SetCustomsLimit(fn func(context.Context) float64) {
+	s.customsLimit = fn
 }
 
-// realCostPEN computes the landed cost using the injected import
-// factor, falling back to the package default when no provider is set.
-func (s *PurchasingService) realCostPEN(ctx context.Context, companyID uuid.UUID, costUSD valueobjects.Money, rate valueobjects.ExchangeRate) valueobjects.Money {
-	factor := importSurcharge
+// factor returns the active import factor.
+func (s *PurchasingService) factor(ctx context.Context) float64 {
 	if s.importFactor != nil {
-		if f := s.importFactor(ctx, companyID); f > 0 {
-			factor = f
+		if f := s.importFactor(ctx); f > 0 {
+			return f
 		}
 	}
+	return defaultImportFactor
+}
+
+// limitUSD returns the active customs limit.
+func (s *PurchasingService) limitUSD(ctx context.Context) float64 {
+	if s.customsLimit != nil {
+		if l := s.customsLimit(ctx); l > 0 {
+			return l
+		}
+	}
+	return defaultCustomsLimitUSD
+}
+
+// realCostPEN computes the landed cost in PEN for an order bought in
+// USD: (cost_usd + factor) * exchange_rate.
+func (s *PurchasingService) realCostPEN(ctx context.Context, costUSD valueobjects.Money, rate valueobjects.ExchangeRate) valueobjects.Money {
 	m, _ := valueobjects.MoneyFromDecimal(
-		costUSD.Decimal().Mul(rate.Decimal().Add(decimal.NewFromFloat(factor))),
+		costUSD.Decimal().Add(decimal.NewFromFloat(s.factor(ctx))).Mul(rate.Decimal()),
 	)
 	return m
 }
 
-// ProjectedProfitPEN is the expected profit for a customer order:
-// sale_price_pen - real_cost_pen.
-func ProjectedProfitPEN(salePricePEN, realCostPEN valueobjects.Money) valueobjects.Money {
-	return salePricePEN.Sub(realCostPEN)
-}
-
-// CreateInput is the payload for CreatePurchaseOrder. CurrencyCode is
-// the transactional currency (often USD for international suppliers).
-// CostUSD is the order cost in dollars and SalePricePEN the expected
-// PEN sale price; both are used for the landed-cost / profit math on
-// customer orders.
-type CreateInput struct {
-	CompanyID           uuid.UUID
-	BranchID            *uuid.UUID
-	Number              string
-	SupplierID          uuid.UUID
-	CustomerID          *uuid.UUID
-	CreditCardID        *uuid.UUID
-	OrderType           enums.OrderType
-	CurrencyCode        valueobjects.CurrencyCode
-	ExchangeRate        valueobjects.ExchangeRate
-	OrderDate           valueobjects.Date
-	ExpectedDate        *valueobjects.Date
-	ArrivalDate         *valueobjects.Date
-	SupplierOrderNumber string
-	CostUSD             valueobjects.Money
-	SalePricePEN        valueobjects.Money
-	Anticipo            valueobjects.Money
-	AnticipoDate        *valueobjects.Date
-	Notes               string
-	Items               []CreateItemInput
-}
-
-// CreateItemInput is one line of the order.
+// CreateItemInput is one line of a new purchase order. When ProductID
+// is nil the product is auto-created from the description.
 type CreateItemInput struct {
-	ProductID       uuid.UUID
-	Quantity        valueobjects.Quantity
-	UnitPrice       valueobjects.Money
-	DiscountPercent valueobjects.Percentage
-	DiscountAmount  valueobjects.Money
-	TaxRate         valueobjects.Percentage
-	TaxAmount       valueobjects.Money
-	Description     string
+	ProductID    *uuid.UUID
+	Description  string
+	Quantity     valueobjects.Quantity
+	UnitCostUSD  valueobjects.Money
+	SalePricePen valueobjects.Money
 }
 
-// receiveStock injects the received goods as inventory batches. It is
-// idempotent per line (a line whose batch already exists is skipped),
-// so it can be called safely from Create, Approve and MarkAsReceived.
-// The lot is the purchase number and the arrival date is the receipt
-// date (falling back to the order date).
-func (s *PurchasingService) receiveStock(ctx context.Context, po *PurchaseOrder) error {
-	if s.stock == nil || len(po.Items) == 0 {
-		return nil
-	}
-	arrival := po.OrderDate
-	if po.ReceivedDate != nil {
-		arrival = *po.ReceivedDate
-	}
-	for _, li := range po.Items {
-		_, err := s.stock.ReceiveFromPurchase(ctx, inventory.ReceiveFromPurchaseInput{
-			CompanyID:      po.CompanyID,
-			SupplierID:     &po.SupplierID,
-			ProductID:      li.ProductID,
-			PurchaseLineID: li.ID,
-			LotNumber:      valueobjects.LotNumber(po.Number),
-			ArrivalDate:    arrival,
-			Quantity:       li.Quantity,
-			UnitCost:       li.UnitCostNet(),
-			CurrencyCode:   po.CurrencyCode,
-		})
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+// CreateInput is the payload for Create. Every order is recorded in
+// USD and paid with the given credit card.
+type CreateInput struct {
+	OrderType    enums.OrderType
+	CustomerID   *uuid.UUID
+	CreditCardID *uuid.UUID
+	ExchangeRate valueobjects.ExchangeRate
+	OrderDate    time.Time
+	ExpectedDate *time.Time
+	Notes        string
+	Items        []CreateItemInput
 }
 
-// paySupplierWithCard pays the full order total with the credit card
-// recorded on the purchase order. It persists the supplier payment, its
-// allocation to the order, and advances the order's paid amount — all
-// in the caller's transaction.
-func (s *PurchasingService) paySupplierWithCard(ctx context.Context, po *PurchaseOrder) error {
-	number, err := s.payments.GetNextNumber(ctx, po.CompanyID)
-	if err != nil {
-		return err
-	}
-	amount := po.CalculateTotal()
-	if !amount.IsPositive() {
-		return nil
-	}
-	sp, err := NewSupplierPayment(time.Now().UTC(), NewSupplierPaymentOptions{
-		CompanyID:    po.CompanyID,
-		SupplierID:   po.SupplierID,
-		Number:       number,
-		PaymentDate:  po.OrderDate,
-		Amount:       amount,
-		CurrencyCode: po.CurrencyCode,
-		ExchangeRate: po.ExchangeRate,
-		Method:       enums.PaymentMethodCard,
-		CreditCardID: po.CreditCardID,
-		Reference:    "Pago automático con tarjeta",
-		Notes:        "Pago automático del pedido " + po.Number,
-	})
-	if err != nil {
-		return err
-	}
-	if err := sp.ApplyToPurchase(po.ID, amount); err != nil {
-		return err
-	}
-	if err := s.payments.Create(ctx, sp); err != nil {
-		return err
-	}
-	_, err = po.ApplyPayment(amount)
-	return err
-}
-
-// CreatePurchaseOrder validates the input, builds the purchase order
-// aggregate, and persists it. The order starts in "pending" status and
-// the supplier is paid in full with the credit card in the same
-// transaction (no receivables or inventory movements are created here).
-// Customer orders also record the initial anticipo (down payment) as
-// the first row of the customer-payment ledger.
+// Create validates the input, resolves the line products, and persists
+// the order with its items — all in one transaction. CostUSD is the sum
+// of the line totals, RealCostPen is (CostUSD + import factor) * rate,
+// and the full order cost is charged to the credit card.
 func (s *PurchasingService) Create(ctx context.Context, in CreateInput) (*PurchaseOrder, error) {
 	if len(in.Items) == 0 {
-		return nil, derrors.New("EMPTY_DOCUMENT", "purchase order must have at least one line")
+		return nil, apperrors.Errorf(apperrors.ErrValidation, "purchase order must have at least one item")
+	}
+	if in.CreditCardID == nil || *in.CreditCardID == uuid.Nil {
+		return nil, apperrors.Errorf(apperrors.ErrValidation, "credit card is required")
 	}
 	orderType := in.OrderType
 	if orderType == "" {
 		orderType = enums.OrderTypeGeneral
 	}
-	realCost := s.realCostPEN(ctx, in.CompanyID, in.CostUSD, in.ExchangeRate)
-	profit := ProjectedProfitPEN(in.SalePricePEN, realCost)
+	if !orderType.Valid() {
+		return nil, apperrors.Errorf(apperrors.ErrValidation, "order type is invalid")
+	}
+	if orderType == enums.OrderTypeCustomer && in.CustomerID == nil {
+		return nil, apperrors.Errorf(apperrors.ErrValidation, "customer is required for customer orders")
+	}
+	if in.CustomerID != nil && *in.CustomerID == uuid.Nil {
+		return nil, apperrors.Errorf(apperrors.ErrValidation, "customer id is invalid")
+	}
+	if !in.ExchangeRate.Decimal().IsPositive() {
+		return nil, apperrors.Errorf(apperrors.ErrValidation, "exchange rate must be positive")
+	}
+	for _, it := range in.Items {
+		if !it.Quantity.IsPositive() {
+			return nil, apperrors.Errorf(apperrors.ErrValidation, "quantity must be greater than zero")
+		}
+		if it.UnitCostUSD.IsNegative() {
+			return nil, apperrors.Errorf(apperrors.ErrValidation, "unit cost cannot be negative")
+		}
+		if it.ProductID == nil && it.Description == "" {
+			return nil, apperrors.Errorf(apperrors.ErrValidation, "description is required for new products")
+		}
+	}
+	if s.cards == nil {
+		return nil, derrors.New("INTERNAL", "treasury is not configured")
+	}
+	orderDate := in.OrderDate
+	if orderDate.IsZero() {
+		orderDate = time.Now().UTC()
+	}
+
 	var out *PurchaseOrder
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
-		number := in.Number
-		if number == "" {
-			n, err := s.orders.GetNextNumber(ctx, in.CompanyID)
+		items := make([]*PurchaseOrderItem, 0, len(in.Items))
+		costUSD := valueobjects.Zero()
+		salePen := valueobjects.Zero()
+		for i, it := range in.Items {
+			productID := it.ProductID
+			description := it.Description
+			if productID == nil {
+				if s.products == nil {
+					return derrors.New("INTERNAL", "products are not configured")
+				}
+				prod, err := s.products.GetOrCreate(ctx, product.CreateInput{
+					Description: it.Description,
+					CostUSD:     it.UnitCostUSD,
+					SalePrice:   it.SalePricePen,
+				})
+				if err != nil {
+					return err
+				}
+				id := prod.ID
+				productID = &id
+			} else if description == "" {
+				if s.productByID == nil {
+					return derrors.New("INTERNAL", "products are not configured")
+				}
+				prod, err := s.productByID.GetByID(ctx, *productID)
+				if err != nil {
+					return err
+				}
+				description = prod.Description
+			}
+			li, err := NewPurchaseOrderItem(PurchaseOrderItemOptions{
+				LineNumber:   i + 1,
+				ProductID:    productID,
+				Description:  description,
+				Quantity:     it.Quantity,
+				UnitCostUSD:  it.UnitCostUSD,
+				SalePricePen: it.SalePricePen,
+			})
 			if err != nil {
 				return err
 			}
-			number = n
+			costUSD = costUSD.Add(li.LineTotalUSD)
+			salePen = salePen.Add(li.SalePricePen)
+			items = append(items, li)
 		}
-		opts := NewPurchaseOrderOptions{
-			CompanyID:           in.CompanyID,
-			BranchID:            in.BranchID,
-			Number:              number,
-			SupplierID:          in.SupplierID,
-			CurrencyCode:        in.CurrencyCode,
-			ExchangeRate:        in.ExchangeRate,
-			OrderDate:           in.OrderDate,
-			ExpectedDate:        in.ExpectedDate,
-			ArrivalDate:         in.ArrivalDate,
-			Notes:               in.Notes,
-			OrderType:           orderType,
-			CustomerID:          in.CustomerID,
-			CreditCardID:        in.CreditCardID,
-			SupplierOrderNumber: in.SupplierOrderNumber,
-			CostUSD:             in.CostUSD,
-			SalePricePEN:       in.SalePricePEN,
-			RealCostPEN:        realCost,
-			ProjectedProfitPEN: profit,
-			Anticipo:           in.Anticipo,
-			AnticipoDate:       in.AnticipoDate,
-		}
-		po, err := NewPurchaseOrder(time.Now().UTC(), opts)
+		number, err := s.orders.NextNumber(ctx)
 		if err != nil {
 			return err
 		}
-		for _, it := range in.Items {
-			line, err := NewPurchaseOrderItem(NewPurchaseOrderItemOptions{
-				ProductID:       it.ProductID,
-				Quantity:        it.Quantity,
-				UnitPrice:       it.UnitPrice,
-				DiscountPercent: it.DiscountPercent,
-				DiscountAmount:  it.DiscountAmount,
-				TaxRate:         it.TaxRate,
-				TaxAmount:       it.TaxAmount,
-				Description:     it.Description,
-			})
-			if err != nil {
-				return err
-			}
-			if err := po.AddItem(line); err != nil {
-				return err
-			}
+		now := time.Now().UTC()
+		po := &PurchaseOrder{
+			ID:           uuid.New(),
+			Number:       number,
+			OrderDate:    orderDate,
+			ExpectedDate: in.ExpectedDate,
+			Status:       enums.PurchaseStatusPending,
+			CurrencyCode: USD,
+			ExchangeRate: in.ExchangeRate,
+			Notes:        in.Notes,
+			OrderType:    orderType,
+			CustomerID:   in.CustomerID,
+			CreditCardID: in.CreditCardID,
+			CostUSD:      costUSD,
+			SalePricePen: salePen,
+			RealCostPen:  s.realCostPEN(ctx, costUSD, in.ExchangeRate),
+			Items:        items,
+			CreatedAt:    now,
+			UpdatedAt:    now,
 		}
-		if po.Anticipo.IsPositive() && po.CustomerID != nil {
-			number, err := s.orders.GetNextCustomerPaymentNumber(ctx, po.CompanyID)
-			if err != nil {
-				return err
-			}
-			pm, err := NewCustomerOrderPayment(time.Now().UTC(), NewCustomerOrderPaymentOptions{
-				CompanyID:       po.CompanyID,
-				PurchaseOrderID: po.ID,
-				CustomerID:      *po.CustomerID,
-				Number:          number,
-				PaymentDate:     *po.AnticipoDate,
-				Amount:          po.Anticipo,
-				Method:          enums.PaymentMethodCash,
-				CurrencyCode:    valueobjects.PEN,
-				ExchangeRate:    valueobjects.One(),
-				Reference:       "Anticipo inicial",
-				Notes:           "Anticipo inicial del pedido",
-			})
-			if err != nil {
-				return err
-			}
-			po.CustomerPayments = append(po.CustomerPayments, pm)
-		}
-		if err := s.orders.Create(ctx, po); err != nil {
+		po.ProjectedProfitPen = salePen.Sub(po.RealCostPen)
+		if err := po.Validate(); err != nil {
 			return err
 		}
-		if err := s.paySupplierWithCard(ctx, po); err != nil {
+		if err := s.orders.Create(ctx, po, items); err != nil {
 			return err
+		}
+		if po.CostUSD.IsPositive() {
+			if err := s.cards.ChargeCard(ctx, *in.CreditCardID, po.CostUSD); err != nil {
+				return err
+			}
 		}
 		out = po
 		return nil
@@ -324,62 +302,57 @@ func (s *PurchasingService) Create(ctx context.Context, in CreateInput) (*Purcha
 	s.log.Info("purchase order created",
 		"po_id", out.ID,
 		"number", out.Number,
-		"supplier_id", out.SupplierID,
-		"order_type", out.OrderType,
-		"total", out.CalculateTotal(),
+		"order_type", out.OrderType.String(),
+		"cost_usd", out.CostUSD.String(),
 	)
 	return out, nil
 }
 
-// Approve transitions a purchase order from "pending" to "received".
-// Approve can only be called once; a second call returns an error.
-// Received goods are injected into inventory as batches on the same
-// transaction.
-func (s *PurchasingService) Approve(ctx context.Context, id uuid.UUID) error {
-	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
-		po, err := s.orders.GetByID(ctx, id)
-		if err != nil {
-			return err
-		}
-		if po.Status == enums.PurchaseStatusReceived {
-			return derrors.New("ALREADY_RECEIVED", "purchase has already been received")
-		}
-		if po.Status == enums.PurchaseStatusReconciled {
-			return derrors.New("ALREADY_RECONCILED", "purchase is already reconciled")
-		}
-		if err := po.Approve(); err != nil {
-			return err
-		}
-		if err := s.orders.Update(ctx, po); err != nil {
-			return err
-		}
-		return s.receiveStock(ctx, po)
-	})
-	if err != nil {
-		return err
-	}
-	s.log.Info("purchase approved", "po_id", id)
-	return nil
-}
-
-// MarkAsReceived sets the receipt date (and the arrival date used for
-// the inventory aging rule). Called by the warehouse module once the
-// goods are physically received; this is what injects the goods into
-// inventory as batches.
+// MarkAsReceived transitions a pending order to received, records the
+// receipt date, and injects the ordered quantities into inventory as
+// batches at the PEN landed unit cost.
 func (s *PurchasingService) MarkAsReceived(ctx context.Context, id uuid.UUID, at valueobjects.Date) error {
+	if at.IsZero() {
+		return apperrors.Errorf(apperrors.ErrValidation, "receipt date is required")
+	}
+	if at.After(time.Now()) {
+		return apperrors.Errorf(apperrors.ErrValidation, "receipt date cannot be in the future")
+	}
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
 		po, err := s.orders.GetByID(ctx, id)
 		if err != nil {
 			return err
 		}
-		if err := po.MarkAsReceived(at); err != nil {
+		items, err := s.orders.ListItems(ctx, id)
+		if err != nil {
 			return err
 		}
-		po.ArrivalDate = &at
+		if err := po.MarkReceived(at); err != nil {
+			return err
+		}
+		po.UpdatedAt = time.Now().UTC()
 		if err := s.orders.Update(ctx, po); err != nil {
 			return err
 		}
-		return s.receiveStock(ctx, po)
+		for _, li := range items {
+			if err := s.orders.UpdateItemReceipt(ctx, li.ID, li.QuantityOrdered); err != nil {
+				return err
+			}
+			if li.ProductID == nil || s.stock == nil {
+				continue
+			}
+			if _, err := s.stock.ReceiveFromPurchase(ctx, inventory.ReceiveFromPurchaseInput{
+				ProductID:      *li.ProductID,
+				PurchaseLineID: li.ID,
+				ArrivalDate:    at,
+				Quantity:       li.QuantityOrdered,
+				UnitCost:       li.LineRealCostPen(po.ExchangeRate),
+				ExchangeRate:   po.ExchangeRate,
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		return err
@@ -388,62 +361,47 @@ func (s *PurchasingService) MarkAsReceived(ctx context.Context, id uuid.UUID, at
 	return nil
 }
 
-// Cancel marks the purchase as cancelled with a reason. Inventory is
-// restored (compensating movements) and, for customer orders, every
-// recorded down payment is refunded automatically.
-func (s *PurchasingService) Cancel(ctx context.Context, id uuid.UUID, reason string) error {
+// Cancel voids a pending or received order. Received stock is voided,
+// the card charge is released, and when the order belonged to an
+// already-settled card cycle the cost is recorded as refund_amount
+// (saldo a favor) without touching historical cycle balances.
+func (s *PurchasingService) Cancel(ctx context.Context, id uuid.UUID, reason string) (*PurchaseOrder, error) {
 	if reason == "" {
-		return derrors.New("REQUIRED", "cancel reason is required")
+		return nil, apperrors.Errorf(apperrors.ErrValidation, "cancel reason is required")
 	}
+	var out *PurchaseOrder
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
 		po, err := s.orders.GetByID(ctx, id)
 		if err != nil {
 			return err
 		}
-		if err := po.Cancel(reason); err != nil {
+		if err := s.cancelOrder(ctx, po, reason); err != nil {
 			return err
 		}
-		if s.stock != nil {
-			lineIDs := make([]uuid.UUID, 0, len(po.Items))
-			for _, li := range po.Items {
-				lineIDs = append(lineIDs, li.ID)
-			}
-			if err := s.stock.VoidPurchaseReceipt(ctx, po.CompanyID, lineIDs); err != nil {
-				return err
-			}
-		}
-		if po.OrderType == enums.OrderTypeCustomer {
-			refunded, err := s.refundCustomerPayments(ctx, po)
-			if err != nil {
-				return err
-			}
-			po.RefundedAmount = po.RefundedAmount.Add(refunded)
-		}
-		if err := s.orders.Update(ctx, po); err != nil {
-			return err
-		}
+		out = po
 		return nil
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	s.log.Info("purchase cancelled", "po_id", id, "reason", reason)
-	return nil
+	return out, nil
 }
 
 // FaultyInput is the payload for MarkFaulty.
 type FaultyInput struct {
-	ID          uuid.UUID
-	ArrivalDate valueobjects.Date
-	Reason      string
+	ID     uuid.UUID
+	Reason string
 }
 
-// MarkFaulty runs the "Llegó en mal estado" workflow: it records the
-// arrival date, voids the order (restoring inventory) and automatically
-// registers a 100% refund of every down payment made by the customer.
+// MarkFaulty runs the "llegó en mal estado" workflow: it flags the
+// order as faulty and cancels it exactly like Cancel.
 func (s *PurchasingService) MarkFaulty(ctx context.Context, in FaultyInput) (*PurchaseOrder, error) {
 	if in.ID == uuid.Nil {
-		return nil, derrors.New("REQUIRED", "purchase id is required")
+		return nil, apperrors.Errorf(apperrors.ErrValidation, "purchase id is required")
+	}
+	if in.Reason == "" {
+		return nil, apperrors.Errorf(apperrors.ErrValidation, "faulty reason is required")
 	}
 	var out *PurchaseOrder
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
@@ -451,24 +409,12 @@ func (s *PurchasingService) MarkFaulty(ctx context.Context, in FaultyInput) (*Pu
 		if err != nil {
 			return err
 		}
-		if err := po.MarkFaulty(in.ArrivalDate, in.Reason); err != nil {
-			return err
+		if po.IsCancelled() {
+			return derrors.Wrap(derrors.ErrPurchaseCancelled, errField("purchase is already cancelled"))
 		}
-		if s.stock != nil {
-			lineIDs := make([]uuid.UUID, 0, len(po.Items))
-			for _, li := range po.Items {
-				lineIDs = append(lineIDs, li.ID)
-			}
-			if err := s.stock.VoidPurchaseReceipt(ctx, po.CompanyID, lineIDs); err != nil {
-				return err
-			}
-		}
-		refunded, err := s.refundCustomerPayments(ctx, po)
-		if err != nil {
-			return err
-		}
-		po.RefundedAmount = po.RefundedAmount.Add(refunded)
-		if err := s.orders.Update(ctx, po); err != nil {
+		po.Faulty = true
+		po.FaultyReason = in.Reason
+		if err := s.cancelOrder(ctx, po, "Llegó en mal estado: "+in.Reason); err != nil {
 			return err
 		}
 		out = po
@@ -477,279 +423,146 @@ func (s *PurchasingService) MarkFaulty(ctx context.Context, in FaultyInput) (*Pu
 	if err != nil {
 		return nil, err
 	}
-	s.log.Info("purchase marked faulty",
-		"po_id", in.ID,
-		"arrival_date", in.ArrivalDate,
-		"refunded", out.RefundedAmount,
-	)
+	s.log.Info("purchase marked faulty", "po_id", in.ID, "refund", out.RefundAmount.String())
 	return out, nil
 }
 
-// refundCustomerPayments marks every active customer down payment of
-// the order as refunded and returns the total refunded amount.
-func (s *PurchasingService) refundCustomerPayments(ctx context.Context, po *PurchaseOrder) (valueobjects.Money, error) {
-	var total valueobjects.Money
-	now := time.Now().UTC()
-	for _, pm := range po.CustomerPayments {
-		if pm.IsRefunded() {
-			continue
-		}
-		if err := pm.MarkRefunded(now, "Devolución por anulación del pedido"); err != nil {
-			return total, err
-		}
-		if err := s.orders.UpdateCustomerPayment(ctx, pm); err != nil {
-			return total, err
-		}
-		total = total.Add(pm.Amount)
-	}
-	return total, nil
-}
-
-// CustomerPaymentInput is the payload for RegisterCustomerOrderPayment.
-type CustomerPaymentInput struct {
-	CompanyID    uuid.UUID
-	Number       string
-	PaymentDate  valueobjects.Date
-	Amount       valueobjects.Money
-	CurrencyCode valueobjects.CurrencyCode
-	ExchangeRate valueobjects.ExchangeRate
-	Method       enums.PaymentMethod
-	Reference    string
-	Notes        string
-}
-
-// RegisterCustomerOrderPayment records a partial down payment
-// (anticipo) from the customer against a customer order. The payment is
-// persisted to the customer-payment ledger and the order's anticipo is
-// advanced in the same transaction.
-func (s *PurchasingService) RegisterCustomerOrderPayment(ctx context.Context, purchaseID uuid.UUID, in CustomerPaymentInput) (*CustomerOrderPayment, error) {
-	if in.CompanyID == uuid.Nil {
-		return nil, derrors.New("REQUIRED", "company is required")
-	}
-	var out *CustomerOrderPayment
-	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
-		po, err := s.orders.GetByID(ctx, purchaseID)
-		if err != nil {
-			return err
-		}
-		if po.IsCancelled() {
-			return derrors.Wrap(derrors.ErrPurchaseCancelled, errField("cannot pay a cancelled purchase"))
-		}
-		if err := po.RecordCustomerPayment(in.Amount); err != nil {
-			return err
-		}
-		number := in.Number
-		if number == "" {
-			n, err := s.orders.GetNextCustomerPaymentNumber(ctx, in.CompanyID)
-			if err != nil {
-				return err
-			}
-			number = n
-		}
-		method := in.Method
-		if !method.Valid() {
-			method = enums.PaymentMethodCash
-		}
-		pm, err := NewCustomerOrderPayment(time.Now().UTC(), NewCustomerOrderPaymentOptions{
-			CompanyID:       in.CompanyID,
-			PurchaseOrderID: po.ID,
-			CustomerID:      *po.CustomerID,
-			Number:          number,
-			PaymentDate:     in.PaymentDate,
-			Amount:          in.Amount,
-			Method:          method,
-			CurrencyCode:    in.CurrencyCode,
-			ExchangeRate:    in.ExchangeRate,
-			Reference:       in.Reference,
-			Notes:           in.Notes,
-		})
-		if err != nil {
-			return err
-		}
-		if err := s.orders.SaveCustomerPayment(ctx, pm); err != nil {
-			return err
-		}
-		if err := s.orders.Update(ctx, po); err != nil {
-			return err
-		}
-		out = pm
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	s.log.Info("customer order payment registered",
-		"payment_id", out.ID,
-		"purchase_id", purchaseID,
-		"amount", out.Amount,
-	)
-	return out, nil
-}
-
-// PayInput is the payload for RegisterSupplierPayment. The payment is
-// allocated to a purchase order via the SupplierPaymentRepository.
-type PayInput struct {
-	CompanyID      uuid.UUID
-	SupplierID     uuid.UUID
-	Number         string
-	PaymentDate    valueobjects.Date
-	Amount         valueobjects.Money
-	CurrencyCode   valueobjects.CurrencyCode
-	ExchangeRate   valueobjects.ExchangeRate
-	Method         enums.PaymentMethod
-	BankAccountID  *uuid.UUID
-	CashRegisterID *uuid.UUID
-	CreditCardID   *uuid.UUID
-	Reference      string
-	Notes          string
-}
-
-// RegisterSupplierPayment creates a new payment and allocates its full
-// amount to the given purchase order. Partial allocations are done
-// later via ApplyToPurchase.
-func (s *PurchasingService) RegisterSupplierPayment(ctx context.Context, in PayInput, purchaseID uuid.UUID) (*SupplierPayment, error) {
-	var out *SupplierPayment
-	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
-		sp, err := NewSupplierPayment(time.Now().UTC(), NewSupplierPaymentOptions{
-			CompanyID:      in.CompanyID,
-			SupplierID:     in.SupplierID,
-			Number:         in.Number,
-			PaymentDate:    in.PaymentDate,
-			Amount:         in.Amount,
-			CurrencyCode:   in.CurrencyCode,
-			ExchangeRate:   in.ExchangeRate,
-			Method:         in.Method,
-			BankAccountID:  in.BankAccountID,
-			CashRegisterID: in.CashRegisterID,
-			CreditCardID:   in.CreditCardID,
-			Reference:      in.Reference,
-			Notes:          in.Notes,
-		})
-		if err != nil {
-			return err
-		}
-		if err := sp.ApplyToPurchase(purchaseID, in.Amount); err != nil {
-			return err
-		}
-		if err := s.payments.Create(ctx, sp); err != nil {
-			return err
-		}
-		out = sp
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	s.log.Info("supplier payment registered",
-		"payment_id", out.ID,
-		"supplier_id", out.SupplierID,
-		"purchase_id", purchaseID,
-		"amount", out.Amount,
-	)
-	return out, nil
-}
-
-// MarkPaidInput is the payload for MarkPaid.
-type MarkPaidInput struct {
-	CompanyID   uuid.UUID
-	PaymentDate valueobjects.Date
-	Method      enums.PaymentMethod
-	Reference   string
-	Notes       string
-}
-
-// MarkPaid records a supplier payment covering the purchase's full
-// outstanding balance and transitions the purchase to "paid", all in
-// a single transaction. The payment and its allocation are persisted
-// through SupplierPaymentRepository.
-func (s *PurchasingService) MarkPaid(ctx context.Context, purchaseID uuid.UUID, in MarkPaidInput) (*PurchaseOrder, error) {
-	var out *PurchaseOrder
-	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
-		po, err := s.orders.GetByID(ctx, purchaseID)
-		if err != nil {
-			return err
-		}
-		if po.IsCancelled() {
-			return derrors.Wrap(derrors.ErrPurchaseCancelled, errField("cannot pay a cancelled purchase"))
-		}
-		if po.Status == enums.PurchaseStatusPaid || po.Status == enums.PurchaseStatusReconciled {
-			return derrors.Wrap(derrors.ErrInvalidStateTransition, errField("purchase is already paid"))
-		}
-		balance := po.Balance()
-		if !balance.IsPositive() {
-			return derrors.Wrap(derrors.ErrEmptyDocument, errField("purchase has no outstanding balance"))
-		}
-		method := in.Method
-		if !method.Valid() {
-			method = enums.PaymentMethodCash
-		}
-		number, err := s.payments.GetNextNumber(ctx, in.CompanyID)
-		if err != nil {
-			return err
-		}
-		sp, err := NewSupplierPayment(time.Now().UTC(), NewSupplierPaymentOptions{
-			CompanyID:    in.CompanyID,
-			SupplierID:   po.SupplierID,
-			Number:       number,
-			PaymentDate:  in.PaymentDate,
-			Amount:       balance,
-			CurrencyCode: po.CurrencyCode,
-			ExchangeRate: po.ExchangeRate,
-			Method:       method,
-			Reference:    in.Reference,
-			Notes:        in.Notes,
-		})
-		if err != nil {
-			return err
-		}
-		if err := sp.ApplyToPurchase(purchaseID, balance); err != nil {
-			return err
-		}
-		if err := s.payments.Create(ctx, sp); err != nil {
-			return err
-		}
-		if _, err := po.ApplyPayment(balance); err != nil {
-			return err
-		}
-		if err := s.orders.Update(ctx, po); err != nil {
-			return err
-		}
-		out = po
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	s.log.Info("purchase marked as paid",
-		"po_id", purchaseID,
-		"number", out.Number,
-		"amount", out.Paid,
-	)
-	return out, nil
-}
-
-// Reconcile marks a paid purchase as fully reconciled. Terminal state.
-func (s *PurchasingService) Reconcile(ctx context.Context, id uuid.UUID) error {
-	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
-		po, err := s.orders.GetByID(ctx, id)
-		if err != nil {
-			return err
-		}
-		if err := po.Reconcile(); err != nil {
-			return err
-		}
-		return s.orders.Update(ctx, po)
-	})
+// cancelOrder applies the shared cancellation flow to a loaded order.
+func (s *PurchasingService) cancelOrder(ctx context.Context, po *PurchaseOrder, reason string) error {
+	items, err := s.orders.ListItems(ctx, po.ID)
 	if err != nil {
 		return err
 	}
-	s.log.Info("purchase reconciled", "po_id", id)
+	if po.Status == enums.PurchaseStatusReceived && s.stock != nil && len(items) > 0 {
+		lineIDs := make([]uuid.UUID, 0, len(items))
+		for _, li := range items {
+			lineIDs = append(lineIDs, li.ID)
+		}
+		if err := s.stock.VoidPurchaseReceipt(ctx, lineIDs); err != nil {
+			return err
+		}
+	}
+	now := time.Now().UTC()
+	if err := po.Cancel(reason, now); err != nil {
+		return err
+	}
+	po.UpdatedAt = now
+	if err := s.releaseCardCharge(ctx, po); err != nil {
+		return err
+	}
+	return s.orders.Update(ctx, po)
+}
+
+// releaseCardCharge removes the order cost from the card's unpaid
+// balance and records a refund when the order date falls before the
+// current billing cycle (the cycle it belonged to was already settled).
+func (s *PurchasingService) releaseCardCharge(ctx context.Context, po *PurchaseOrder) error {
+	if po.CreditCardID == nil || s.cards == nil || !po.CostUSD.IsPositive() {
+		return nil
+	}
+	if err := s.cards.ReleaseCardCharge(ctx, *po.CreditCardID, po.CostUSD); err != nil {
+		return err
+	}
+	cycleStart, err := s.cards.CurrentCycleStart(ctx, *po.CreditCardID)
+	if err == nil && po.OrderDate.Before(cycleStart) {
+		po.RefundAmount = po.CostUSD
+	}
 	return nil
 }
 
-// GetByID returns the purchase order aggregate.
+// ClientOrderLine is one line of a sale-linked client order.
+type ClientOrderLine struct {
+	ProductID    uuid.UUID
+	Description  string
+	Quantity     valueobjects.Quantity
+	SalePricePen valueobjects.Money
+}
+
+// CreateClientOrder creates the internal purchase order behind a sale:
+// order_type=customer, no credit card (the sale flow assigns cost and
+// rate later), and per-line cost taken from the product's USD cost.
+// It runs in the caller's transaction (the sales service).
+func (s *PurchasingService) CreateClientOrder(ctx context.Context, customerID, saleID uuid.UUID, lines []ClientOrderLine) error {
+	if customerID == uuid.Nil {
+		return apperrors.Errorf(apperrors.ErrValidation, "customer is required")
+	}
+	if saleID == uuid.Nil {
+		return apperrors.Errorf(apperrors.ErrValidation, "sale id is required")
+	}
+	if len(lines) == 0 {
+		return apperrors.Errorf(apperrors.ErrValidation, "client order must have at least one line")
+	}
+	if s.productByID == nil {
+		return derrors.New("INTERNAL", "products are not configured")
+	}
+	return s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		number, err := s.orders.NextNumber(ctx)
+		if err != nil {
+			return err
+		}
+		now := time.Now().UTC()
+		po := &PurchaseOrder{
+			ID:           uuid.New(),
+			Number:       number,
+			OrderDate:    now,
+			Status:       enums.PurchaseStatusPending,
+			CurrencyCode: USD,
+			ExchangeRate: valueobjects.One(),
+			OrderType:    enums.OrderTypeCustomer,
+			CustomerID:   &customerID,
+			Notes:        "pedido de cliente (venta " + saleID.String() + ")",
+			Items:        []*PurchaseOrderItem{},
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		}
+		for i, line := range lines {
+			prod, err := s.productByID.GetByID(ctx, line.ProductID)
+			if err != nil {
+				return err
+			}
+			description := line.Description
+			if description == "" {
+				description = prod.Description
+			}
+			li, err := NewPurchaseOrderItem(PurchaseOrderItemOptions{
+				PurchaseOrderID: po.ID,
+				LineNumber:      i + 1,
+				ProductID:       &line.ProductID,
+				Description:     description,
+				Quantity:        line.Quantity,
+				UnitCostUSD:     prod.CostUSD,
+				SalePricePen:    line.SalePricePen,
+			})
+			if err != nil {
+				return err
+			}
+			po.Items = append(po.Items, li)
+		}
+		for _, li := range po.Items {
+			po.CostUSD = po.CostUSD.Add(li.LineTotalUSD)
+			po.SalePricePen = po.SalePricePen.Add(li.SalePricePen)
+		}
+		po.RealCostPen = s.realCostPEN(ctx, po.CostUSD, po.ExchangeRate)
+		po.ProjectedProfitPen = po.SalePricePen.Sub(po.RealCostPen)
+		if err := po.Validate(); err != nil {
+			return err
+		}
+		return s.orders.Create(ctx, po, po.Items)
+	})
+}
+
+// GetByID returns the purchase order with its items.
 func (s *PurchasingService) GetByID(ctx context.Context, id uuid.UUID) (*PurchaseOrder, error) {
-	return s.orders.GetByID(ctx, id)
+	po, err := s.orders.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	items, err := s.orders.ListItems(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	po.Items = items
+	return po, nil
 }
 
 // List returns purchase orders matching the filter.
@@ -757,111 +570,104 @@ func (s *PurchasingService) List(ctx context.Context, filter PurchaseFilter) (re
 	return s.orders.List(ctx, filter)
 }
 
+// ListItems returns the lines of a purchase order.
+func (s *PurchasingService) ListItems(ctx context.Context, purchaseOrderID uuid.UUID) ([]*PurchaseOrderItem, error) {
+	return s.orders.ListItems(ctx, purchaseOrderID)
+}
+
 // ImportLotInput is the payload for CreateImportLot.
 type ImportLotInput struct {
-	CompanyID   uuid.UUID
 	Description string
 	PurchaseIDs []uuid.UUID
 }
 
-// CreateImportLot creates a new import lot, optionally adding the given
-// purchase orders, and returns the lot with its resulting customs total
-// in USD (excluding cancelled orders).
-func (s *PurchasingService) CreateImportLot(ctx context.Context, in ImportLotInput) (*ImportLot, valueobjects.Money, error) {
-	if s.lots == nil {
-		return nil, valueobjects.Money{}, derrors.New("INTERNAL", "import lots are not configured")
-	}
-	if in.CompanyID == uuid.Nil {
-		return nil, valueobjects.Money{}, derrors.New("REQUIRED", "company id is required")
+// CreateImportLot creates a new import lot with the given orders and
+// returns the lot, its customs total in USD, and whether the total
+// exceeds the customs limit (a non-blocking warning).
+func (s *PurchasingService) CreateImportLot(ctx context.Context, in ImportLotInput) (*ImportLot, valueobjects.Money, bool, error) {
+	if err := s.requireLots(); err != nil {
+		return nil, valueobjects.Money{}, false, err
 	}
 	var out *ImportLot
 	var total valueobjects.Money
+	var overLimit bool
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
-		code, err := s.lots.GetNextCode(ctx, in.CompanyID)
+		code, err := s.lots.NextCode(ctx)
 		if err != nil {
 			return err
 		}
 		now := time.Now().UTC()
 		out = &ImportLot{
 			ID:          uuid.New(),
-			CompanyID:   in.CompanyID,
 			Code:        code,
 			Description: in.Description,
-			Status:      "active",
-			Members:     []*ImportLotMember{},
+			Status:      ImportLotStatusActive,
 			CreatedAt:   now,
 			UpdatedAt:   now,
 		}
 		if err := s.lots.Create(ctx, out); err != nil {
 			return err
 		}
-		t, err := addMembers(ctx, s.lots, out.ID, in.PurchaseIDs)
+		if err := s.lots.AddMembers(ctx, out.ID, in.PurchaseIDs); err != nil {
+			return err
+		}
+		total, err = s.lotTotalUSD(ctx, out.ID)
 		if err != nil {
 			return err
 		}
-		total = t
+		overLimit = s.overCustomsLimit(ctx, total)
 		return nil
 	})
 	if err != nil {
-		return nil, valueobjects.Money{}, err
+		return nil, valueobjects.Money{}, false, err
 	}
-	return out, total, nil
+	return out, total, overLimit, nil
 }
 
-// AddToImportLot assigns purchase orders to an existing import lot and
-// returns the lot with its updated customs total in USD.
-func (s *PurchasingService) AddToImportLot(ctx context.Context, lotID uuid.UUID, purchaseIDs []uuid.UUID) (*ImportLot, valueobjects.Money, error) {
-	if s.lots == nil {
-		return nil, valueobjects.Money{}, derrors.New("INTERNAL", "import lots are not configured")
+// AddToImportLot assigns purchase orders to an existing lot and
+// returns the updated customs total and over-limit warning.
+func (s *PurchasingService) AddToImportLot(ctx context.Context, lotID uuid.UUID, purchaseIDs []uuid.UUID) (valueobjects.Money, bool, error) {
+	if err := s.requireLots(); err != nil {
+		return valueobjects.Money{}, false, err
 	}
 	if len(purchaseIDs) == 0 {
-		return nil, valueobjects.Money{}, derrors.New("REQUIRED", "at least one purchase order is required")
+		return valueobjects.Money{}, false, apperrors.Errorf(apperrors.ErrValidation, "at least one purchase order is required")
 	}
-	var out *ImportLot
 	var total valueobjects.Money
+	var overLimit bool
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
-		ok, err := s.lots.Exists(ctx, lotID)
-		if err != nil {
+		if _, err := s.lots.GetByID(ctx, lotID); err != nil {
 			return err
 		}
-		if !ok {
-			return derrors.New("NOT_FOUND", "import lot not found")
-		}
-		for _, pid := range purchaseIDs {
-			if err := s.lots.AddMember(ctx, lotID, pid); err != nil {
-				return err
-			}
-		}
-		lot, err := s.lots.GetByID(ctx, lotID, true)
-		if err != nil {
+		if err := s.lots.AddMembers(ctx, lotID, purchaseIDs); err != nil {
 			return err
 		}
-		out = lot
-		t, err := s.lots.TotalUSD(ctx, lotID)
+		t, err := s.lotTotalUSD(ctx, lotID)
 		if err != nil {
 			return err
 		}
 		total = t
+		overLimit = s.overCustomsLimit(ctx, total)
 		return nil
 	})
 	if err != nil {
-		return nil, valueobjects.Money{}, err
+		return valueobjects.Money{}, false, err
 	}
-	return out, total, nil
+	return total, overLimit, nil
 }
 
-// RemoveFromImportLot removes a purchase order from an import lot and
-// returns the lot's updated customs total in USD.
+// RemoveFromImportLot unlinks a purchase order from a lot and returns
+// the updated customs total.
 func (s *PurchasingService) RemoveFromImportLot(ctx context.Context, lotID, purchaseID uuid.UUID) (valueobjects.Money, error) {
-	if s.lots == nil {
-		return valueobjects.Money{}, derrors.New("INTERNAL", "import lots are not configured")
+	if err := s.requireLots(); err != nil {
+		return valueobjects.Money{}, err
 	}
 	var total valueobjects.Money
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
 		if err := s.lots.RemoveMember(ctx, lotID, purchaseID); err != nil {
 			return err
 		}
-		t, err := s.lots.TotalUSD(ctx, lotID)
+		t, err := s.lotTotalUSD(ctx, lotID)
 		if err != nil {
 			return err
 		}
@@ -874,35 +680,71 @@ func (s *PurchasingService) RemoveFromImportLot(ctx context.Context, lotID, purc
 	return total, nil
 }
 
-// GetImportLot returns an import lot with its members.
-func (s *PurchasingService) GetImportLot(ctx context.Context, lotID uuid.UUID) (*ImportLot, valueobjects.Money, error) {
-	if s.lots == nil {
-		return nil, valueobjects.Money{}, derrors.New("INTERNAL", "import lots are not configured")
+// GetImportLot returns a lot with its customs total and over-limit
+// warning.
+func (s *PurchasingService) GetImportLot(ctx context.Context, lotID uuid.UUID) (*ImportLot, valueobjects.Money, bool, error) {
+	if err := s.requireLots(); err != nil {
+		return nil, valueobjects.Money{}, false, err
 	}
-	lot, err := s.lots.GetByID(ctx, lotID, true)
+	lot, err := s.lots.GetByID(ctx, lotID)
 	if err != nil {
-		return nil, valueobjects.Money{}, err
+		return nil, valueobjects.Money{}, false, err
 	}
-	total, err := s.lots.TotalUSD(ctx, lotID)
+	total, err := s.lotTotalUSD(ctx, lotID)
 	if err != nil {
-		return nil, valueobjects.Money{}, err
+		return nil, valueobjects.Money{}, false, err
 	}
-	return lot, total, nil
+	return lot, total, s.overCustomsLimit(ctx, total), nil
 }
 
 // ListImportLots returns import lots matching the filter.
 func (s *PurchasingService) ListImportLots(ctx context.Context, filter ImportLotFilter) (repositories.Page[*ImportLot], error) {
-	if s.lots == nil {
-		return repositories.Page[*ImportLot]{}, derrors.New("INTERNAL", "import lots are not configured")
+	if err := s.requireLots(); err != nil {
+		return repositories.Page[*ImportLot]{}, err
 	}
 	return s.lots.List(ctx, filter)
 }
 
-func addMembers(ctx context.Context, lots ImportLotRepository, lotID uuid.UUID, purchaseIDs []uuid.UUID) (valueobjects.Money, error) {
-	for _, pid := range purchaseIDs {
-		if err := lots.AddMember(ctx, lotID, pid); err != nil {
-			return valueobjects.Money{}, err
-		}
+// ListLotMembers returns the purchase orders of a lot.
+func (s *PurchasingService) ListLotMembers(ctx context.Context, lotID uuid.UUID) ([]*PurchaseOrder, error) {
+	if err := s.requireLots(); err != nil {
+		return nil, err
 	}
-	return lots.TotalUSD(ctx, lotID)
+	return s.lots.ListPurchasesForLot(ctx, lotID)
+}
+
+// requireLots fails with a clear error when the import-lot repository
+// was never injected.
+func (s *PurchasingService) requireLots() error {
+	if s.lots == nil {
+		return derrors.New("INTERNAL", "import lots are not configured")
+	}
+	return nil
+}
+
+// lotTotalUSD sums the cost_usd of the lot's member orders that are
+// not cancelled.
+func (s *PurchasingService) lotTotalUSD(ctx context.Context, lotID uuid.UUID) (valueobjects.Money, error) {
+	orders, err := s.lots.ListPurchasesForLot(ctx, lotID)
+	if err != nil {
+		return valueobjects.Money{}, err
+	}
+	total := valueobjects.Zero()
+	for _, po := range orders {
+		if po.IsCancelled() {
+			continue
+		}
+		total = total.Add(po.CostUSD)
+	}
+	return total, nil
+}
+
+// overCustomsLimit reports whether a lot total exceeds the customs
+// limit. It is a warning only; the UI confirms.
+func (s *PurchasingService) overCustomsLimit(ctx context.Context, total valueobjects.Money) bool {
+	limit, err := valueobjects.MoneyFromDecimal(decimal.NewFromFloat(s.limitUSD(ctx)))
+	if err != nil {
+		return false
+	}
+	return total.GreaterThan(limit)
 }

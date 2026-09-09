@@ -4,15 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 
+	"vfinancy/backend/infrastructure/persistence"
+	"vfinancy/backend/internal/domain/enums"
 	"vfinancy/backend/internal/domain/repositories"
 	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/features/inventory"
-	"vfinancy/backend/infrastructure/persistence"
 )
 
 var _ inventory.InventoryBatchRepository = (*inventoryBatchRepository)(nil)
@@ -21,65 +22,45 @@ type inventoryBatchRepository struct {
 	q persistence.Querier
 }
 
+// NewInventoryBatchRepository returns an InventoryBatchRepository
+// backed by *sql.DB.
 func NewInventoryBatchRepository(db *sql.DB) *inventoryBatchRepository {
 	return &inventoryBatchRepository{q: persistence.FromDB(db)}
 }
 
 const batchColumns = `
-	id, company_id, product_id, warehouse_id, supplier_id, purchase_order_item_id,
-	lot, batch_code, arrival_date, expiry_date, quantity, original_quantity,
-	unit_cost, currency_code, status, clearance_date, is_clearance,
+	id, product_id, purchase_order_item_id, arrival_date, quantity,
+	original_quantity, unit_cost, exchange_rate, status, is_clearance,
 	created_at, updated_at, created_by, updated_by
 `
 
-func batchLotValue(l valueobjects.LotNumber) any {
-	if l.IsEmpty() {
-		return nil
-	}
-	return l.String()
-}
-
 func (r *inventoryBatchRepository) Create(ctx context.Context, b *inventory.InventoryBatch) error {
 	const q = `INSERT INTO inventory_batches (
-		id, company_id, product_id, warehouse_id, supplier_id, purchase_order_item_id,
-		lot, batch_code, arrival_date, expiry_date, quantity, original_quantity,
-		unit_cost, currency_code, exchange_rate, status, clearance_date, is_clearance,
+		id, product_id, purchase_order_item_id, arrival_date, quantity,
+		original_quantity, unit_cost, exchange_rate, status, is_clearance,
 		created_at, updated_at, created_by, updated_by
-	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)`
+	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`
 	_, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
-		b.ID, b.CompanyID, b.ProductID, b.WarehouseID,
-		persistence.NullIfEmptyUUID(b.SupplierID),
-		persistence.NullIfEmptyUUID(b.PurchaseLineID),
-		batchLotValue(b.LotNumber),
-		persistence.NullIfEmpty(b.SerialNumber),
-		b.ArrivalDate, persistence.NullIfZeroTime(b.ExpiryDate),
-		b.CurrentQuantity.String(), b.InitialQuantity.String(),
-		b.UnitCost.String(), b.CurrencyCode.String(),
-		"1.000000", b.Status,
-		b.MaximumSaleDate(), b.IsClearance(valueobjects.Date(time.Now().UTC())),
-		b.CreatedAt, b.UpdatedAt, b.CreatedBy, b.UpdatedBy,
+		b.ID, b.ProductID, persistence.NullIfEmptyUUID(b.PurchaseOrderItemID),
+		b.ArrivalDate, b.Quantity.String(), b.OriginalQuantity.String(),
+		b.UnitCost.String(), b.ExchangeRate.String(), b.Status.String(),
+		b.IsClearanceOn(inventory.ClearanceDays, time.Now().UTC()),
+		b.CreatedAt, b.UpdatedAt, persistence.NullIfEmpty(b.CreatedBy), persistence.NullIfEmpty(b.UpdatedBy),
 	)
 	return persistence.Translate(err)
 }
 
 func (r *inventoryBatchRepository) Update(ctx context.Context, b *inventory.InventoryBatch) error {
 	const q = `UPDATE inventory_batches SET
-		lot = $1, batch_code = $2, arrival_date = $3, expiry_date = $4,
-		quantity = $5, original_quantity = $6, unit_cost = $7, currency_code = $8,
-		status = $9, clearance_date = $10, is_clearance = $11,
-		supplier_id = $12, purchase_order_item_id = $13,
-		updated_at = $14, updated_by = $15
-	 WHERE id = $16`
+		arrival_date = $1, quantity = $2, original_quantity = $3,
+		unit_cost = $4, exchange_rate = $5, status = $6, is_clearance = $7,
+		updated_at = $8, updated_by = $9
+	 WHERE id = $10`
 	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
-		batchLotValue(b.LotNumber),
-		persistence.NullIfEmpty(b.SerialNumber),
-		b.ArrivalDate, persistence.NullIfZeroTime(b.ExpiryDate),
-		b.CurrentQuantity.String(), b.InitialQuantity.String(),
-		b.UnitCost.String(), b.CurrencyCode.String(),
-		b.Status, b.MaximumSaleDate(), b.IsClearance(valueobjects.Date(time.Now().UTC())),
-		persistence.NullIfEmptyUUID(b.SupplierID),
-		persistence.NullIfEmptyUUID(b.PurchaseLineID),
-		time.Now().UTC(), b.UpdatedBy, b.ID,
+		b.ArrivalDate, b.Quantity.String(), b.OriginalQuantity.String(),
+		b.UnitCost.String(), b.ExchangeRate.String(), b.Status.String(),
+		b.IsClearanceOn(inventory.ClearanceDays, time.Now().UTC()),
+		time.Now().UTC(), persistence.NullIfEmpty(b.UpdatedBy), b.ID,
 	)
 	if err != nil {
 		return persistence.Translate(err)
@@ -110,42 +91,41 @@ func (r *inventoryBatchRepository) GetByIDForUpdate(ctx context.Context, id uuid
 	return scanBatch(row)
 }
 
+func (r *inventoryBatchRepository) ExistsByPurchaseLineID(ctx context.Context, purchaseLineID uuid.UUID) (bool, error) {
+	const q = `SELECT EXISTS (SELECT 1 FROM inventory_batches WHERE purchase_order_item_id = $1)`
+	var exists bool
+	if err := persistence.Q(ctx, r.q).QueryRowContext(ctx, q, purchaseLineID).Scan(&exists); err != nil {
+		return false, persistence.Translate(err)
+	}
+	return exists, nil
+}
+
 func (r *inventoryBatchRepository) List(ctx context.Context, filter inventory.InventoryBatchFilter) (repositories.Page[*inventory.InventoryBatch], error) {
 	var (
 		clauses = []string{"TRUE"}
 		args    []any
 	)
-	if filter.CompanyID != nil {
-		clauses = append(clauses, fmt.Sprintf("company_id = $%d", len(args)+1))
-		args = append(args, *filter.CompanyID)
-	}
 	if filter.ProductID != nil {
 		clauses = append(clauses, fmt.Sprintf("product_id = $%d", len(args)+1))
 		args = append(args, *filter.ProductID)
-	}
-	if filter.WarehouseID != nil {
-		clauses = append(clauses, fmt.Sprintf("warehouse_id = $%d", len(args)+1))
-		args = append(args, *filter.WarehouseID)
 	}
 	if filter.PurchaseLineID != nil {
 		clauses = append(clauses, fmt.Sprintf("purchase_order_item_id = $%d", len(args)+1))
 		args = append(args, *filter.PurchaseLineID)
 	}
 	if filter.OnlyActive {
-		clauses = append(clauses, "status <> 'depleted' AND status <> 'written_off' AND status <> 'voided'")
+		clauses = append(clauses, "status = 'active'")
 	}
 	if filter.OnlyClearance {
 		clauses = append(clauses, "is_clearance = TRUE")
 	}
-	if !filter.ArrivalRange.IsZero() {
-		if !filter.ArrivalRange.From.IsZero() {
-			clauses = append(clauses, fmt.Sprintf("arrival_date >= $%d", len(args)+1))
-			args = append(args, filter.ArrivalRange.From)
-		}
-		if !filter.ArrivalRange.To.IsZero() {
-			clauses = append(clauses, fmt.Sprintf("arrival_date <= $%d", len(args)+1))
-			args = append(args, filter.ArrivalRange.To)
-		}
+	if search := strings.TrimSpace(filter.Search); search != "" {
+		pattern := "%" + strings.ToLower(search) + "%"
+		clauses = append(clauses, fmt.Sprintf(
+			`EXISTS (SELECT 1 FROM products p WHERE p.id = inventory_batches.product_id
+				AND (LOWER(p.sku) LIKE $%d OR LOWER(p.description) LIKE $%d))`,
+			len(args)+1, len(args)+2))
+		args = append(args, pattern, pattern)
 	}
 	where := persistence.JoinClauses(clauses)
 	limit, offset := persistence.LimitOffset(filter.PageRequest, 25, 200)
@@ -179,55 +159,18 @@ func (r *inventoryBatchRepository) List(ctx context.Context, filter inventory.In
 	return repositories.Page[*inventory.InventoryBatch]{Items: out, Total: total, Limit: limit, Offset: offset}, nil
 }
 
-func (r *inventoryBatchRepository) ExistsByPurchaseLineID(ctx context.Context, purchaseLineID uuid.UUID) (bool, error) {
-	const q = `SELECT EXISTS (SELECT 1 FROM inventory_batches WHERE purchase_order_item_id = $1)`
-	var exists bool
-	if err := persistence.Q(ctx, r.q).QueryRowContext(ctx, q, purchaseLineID).Scan(&exists); err != nil {
-		return false, persistence.Translate(err)
+func (r *inventoryBatchRepository) RefreshClearanceFlags(ctx context.Context, at time.Time, clearanceDays int) (int, error) {
+	if clearanceDays < 0 {
+		clearanceDays = inventory.ClearanceDays
 	}
-	return exists, nil
-}
-
-func (r *inventoryBatchRepository) GetStockSummary(ctx context.Context, productID, warehouseID uuid.UUID) (float64, string, error) {
-	const q = `SELECT
-		COALESCE(SUM(CAST(quantity AS REAL)), 0),
-		COALESCE(SUM(CAST(unit_cost AS REAL) * CAST(quantity AS REAL)) / NULLIF(SUM(CAST(quantity AS REAL)), 0), 0)
-	FROM inventory_batches
-	WHERE product_id = $1 AND warehouse_id = $2 AND status = 'active'`
-	var qty, avg float64
-	if err := persistence.Q(ctx, r.q).QueryRowContext(ctx, q, productID, warehouseID).Scan(&qty, &avg); err != nil {
-		return 0, "", persistence.Translate(err)
-	}
-	return qty, decimal.NewFromFloat(avg).StringFixed(2), nil
-}
-
-func (r *inventoryBatchRepository) ListClearance(ctx context.Context, companyID uuid.UUID, at time.Time) ([]*inventory.InventoryBatch, error) {
-	q := `SELECT ` + batchColumns + ` FROM inventory_batches
-		WHERE company_id = $1 AND is_clearance = TRUE AND status = 'active' AND CAST(quantity AS REAL) > 0
-		ORDER BY arrival_date`
-	rows, err := persistence.Q(ctx, r.q).QueryContext(ctx, q, companyID)
-	if err != nil {
-		return nil, persistence.Translate(err)
-	}
-	out := []*inventory.InventoryBatch{}
-	if err := persistence.ScanRows(rows, func(r *sql.Rows) error {
-		b, err := scanBatchFromRows(r)
-		if err != nil {
-			return err
-		}
-		out = append(out, b)
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (r *inventoryBatchRepository) SetClearanceDate(ctx context.Context, id uuid.UUID, clearanceDate valueobjects.Date) (int, error) {
+	cutoff := valueobjects.AddDays(valueobjects.NewDateFromTime(at), -clearanceDays)
+	// The WHERE guard restricts the write to rows whose flag would
+	// actually flip, so RowsAffected reports exactly the rows changed.
 	const q = `UPDATE inventory_batches
-		SET is_clearance = TRUE, clearance_date = $1, updated_at = $2
-		WHERE id = $3 AND is_clearance = FALSE`
-	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q, clearanceDate, time.Now().UTC(), id)
+		SET is_clearance = (arrival_date <= $1), updated_at = $2
+		WHERE status = 'active' AND CAST(quantity AS REAL) > 0
+		  AND is_clearance <> (arrival_date <= $1)`
+	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q, cutoff, time.Now().UTC())
 	if err != nil {
 		return 0, persistence.Translate(err)
 	}
@@ -236,150 +179,55 @@ func (r *inventoryBatchRepository) SetClearanceDate(ctx context.Context, id uuid
 }
 
 func scanBatch(row *sql.Row) (*inventory.InventoryBatch, error) {
-	b := &inventory.InventoryBatch{}
-	var (
-		supplierID, purchaseLineID, lot, batchCode      sql.NullString
-		expiryDate, clearanceDate                       sql.NullTime
-		createdBy, updatedBy                            sql.NullString
-		quantity, originalQuantity, unitCost, currency  string
-		status                                          string
-		isClearance                                     bool
-	)
-	err := persistence.ScanRow(row,
-		&b.ID, &b.CompanyID, &b.ProductID, &b.WarehouseID,
-		&supplierID, &purchaseLineID, &lot, &batchCode,
-		&b.ArrivalDate, &expiryDate,
-		&quantity, &originalQuantity, &unitCost, &currency,
-		&status, &clearanceDate, &isClearance,
-		&b.CreatedAt, &b.UpdatedAt, &createdBy, &updatedBy,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if lot.Valid {
-		ln, err := valueobjects.NewLotNumber(lot.String)
-		if err != nil {
-			return nil, err
-		}
-		b.LotNumber = ln
-	}
-	if batchCode.Valid {
-		b.SerialNumber = batchCode.String
-	}
-	if supplierID.Valid {
-		id := persistence.ParseUUID(supplierID.String)
-		b.SupplierID = &id
-	}
-	if purchaseLineID.Valid {
-		id := persistence.ParseUUID(purchaseLineID.String)
-		b.PurchaseLineID = &id
-	}
-	if expiryDate.Valid {
-		t := expiryDate.Time
-		b.ExpiryDate = &t
-	}
-	q, err := valueobjects.QuantityFromString(quantity)
-	if err != nil {
-		return nil, err
-	}
-	b.CurrentQuantity = q
-	oq, err := valueobjects.QuantityFromString(originalQuantity)
-	if err != nil {
-		return nil, err
-	}
-	b.InitialQuantity = oq
-	if v, err := persistence.ParseMoney(unitCost); err != nil {
-		return nil, err
-	} else {
-		b.UnitCost = v
-	}
-	if c, err := valueobjects.NewCurrencyCode(currency); err != nil {
-		return nil, err
-	} else {
-		b.CurrencyCode = c
-	}
-	b.Status = status
-	if createdBy.Valid {
-		id := persistence.ParseUUID(createdBy.String)
-		b.CreatedBy = &id
-	}
-	if updatedBy.Valid {
-		id := persistence.ParseUUID(updatedBy.String)
-		b.UpdatedBy = &id
-	}
-	return b, nil
+	return scanBatchInto(row.Scan)
 }
 
 func scanBatchFromRows(rows *sql.Rows) (*inventory.InventoryBatch, error) {
+	return scanBatchInto(rows.Scan)
+}
+
+func scanBatchInto(scan func(dest ...any) error) (*inventory.InventoryBatch, error) {
 	b := &inventory.InventoryBatch{}
 	var (
-		supplierID, purchaseLineID, lot, batchCode      sql.NullString
-		expiryDate, clearanceDate                       sql.NullTime
-		createdBy, updatedBy                            sql.NullString
-		quantity, originalQuantity, unitCost, currency  string
-		status                                          string
-		isClearance                                     bool
+		purchaseLineID, createdBy, updatedBy sql.NullString
+		quantity, originalQuantity, unitCost string
+		exchangeRate, status                 string
+		isClearance                          bool
 	)
-	if err := rows.Scan(
-		&b.ID, &b.CompanyID, &b.ProductID, &b.WarehouseID,
-		&supplierID, &purchaseLineID, &lot, &batchCode,
-		&b.ArrivalDate, &expiryDate,
-		&quantity, &originalQuantity, &unitCost, &currency,
-		&status, &clearanceDate, &isClearance,
-		&b.CreatedAt, &b.UpdatedAt, &createdBy, &updatedBy,
+	if err := scan(
+		&b.ID, &b.ProductID, &purchaseLineID, &b.ArrivalDate,
+		&quantity, &originalQuantity, &unitCost, &exchangeRate,
+		&status, &isClearance, &b.CreatedAt, &b.UpdatedAt, &createdBy, &updatedBy,
 	); err != nil {
 		return nil, persistence.Translate(err)
 	}
-	if lot.Valid {
-		ln, err := valueobjects.NewLotNumber(lot.String)
-		if err != nil {
-			return nil, err
-		}
-		b.LotNumber = ln
-	}
-	if batchCode.Valid {
-		b.SerialNumber = batchCode.String
-	}
-	if supplierID.Valid {
-		id := persistence.ParseUUID(supplierID.String)
-		b.SupplierID = &id
-	}
 	if purchaseLineID.Valid {
 		id := persistence.ParseUUID(purchaseLineID.String)
-		b.PurchaseLineID = &id
-	}
-	if expiryDate.Valid {
-		t := expiryDate.Time
-		b.ExpiryDate = &t
+		b.PurchaseOrderItemID = &id
 	}
 	q, err := valueobjects.QuantityFromString(quantity)
 	if err != nil {
 		return nil, err
 	}
-	b.CurrentQuantity = q
+	b.Quantity = q
 	oq, err := valueobjects.QuantityFromString(originalQuantity)
 	if err != nil {
 		return nil, err
 	}
-	b.InitialQuantity = oq
+	b.OriginalQuantity = oq
 	if v, err := persistence.ParseMoney(unitCost); err != nil {
 		return nil, err
 	} else {
 		b.UnitCost = v
 	}
-	if c, err := valueobjects.NewCurrencyCode(currency); err != nil {
+	if r, err := valueobjects.ExchangeRateFromString(exchangeRate); err != nil {
 		return nil, err
 	} else {
-		b.CurrencyCode = c
+		b.ExchangeRate = r
 	}
-	b.Status = status
-	if createdBy.Valid {
-		id := persistence.ParseUUID(createdBy.String)
-		b.CreatedBy = &id
-	}
-	if updatedBy.Valid {
-		id := persistence.ParseUUID(updatedBy.String)
-		b.UpdatedBy = &id
-	}
+	b.Status = enums.BatchStatus(status)
+	b.IsClearance = isClearance
+	b.CreatedBy = createdBy.String
+	b.UpdatedBy = updatedBy.String
 	return b, nil
 }

@@ -7,22 +7,13 @@ package enums
 type ReferenceType string
 
 const (
-	ReferenceTypeSale        ReferenceType = "sale"
-	ReferenceTypePurchase    ReferenceType = "purchase"
-	ReferenceTypeTransfer    ReferenceType = "transfer"
-	ReferenceTypeAdjustment  ReferenceType = "adjustment"
-	ReferenceTypeReturn      ReferenceType = "return"
-	ReferenceTypePayment     ReferenceType = "payment"
-	ReferenceTypeJournalEntry ReferenceType = "journal_entry"
-	ReferenceTypeUser        ReferenceType = "user"
-	ReferenceTypeManual      ReferenceType = "manual"
+	ReferenceTypeSale     ReferenceType = "sale"
+	ReferenceTypePurchase ReferenceType = "purchase"
 )
 
 func (r ReferenceType) Valid() bool {
 	switch r {
-	case ReferenceTypeSale, ReferenceTypePurchase, ReferenceTypeTransfer,
-		ReferenceTypeAdjustment, ReferenceTypeReturn, ReferenceTypePayment,
-		ReferenceTypeJournalEntry, ReferenceTypeUser, ReferenceTypeManual:
+	case ReferenceTypeSale, ReferenceTypePurchase:
 		return true
 	}
 	return false

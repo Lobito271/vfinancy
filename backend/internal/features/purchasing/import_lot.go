@@ -6,25 +6,30 @@ import (
 	"github.com/google/uuid"
 )
 
+// ImportLotStatus groups the lot lifecycle states.
+const (
+	ImportLotStatusActive = "active"
+	ImportLotStatusClosed = "closed"
+)
+
 // ImportLot is a group of purchase orders bundled together for customs
-// tracking. The custom authority applies a simplified import limit;
-// exceeding it is allowed but requires explicit user confirmation.
+// tracking. The customs authority applies a simplified import limit;
+// exceeding it is allowed but the UI must confirm.
 type ImportLot struct {
 	ID          uuid.UUID
-	CompanyID   uuid.UUID
 	Code        string
 	Description string
 	Status      string
-	Members     []*ImportLotMember
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	DeletedAt   *time.Time
 	CreatedBy   *uuid.UUID
 	UpdatedBy   *uuid.UUID
 }
 
 // ImportLotMember links a purchase order to an import lot.
 type ImportLotMember struct {
-	ImportLotID uuid.UUID
-	PurchaseID  uuid.UUID
-	AddedAt     time.Time
+	LotID           uuid.UUID
+	PurchaseOrderID uuid.UUID
+	AddedAt         time.Time
 }

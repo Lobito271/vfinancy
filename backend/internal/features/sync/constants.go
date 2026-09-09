@@ -2,26 +2,12 @@ package sync
 
 import "github.com/google/uuid"
 
-// Conflict resolutions recorded in sync_conflicts. The writer always
-// records from its own perspective: LOCAL_WON means the writer kept its
-// own copy, REMOTE_WON means the incoming copy won.
+// Conflict resolutions recorded in sync_conflicts, from the applying
+// (local) side's perspective: LOCAL_WON kept the local copy,
+// REMOTE_WON applied the incoming copy.
 const (
 	ResolutionLocalWon  = "LOCAL_WON"
 	ResolutionRemoteWon = "REMOTE_WON"
-)
-
-// Result statuses reported by the sync server per pushed item.
-const (
-	StatusApplied  = "applied"
-	StatusConflict = "conflict"
-	StatusFailed   = "failed"
-)
-
-// Wire protocol paths.
-const (
-	pathRegister = "/api/v1/devices/register"
-	pathSync     = "/api/v1/sync"
-	pathHealth   = "/api/v1/health"
 )
 
 func newID() string {

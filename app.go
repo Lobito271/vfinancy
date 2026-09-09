@@ -30,10 +30,15 @@ func NewApp() *App {
 		log.Fatalf("migrations: %v", err)
 	}
 
+	pgMigrationsFS, err := fs.Sub(postgresMigrations, "backend/migrations/postgres")
+	if err != nil {
+		log.Fatalf("migrations: %v", err)
+	}
+
 	return &App{
 		cfg:      cfg,
 		log:      l,
-		bindings: bindings.New(cfg, l, migrationsFS),
+		bindings: bindings.New(cfg, l, migrationsFS, pgMigrationsFS),
 	}
 }
 

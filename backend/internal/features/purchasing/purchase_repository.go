@@ -1,50 +1,45 @@
 package purchasing
 
 import (
-	"vfinancy/backend/internal/domain/repositories"
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
+	"vfinancy/backend/internal/domain/repositories"
+	"vfinancy/backend/internal/domain/valueobjects"
 )
 
 // PurchaseFilter is the input to PurchaseRepository.List.
 type PurchaseFilter struct {
-	CompanyID  *uuid.UUID
-	SupplierID *uuid.UUID
-	CustomerID *uuid.UUID
-	BranchID   *uuid.UUID
-	Status     string
-	OrderType  string
-	Search     string
-	IssueRange repositories.TimeRange
+	Search         string
+	Status         string
+	OrderType      string
+	CreditCardID   *uuid.UUID
+	ImportLotID    *uuid.UUID
+	From           *time.Time
+	To             *time.Time
+	IncludeDeleted bool
 	repositories.PageRequest
 }
 
-// PurchaseRepository persists purchase orders, their line items and the
-// customer-order payment ledger.
+// PurchaseRepository persists purchase orders and their line items.
 type PurchaseRepository interface {
-	Create(ctx context.Context, p *PurchaseOrder) error
-	Update(ctx context.Context, p *PurchaseOrder) error
-	Delete(ctx context.Context, id uuid.UUID) error
-
+	// Create inserts the order and all of its items.
+	Create(ctx context.Context, po *PurchaseOrder, items []*PurchaseOrderItem) error
+	// Update persists the mutable order fields.
+	Update(ctx context.Context, po *PurchaseOrder) error
+	// SoftDelete marks the order as deleted.
+	SoftDelete(ctx context.Context, id uuid.UUID) error
+	// GetByID loads a single order without its items.
 	GetByID(ctx context.Context, id uuid.UUID) (*PurchaseOrder, error)
-	GetByNumber(ctx context.Context, companyID uuid.UUID, number string) (*PurchaseOrder, error)
-	Exists(ctx context.Context, id uuid.UUID) (bool, error)
+	// ListItems returns the lines of an order ordered by line number.
+	ListItems(ctx context.Context, purchaseOrderID uuid.UUID) ([]*PurchaseOrderItem, error)
+	// UpdateItemReceipt records the received quantity of a line.
+	UpdateItemReceipt(ctx context.Context, itemID uuid.UUID, received valueobjects.Quantity) error
+	// NextNumber returns the next "PO-" zero-padded sequence number.
+	NextNumber(ctx context.Context) (string, error)
+	// List returns the orders matching the filter; when ImportLotID is
+	// set only the orders in that lot are returned.
 	List(ctx context.Context, filter PurchaseFilter) (repositories.Page[*PurchaseOrder], error)
-
-	// GetNextNumber returns the next sequential number for the
-	// company's purchase series. Implementations may use a database
-	// sequence, a row in document_sequences, or a counter table.
-	GetNextNumber(ctx context.Context, companyID uuid.UUID) (string, error)
-
-	// SaveCustomerPayment persists a new customer down payment.
-	SaveCustomerPayment(ctx context.Context, p *CustomerOrderPayment) error
-	// UpdateCustomerPayment persists changes to a customer down payment.
-	UpdateCustomerPayment(ctx context.Context, p *CustomerOrderPayment) error
-	// ListCustomerPayments returns the payments recorded against an order.
-	ListCustomerPayments(ctx context.Context, purchaseOrderID uuid.UUID) ([]*CustomerOrderPayment, error)
-	// GetNextCustomerPaymentNumber returns the next sequential number for
-	// the company's customer-payment series.
-	GetNextCustomerPaymentNumber(ctx context.Context, companyID uuid.UUID) (string, error)
 }

@@ -31,28 +31,41 @@ export function ImportLotsDialog({ open, onOpenChange }: ImportLotsDialogProps) 
   const { data: purchases = [], isLoading: purchasesLoading } = usePurchases();
   const lotsQuery = useQuery({
     queryKey: ['import-lots'],
-    queryFn: () => wailsClient.listImportLots({ status: '', search: '', page: 1, pageSize: 100 }),
+    queryFn: () => wailsClient.listImportLots({ page: 1, pageSize: 100 }, ''),
     enabled: open,
   });
 
   const [activeLotId, setActiveLotId] = useState('');
   const [description, setDescription] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [warning, setWarning] = useState<ImportLotDTO | null>(null);
+  const [warning, setWarning] = useState<{ lot: ImportLotDTO; purchaseIds: string[] } | null>(null);
 
   const invalidate = () => void qc.invalidateQueries({ queryKey: ['import-lots'] });
+
+  const rollback = useMutation({
+    mutationFn: (undo: { lotId: string; purchaseIds: string[] }) =>
+      Promise.all(undo.purchaseIds.map((id) => wailsClient.removeFromImportLot(undo.lotId, id))),
+    onSuccess: () => {
+      invalidate();
+      setWarning(null);
+    },
+    onError: (err: unknown) => {
+      window.console.error(err);
+    },
+  });
 
   const group = useMutation({
     mutationFn: () => {
       const purchaseIds = Array.from(selected);
-      if (activeLotId) return wailsClient.addToImportLot({ id: activeLotId, purchaseIds });
-      return wailsClient.createImportLot({ description, purchaseIds });
+      if (activeLotId) return wailsClient.addToImportLot(activeLotId, purchaseIds);
+      return wailsClient.createImportLot(description, purchaseIds);
     },
     onSuccess: (res) => {
+      const purchaseIds = Array.from(selected);
       setSelected(new Set());
       setDescription('');
       invalidate();
-      if (res.overLimit) setWarning(res);
+      if (res.overLimit) setWarning({ lot: res, purchaseIds });
     },
   });
 
@@ -136,7 +149,7 @@ export function ImportLotsDialog({ open, onOpenChange }: ImportLotsDialogProps) 
                             onChange={(e) => toggle(p.id, e.target.checked)}
                           />
                           <span style={{ flex: 1 }}>{p.number}</span>
-                          <span className="tabular">{formatCurrency(p.costUSD, 'USD')}</span>
+                          <span className="tabular">{formatCurrency(p.costUsd, 'USD')}</span>
                         </label>
                       ))}
                     </div>
@@ -164,9 +177,9 @@ export function ImportLotsDialog({ open, onOpenChange }: ImportLotsDialogProps) 
                         </div>
                         {l.description && <p className="muted" style={{ fontSize: '0.8rem' }}>{l.description}</p>}
                         <p className="muted" style={{ fontSize: '0.8rem' }}>
-                          {l.memberCount} pedido(s) · Total{' '}
-                          <span className="tabular">{formatCurrency(Number(l.totalUSD), 'USD')}</span> de{' '}
-                          {formatCurrency(Number(l.customsLimitUSD), 'USD')}
+                          Total{' '}
+                          <span className="tabular">{formatCurrency(l.totalUsd, 'USD')}</span> de{' '}
+                          {formatCurrency(l.customsLimitUsd, 'USD')}
                         </p>
                       </div>
                     ))}
@@ -194,15 +207,18 @@ export function ImportLotsDialog({ open, onOpenChange }: ImportLotsDialogProps) 
         variant="destructive"
         open={!!warning}
         onOpenChange={(open) => {
-          if (!open) setWarning(null);
+          if (!open && warning) {
+            rollback.mutate({ lotId: warning.lot.id, purchaseIds: warning.purchaseIds });
+            setWarning(null);
+          }
         }}
         title="El lote supera el tope aduanero"
         description={
           warning
-            ? `El total del lote ${warning.code} es ${formatCurrency(Number(warning.totalUSD), 'USD')}, superando el límite de ${formatCurrency(Number(warning.customsLimitUSD), 'USD')}. La agrupación ya se aplicó; revisa el lote por si necesitas dividirlo.`
+            ? `El lote supera el tope aduanero de ${formatCurrency(warning.lot.customsLimitUsd, 'USD')}. Continuar requiere su confirmación explícita.`
             : ''
         }
-        confirmLabel="Entendido"
+        confirmLabel="Confirmar y agrupar"
         onConfirm={() => setWarning(null)}
       />
     </>

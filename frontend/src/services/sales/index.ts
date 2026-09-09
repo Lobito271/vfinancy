@@ -1,95 +1,132 @@
-import type { Sale, SaleStatus } from '@/types/domain';
-import type { SaleDTO } from '../wails-types';
+import type {
+  CreateSaleRequest,
+  SaleDTO,
+  SalePaymentRequest,
+} from '../wails-types';
 import { wailsClient } from '../bindings';
+import { customersService } from '../customers';
+import type { Sale } from '@/types/domain';
 
-interface SaleLineInput {
+export interface SaleLineInput {
   productId: string;
   quantity: number;
   unitPrice: number;
-  discountPercent: number;
-  discountAmount: number;
-  taxRate: number;
-  taxAmount: number;
-  costSnapshot: number;
-  description: string;
 }
 
 export interface SaleCreateInput {
   customerId: string;
+  saleType?: CreateSaleRequest['saleType'];
   date: string;
   dueDate?: string;
-  exchangeRate: number;
+  paymentMethod?: CreateSaleRequest['paymentMethod'];
   notes?: string;
+  initialPayment?: number;
   items: SaleLineInput[];
 }
 
-function toSale(dto: SaleDTO): Sale {
+export interface SaleQuery {
+  search?: string;
+  status?: string;
+  saleType?: string;
+  customerId?: string;
+  from?: string;
+  to?: string;
+  onlyUnpaid?: boolean;
+  page?: number;
+  pageSize?: number;
+}
+
+type SaleRequest = Omit<CreateSaleRequest, 'items'>;
+
+const round2 = (v: number) => Math.round(v * 100) / 100;
+
+function toSale(dto: SaleDTO, nameById: Map<string, string>): Sale {
   return {
     id: dto.id,
     number: dto.number,
     customerId: dto.customerId,
-    customerName: dto.customerName,
-    date: dto.date,
-    status: dto.status as SaleStatus,
-    subtotal: Number(dto.subtotal),
-    tax: Number(dto.tax),
-    discount: Number(dto.discount),
-    total: Number(dto.total),
-    cost: Number(dto.cost),
-    profit: Number(dto.profit),
-    paid: Number(dto.paid),
-    balance: Number(dto.balance),
+    customerName: nameById.get(dto.customerId) ?? '',
+    date: dto.saleDate,
     dueDate: dto.dueDate,
+    status: dto.status as Sale['status'],
+    saleType: dto.saleType,
+    total: dto.total,
+    costTotal: dto.costTotal,
+    profit: dto.profit,
+    paid: dto.paidAmount,
+    balance: round2(dto.total - dto.paidAmount),
+  };
+}
+
+async function customerNames(): Promise<Map<string, string>> {
+  const options = await customersService.getOptions();
+  return new Map(options.map((c) => [c.id, c.businessName]));
+}
+
+function emptyRequest(input: SaleCreateInput, items: SaleLineInput[]): SaleRequest & { items: SaleLineInput[] } {
+  return {
+    customerId: input.customerId,
+    saleType: input.saleType ?? 'stock',
+    date: input.date,
+    dueDate: input.dueDate ?? '',
+    paymentMethod: input.paymentMethod ?? 'cash',
+    notes: input.notes ?? '',
+    initialPayment: input.initialPayment ?? 0,
+    items: items.map((it) => ({ productId: it.productId, quantity: it.quantity, unitPrice: it.unitPrice })),
   };
 }
 
 export const salesService = {
-  async list(): Promise<Sale[]> {
-    const res = await wailsClient.listSales({ customerId: '', status: '', page: 1, pageSize: 200 });
-    return res.items.map(toSale);
-  },
-  async get(id: string): Promise<Sale | null> {
-    try {
-      return toSale(await wailsClient.getSale(id));
-    } catch {
-      return null;
-    }
-  },
-  async create(input: SaleCreateInput): Promise<Sale> {
-    const created = await wailsClient.createSale({
-      customerId: input.customerId,
-      currencyCode: 'PEN',
-      exchangeRate: (input.exchangeRate ?? 1).toFixed(6),
-      date: input.date,
-      dueDate: input.dueDate ?? '',
-      notes: input.notes ?? '',
-      items: input.items.map((it) => ({
-        productId: it.productId,
-        quantity: it.quantity.toFixed(4),
-        unitPrice: it.unitPrice.toFixed(2),
-        discountPercent: it.discountPercent.toFixed(2),
-        discountAmount: it.discountAmount.toFixed(2),
-        taxRate: it.taxRate.toFixed(2),
-        taxAmount: it.taxAmount.toFixed(2),
-        costSnapshot: it.costSnapshot.toFixed(2),
-        description: it.description,
-      })),
-    });
-    return toSale(created);
-  },
-  async cancel(id: string, reason: string): Promise<Sale> {
-    return toSale(await wailsClient.cancelSale({ id, reason }));
+  async list(q: SaleQuery = {}): Promise<Sale[]> {
+    const [res, names] = await Promise.all([
+      wailsClient.listSales({
+        page: q.page ?? 1,
+        pageSize: q.pageSize ?? 200,
+        search: q.search ?? '',
+        status: q.status ?? '',
+        saleType: q.saleType ?? '',
+        customerId: q.customerId ?? '',
+        from: q.from ?? '',
+        to: q.to ?? '',
+        onlyUnpaid: q.onlyUnpaid ?? false,
+      }),
+      customerNames(),
+    ]);
+    return res.items.map((dto) => toSale(dto as SaleDTO, names));
   },
 
-  async collectPayment(id: string, input: { paymentDate: string; method: string; reference: string; notes: string }): Promise<Sale> {
-    return toSale(
-      await wailsClient.registerSalePayment({
-        id,
-        paymentDate: input.paymentDate,
-        method: input.method,
-        reference: input.reference,
-        notes: input.notes,
+  async get(id: string): Promise<Sale> {
+    const [dto, names] = await Promise.all([wailsClient.getSale(id), customerNames()]);
+    return toSale(dto, names);
+  },
+
+  async create(input: SaleCreateInput): Promise<Sale> {
+    const [dto, names] = await Promise.all([
+      wailsClient.createSale(emptyRequest(input, input.items)),
+      customerNames(),
+    ]);
+    return toSale(dto, names);
+  },
+
+  async cancel(id: string, reason: string): Promise<Sale> {
+    const [dto, names] = await Promise.all([wailsClient.cancelSale({ id, reason }), customerNames()]);
+    return toSale(dto, names);
+  },
+
+  async collectPayment(
+    saleId: string,
+    input: { amount: number; paymentMethod: SalePaymentRequest['paymentMethod']; reference?: string; date?: string },
+  ): Promise<Sale> {
+    const [dto, names] = await Promise.all([
+      wailsClient.registerSalePayment({
+        saleId,
+        amount: input.amount,
+        paymentMethod: input.paymentMethod,
+        reference: input.reference ?? '',
+        date: input.date ?? '',
       }),
-    );
+      customerNames(),
+    ]);
+    return toSale(dto, names);
   },
 };

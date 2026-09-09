@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Boxes, Pencil, Ban, Plus, Settings2, AlertTriangle } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Boxes, Pencil, Ban, Plus, Settings2, AlertTriangle, Download } from 'lucide-react';
 import { z } from 'zod';
 import { PageContainer, PageHeader, Grid } from '@/components/layout';
 import { StatCard } from '@/components/card';
@@ -23,6 +24,7 @@ import { InventoryReceiveDialog } from '@/features/inventory/components/Inventor
 import { InventoryAdjustDialog } from '@/features/inventory/components/InventoryAdjustDialog';
 import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
+import { Routes } from '@/constants/routes';
 import type { InventoryItem } from '@/types/domain';
 import { formatCurrency, formatDate, formatNumber } from '@/utils/format';
 import { useNotificationStore } from '@/stores/notification';
@@ -179,14 +181,17 @@ function InventorySettingsDrawer({ open, onOpenChange }: { open: boolean; onOpen
 }
 
 export function InventoryPage() {
-  const { data, isLoading, isError, error, refetch } = useInventory();
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const isClearanceRoute = pathname === Routes.InventoryClearance;
+  const { data, isLoading, isError, error, refetch } = useInventory({ onlyClearance: isClearanceRoute });
   const voidStock = useVoidStock();
   const push = useNotificationStore((s) => s.push);
 
   const [receiveOpen, setReceiveOpen] = useState(false);
+  const [receiveTarget, setReceiveTarget] = useState<InventoryItem | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
-  const [showClearanceOnly, setShowClearanceOnly] = useState(false);
   const [adjustTarget, setAdjustTarget] = useState<InventoryItem | null>(null);
   const [voidTarget, setVoidTarget] = useState<InventoryItem | null>(null);
 
@@ -198,18 +203,16 @@ export function InventoryPage() {
   const expiringSoon = live.filter((i) => i.daysRemaining >= 0 && i.daysRemaining < 5).length;
 
   const filteredItems = useMemo(() => {
-    let result = items;
-    if (showClearanceOnly) {
-      result = result.filter((i) => i.isClearance && i.status !== 'voided');
-    } else {
-      if (statusFilter === 'clearance') result = result.filter((i) => i.isClearance && i.status !== 'voided');
-      else if (statusFilter === 'expiring') result = live.filter((i) => i.daysRemaining >= 0 && i.daysRemaining < 5);
-      else if (statusFilter === 'voided') result = result.filter((i) => i.status === 'voided');
-    }
-    return result;
-  }, [items, live, statusFilter, showClearanceOnly]);
+    if (statusFilter === 'clearance') return items.filter((i) => i.isClearance && i.status !== 'voided');
+    if (statusFilter === 'expiring') return live.filter((i) => i.daysRemaining >= 0 && i.daysRemaining < 5);
+    if (statusFilter === 'voided') return items.filter((i) => i.status === 'voided');
+    return items;
+  }, [items, live, statusFilter]);
 
-  const openCreate = () => setReceiveOpen(true);
+  const openCreate = () => {
+    setReceiveTarget(null);
+    setReceiveOpen(true);
+  };
 
   const tableColumns = useMemo<Column<InventoryItem>[]>(() => [
     ...columns,
@@ -221,6 +224,14 @@ export function InventoryPage() {
         row.status !== 'voided' ? (
           <RowActions
             actions={[
+              {
+                label: 'Recibir',
+                icon: Download,
+                onSelect: () => {
+                  setReceiveTarget(row);
+                  setReceiveOpen(true);
+                },
+              },
               {
                 label: 'Ajustar stock',
                 icon: Pencil,
@@ -267,12 +278,12 @@ export function InventoryPage() {
       {clearance > 0 && (
         <div className="hstack" style={{ gap: '0.75rem', marginBottom: '1rem' }}>
           <Button
-            variant={showClearanceOnly ? 'primary' : 'outline'}
+            variant={isClearanceRoute ? 'primary' : 'outline'}
             size="sm"
-            onClick={() => setShowClearanceOnly(!showClearanceOnly)}
+            onClick={() => navigate(isClearanceRoute ? Routes.Inventory : Routes.InventoryClearance)}
           >
             <AlertTriangle />
-            {showClearanceOnly ? 'Mostrando productos en remate' : `Ver productos en remate (${clearance})`}
+            {isClearanceRoute ? 'Mostrando productos en remate' : `Ver productos en remate (${clearance})`}
           </Button>
         </div>
       )}
@@ -316,7 +327,7 @@ export function InventoryPage() {
         }
       />
 
-      <InventoryReceiveDialog open={receiveOpen} onOpenChange={setReceiveOpen} />
+      <InventoryReceiveDialog key={receiveTarget?.id ?? 'receive'} open={receiveOpen} onOpenChange={setReceiveOpen} preset={receiveTarget} />
       <InventoryAdjustDialog open={!!adjustTarget} onOpenChange={(o) => { if (!o) setAdjustTarget(null); }} batch={adjustTarget} />
       <InventorySettingsDrawer open={settingsOpen} onOpenChange={setSettingsOpen} />
 

@@ -82,7 +82,7 @@ export function SalesPage() {
 
   const paymentsQuery = useQuery({
     queryKey: ['sale-payments', historyTarget?.id],
-    queryFn: () => wailsClient.listSalePayments(historyTarget!.id),
+    queryFn: () => wailsClient.listSalePayments({ page: 1, pageSize: 100 }, '', historyTarget!.id),
     enabled: Boolean(historyTarget),
   });
 
@@ -232,7 +232,17 @@ export function SalesPage() {
         onConfirm={(input: RegisterPaymentInput) => {
           if (!collectTarget) return;
           collect.mutate(
-            { id: collectTarget.id, input },
+            {
+              saleId: collectTarget.id,
+              input: {
+                amount: collectTarget.total,
+                paymentMethod: (PaymentMethodOptions.some((o) => o.value === input.method)
+                  ? input.method
+                  : 'other') as 'cash' | 'transfer' | 'other',
+                reference: input.reference,
+                date: input.paymentDate,
+              },
+            },
             {
               onSuccess: () => {
                 push({ title: 'Cobro registrado', variant: 'success' });
@@ -337,9 +347,9 @@ export function SalesPage() {
               <Spinner />
             ) : paymentsQuery.isError ? (
               <EmptyState title="No se pudo cargar" description="No se pudieron cargar los cobros de esta venta." />
-            ) : paymentsQuery.data && paymentsQuery.data.length > 0 ? (
+            ) : paymentsQuery.data && paymentsQuery.data.items.length > 0 ? (
               <div className="stack">
-                {paymentsQuery.data.map((p) => (
+                {paymentsQuery.data.items.map((p) => (
                   <div
                     key={p.id}
                     className="hstack"
@@ -351,7 +361,7 @@ export function SalesPage() {
                   >
                     <span style={{ display: 'grid' }}>
                       <strong style={{ fontWeight: 500 }}>
-                        {p.number} · {methodLabel(p.method)}
+                        {p.number} · {methodLabel(p.paymentMethod)}
                       </strong>
                       <small style={{ color: 'var(--color-fg-subtle)' }}>
                         {formatDate(p.paymentDate)}

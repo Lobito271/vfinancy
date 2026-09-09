@@ -16,7 +16,5 @@ export {
 } from './LineItemsEditor';
 export {
   CustomerSelectField,
-  SupplierSelectField,
   ProductSelectField,
-  WarehouseSelectField,
 } from './DomainSelects';

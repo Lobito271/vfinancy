@@ -1,30 +1,18 @@
 import { useMemo } from 'react';
 import { z } from 'zod';
-import { Form, TextField, NumberField } from '@/components/form';
+import { Form, NumberField, TextField } from '@/components/form';
 import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { useAdjustStock } from '@/features/inventory/hooks/useInventory';
 import { useNotificationStore } from '@/stores/notification';
 import type { InventoryItem } from '@/types/domain';
 
-const AdjustSchema = (current: number) =>
-  z
-    .object({
-      delta: z.number().refine((v) => v !== 0, 'El ajuste no puede ser 0'),
-      reason: z.string().min(1, 'Motivo requerido').max(200),
-    })
-    .superRefine((data, ctx) => {
-      if (current + data.delta < 0) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['delta'],
-          message: `El stock no puede quedar negativo (existencia actual: ${current}).`,
-        });
-      }
-    });
+const AdjustSchema = z.object({
+  newQuantity: z.number().positive('La existencia debe ser mayor a 0'),
+  notes: z.string().min(1, 'Motivo requerido').max(200),
+});
 
-type AdjustSchema = ReturnType<typeof AdjustSchema>;
-type AdjustFormValues = z.infer<AdjustSchema>;
+type AdjustFormValues = z.infer<typeof AdjustSchema>;
 
 interface InventoryAdjustDialogProps {
   open: boolean;
@@ -36,12 +24,12 @@ export function InventoryAdjustDialog({ open, onOpenChange, batch }: InventoryAd
   const adjust = useAdjustStock();
   const push = useNotificationStore((s) => s.push);
 
-  const defaults = useMemo<AdjustFormValues>(() => ({ delta: 0, reason: '' }), []);
+  const defaults = useMemo<AdjustFormValues>(() => ({ newQuantity: batch?.quantity ?? 0, notes: '' }), [batch]);
 
   const handleSubmit = (values: AdjustFormValues) => {
     if (!batch) return;
     adjust.mutate(
-      { batchId: batch.id, delta: values.delta, reason: values.reason },
+      { batchId: batch.id, newQuantity: values.newQuantity, notes: values.notes },
       {
         onSuccess: () => {
           push({ title: 'Ajuste aplicado', variant: 'success' });
@@ -70,12 +58,12 @@ export function InventoryAdjustDialog({ open, onOpenChange, batch }: InventoryAd
           </DialogDescription>
         </DialogHeader>
 
-        <Form schema={AdjustSchema(batch?.quantity ?? 0)} defaultValues={defaults} onSubmit={handleSubmit}>
+        <Form schema={AdjustSchema} defaultValues={defaults} onSubmit={handleSubmit}>
           {({ formState }) => (
             <>
               <DialogBody>
-                <NumberField name="delta" label="Cantidad de ajuste" description="Usa valores negativos para reducir stock." required step={0.01} />
-                <TextField name="reason" label="Motivo" required maxLength={200} />
+                <NumberField name="newQuantity" label="Nueva existencia" description="Cantidad total que quedará en el lote." required step={0.01} />
+                <TextField name="notes" label="Motivo" required maxLength={200} />
               </DialogBody>
               <DialogFooter>
                 <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={adjust.isPending}>

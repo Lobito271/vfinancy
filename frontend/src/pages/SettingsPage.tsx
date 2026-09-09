@@ -1,307 +1,238 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
-import { Save } from 'lucide-react';
+import { Briefcase, ShieldCheck, HardDriveDownload, Cloud, Palette } from 'lucide-react';
+import { PageContainer, PageHeader } from '@/components/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card';
+import { Form, NumberField } from '@/components/form';
 import { Button } from '@/components/button';
-import { EmailField, Form, NumberField, TextField, TextareaField } from '@/components/form';
 import { Label } from '@/components/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select';
-import { PageContainer, PageHeader, Section } from '@/components/layout';
+import { Drawer } from '@/components/misc';
 import { SecuritySection } from '@/features/settings/components/SecuritySection';
 import { BackupSection, CloudSyncSection } from '@/features/settings/components/SyncAndBackupSection';
 import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
-import { useThemeStore, type Theme } from '@/stores/theme';
 import { useNotificationStore } from '@/stores/notification';
+import { useThemeStore, type Theme } from '@/stores/theme';
+
+const tabs = [
+  { id: 'business', label: 'Negocio', icon: Briefcase },
+  { id: 'auth', label: 'Autenticación', icon: ShieldCheck },
+  { id: 'backup', label: 'Respaldos', icon: HardDriveDownload },
+  { id: 'sync', label: 'Sincronización', icon: Cloud },
+  { id: 'appearance', label: 'Apariencia', icon: Palette },
+] as const;
+
+type TabId = (typeof tabs)[number]['id'];
 
 const businessSchema = z.object({
-  name: z.string().trim().min(2, 'Ingresa la razón social.'),
-  tradeName: z.string().trim(),
-  taxId: z.string().trim().min(8, 'Ingresa el número fiscal.'),
-  address: z.string().trim(),
-  phone: z.string().trim(),
-  email: z.string().trim().email('Ingresa un correo válido.'),
-});
-
-const prefixSchema = z.object({
-  saleNumberPrefix: z.string().trim().min(1),
-  purchaseNumberPrefix: z.string().trim().min(1),
-});
-
-const businessVarsSchema = z.object({
-  clearanceDaysThreshold: z.number().int().min(1, 'Al menos 1 día.').max(365),
-  importCostFactor: z.number().min(0, 'No puede ser negativo.').max(1, 'No puede superar 1.0'),
-  fallbackExchangeRate: z.number().positive('Debe ser positivo.').max(100, 'Valor fuera de rango.'),
-  customsLimitUSD: z.number().positive('Debe ser positivo.').max(1000000, 'Valor fuera de rango.'),
+  clearanceDays: z.number().int().min(1, 'Entre 1 y 365').max(365),
+  importCostFactor: z.number().min(0, 'Debe ser >= 0').max(100),
+  fallbackExchangeRate: z.number().min(0.01, 'Entre 0.01 y 100').max(100),
+  customsLimitUsd: z.number().min(0, 'Debe ser >= 0').max(1_000_000),
 });
 
 type BusinessValues = z.infer<typeof businessSchema>;
-type PrefixValues = z.infer<typeof prefixSchema>;
-type BusinessVarsValues = z.infer<typeof businessVarsSchema>;
 
-export function SettingsPage() {
+function BusinessTab() {
   const queryClient = useQueryClient();
   const push = useNotificationStore((s) => s.push);
-  const theme = useThemeStore((state) => state.theme);
-  const setTheme = useThemeStore((state) => state.setTheme);
-  const business = useQuery({ queryKey: queryKeys.settings.business, queryFn: () => wailsClient.getBusinessInfo() });
-  const preferences = useQuery({ queryKey: queryKeys.settings.preferences, queryFn: () => wailsClient.getPreferences() });
-  const profile = useQuery({ queryKey: ['settings', 'profile'], queryFn: () => wailsClient.getLocalProfile() });
+  const prefs = useQuery({ queryKey: queryKeys.settings.preferences, queryFn: () => wailsClient.getPreferences() });
 
-  const saveBusiness = useMutation({
-    mutationFn: (values: BusinessValues) => wailsClient.updateBusinessInfo({ ...values, logo: business.data?.logo ?? '' }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.settings.business });
-      push({ title: 'Información de empresa guardada', variant: 'success' });
-    },
-    onError: (err: unknown) => {
-      push({ title: 'No se pudo guardar la empresa', description: err instanceof Error ? err.message : undefined, variant: 'destructive' });
-    },
-  });
-
-  const savePrefixes = useMutation({
-    mutationFn: async (values: PrefixValues) => {
-      await wailsClient.updatePreference('sale_number_prefix', values.saleNumberPrefix);
-      await wailsClient.updatePreference('purchase_number_prefix', values.purchaseNumberPrefix);
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.settings.preferences });
-      push({ title: 'Reglas operativas guardadas', variant: 'success' });
-    },
-    onError: (err: unknown) => {
-      push({ title: 'No se pudo guardar las reglas', description: err instanceof Error ? err.message : undefined, variant: 'destructive' });
-    },
-  });
-
-  const saveBusinessVars = useMutation({
-    mutationFn: async (values: BusinessVarsValues) => {
-      await wailsClient.updatePreference('clearance_days_threshold', String(values.clearanceDaysThreshold));
+  const save = async (values: BusinessValues) => {
+    try {
+      await wailsClient.updatePreference('clearance_days', String(values.clearanceDays));
       await wailsClient.updatePreference('import_cost_factor', String(values.importCostFactor));
       await wailsClient.updatePreference('fallback_exchange_rate', String(values.fallbackExchangeRate));
-      await wailsClient.updatePreference('customs_limit_usd', String(values.customsLimitUSD));
-    },
-    onSuccess: async () => {
+      await wailsClient.updatePreference('customs_limit_usd', String(values.customsLimitUsd));
       await queryClient.invalidateQueries({ queryKey: queryKeys.settings.preferences });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
-      push({ title: 'Variables de negocio guardadas', variant: 'success' });
-    },
-    onError: (err: unknown) => {
-      push({ title: 'No se pudo guardar las variables', description: err instanceof Error ? err.message : undefined, variant: 'destructive' });
-    },
-  });
+      push({ title: 'Parámetros de negocio guardados', variant: 'success' });
+    } catch (cause) {
+      push({
+        title: 'No se pudo guardar la configuración',
+        description: cause instanceof Error ? cause.message : undefined,
+        variant: 'destructive',
+      });
+    }
+  };
 
-  const saveProfile = useMutation({
-    mutationFn: (nextTheme: Theme) =>
-      wailsClient.updateLocalProfile({
-        name: profile.data?.name ?? '',
-        theme: nextTheme,
-        language: profile.data?.language ?? 'es-PE',
-        dateFormat: profile.data?.dateFormat ?? 'DD/MM/YYYY',
-        numberFormat: profile.data?.numberFormat ?? 'es-PE',
-        decimalPlaces: profile.data?.decimalPlaces ?? 2,
-        timezone: profile.data?.timezone ?? 'America/Lima',
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['settings', 'profile'] });
-      push({ title: 'Perfil guardado', variant: 'success' });
-    },
-    onError: (err: unknown) => {
-      push({ title: 'No se pudo guardar el perfil', description: err instanceof Error ? err.message : undefined, variant: 'destructive' });
-    },
-  });
+  if (prefs.isLoading) return null;
 
-  if (business.isLoading || preferences.isLoading || profile.isLoading) {
-    return (
-      <div className="page-loader">
-        <span className="spinner" />
-      </div>
-    );
-  }
+  const defaults = {
+    clearanceDays: prefs.data?.clearanceDays ?? 25,
+    importCostFactor: prefs.data?.importCostFactor ?? 0.07,
+    fallbackExchangeRate: prefs.data?.fallbackExchangeRate ?? 1,
+    customsLimitUsd: prefs.data?.customsLimitUSD ?? 0,
+  };
 
   return (
-    <PageContainer>
-      <PageHeader title="Configuración" subtitle="Administra la información y las reglas de tu empresa." />
-
-      <Section title="Empresa" description="Estos datos aparecen en tus documentos y reportes.">
-        {business.data && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Información fiscal</CardTitle>
-              <CardDescription>Datos principales de la empresa activa.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Form<BusinessValues> schema={businessSchema} defaultValues={business.data} onSubmit={(values) => saveBusiness.mutate(values)}>
-                <div className="form-grid">
-                  <TextField name="name" label="Razón social" required />
-                  <TextField name="tradeName" label="Nombre comercial" />
-                  <TextField name="taxId" label="RUC o identificación fiscal" required />
-                  <EmailField name="email" label="Correo" required />
-                  <TextField name="phone" label="Teléfono" type="tel" />
-                  <TextareaField name="address" label="Dirección" className="form-grid__wide" />
-                </div>
-                <div className="form-actions">
-                  <Button type="submit" loading={saveBusiness.isPending}>
-                    <Save /> Guardar
-                  </Button>
-                </div>
-              </Form>
-            </CardContent>
-          </Card>
-        )}
-      </Section>
-
-      <Section title="Operaciones" description="Numeración de documentos de venta, compra y asientos.">
-        {preferences.data && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Prefijos documentales</CardTitle>
-              <CardDescription>Se usan al generar números de venta y compra.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Form<PrefixValues>
-                key={`${preferences.data.saleNumberPrefix}-${preferences.data.purchaseNumberPrefix}`}
-                schema={prefixSchema}
-                defaultValues={{
-                  saleNumberPrefix: preferences.data.saleNumberPrefix,
-                  purchaseNumberPrefix: preferences.data.purchaseNumberPrefix,
-                }}
-                onSubmit={(values) => savePrefixes.mutate(values)}
-              >
-                <div className="form-grid">
-                  <TextField name="saleNumberPrefix" label="Prefijo de ventas" required />
-                  <TextField name="purchaseNumberPrefix" label="Prefijo de compras" required />
-                </div>
-                <div className="form-actions">
-                  <Button type="submit" loading={savePrefixes.isPending}>
-                    <Save /> Guardar
-                  </Button>
-                </div>
-              </Form>
-            </CardContent>
-          </Card>
-        )}
-      </Section>
-
-      <Section title="Variables de negocio" description="Parámetros que afectan el cálculo de costos, remates y tipos de cambio.">
-        {preferences.data && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Parámetros operativos</CardTitle>
-              <CardDescription>Estos valores se usan en cálculos de importación, remate y proyecciones.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Form<BusinessVarsValues>
-                key={`${preferences.data.clearanceDaysThreshold}-${preferences.data.importCostFactor}-${preferences.data.fallbackExchangeRate}-${preferences.data.customsLimitUSD}`}
-                schema={businessVarsSchema}
-                defaultValues={{
-                  clearanceDaysThreshold: preferences.data.clearanceDaysThreshold,
-                  importCostFactor: preferences.data.importCostFactor,
-                  fallbackExchangeRate: preferences.data.fallbackExchangeRate,
-                  customsLimitUSD: preferences.data.customsLimitUSD,
-                }}
-                onSubmit={(values) => saveBusinessVars.mutate(values)}
-              >
-                <div className="form-grid">
-                  <NumberField
-                    name="clearanceDaysThreshold"
-                    label="Días para remate"
-                    description="Un lote pasa a remate cuando supera estos días desde su ingreso."
-                    min={1}
-                    max={365}
-                    required
-                  />
-                  <NumberField
-                    name="importCostFactor"
-                    label="Factor de costo de importación"
-                    description="Factor multiplicador para calcular costos de importación (ej: 0.07 = 7%)."
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    required
-                  />
-                  <NumberField
-                    name="fallbackExchangeRate"
-                    label="Tipo de cambio de respaldo"
-                    description="Tipo de cambio USD→PEN a usar cuando no hay conexión a APIs."
-                    min={0.01}
-                    max={100}
-                    step={0.01}
-                    required
-                  />
-                  <NumberField
-                    name="customsLimitUSD"
-                    label="Tope aduanero (USD)"
-                    description="Límite simplificado de importación por lote. Al superarlo se emite una advertencia."
-                    min={0.01}
-                    step={0.01}
-                    required
-                  />
-                </div>
-                <div className="form-actions">
-                  <Button type="submit" loading={saveBusinessVars.isPending}>
-                    <Save /> Guardar
-                  </Button>
-                </div>
-              </Form>
-            </CardContent>
-          </Card>
-        )}
-      </Section>
-
-      <Section title="Apariencia y perfil" description="Preferencias de este dispositivo.">
-        <Card>
-          <CardHeader>
-            <CardTitle>Tema y perfil local</CardTitle>
-            <CardDescription>El tema se aplica al instante; guárdalo para recordarlo en tu perfil.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="stack" style={{ maxWidth: '24rem' }}>
-              <div className="field">
-                <Label htmlFor="settings-theme">Tema</Label>
-                <Select
-                  items={[
-                    { value: 'light', label: 'Claro' },
-                    { value: 'dark', label: 'Oscuro' },
-                    { value: 'system', label: 'Sistema' },
-                  ]}
-                  value={theme}
-                  onValueChange={(value) => setTheme((value ?? 'system') as Theme)}
-                >
-                  <SelectTrigger id="settings-theme">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="light">Claro</SelectItem>
-                    <SelectItem value="dark">Oscuro</SelectItem>
-                    <SelectItem value="system">Sistema</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="settings-row">
-                <span className="settings-row__label">Perfil</span>
-                <strong>{profile.data?.name}</strong>
-              </div>
-              <div className="settings-row">
-                <span className="settings-row__label">Zona horaria</span>
-                <strong>{profile.data?.timezone}</strong>
-              </div>
-              <div className="settings-row">
-                <span className="settings-row__label">Idioma</span>
-                <strong>{profile.data?.language}</strong>
-              </div>
-              <div className="form-actions">
-                <Button variant="outline" onClick={() => saveProfile.mutate(theme)} loading={saveProfile.isPending}>
-                  <Save /> Guardar
+    <Card>
+      <CardHeader>
+        <CardTitle>Parámetros de negocio</CardTitle>
+        <CardDescription>Controlan el remate, el costo de importación y el tope aduanero.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Form<BusinessValues> key={JSON.stringify(defaults)} schema={businessSchema} defaultValues={defaults} onSubmit={save}>
+          {({ formState }) => (
+            <div className="stack" style={{ maxWidth: '26rem' }}>
+              <NumberField
+                name="clearanceDays"
+                label="Días para remate"
+                description="Un lote pasa a remate tras estos días desde su ingreso."
+                min={1}
+                max={365}
+                required
+              />
+              <NumberField
+                name="importCostFactor"
+                label="Costo de importación USD"
+                description="Factor aplicado sobre el costo en dólares (ej. 0.07 = 7%)."
+                min={0}
+                step={0.01}
+                required
+              />
+              <NumberField
+                name="fallbackExchangeRate"
+                label="TC de respaldo"
+                description="Tipo de cambio de contingencia cuando no hay conexión."
+                min={0.01}
+                max={100}
+                step={0.01}
+                required
+              />
+              <NumberField
+                name="customsLimitUsd"
+                label="Tope aduanero USD"
+                description="Monto máximo por lote antes de la advertencia."
+                min={0}
+                max={1_000_000}
+                step={1}
+                required
+              />
+              <div>
+                <Button type="submit" loading={formState.isSubmitting}>
+                  Guardar
                 </Button>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      </Section>
+          )}
+        </Form>
+      </CardContent>
+    </Card>
+  );
+}
 
-      <CloudSyncSection />
-      <BackupSection />
-      <SecuritySection />
+function AuthTab() {
+  const [authOpen, setAuthOpen] = useState(false);
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Seguridad</CardTitle>
+          <CardDescription>Contraseña local y clave de recuperación del dispositivo.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button onClick={() => setAuthOpen(true)}>
+            <ShieldCheck /> Administrar autenticación
+          </Button>
+        </CardContent>
+      </Card>
+      <Drawer
+        open={authOpen}
+        onOpenChange={setAuthOpen}
+        title="Autenticación"
+        description="Contraseña local y clave de recuperación."
+      >
+        <SecuritySection />
+      </Drawer>
+    </>
+  );
+}
+
+function AppearanceTab() {
+  const theme = useThemeStore((state) => state.theme);
+  const setTheme = useThemeStore((state) => state.setTheme);
+  const push = useNotificationStore((s) => s.push);
+  const profile = useQuery({ queryKey: ['settings', 'profile'], queryFn: () => wailsClient.getLocalProfile() });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Apariencia</CardTitle>
+        <CardDescription>El tema se aplica al instante en este dispositivo.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="stack" style={{ maxWidth: '24rem' }}>
+          <div className="field">
+            <Label htmlFor="settings-theme">Tema</Label>
+            <Select
+              items={[
+                { value: 'light', label: 'Claro' },
+                { value: 'dark', label: 'Oscuro' },
+                { value: 'system', label: 'Sistema' },
+              ]}
+              value={theme}
+              onValueChange={(value) => {
+                setTheme((value ?? 'system') as Theme);
+                push({ title: 'Tema actualizado', variant: 'success' });
+              }}
+            >
+              <SelectTrigger id="settings-theme">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="light">Claro</SelectItem>
+                <SelectItem value="dark">Oscuro</SelectItem>
+                <SelectItem value="system">Sistema</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="settings-row">
+            <span className="settings-row__label">Perfil</span>
+            <strong>{profile.data?.name}</strong>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function SettingsPage() {
+  const [tab, setTab] = useState<TabId>('business');
+  const active = tabs.find((t) => t.id === tab) ?? tabs[0];
+
+  return (
+    <PageContainer>
+      <PageHeader title="Configuración" subtitle="Administra las preferencias de tu operación." />
+      <div className="settings-layout">
+        <nav className="settings-nav" aria-label="Secciones de configuración">
+          {tabs.map((t) => {
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                className="settings-nav__item"
+                data-active={t.id === tab || undefined}
+                onClick={() => setTab(t.id)}
+              >
+                <Icon />
+                <span>{t.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+        <section className="stack" style={{ flex: 1 }}>
+          <h2 className="sr-only">{active.label}</h2>
+          {tab === 'business' && <BusinessTab />}
+          {tab === 'auth' && <AuthTab />}
+          {tab === 'backup' && <BackupSection />}
+          {tab === 'sync' && <CloudSyncSection />}
+          {tab === 'appearance' && <AppearanceTab />}
+        </section>
+      </div>
     </PageContainer>
   );
 }

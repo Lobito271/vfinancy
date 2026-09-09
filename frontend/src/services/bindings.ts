@@ -1,55 +1,26 @@
 import type {
   AdjustStockRequest,
   AppBindings,
-  BusinessInfoDTO,
-  CancelPurchaseOrderRequest,
+  CancelPurchaseRequest,
   CancelSaleRequest,
-  CompanyRequest,
-  CreateCustomerRequest,
-  CreateProductRequest,
-  CreatePurchaseOrderRequest,
-  CreateImportLotRequest,
-  AddToImportLotRequest,
-  ListImportLotsRequest,
-  RemoveFromImportLotRequest,
+  CardPaymentRequest,
+  CreatePurchaseRequest,
   CreateSaleRequest,
-  CreateSupplierRequest,
-  CreateCategoryRequest,
-  CreateBrandRequest,
-  IssueCreditCardRequest,
-  IssueStockRequest,
-  SetupWorkspaceRequest,
-  ListCustomersRequest,
-  ListInventoryBatchesRequest,
-  ListInventoryMovementsRequest,
-  ListNotificationsRequest,
-  ListProductsRequest,
-  ListPurchaseOrdersRequest,
   ListSalesRequest,
-  ListSuppliersRequest,
-  MarkPurchaseFaultyRequest,
-  MarkPurchaseReceivedRequest,
+  PaginationRequest,
+  PurchaseFilterRequest,
   ReceiveStockRequest,
-  RegisterCustomerOrderPaymentRequest,
-  RegisterPurchasePaymentRequest,
-  RegisterSalePaymentRequest,
-  UpdateCategoryRequest,
-  UpdateBrandRequest,
-  UpdateCreditCardRequest,
-  UpdateCustomerRequest,
-  UpdateLocalProfileRequest,
-  UpdateProductRequest,
-  UpdateSupplierRequest,
+  SaveCreditCardRequest,
+  SaveCustomerRequest,
+  SaveProductRequest,
+  SalePaymentRequest,
+  SetLocalPasswordRequest,
+  SetupWorkspaceRequest,
+  SyncConfig,
+  RecoverWithTokenRequest,
   VoidStockRequest,
 } from './wails-types';
 
-// ponytail: not yet in wails-types.ts; wails regen will remove.
-interface SyncConfigDTO {
-  serverUrl: string;
-  apiKey: string;
-  enabled: boolean;
-  pollIntervalSec: number;
-}
 let resolved: AppBindings | null = null;
 
 function isWailsRuntime(): boolean {
@@ -78,17 +49,21 @@ export const wailsClient = {
     const b = await resolveBindings();
     return b.GetLocalProfile();
   },
-  async updateLocalProfile(req: UpdateLocalProfileRequest) {
+  async setupWorkspace(req: SetupWorkspaceRequest) {
     const b = await resolveBindings();
-    return b.UpdateLocalProfile(req);
+    return b.SetupWorkspace(req);
   },
   async unlockLocalProfile(password: string) {
     const b = await resolveBindings();
     return b.UnlockLocalProfile(password);
   },
-  async setLocalPassword(current: string, next: string) {
+  async recoverWithToken(req: RecoverWithTokenRequest) {
     const b = await resolveBindings();
-    return b.SetLocalPassword(current, next);
+    return b.RecoverWithToken(req);
+  },
+  async setLocalPassword(req: SetLocalPasswordRequest) {
+    const b = await resolveBindings();
+    return b.SetLocalPassword(req);
   },
   async removeLocalPassword(current: string) {
     const b = await resolveBindings();
@@ -96,82 +71,69 @@ export const wailsClient = {
   },
   async getRecoveryToken() {
     const b = await resolveBindings();
-    return (b as any).GetRecoveryToken();
+    return b.GetRecoveryToken();
   },
   async lockLocalProfile() {
     const b = await resolveBindings();
     return b.LockLocalProfile();
   },
-  async setupWorkspace(req: SetupWorkspaceRequest) {
-    const b = await resolveBindings();
-    return b.SetupWorkspace(req);
-  },
-  async listCompanies() {
-    const b = await resolveBindings();
-    return b.ListCompanies();
-  },
-  async getActiveCompany() {
-    const b = await resolveBindings();
-    return b.GetActiveCompany();
-  },
-  async setActiveCompany(id: string) {
-    const b = await resolveBindings();
-    return b.SetActiveCompany(id);
-  },
-  async createCompany(req: CompanyRequest) {
-    const b = await resolveBindings();
-    return b.CreateCompany(req);
-  },
-  async updateCompany(req: CompanyRequest) {
-    const b = await resolveBindings();
-    return b.UpdateCompany(req);
-  },
-  async deactivateCompany(id: string) {
-    const b = await resolveBindings();
-    return (b as any).DeactivateCompany(id);
-  },
-  async getBusinessInfo() {
-    const b = await resolveBindings();
-    return b.GetBusinessInfo();
-  },
-  async updateBusinessInfo(info: BusinessInfoDTO) {
-    const b = await resolveBindings();
-    return b.UpdateBusinessInfo(info);
-  },
+
   async getPreferences() {
     const b = await resolveBindings();
     return b.GetPreferences();
   },
-  async updatePreference(key: string, value: string) {
+  async updatePreference(key: string, value: number | string) {
     const b = await resolveBindings();
     return b.UpdatePreference(key, value);
   },
-  async getCurrencies() {
+  async getClearanceDays() {
     const b = await resolveBindings();
-    return b.GetCurrencies();
-  },
-  async getTaxes() {
-    const b = await resolveBindings();
-    return b.GetTaxes();
-  },
-  async getAllSettings() {
-    const b = await resolveBindings();
-    return b.GetAllSettings();
+    return b.GetClearanceDays();
   },
 
-  async listCustomers(req: ListCustomersRequest) {
+  async getSyncConfig() {
     const b = await resolveBindings();
-    return b.ListCustomers(req);
+    return b.GetSyncConfig();
   },
-  async getCustomer(id: string) {
+  async saveSyncConfig(cfg: SyncConfig) {
     const b = await resolveBindings();
-    return b.GetCustomer(id);
+    return b.SaveSyncConfig(cfg);
   },
-  async createCustomer(req: CreateCustomerRequest) {
+  async testSyncConnection(cfg: SyncConfig) {
+    const b = await resolveBindings();
+    return b.TestSyncConnection(cfg);
+  },
+
+  async chooseBackupFolder() {
+    const b = await resolveBindings();
+    return b.ChooseBackupFolder();
+  },
+  async setBackupFolder(folder: string) {
+    const b = await resolveBindings();
+    return b.SetBackupFolder(folder);
+  },
+  async setBackupFrequency(frequency: string) {
+    const b = await resolveBindings();
+    return b.SetBackupFrequency(frequency);
+  },
+  async createBackup() {
+    const b = await resolveBindings();
+    return b.CreateBackup();
+  },
+
+  async listCustomers(req: PaginationRequest, search: string) {
+    const b = await resolveBindings();
+    return b.ListCustomers(req, search);
+  },
+  async customerOptions() {
+    const b = await resolveBindings();
+    return b.CustomerOptions();
+  },
+  async createCustomer(req: SaveCustomerRequest) {
     const b = await resolveBindings();
     return b.CreateCustomer(req);
   },
-  async updateCustomer(req: UpdateCustomerRequest) {
+  async updateCustomer(req: SaveCustomerRequest) {
     const b = await resolveBindings();
     return b.UpdateCustomer(req);
   },
@@ -179,20 +141,28 @@ export const wailsClient = {
     const b = await resolveBindings();
     return b.RemoveCustomer(id);
   },
-
-  async listProducts(req: ListProductsRequest) {
+  async getCustomerByDocument(docType: string, docNumber: string) {
     const b = await resolveBindings();
-    return b.ListProducts(req);
+    return b.GetCustomerByDocument(docType, docNumber);
+  },
+
+  async listProducts(req: PaginationRequest, search: string) {
+    const b = await resolveBindings();
+    return b.ListProducts(req, search);
+  },
+  async productOptions() {
+    const b = await resolveBindings();
+    return b.ProductOptions();
   },
   async getProduct(id: string) {
     const b = await resolveBindings();
     return b.GetProduct(id);
   },
-  async createProduct(req: CreateProductRequest) {
+  async createProduct(req: SaveProductRequest) {
     const b = await resolveBindings();
     return b.CreateProduct(req);
   },
-  async updateProduct(req: UpdateProductRequest) {
+  async updateProduct(req: SaveProductRequest) {
     const b = await resolveBindings();
     return b.UpdateProduct(req);
   },
@@ -200,62 +170,34 @@ export const wailsClient = {
     const b = await resolveBindings();
     return b.RemoveProduct(id);
   },
-  async listUnits() {
+  async getProductStock(id: string) {
     const b = await resolveBindings();
-    return b.ListUnits();
-  },
-  async listCategories() {
-    const b = await resolveBindings();
-    return b.ListCategories();
-  },
-  async createCategory(req: CreateCategoryRequest) {
-    const b = await resolveBindings();
-    return b.CreateCategory(req);
-  },
-  async updateCategory(req: UpdateCategoryRequest) {
-    const b = await resolveBindings();
-    return b.UpdateCategory(req);
-  },
-  async deleteCategory(id: string) {
-    const b = await resolveBindings();
-    return b.DeleteCategory(id);
-  },
-  async listBrands() {
-    const b = await resolveBindings();
-    return b.ListBrands();
-  },
-  async createBrand(req: CreateBrandRequest) {
-    const b = await resolveBindings();
-    return b.CreateBrand(req);
-  },
-  async updateBrand(req: UpdateBrandRequest) {
-    const b = await resolveBindings();
-    return b.UpdateBrand(req);
-  },
-  async deleteBrand(id: string) {
-    const b = await resolveBindings();
-    return b.DeleteBrand(id);
+    return b.GetProductStock(id);
   },
 
-  async listSuppliers(req: ListSuppliersRequest) {
+  async listInventoryBatches(req: PaginationRequest, onlyClearance: boolean, search: string) {
     const b = await resolveBindings();
-    return b.ListSuppliers(req);
+    return b.ListInventoryBatches(req, onlyClearance, search);
   },
-  async getSupplier(id: string) {
+  async listInventoryMovements(req: PaginationRequest, productId: string) {
     const b = await resolveBindings();
-    return b.GetSupplier(id);
+    return b.ListInventoryMovements(req, productId);
   },
-  async createSupplier(req: CreateSupplierRequest) {
+  async receiveStock(req: ReceiveStockRequest) {
     const b = await resolveBindings();
-    return b.CreateSupplier(req);
+    return b.ReceiveStock(req);
   },
-  async updateSupplier(req: UpdateSupplierRequest) {
+  async adjustStock(req: AdjustStockRequest) {
     const b = await resolveBindings();
-    return b.UpdateSupplier(req);
+    return b.AdjustStock(req);
   },
-  async removeSupplier(id: string) {
+  async voidStock(req: VoidStockRequest) {
     const b = await resolveBindings();
-    return b.RemoveSupplier(id);
+    return b.VoidStock(req);
+  },
+  async listClearanceProducts() {
+    const b = await resolveBindings();
+    return b.ListClearanceProducts();
   },
 
   async listSales(req: ListSalesRequest) {
@@ -274,74 +216,16 @@ export const wailsClient = {
     const b = await resolveBindings();
     return b.CancelSale(req);
   },
-  async registerSalePayment(req: RegisterSalePaymentRequest) {
+  async registerSalePayment(req: SalePaymentRequest) {
     const b = await resolveBindings();
     return b.RegisterSalePayment(req);
   },
-  async listSalePayments(id: string) {
+  async listSalePayments(req: PaginationRequest, customerId: string, saleId: string) {
     const b = await resolveBindings();
-    return b.ListSalePayments(id);
+    return b.ListSalePayments(req, customerId, saleId);
   },
 
-  async listCreditCards() {
-    const b = await resolveBindings();
-    return b.ListCreditCards();
-  },
-  async issueCreditCard(req: IssueCreditCardRequest) {
-    const b = await resolveBindings();
-    return b.IssueCreditCard(req);
-  },
-  async updateCreditCard(req: UpdateCreditCardRequest) {
-    const b = await resolveBindings();
-    return b.UpdateCreditCard(req);
-  },
-  async deleteCreditCard(id: string) {
-    const b = await resolveBindings();
-    return b.DeleteCreditCard(id);
-  },
-  async getCardProjections() {
-    const b = await resolveBindings();
-    return b.GetCardProjections();
-  },
-  async payCreditCard(cardId: string, amount: number) {
-    const b = await resolveBindings();
-    return b.PayCreditCard({ cardId, amount: amount.toFixed(2) });
-  },
-  async latestExchangeRate(from: string, to: string) {
-    const b = await resolveBindings();
-    return b.LatestExchangeRate(from, to);
-  },
-
-  async listInventoryBatches(req: ListInventoryBatchesRequest) {
-    const b = await resolveBindings();
-    return b.ListInventoryBatches(req);
-  },
-  async listInventoryMovements(req: ListInventoryMovementsRequest) {
-    const b = await resolveBindings();
-    return b.ListInventoryMovements(req);
-  },
-  async receiveStock(req: ReceiveStockRequest) {
-    const b = await resolveBindings();
-    return b.ReceiveStock(req);
-  },
-  async issueStock(req: IssueStockRequest) {
-    const b = await resolveBindings();
-    return b.IssueStock(req);
-  },
-  async adjustStock(req: AdjustStockRequest) {
-    const b = await resolveBindings();
-    return b.AdjustStock(req);
-  },
-  async voidStock(req: VoidStockRequest) {
-    const b = await resolveBindings();
-    return b.VoidStock(req);
-  },
-  async listWarehouses() {
-    const b = await resolveBindings();
-    return b.ListWarehouses();
-  },
-
-  async listPurchaseOrders(req: ListPurchaseOrdersRequest) {
+  async listPurchaseOrders(req: PurchaseFilterRequest) {
     const b = await resolveBindings();
     return b.ListPurchaseOrders(req);
   },
@@ -349,98 +233,73 @@ export const wailsClient = {
     const b = await resolveBindings();
     return b.GetPurchaseOrder(id);
   },
-  async createPurchaseOrder(req: CreatePurchaseOrderRequest) {
+  async createPurchase(req: CreatePurchaseRequest) {
     const b = await resolveBindings();
-    return b.CreatePurchaseOrder(req);
+    return b.CreatePurchase(req);
   },
-  async cancelPurchaseOrder(req: CancelPurchaseOrderRequest) {
+  async markPurchaseReceived(id: string, receivedDate: string) {
     const b = await resolveBindings();
-    return b.CancelPurchaseOrder(req);
+    return b.MarkPurchaseReceived(id, receivedDate);
   },
-  async listImportLots(req: ListImportLotsRequest) {
+  async cancelPurchase(req: CancelPurchaseRequest) {
     const b = await resolveBindings();
-    return b.ListImportLots(req);
+    return b.CancelPurchase(req);
+  },
+  async markPurchaseFaulty(req: CancelPurchaseRequest) {
+    const b = await resolveBindings();
+    return b.MarkPurchaseFaulty(req);
+  },
+  async createImportLot(description: string, purchaseIds: string[]) {
+    const b = await resolveBindings();
+    return b.CreateImportLot(description, purchaseIds);
+  },
+  async addToImportLot(lotId: string, purchaseIds: string[]) {
+    const b = await resolveBindings();
+    return b.AddToImportLot(lotId, purchaseIds);
+  },
+  async removeFromImportLot(lotId: string, purchaseId: string) {
+    const b = await resolveBindings();
+    return b.RemoveFromImportLot(lotId, purchaseId);
   },
   async getImportLot(id: string) {
     const b = await resolveBindings();
     return b.GetImportLot(id);
   },
-  async createImportLot(req: CreateImportLotRequest) {
+  async listImportLots(req: PaginationRequest, search: string) {
     const b = await resolveBindings();
-    return b.CreateImportLot(req);
+    return b.ListImportLots(req, search);
   },
-  async addToImportLot(req: AddToImportLotRequest) {
+  async listLotMembers(lotId: string) {
     const b = await resolveBindings();
-    return b.AddToImportLot(req);
-  },
-  async removeFromImportLot(req: RemoveFromImportLotRequest) {
-    const b = await resolveBindings();
-    return b.RemoveFromImportLot(req);
-  },
-  async registerPurchasePayment(req: RegisterPurchasePaymentRequest) {
-    const b = await resolveBindings();
-    return b.RegisterPurchasePayment(req);
-  },
-  async markPurchaseFaulty(req: MarkPurchaseFaultyRequest) {
-    const b = await resolveBindings();
-    return b.MarkPurchaseFaulty(req);
-  },
-  async markPurchaseReceived(req: MarkPurchaseReceivedRequest) {
-    const b = await resolveBindings();
-    return b.MarkPurchaseReceived(req);
-  },
-  async registerCustomerOrderPayment(req: RegisterCustomerOrderPaymentRequest) {
-    const b = await resolveBindings();
-    return b.RegisterCustomerOrderPayment(req);
+    return b.ListLotMembers(lotId);
   },
 
-  async listNotifications(req: ListNotificationsRequest) {
+  async listCreditCards() {
     const b = await resolveBindings();
-    return b.ListNotifications(req);
+    return b.ListCreditCards();
   },
-  async unreadNotificationCount() {
+  async issueCreditCard(req: SaveCreditCardRequest) {
     const b = await resolveBindings();
-    return b.UnreadNotificationCount();
+    return b.IssueCreditCard(req);
   },
-  async markNotificationsRead(ids: string[]) {
+  async updateCreditCard(req: SaveCreditCardRequest) {
     const b = await resolveBindings();
-    return b.MarkNotificationsRead(ids);
+    return b.UpdateCreditCard(req);
   },
-  async markAllNotificationsRead() {
+  async deleteCreditCard(id: string) {
     const b = await resolveBindings();
-    return b.MarkAllNotificationsRead();
+    return b.DeleteCreditCard(id);
   },
-  async deleteNotification(id: string) {
+  async payCreditCard(req: CardPaymentRequest) {
     const b = await resolveBindings();
-    return b.DeleteNotification(id);
+    return b.PayCreditCard(req);
   },
-  async generateClearanceNotifications() {
+  async getCardProjections() {
     const b = await resolveBindings();
-    return b.GenerateClearanceNotifications();
+    return b.GetCardProjections();
   },
-
-  async createBackup() {
+  async latestExchangeRate() {
     const b = await resolveBindings();
-    return (b as any).CreateBackup();
-  },
-  async exportBackup() {
-    const b = await resolveBindings();
-    return b.ExportBackup();
-  },
-  async importBackup() {
-    const b = await resolveBindings();
-    return b.ImportBackup();
-  },
-  async getSyncConfig() {
-    const b = await resolveBindings();
-    return (b as any).GetSyncConfig();
-  },
-  async saveSyncConfig(cfg: SyncConfigDTO) {
-    const b = await resolveBindings();
-    return (b as any).SaveSyncConfig(cfg);
-  },
-  async testSyncConnection(serverUrl: string, apiKey: string) {
-    const b = await resolveBindings();
-    return (b as any).TestSyncConnection(serverUrl, apiKey);
+    return b.LatestExchangeRate();
   },
 };

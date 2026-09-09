@@ -1,15 +1,15 @@
 import { useMemo, useState } from 'react';
-import { Package, CreditCard, AlertTriangle, Ban, Plus, Download, Boxes } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Package, AlertTriangle, Ban, Plus, Download, Boxes, Filter } from 'lucide-react';
 import { PageContainer, PageHeader, Grid } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
 import { Badge } from '@/components/badge';
 import { EmptyState } from '@/components/feedback';
 import { Button } from '@/components/button';
-import { SearchInput } from '@/components/input';
+import { Input, Label, SearchInput } from '@/components/input';
 import { CancelDialog } from '@/components/dialog';
-import { RegisterPaymentDialog, type RegisterPaymentInput } from '@/features/treasury/components/RegisterPaymentDialog';
-import { RowActions } from '@/components/misc';
+import { Drawer, RowActions } from '@/components/misc';
 import { useDebounce } from '@/hooks/useDebounce';
 import {
   Select,
@@ -21,16 +21,16 @@ import {
 import {
   usePurchases,
   useCancelPurchase,
-  useMarkPurchasePaid,
   useMarkPurchaseReceived,
   useMarkPurchaseFaulty,
 } from '@/features/purchasing/hooks/usePurchases';
-import { useCreditCards } from '@/features/treasury/hooks/useTreasury';
-import type { SelectOption } from '@/components/form';
 import { PurchaseFormDialog } from '@/features/purchasing/components/PurchaseFormDialog';
 import { ImportLotsDialog } from '@/features/purchasing/components/ImportLotsDialog';
 import { MarkReceivedDialog } from '@/features/purchasing/components/MarkReceivedDialog';
 import { MarkFaultyDialog, type MarkFaultyInput } from '@/features/purchasing/components/MarkFaultyDialog';
+import { wailsClient } from '@/services/bindings';
+import { queryKeys } from '@/services/queryKeys';
+import type { CreditCardDTO, ImportLotDTO } from '@/services/wails-types';
 import type { Purchase } from '@/types/domain';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { useNotificationStore } from '@/stores/notification';
@@ -51,31 +51,21 @@ const columns: Column<Purchase>[] = [
     sticky: true,
     cell: (row) => <span className="fw-medium tabular">{row.number}</span>,
   },
-  { id: 'supplierName', header: 'Proveedor', sortable: true, cell: (row) => row.supplierName || '—' },
+  { id: 'date', header: 'Fecha', cell: (row) => <span className="muted">{formatDate(row.date)}</span> },
   {
-    id: 'supplierOrderNumber',
-    header: 'Orden Proveedor',
-    cell: (row) => <span className="muted">{row.supplierOrderNumber || '—'}</span>,
-  },
-  {
-    id: 'date',
-    header: 'Fecha',
-    cell: (row) => <span className="muted">{formatDate(row.date)}</span>,
-  },
-  {
-    id: 'realCostPEN',
+    id: 'realCostPen',
     header: 'Costo real (PEN)',
     sortable: true,
     align: 'numeric',
-    cell: (row) => <span className="tabular">{formatCurrency(row.realCostPEN)}</span>,
+    cell: (row) => <span className="tabular">{formatCurrency(row.realCostPen)}</span>,
   },
   {
-    id: 'projectedProfitPEN',
+    id: 'projectedProfitPen',
     header: 'Utilidad proy.',
     align: 'numeric',
     cell: (row) => (
-      <span className={`tabular ${row.projectedProfitPEN < 0 ? 'text-destructive' : 'text-success'}`}>
-        {formatCurrency(row.projectedProfitPEN)}
+      <span className={`tabular ${row.projectedProfitPen < 0 ? 'text-destructive' : 'text-success'}`}>
+        {formatCurrency(row.projectedProfitPen)}
       </span>
     ),
   },
@@ -93,11 +83,11 @@ const columns: Column<Purchase>[] = [
     },
   },
   {
-    id: 'total',
-    header: 'Total',
+    id: 'costUsd',
+    header: 'Costo (USD)',
     align: 'numeric',
     sortable: true,
-    cell: (row) => <span className="fw-medium tabular">{formatCurrency(row.total)}</span>,
+    cell: (row) => <span className="fw-medium tabular">{formatCurrency(row.costUsd, 'USD')}</span>,
   },
 ];
 
@@ -105,28 +95,41 @@ export function PurchasesPage() {
   const [searchInput, setSearchInput] = useState('');
   const search = useDebounce(searchInput);
   const [statusFilter, setStatusFilter] = useState('all');
-  const { data, isLoading, isError, error, refetch } = usePurchases(search);
+  const [importLotId, setImportLotId] = useState('');
+  const [creditCardId, setCreditCardId] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const { data, isLoading, isError, error, refetch } = usePurchases({ search, importLotId, creditCardId, from, to });
   const cancel = useCancelPurchase();
-  const markPaid = useMarkPurchasePaid();
   const markReceived = useMarkPurchaseReceived();
   const markFaulty = useMarkPurchaseFaulty();
-  const cardsQuery = useCreditCards();
   const push = useNotificationStore((s) => s.push);
-
-  const cardOptions = useMemo<SelectOption[]>(() => {
-    const opts: SelectOption[] = [];
-    for (const c of cardsQuery.data ?? []) {
-      if (c.isActive && c.currencyCode === 'USD') opts.push({ value: c.id, label: `${c.issuer} •••• ${c.lastFour} (${c.currencyCode})` });
-    }
-    return opts;
-  }, [cardsQuery.data]);
 
   const [formOpen, setFormOpen] = useState(false);
   const [lotsOpen, setLotsOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Purchase | null>(null);
-  const [payTarget, setPayTarget] = useState<Purchase | null>(null);
   const [receivedTarget, setReceivedTarget] = useState<Purchase | null>(null);
   const [faultyTarget, setFaultyTarget] = useState<Purchase | null>(null);
+
+  const lotsQuery = useQuery({
+    queryKey: queryKeys.importLots.list({ page: 1, pageSize: 100, search: '' }),
+    queryFn: () => wailsClient.listImportLots({ page: 1, pageSize: 100 }, ''),
+    enabled: filtersOpen,
+  });
+  const cardsQuery = useQuery({
+    queryKey: queryKeys.treasury.creditCards,
+    queryFn: () => wailsClient.listCreditCards(),
+    enabled: filtersOpen,
+  });
+
+  const activeFilterCount = [importLotId, creditCardId, from, to].filter(Boolean).length;
+  const clearFilters = () => {
+    setImportLotId('');
+    setCreditCardId('');
+    setFrom('');
+    setTo('');
+  };
 
   const purchases = data ?? [];
   const filtered = useMemo(() => {
@@ -134,7 +137,7 @@ export function PurchasesPage() {
     return purchases.filter((p) => p.status === statusFilter);
   }, [purchases, statusFilter]);
 
-  const totalAmount = purchases.reduce((s, p) => s + p.total, 0);
+  const totalAmount = purchases.reduce((s, p) => s + p.costUsd, 0);
   const pending = purchases.filter((p) => p.status === 'pending' || p.status === 'received').length;
   const cancelled = purchases.filter((p) => p.status === 'cancelled').length;
 
@@ -150,7 +153,6 @@ export function PurchasesPage() {
         cell: (row) => {
           const open = row.status !== 'cancelled';
           const receivable = !row.arrivalDate && !row.faulty && row.status !== 'cancelled';
-          const payable = row.status === 'pending' || row.status === 'received';
           const actions = [];
           if (receivable) {
             actions.push({
@@ -164,13 +166,6 @@ export function PurchasesPage() {
               label: 'Mal estado',
               icon: AlertTriangle,
               onSelect: () => setFaultyTarget(row),
-            });
-          }
-          if (payable) {
-            actions.push({
-              label: 'Registrar pago',
-              icon: CreditCard,
-              onSelect: () => setPayTarget(row),
             });
           }
           if (open) {
@@ -195,6 +190,9 @@ export function PurchasesPage() {
         subtitle="Órdenes de compra a proveedores"
         actions={
           <div className="hstack hstack--sm">
+            <Button variant="outline" onClick={() => setFiltersOpen(true)}>
+              <Filter /> Filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+            </Button>
             <Button variant="outline" onClick={() => setLotsOpen(true)}>
               <Boxes /> Lotes
             </Button>
@@ -265,6 +263,71 @@ export function PurchasesPage() {
         }
       />
 
+      <Drawer
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+        title="Filtros avanzados"
+        description="Combina lote, rango de fechas y tarjeta de crédito."
+        footer={
+          <div className="hstack hstack--sm">
+            <Button variant="outline" onClick={clearFilters} disabled={activeFilterCount === 0}>
+              Limpiar
+            </Button>
+            <Button onClick={() => setFiltersOpen(false)}>Aplicar</Button>
+          </div>
+        }
+      >
+        <div className="stack">
+          <div className="field">
+            <Label htmlFor="purchase-filter-lot">Lote de importación</Label>
+            <Select
+              items={[{ value: '', label: 'Todos los lotes' }, ...(lotsQuery.data?.items ?? []).map((l: ImportLotDTO) => ({ value: l.id, label: `${l.code} · ${l.description || 'sin descripción'}` }))]}
+              value={importLotId}
+              onValueChange={(v) => setImportLotId(v ?? '')}
+            >
+              <SelectTrigger id="purchase-filter-lot" aria-label="Filtrar por lote">
+                <SelectValue placeholder="Todos los lotes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Todos los lotes</SelectItem>
+                {(lotsQuery.data?.items ?? []).map((l: ImportLotDTO) => (
+                  <SelectItem key={l.id} value={l.id}>
+                    {l.code} · {l.description || 'sin descripción'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="field">
+            <Label>Rango de fechas</Label>
+            <div className="hstack hstack--sm">
+              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Desde" />
+              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Hasta" />
+            </div>
+          </div>
+          <div className="field">
+            <Label htmlFor="purchase-filter-card">Tarjeta de crédito</Label>
+            <Select
+              items={[{ value: '', label: 'Todas las tarjetas' }, ...(cardsQuery.data ?? []).map((c: CreditCardDTO) => ({ value: c.id, label: `${c.issuer} •••• ${c.lastFour}` }))]}
+              value={creditCardId}
+              onValueChange={(v) => setCreditCardId(v ?? '')}
+            >
+              <SelectTrigger id="purchase-filter-card" aria-label="Filtrar por tarjeta">
+                <SelectValue placeholder="Todas las tarjetas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Todas las tarjetas</SelectItem>
+                {(cardsQuery.data ?? []).map((c: CreditCardDTO) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.issuer} •••• {c.lastFour}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </Drawer>
+
       <PurchaseFormDialog open={formOpen} onOpenChange={setFormOpen} />
       <ImportLotsDialog open={lotsOpen} onOpenChange={setLotsOpen} />
 
@@ -278,7 +341,7 @@ export function PurchasesPage() {
         onConfirm={({ arrivalDate }) => {
           if (!receivedTarget) return;
           markReceived.mutate(
-            { id: receivedTarget.id, arrivalDate },
+            { id: receivedTarget.id, receivedDate: arrivalDate },
             {
               onSuccess: () => {
                 push({ title: 'Pedido marcado como recibido', variant: 'success' });
@@ -306,7 +369,7 @@ export function PurchasesPage() {
         onConfirm={(input: MarkFaultyInput) => {
           if (!faultyTarget) return;
           markFaulty.mutate(
-            { id: faultyTarget.id, input },
+            { id: faultyTarget.id, reason: input.reason },
             {
               onSuccess: () => {
                 push({ title: 'Pedido marcado como defectuoso', variant: 'success' });
@@ -315,42 +378,6 @@ export function PurchasesPage() {
               onError: (err: unknown) => {
                 push({
                   title: 'No se pudo marcar el pedido',
-                  description: err instanceof Error ? err.message : undefined,
-                  variant: 'destructive',
-                });
-              },
-            },
-          );
-        }}
-      />
-
-      <RegisterPaymentDialog
-        open={!!payTarget}
-        onOpenChange={(open) => {
-          if (!open) setPayTarget(null);
-        }}
-        title="Registrar pago"
-        description="Registra el pago de la orden de compra al proveedor."
-        documentNumber={payTarget?.number ?? ''}
-        amount={payTarget?.total ?? 0}
-        amountLabel="Total de la orden"
-        confirmLabel="Registrar pago"
-        loading={markPaid.isPending}
-        currencyCode="USD"
-        creditCardOptions={cardOptions}
-        creditCardLoading={cardsQuery.isLoading}
-        onConfirm={(input: RegisterPaymentInput) => {
-          if (!payTarget) return;
-          markPaid.mutate(
-            { id: payTarget.id, input },
-            {
-              onSuccess: () => {
-                push({ title: 'Pago registrado', variant: 'success' });
-                setPayTarget(null);
-              },
-              onError: (err: unknown) => {
-                push({
-                  title: 'No se pudo registrar el pago',
                   description: err instanceof Error ? err.message : undefined,
                   variant: 'destructive',
                 });

@@ -47,7 +47,7 @@ export function SecuritySection() {
 
   const savePassword = () =>
     run(
-      () => wailsClient.setLocalPassword(current, next),
+      () => wailsClient.setLocalPassword({ current, next }),
       passwordEnabled ? 'Contraseña actualizada' : 'Contraseña creada',
     );
 

@@ -32,6 +32,7 @@ const businessVarsSchema = z.object({
   clearanceDaysThreshold: z.number().int().min(1, 'Al menos 1 día.').max(365),
   importCostFactor: z.number().min(0, 'No puede ser negativo.').max(1, 'No puede superar 1.0'),
   fallbackExchangeRate: z.number().positive('Debe ser positivo.').max(100, 'Valor fuera de rango.'),
+  customsLimitUSD: z.number().positive('Debe ser positivo.').max(1000000, 'Valor fuera de rango.'),
 });
 
 type BusinessValues = z.infer<typeof businessSchema>;
@@ -77,9 +78,11 @@ export function SettingsPage() {
       await wailsClient.updatePreference('clearance_days_threshold', String(values.clearanceDaysThreshold));
       await wailsClient.updatePreference('import_cost_factor', String(values.importCostFactor));
       await wailsClient.updatePreference('fallback_exchange_rate', String(values.fallbackExchangeRate));
+      await wailsClient.updatePreference('customs_limit_usd', String(values.customsLimitUSD));
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.settings.preferences });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
       push({ title: 'Variables de negocio guardadas', variant: 'success' });
     },
     onError: (err: unknown) => {
@@ -188,12 +191,13 @@ export function SettingsPage() {
             </CardHeader>
             <CardContent>
               <Form<BusinessVarsValues>
-                key={`${preferences.data.clearanceDaysThreshold}-${preferences.data.importCostFactor}-${preferences.data.fallbackExchangeRate}`}
+                key={`${preferences.data.clearanceDaysThreshold}-${preferences.data.importCostFactor}-${preferences.data.fallbackExchangeRate}-${preferences.data.customsLimitUSD}`}
                 schema={businessVarsSchema}
                 defaultValues={{
                   clearanceDaysThreshold: preferences.data.clearanceDaysThreshold,
                   importCostFactor: preferences.data.importCostFactor,
                   fallbackExchangeRate: preferences.data.fallbackExchangeRate,
+                  customsLimitUSD: preferences.data.customsLimitUSD,
                 }}
                 onSubmit={(values) => saveBusinessVars.mutate(values)}
               >
@@ -221,6 +225,14 @@ export function SettingsPage() {
                     description="Tipo de cambio USD→PEN a usar cuando no hay conexión a APIs."
                     min={0.01}
                     max={100}
+                    step={0.01}
+                    required
+                  />
+                  <NumberField
+                    name="customsLimitUSD"
+                    label="Tope aduanero (USD)"
+                    description="Límite simplificado de importación por lote. Al superarlo se emite una advertencia."
+                    min={0.01}
                     step={0.01}
                     required
                   />

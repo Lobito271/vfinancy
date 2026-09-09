@@ -23,13 +23,14 @@ const companyColumns = `id, code, legal_name,
  is_active, created_at, updated_at, deleted_at`
 
 func (r *repository) GetProfile(ctx context.Context) (*workspace.LocalProfile, error) {
-	const q = `SELECT id, name, password_hash, password_enabled, failed_attempts,
+	const q = `SELECT id, name, password_hash, password_enabled, recovery_token_hash, failed_attempts,
  locked_until, active_company_id, theme, language, date_format, number_format,
  decimal_places, timezone, created_at, updated_at FROM local_profiles LIMIT 1`
 	p := &workspace.LocalProfile{}
 	var hash sql.NullString
+	var tokenHash sql.NullString
 	if err := persistence.Q(ctx, r.q).QueryRowContext(ctx, q).Scan(
-		&p.ID, &p.Name, &hash, &p.PasswordEnabled, &p.FailedAttempts,
+		&p.ID, &p.Name, &hash, &p.PasswordEnabled, &tokenHash, &p.FailedAttempts,
 		&p.LockedUntil, &p.ActiveCompanyID, &p.Theme, &p.Language,
 		&p.DateFormat, &p.NumberFormat, &p.DecimalPlaces, &p.Timezone,
 		&p.CreatedAt, &p.UpdatedAt,
@@ -42,17 +43,20 @@ func (r *repository) GetProfile(ctx context.Context) (*workspace.LocalProfile, e
 	if hash.Valid {
 		p.PasswordHash = hash.String
 	}
+	if tokenHash.Valid {
+		p.RecoveryTokenHash = tokenHash.String
+	}
 	return p, nil
 }
 
 func (r *repository) CreateProfile(ctx context.Context, p *workspace.LocalProfile) error {
 	const q = `INSERT INTO local_profiles
- (id, name, password_hash, password_enabled, failed_attempts, locked_until,
+ (id, name, password_hash, password_enabled, recovery_token_hash, failed_attempts, locked_until,
   active_company_id, theme, language, date_format, number_format, decimal_places,
   timezone, created_at, updated_at)
- VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`
+ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`
 	_, err := persistence.Q(ctx, r.q).ExecContext(ctx, q, p.ID, p.Name,
-		p.PasswordHash, p.PasswordEnabled, p.FailedAttempts, p.LockedUntil,
+		p.PasswordHash, p.PasswordEnabled, p.RecoveryTokenHash, p.FailedAttempts, p.LockedUntil,
 		p.ActiveCompanyID, p.Theme, p.Language, p.DateFormat, p.NumberFormat,
 		p.DecimalPlaces, p.Timezone, p.CreatedAt, p.UpdatedAt)
 	return persistence.Translate(err)
@@ -60,12 +64,12 @@ func (r *repository) CreateProfile(ctx context.Context, p *workspace.LocalProfil
 
 func (r *repository) UpdateProfile(ctx context.Context, p *workspace.LocalProfile) error {
 	const q = `UPDATE local_profiles SET name = $2, password_hash = $3,
- password_enabled = $4, failed_attempts = $5, locked_until = $6,
- active_company_id = $7, theme = $8, language = $9, date_format = $10,
- number_format = $11, decimal_places = $12, timezone = $13, updated_at = $14
+ password_enabled = $4, recovery_token_hash = $5, failed_attempts = $6, locked_until = $7,
+ active_company_id = $8, theme = $9, language = $10, date_format = $11,
+ number_format = $12, decimal_places = $13, timezone = $14, updated_at = $15
  WHERE id = $1`
 	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q, p.ID, p.Name,
-		p.PasswordHash, p.PasswordEnabled, p.FailedAttempts, p.LockedUntil,
+		p.PasswordHash, p.PasswordEnabled, p.RecoveryTokenHash, p.FailedAttempts, p.LockedUntil,
 		p.ActiveCompanyID, p.Theme, p.Language, p.DateFormat, p.NumberFormat,
 		p.DecimalPlaces, p.Timezone, p.UpdatedAt)
 	if err != nil {

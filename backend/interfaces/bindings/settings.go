@@ -38,6 +38,7 @@ type PreferencesDTO struct {
 	ClearanceDaysThreshold int     `json:"clearanceDaysThreshold"`
 	ImportCostFactor       float64 `json:"importCostFactor"`
 	FallbackExchangeRate   float64 `json:"fallbackExchangeRate"`
+	CustomsLimitUSD        float64 `json:"customsLimitUSD"`
 	SaleNumberPrefix       string  `json:"saleNumberPrefix"`
 	PurchaseNumberPrefix   string  `json:"purchaseNumberPrefix"`
 }

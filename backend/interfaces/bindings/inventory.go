@@ -40,7 +40,7 @@ type InventoryMovementDTO struct {
 	Notes       string `json:"notes"`
 }
 
-func toInventoryBatchDTO(today valueobjects.Date, b *inventory.InventoryBatch) *InventoryBatchDTO {
+func toInventoryBatchDTO(today valueobjects.Date, clearanceDays int, b *inventory.InventoryBatch) *InventoryBatchDTO {
 	expiry := ""
 	if b.ExpiryDate != nil {
 		expiry = b.ExpiryDate.Format("2006-01-02")
@@ -57,8 +57,8 @@ func toInventoryBatchDTO(today valueobjects.Date, b *inventory.InventoryBatch) *
 		UnitCost:        b.UnitCost.String(),
 		CurrencyCode:    b.CurrencyCode.String(),
 		Status:          b.Status,
-		MaxSaleDate:     b.MaximumSaleDate().Format("2006-01-02"),
-		IsClearance:     b.IsClearance(today),
+		MaxSaleDate:     b.MaximumSaleDateAfter(clearanceDays).Format("2006-01-02"),
+		IsClearance:     b.IsClearanceAfter(today, clearanceDays),
 	}
 }
 
@@ -134,9 +134,10 @@ func (a *App) ListInventoryBatches(req ListInventoryBatchesRequest) (PageResult,
 		return PageResult{}, utils.ProcessError(err)
 	}
 	today := valueobjects.Date(time.Now().UTC())
+	clearanceDays := a.inventorySvc.ClearanceDaysFor(ctx, a.companyID())
 	items := make([]*InventoryBatchDTO, 0, len(page.Items))
 	for _, b := range page.Items {
-		items = append(items, toInventoryBatchDTO(today, b))
+		items = append(items, toInventoryBatchDTO(today, clearanceDays, b))
 	}
 	return PageResult{Items: items, Total: page.Total, Page: page.Offset/page.Limit + 1, PageSize: page.Limit}, nil
 }
@@ -226,7 +227,8 @@ func (a *App) ReceiveStock(req ReceiveStockRequest) (*InventoryBatchDTO, error) 
 		return nil, utils.ProcessError(err)
 	}
 	today := valueobjects.Date(time.Now().UTC())
-	return toInventoryBatchDTO(today, batch), nil
+	clearanceDays := a.inventorySvc.ClearanceDaysFor(ctx, a.companyID())
+	return toInventoryBatchDTO(today, clearanceDays, batch), nil
 }
 
 // IssueStockRequest removes stock from a batch (sale, write-off...).

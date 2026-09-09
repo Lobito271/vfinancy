@@ -7,12 +7,24 @@ import { useAdjustStock } from '@/features/inventory/hooks/useInventory';
 import { useNotificationStore } from '@/stores/notification';
 import type { InventoryItem } from '@/types/domain';
 
-const AdjustSchema = z.object({
-  delta: z.number().refine((v) => v !== 0, 'El ajuste no puede ser 0'),
-  reason: z.string().min(1, 'Motivo requerido').max(200),
-});
+const AdjustSchema = (current: number) =>
+  z
+    .object({
+      delta: z.number().refine((v) => v !== 0, 'El ajuste no puede ser 0'),
+      reason: z.string().min(1, 'Motivo requerido').max(200),
+    })
+    .superRefine((data, ctx) => {
+      if (current + data.delta < 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['delta'],
+          message: `El stock no puede quedar negativo (existencia actual: ${current}).`,
+        });
+      }
+    });
 
-type AdjustFormValues = z.infer<typeof AdjustSchema>;
+type AdjustSchema = ReturnType<typeof AdjustSchema>;
+type AdjustFormValues = z.infer<AdjustSchema>;
 
 interface InventoryAdjustDialogProps {
   open: boolean;
@@ -58,7 +70,7 @@ export function InventoryAdjustDialog({ open, onOpenChange, batch }: InventoryAd
           </DialogDescription>
         </DialogHeader>
 
-        <Form schema={AdjustSchema} defaultValues={defaults} onSubmit={handleSubmit}>
+        <Form schema={AdjustSchema(batch?.quantity ?? 0)} defaultValues={defaults} onSubmit={handleSubmit}>
           {({ formState }) => (
             <>
               <DialogBody>

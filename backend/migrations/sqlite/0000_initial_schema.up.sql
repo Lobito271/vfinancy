@@ -80,6 +80,7 @@ CREATE TABLE local_profiles (
     id TEXT PRIMARY KEY,
     name VARCHAR(200) NOT NULL CHECK (length(trim(name)) > 0),
     password_hash TEXT,
+    recovery_token_hash TEXT,
     password_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     failed_attempts INTEGER NOT NULL DEFAULT 0 CHECK (failed_attempts >= 0),
     locked_until TIMESTAMP,
@@ -1357,4 +1358,43 @@ CREATE INDEX idx_supplier_payment_alloc_payment
 
 CREATE INDEX idx_supplier_payment_alloc_po
     ON supplier_payment_allocations (purchase_order_id);
+
+
+CREATE TABLE import_lots (
+    id          TEXT        PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    company_id  TEXT        NOT NULL,
+    code        VARCHAR(30) NOT NULL,
+    description TEXT,
+    status      VARCHAR(20) NOT NULL DEFAULT 'active'
+        CHECK (status IN ('active', 'closed')),
+    created_at  TIMESTAMP   NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
+    updated_at  TIMESTAMP   NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
+    deleted_at  TIMESTAMP,
+    created_by  TEXT,
+    updated_by  TEXT,
+
+    CONSTRAINT fk_import_lots_company
+        FOREIGN KEY (company_id) REFERENCES companies(id)
+        ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX uq_import_lots_company_code ON import_lots (company_id, code)
+    WHERE deleted_at IS NULL;
+CREATE INDEX idx_import_lots_company ON import_lots (company_id);
+
+CREATE TABLE import_lot_purchase_orders (
+    import_lot_id     TEXT      NOT NULL,
+    purchase_order_id TEXT      NOT NULL,
+    added_at          TIMESTAMP NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
+
+    PRIMARY KEY (import_lot_id, purchase_order_id),
+    CONSTRAINT fk_import_lot_members_lot
+        FOREIGN KEY (import_lot_id) REFERENCES import_lots(id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_import_lot_members_purchase
+        FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id)
+        ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+CREATE INDEX idx_import_lot_members_purchase ON import_lot_purchase_orders (purchase_order_id);
 

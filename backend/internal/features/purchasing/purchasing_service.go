@@ -32,11 +32,19 @@ type StockLedger interface {
 
 // PurchasingService owns the purchase slice.
 type PurchasingService struct {
-	orders   PurchaseRepository
-	payments SupplierPaymentRepository
-	stock    StockLedger
-	txm      repositories.TransactionManager
-	log      *logger.Logger
+	orders       PurchaseRepository
+	payments     SupplierPaymentRepository
+	lots         ImportLotRepository
+	stock        StockLedger
+	txm          repositories.TransactionManager
+	log          *logger.Logger
+	importFactor func(ctx context.Context, companyID uuid.UUID) float64
+}
+
+// SetImportLots injects the import-lot repository used for customs
+// grouping.
+func (s *PurchasingService) SetImportLots(lots ImportLotRepository) {
+	s.lots = lots
 }
 
 // New returns a PurchasingService ready for use.
@@ -56,6 +64,13 @@ func New(
 	}
 }
 
+// SetImportFactor injects a provider for the per-dollar import
+// surcharge (customs, freight, logistics). When unset, the package
+// default importSurcharge is used.
+func (s *PurchasingService) SetImportFactor(fn func(ctx context.Context, companyID uuid.UUID) float64) {
+	s.importFactor = fn
+}
+
 // importSurcharge is the fixed per-dollar overhead (customs, freight,
 // logistics) added to the official exchange rate when computing the
 // real landed cost of an import in PEN.
@@ -66,6 +81,21 @@ const importSurcharge = 0.07
 func RealCostPEN(costUSD valueobjects.Money, rate valueobjects.ExchangeRate) valueobjects.Money {
 	m, _ := valueobjects.MoneyFromDecimal(
 		costUSD.Decimal().Mul(rate.Decimal().Add(decimal.NewFromFloat(importSurcharge))),
+	)
+	return m
+}
+
+// realCostPEN computes the landed cost using the injected import
+// factor, falling back to the package default when no provider is set.
+func (s *PurchasingService) realCostPEN(ctx context.Context, companyID uuid.UUID, costUSD valueobjects.Money, rate valueobjects.ExchangeRate) valueobjects.Money {
+	factor := importSurcharge
+	if s.importFactor != nil {
+		if f := s.importFactor(ctx, companyID); f > 0 {
+			factor = f
+		}
+	}
+	m, _ := valueobjects.MoneyFromDecimal(
+		costUSD.Decimal().Mul(rate.Decimal().Add(decimal.NewFromFloat(factor))),
 	)
 	return m
 }
@@ -200,7 +230,7 @@ func (s *PurchasingService) Create(ctx context.Context, in CreateInput) (*Purcha
 	if orderType == "" {
 		orderType = enums.OrderTypeGeneral
 	}
-	realCost := RealCostPEN(in.CostUSD, in.ExchangeRate)
+	realCost := s.realCostPEN(ctx, in.CompanyID, in.CostUSD, in.ExchangeRate)
 	profit := ProjectedProfitPEN(in.SalePricePEN, realCost)
 	var out *PurchaseOrder
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
@@ -725,4 +755,154 @@ func (s *PurchasingService) GetByID(ctx context.Context, id uuid.UUID) (*Purchas
 // List returns purchase orders matching the filter.
 func (s *PurchasingService) List(ctx context.Context, filter PurchaseFilter) (repositories.Page[*PurchaseOrder], error) {
 	return s.orders.List(ctx, filter)
+}
+
+// ImportLotInput is the payload for CreateImportLot.
+type ImportLotInput struct {
+	CompanyID   uuid.UUID
+	Description string
+	PurchaseIDs []uuid.UUID
+}
+
+// CreateImportLot creates a new import lot, optionally adding the given
+// purchase orders, and returns the lot with its resulting customs total
+// in USD (excluding cancelled orders).
+func (s *PurchasingService) CreateImportLot(ctx context.Context, in ImportLotInput) (*ImportLot, valueobjects.Money, error) {
+	if s.lots == nil {
+		return nil, valueobjects.Money{}, derrors.New("INTERNAL", "import lots are not configured")
+	}
+	if in.CompanyID == uuid.Nil {
+		return nil, valueobjects.Money{}, derrors.New("REQUIRED", "company id is required")
+	}
+	var out *ImportLot
+	var total valueobjects.Money
+	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		code, err := s.lots.GetNextCode(ctx, in.CompanyID)
+		if err != nil {
+			return err
+		}
+		now := time.Now().UTC()
+		out = &ImportLot{
+			ID:          uuid.New(),
+			CompanyID:   in.CompanyID,
+			Code:        code,
+			Description: in.Description,
+			Status:      "active",
+			Members:     []*ImportLotMember{},
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
+		if err := s.lots.Create(ctx, out); err != nil {
+			return err
+		}
+		t, err := addMembers(ctx, s.lots, out.ID, in.PurchaseIDs)
+		if err != nil {
+			return err
+		}
+		total = t
+		return nil
+	})
+	if err != nil {
+		return nil, valueobjects.Money{}, err
+	}
+	return out, total, nil
+}
+
+// AddToImportLot assigns purchase orders to an existing import lot and
+// returns the lot with its updated customs total in USD.
+func (s *PurchasingService) AddToImportLot(ctx context.Context, lotID uuid.UUID, purchaseIDs []uuid.UUID) (*ImportLot, valueobjects.Money, error) {
+	if s.lots == nil {
+		return nil, valueobjects.Money{}, derrors.New("INTERNAL", "import lots are not configured")
+	}
+	if len(purchaseIDs) == 0 {
+		return nil, valueobjects.Money{}, derrors.New("REQUIRED", "at least one purchase order is required")
+	}
+	var out *ImportLot
+	var total valueobjects.Money
+	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		ok, err := s.lots.Exists(ctx, lotID)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return derrors.New("NOT_FOUND", "import lot not found")
+		}
+		for _, pid := range purchaseIDs {
+			if err := s.lots.AddMember(ctx, lotID, pid); err != nil {
+				return err
+			}
+		}
+		lot, err := s.lots.GetByID(ctx, lotID, true)
+		if err != nil {
+			return err
+		}
+		out = lot
+		t, err := s.lots.TotalUSD(ctx, lotID)
+		if err != nil {
+			return err
+		}
+		total = t
+		return nil
+	})
+	if err != nil {
+		return nil, valueobjects.Money{}, err
+	}
+	return out, total, nil
+}
+
+// RemoveFromImportLot removes a purchase order from an import lot and
+// returns the lot's updated customs total in USD.
+func (s *PurchasingService) RemoveFromImportLot(ctx context.Context, lotID, purchaseID uuid.UUID) (valueobjects.Money, error) {
+	if s.lots == nil {
+		return valueobjects.Money{}, derrors.New("INTERNAL", "import lots are not configured")
+	}
+	var total valueobjects.Money
+	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		if err := s.lots.RemoveMember(ctx, lotID, purchaseID); err != nil {
+			return err
+		}
+		t, err := s.lots.TotalUSD(ctx, lotID)
+		if err != nil {
+			return err
+		}
+		total = t
+		return nil
+	})
+	if err != nil {
+		return valueobjects.Money{}, err
+	}
+	return total, nil
+}
+
+// GetImportLot returns an import lot with its members.
+func (s *PurchasingService) GetImportLot(ctx context.Context, lotID uuid.UUID) (*ImportLot, valueobjects.Money, error) {
+	if s.lots == nil {
+		return nil, valueobjects.Money{}, derrors.New("INTERNAL", "import lots are not configured")
+	}
+	lot, err := s.lots.GetByID(ctx, lotID, true)
+	if err != nil {
+		return nil, valueobjects.Money{}, err
+	}
+	total, err := s.lots.TotalUSD(ctx, lotID)
+	if err != nil {
+		return nil, valueobjects.Money{}, err
+	}
+	return lot, total, nil
+}
+
+// ListImportLots returns import lots matching the filter.
+func (s *PurchasingService) ListImportLots(ctx context.Context, filter ImportLotFilter) (repositories.Page[*ImportLot], error) {
+	if s.lots == nil {
+		return repositories.Page[*ImportLot]{}, derrors.New("INTERNAL", "import lots are not configured")
+	}
+	return s.lots.List(ctx, filter)
+}
+
+func addMembers(ctx context.Context, lots ImportLotRepository, lotID uuid.UUID, purchaseIDs []uuid.UUID) (valueobjects.Money, error) {
+	for _, pid := range purchaseIDs {
+		if err := lots.AddMember(ctx, lotID, pid); err != nil {
+			return valueobjects.Money{}, err
+		}
+	}
+	return lots.TotalUSD(ctx, lotID)
 }

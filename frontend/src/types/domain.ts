@@ -83,6 +83,9 @@ export interface Sale {
   total: number;
   cost: number;
   profit: number;
+  paid: number;
+  balance: number;
+  dueDate: string;
 }
 
 export interface Purchase {

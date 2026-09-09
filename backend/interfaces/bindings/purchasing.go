@@ -2,7 +2,9 @@ package bindings
 
 import (
 	"time"
+
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"vfinancy/backend/internal/domain/enums"
 	"vfinancy/backend/internal/domain/valueobjects"
@@ -549,4 +551,172 @@ func (a *App) RegisterCustomerOrderPayment(req RegisterCustomerOrderPaymentReque
 		return nil, utils.ProcessError(err)
 	}
 	return toCustomerOrderPaymentDTO(pm), nil
+}
+
+// ImportLotDTO is the serializable view of an import lot.
+type ImportLotDTO struct {
+	ID              string `json:"id"`
+	Code            string `json:"code"`
+	Description     string `json:"description"`
+	Status          string `json:"status"`
+	TotalUSD        string `json:"totalUSD"`
+	CustomsLimitUSD string `json:"customsLimitUSD"`
+	OverLimit       bool   `json:"overLimit"`
+	MemberCount     int    `json:"memberCount"`
+	CreatedAt       string `json:"createdAt"`
+}
+
+// customsLimitUSD returns the configured simplified customs cap in USD,
+// defaulting to $220 when unset.
+func (a *App) customsLimitUSD() float64 {
+	prefs, err := a.settingsSvc.GetPreferences(a.Context(), a.companyID())
+	if err != nil || prefs.CustomsLimitUSD <= 0 {
+		return 220
+	}
+	return prefs.CustomsLimitUSD
+}
+
+func (a *App) importLotDTO(lot *purchasing.ImportLot, total valueobjects.Money) *ImportLotDTO {
+	limit := a.customsLimitUSD()
+	over := total.Decimal().GreaterThan(decimal.NewFromFloat(limit))
+	return &ImportLotDTO{
+		ID:              lot.ID.String(),
+		Code:            lot.Code,
+		Description:     lot.Description,
+		Status:          lot.Status,
+		TotalUSD:        total.String(),
+		CustomsLimitUSD: decimal.NewFromFloat(limit).StringFixed(2),
+		OverLimit:       over,
+		MemberCount:     len(lot.Members),
+		CreatedAt:       lot.CreatedAt.Format(time.RFC3339),
+	}
+}
+
+// ListImportLotsRequest filters the import-lot listing.
+type ListImportLotsRequest struct {
+	Status string `json:"status"`
+	Search string `json:"search"`
+	PaginationRequest
+}
+
+// ListImportLots returns paged import lots with their totals.
+func (a *App) ListImportLots(req ListImportLotsRequest) (PageResult, error) {
+	filter := purchasing.ImportLotFilter{
+		CompanyID:   a.companyIDPtr(),
+		Status:      req.Status,
+		Search:      req.Search,
+		PageRequest: req.toPageRequest(),
+	}
+	page, err := a.purchasingSvc.ListImportLots(a.Context(), filter)
+	if err != nil {
+		return PageResult{}, utils.ProcessError(err)
+	}
+	items := make([]*ImportLotDTO, 0, len(page.Items))
+	for _, lot := range page.Items {
+		full, total, err := a.purchasingSvc.GetImportLot(a.Context(), lot.ID)
+		if err != nil {
+			continue
+		}
+		items = append(items, a.importLotDTO(full, total))
+	}
+	return PageResult{Items: items, Total: page.Total, Page: page.Offset/page.Limit + 1, PageSize: page.Limit}, nil
+}
+
+// GetImportLot returns a single import lot with its total.
+func (a *App) GetImportLot(id string) (*ImportLotDTO, error) {
+	lid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, utils.ProcessError(err)
+	}
+	lot, total, err := a.purchasingSvc.GetImportLot(a.Context(), lid)
+	if err != nil {
+		return nil, utils.ProcessError(err)
+	}
+	return a.importLotDTO(lot, total), nil
+}
+
+// CreateImportLotRequest creates a new import lot.
+type CreateImportLotRequest struct {
+	Description string   `json:"description"`
+	PurchaseIDs []string `json:"purchaseIds"`
+}
+
+// CreateImportLot creates an import lot, adding the given purchase
+// orders, and returns the lot with its resulting customs total.
+func (a *App) CreateImportLot(req CreateImportLotRequest) (*ImportLotDTO, error) {
+	ids, err := parseUUIDList(req.PurchaseIDs)
+	if err != nil {
+		return nil, utils.ProcessError(err)
+	}
+	lot, total, err := a.purchasingSvc.CreateImportLot(a.Context(), purchasing.ImportLotInput{
+		CompanyID:   a.companyID(),
+		Description: req.Description,
+		PurchaseIDs: ids,
+	})
+	if err != nil {
+		return nil, utils.ProcessError(err)
+	}
+	return a.importLotDTO(lot, total), nil
+}
+
+// AddToImportLotRequest adds purchase orders to a lot.
+type AddToImportLotRequest struct {
+	ID          string   `json:"id"`
+	PurchaseIDs []string `json:"purchaseIds"`
+}
+
+// AddToImportLot assigns purchase orders to an import lot and returns
+// the lot with its updated customs total.
+func (a *App) AddToImportLot(req AddToImportLotRequest) (*ImportLotDTO, error) {
+	lid, err := uuid.Parse(req.ID)
+	if err != nil {
+		return nil, utils.ProcessError(err)
+	}
+	ids, err := parseUUIDList(req.PurchaseIDs)
+	if err != nil {
+		return nil, utils.ProcessError(err)
+	}
+	lot, total, err := a.purchasingSvc.AddToImportLot(a.Context(), lid, ids)
+	if err != nil {
+		return nil, utils.ProcessError(err)
+	}
+	return a.importLotDTO(lot, total), nil
+}
+
+// RemoveFromImportLotRequest removes one purchase order from a lot.
+type RemoveFromImportLotRequest struct {
+	ID         string `json:"id"`
+	PurchaseID string `json:"purchaseId"`
+}
+
+// RemoveFromImportLot removes a purchase order from an import lot.
+func (a *App) RemoveFromImportLot(req RemoveFromImportLotRequest) (*ImportLotDTO, error) {
+	lid, err := uuid.Parse(req.ID)
+	if err != nil {
+		return nil, utils.ProcessError(err)
+	}
+	pid, err := uuid.Parse(req.PurchaseID)
+	if err != nil {
+		return nil, utils.ProcessError(err)
+	}
+	if _, err := a.purchasingSvc.RemoveFromImportLot(a.Context(), lid, pid); err != nil {
+		return nil, utils.ProcessError(err)
+	}
+	lot, total, err := a.purchasingSvc.GetImportLot(a.Context(), lid)
+	if err != nil {
+		return nil, utils.ProcessError(err)
+	}
+	return a.importLotDTO(lot, total), nil
+}
+
+func parseUUIDList(ids []string) ([]uuid.UUID, error) {
+	out := make([]uuid.UUID, 0, len(ids))
+	for _, s := range ids {
+		id, err := uuid.Parse(s)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, nil
 }

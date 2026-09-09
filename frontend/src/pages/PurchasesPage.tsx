@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Package, CreditCard, AlertTriangle, Ban, Plus, Download } from 'lucide-react';
+import { Package, CreditCard, AlertTriangle, Ban, Plus, Download, Boxes } from 'lucide-react';
 import { PageContainer, PageHeader, Grid } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
@@ -28,6 +28,7 @@ import {
 import { useCreditCards } from '@/features/treasury/hooks/useTreasury';
 import type { SelectOption } from '@/components/form';
 import { PurchaseFormDialog } from '@/features/purchasing/components/PurchaseFormDialog';
+import { ImportLotsDialog } from '@/features/purchasing/components/ImportLotsDialog';
 import { MarkReceivedDialog } from '@/features/purchasing/components/MarkReceivedDialog';
 import { MarkFaultyDialog, type MarkFaultyInput } from '@/features/purchasing/components/MarkFaultyDialog';
 import type { Purchase } from '@/types/domain';
@@ -121,6 +122,7 @@ export function PurchasesPage() {
   }, [cardsQuery.data]);
 
   const [formOpen, setFormOpen] = useState(false);
+  const [lotsOpen, setLotsOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Purchase | null>(null);
   const [payTarget, setPayTarget] = useState<Purchase | null>(null);
   const [receivedTarget, setReceivedTarget] = useState<Purchase | null>(null);
@@ -192,9 +194,14 @@ export function PurchasesPage() {
         title="Compras"
         subtitle="Órdenes de compra a proveedores"
         actions={
-          <Button onClick={openCreate}>
-            <Plus /> Nueva compra
-          </Button>
+          <div className="hstack hstack--sm">
+            <Button variant="outline" onClick={() => setLotsOpen(true)}>
+              <Boxes /> Lotes
+            </Button>
+            <Button onClick={openCreate}>
+              <Plus /> Nueva compra
+            </Button>
+          </div>
         }
       />
 
@@ -259,6 +266,7 @@ export function PurchasesPage() {
       />
 
       <PurchaseFormDialog open={formOpen} onOpenChange={setFormOpen} />
+      <ImportLotsDialog open={lotsOpen} onOpenChange={setLotsOpen} />
 
       <MarkReceivedDialog
         open={!!receivedTarget}

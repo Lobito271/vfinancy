@@ -54,6 +54,14 @@ func (s *InventoryService) clearancePolicy(ctx context.Context, companyID uuid.U
 	return ClearanceDays, 3
 }
 
+// ClearanceDaysFor returns the effective maximum-stay threshold for the
+// given company, honoring the user-configured value with a fallback to
+// the default clearance period.
+func (s *InventoryService) ClearanceDaysFor(ctx context.Context, companyID uuid.UUID) int {
+	days, _ := s.clearancePolicy(ctx, companyID)
+	return days
+}
+
 // New returns an InventoryService ready for use.
 func New(
 	batches InventoryBatchRepository,

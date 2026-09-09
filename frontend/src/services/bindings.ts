@@ -8,6 +8,10 @@ import type {
   CreateCustomerRequest,
   CreateProductRequest,
   CreatePurchaseOrderRequest,
+  CreateImportLotRequest,
+  AddToImportLotRequest,
+  ListImportLotsRequest,
+  RemoveFromImportLotRequest,
   CreateSaleRequest,
   CreateSupplierRequest,
   CreateCategoryRequest,
@@ -89,6 +93,10 @@ export const wailsClient = {
   async removeLocalPassword(current: string) {
     const b = await resolveBindings();
     return b.RemoveLocalPassword(current);
+  },
+  async getRecoveryToken() {
+    const b = await resolveBindings();
+    return (b as any).GetRecoveryToken();
   },
   async lockLocalProfile() {
     const b = await resolveBindings();
@@ -270,6 +278,10 @@ export const wailsClient = {
     const b = await resolveBindings();
     return b.RegisterSalePayment(req);
   },
+  async listSalePayments(id: string) {
+    const b = await resolveBindings();
+    return b.ListSalePayments(id);
+  },
 
   async listCreditCards() {
     const b = await resolveBindings();
@@ -344,6 +356,26 @@ export const wailsClient = {
   async cancelPurchaseOrder(req: CancelPurchaseOrderRequest) {
     const b = await resolveBindings();
     return b.CancelPurchaseOrder(req);
+  },
+  async listImportLots(req: ListImportLotsRequest) {
+    const b = await resolveBindings();
+    return b.ListImportLots(req);
+  },
+  async getImportLot(id: string) {
+    const b = await resolveBindings();
+    return b.GetImportLot(id);
+  },
+  async createImportLot(req: CreateImportLotRequest) {
+    const b = await resolveBindings();
+    return b.CreateImportLot(req);
+  },
+  async addToImportLot(req: AddToImportLotRequest) {
+    const b = await resolveBindings();
+    return b.AddToImportLot(req);
+  },
+  async removeFromImportLot(req: RemoveFromImportLotRequest) {
+    const b = await resolveBindings();
+    return b.RemoveFromImportLot(req);
   },
   async registerPurchasePayment(req: RegisterPurchasePaymentRequest) {
     const b = await resolveBindings();

@@ -27,21 +27,22 @@ type Company struct {
 }
 
 type LocalProfile struct {
-	ID              uuid.UUID
-	Name            string
-	PasswordHash    string
-	PasswordEnabled bool
-	FailedAttempts  int
-	LockedUntil     *time.Time
-	ActiveCompanyID uuid.UUID
-	Theme           string
-	Language        string
-	DateFormat      string
-	NumberFormat    string
-	DecimalPlaces   int
-	Timezone        string
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID                uuid.UUID
+	Name              string
+	PasswordHash      string
+	PasswordEnabled   bool
+	RecoveryTokenHash string
+	FailedAttempts    int
+	LockedUntil       *time.Time
+	ActiveCompanyID   uuid.UUID
+	Theme             string
+	Language          string
+	DateFormat        string
+	NumberFormat      string
+	DecimalPlaces     int
+	Timezone          string
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 func (p *LocalProfile) Validate() error {

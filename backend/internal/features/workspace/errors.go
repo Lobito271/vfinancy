@@ -12,4 +12,5 @@ var (
 	ErrProfileLocked   = errors.New("workspace: local profile is locked")
 	ErrPasswordWrong   = errors.New("workspace: invalid local password")
 	ErrPasswordWeak    = errors.New("workspace: local password is too weak")
+	ErrRecoveryIssued  = errors.New("workspace: recovery token already issued")
 )

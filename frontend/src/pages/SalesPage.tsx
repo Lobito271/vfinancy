@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react';
-import { ShoppingCart, CreditCard, Ban, Plus } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { ShoppingCart, CreditCard, Ban, Plus, ReceiptText } from 'lucide-react';
 import { PageContainer, PageHeader, Grid } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
 import { SaleStatusBadge } from '@/components/badge';
 import { SearchInput } from '@/components/input';
-import { EmptyState } from '@/components/feedback';
+import { EmptyState, Spinner } from '@/components/feedback';
 import { Button } from '@/components/button';
 import { CancelDialog } from '@/components/dialog';
 import { RegisterPaymentDialog, type RegisterPaymentInput } from '@/features/treasury/components/RegisterPaymentDialog';
-import { RowActions } from '@/components/misc';
+import { RowActions, Drawer } from '@/components/misc';
 import {
   Select,
   SelectContent,
@@ -19,6 +20,8 @@ import {
 } from '@/components/select';
 import { useSales, useCancelSale, useCollectSalePayment } from '@/features/sales/hooks/useSales';
 import { SaleFormDialog } from '@/features/sales/components/SaleFormDialog';
+import { wailsClient } from '@/services/bindings';
+import { PaymentMethodOptions } from '@/constants/paymentMethods';
 import type { Sale } from '@/types/domain';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { useNotificationStore } from '@/stores/notification';
@@ -61,6 +64,9 @@ const columns: Column<Sale>[] = [
   },
 ];
 
+const methodLabel = (code: string) =>
+  PaymentMethodOptions.find((o) => o.value === code)?.label ?? code;
+
 export function SalesPage() {
   const { data, isLoading, isError, error, refetch } = useSales();
   const cancel = useCancelSale();
@@ -72,6 +78,13 @@ export function SalesPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Sale | null>(null);
   const [collectTarget, setCollectTarget] = useState<Sale | null>(null);
+  const [historyTarget, setHistoryTarget] = useState<Sale | null>(null);
+
+  const paymentsQuery = useQuery({
+    queryKey: ['sale-payments', historyTarget?.id],
+    queryFn: () => wailsClient.listSalePayments(historyTarget!.id),
+    enabled: Boolean(historyTarget),
+  });
 
   const sales = data ?? [];
   const filtered = useMemo(() => {
@@ -105,6 +118,11 @@ export function SalesPage() {
           const collectable = row.status === 'pending' || row.status === 'partial';
           const cancellable = row.status !== 'cancelled';
           const actions = [];
+          actions.push({
+            label: 'Cobros',
+            icon: ReceiptText,
+            onSelect: () => setHistoryTarget(row),
+          });
           if (collectable) {
             actions.push({
               label: 'Cobrar',
@@ -262,6 +280,94 @@ export function SalesPage() {
           );
         }}
       />
+
+      <Drawer
+        open={!!historyTarget}
+        onOpenChange={(open) => {
+          if (!open) setHistoryTarget(null);
+        }}
+        title="Historial de cobros"
+        description={
+          historyTarget ? `${historyTarget.number} · ${historyTarget.customerName}` : undefined
+        }
+        footer={
+          <div className="hstack hstack--sm" style={{ justifyContent: 'flex-end' }}>
+            <Button variant="outline" onClick={() => setHistoryTarget(null)}>
+              Cerrar
+            </Button>
+            {(historyTarget?.status === 'pending' || historyTarget?.status === 'partial') && (
+              <Button
+                onClick={() => {
+                  setCollectTarget(historyTarget);
+                  setHistoryTarget(null);
+                }}
+              >
+                <CreditCard /> Cobrar
+              </Button>
+            )}
+          </div>
+        }
+      >
+        {historyTarget && (
+          <div className="stack">
+            <div className="doc-summary">
+              <div className="doc-summary__row">
+                <div className="doc-summary__meta">
+                  Total · <span className="doc-summary__doc-number">{historyTarget.number}</span>
+                </div>
+                <div className="doc-summary__amount">{formatCurrency(historyTarget.total)}</div>
+              </div>
+              <div className="doc-summary__row">
+                <div className="doc-summary__meta">Pagado</div>
+                <div className="doc-summary__amount">{formatCurrency(historyTarget.paid)}</div>
+              </div>
+              <div className="doc-summary__row">
+                <div className="doc-summary__meta">Saldo</div>
+                <div className="doc-summary__amount">{formatCurrency(historyTarget.balance)}</div>
+              </div>
+              {historyTarget.dueDate && (
+                <div className="doc-summary__row">
+                  <div className="doc-summary__meta">Vence</div>
+                  <div className="doc-summary__amount">{formatDate(historyTarget.dueDate)}</div>
+                </div>
+              )}
+            </div>
+
+            {paymentsQuery.isLoading ? (
+              <Spinner />
+            ) : paymentsQuery.isError ? (
+              <EmptyState title="No se pudo cargar" description="No se pudieron cargar los cobros de esta venta." />
+            ) : paymentsQuery.data && paymentsQuery.data.length > 0 ? (
+              <div className="stack">
+                {paymentsQuery.data.map((p) => (
+                  <div
+                    key={p.id}
+                    className="hstack"
+                    style={{
+                      justifyContent: 'space-between',
+                      padding: '0.5rem 0',
+                      borderBottom: '1px solid var(--color-border)',
+                    }}
+                  >
+                    <span style={{ display: 'grid' }}>
+                      <strong style={{ fontWeight: 500 }}>
+                        {p.number} · {methodLabel(p.method)}
+                      </strong>
+                      <small style={{ color: 'var(--color-fg-subtle)' }}>
+                        {formatDate(p.paymentDate)}
+                        {p.reference ? ` · ${p.reference}` : ''}
+                      </small>
+                    </span>
+                    <span>{formatCurrency(Number(p.amount))}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState title="Sin cobros" description="Esta venta aún no tiene cobros registrados." />
+            )}
+          </div>
+        )}
+      </Drawer>
     </PageContainer>
   );
 }

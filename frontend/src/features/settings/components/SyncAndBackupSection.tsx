@@ -133,8 +133,18 @@ export function BackupSection() {
   const push = useNotificationStore((s) => s.push);
   const backup = useMutation({
     mutationFn: () => wailsClient.createBackup(),
-    onSuccess: (path: string) =>
-      push({ title: 'Copia de seguridad creada', description: path, variant: 'success' }),
+    onSuccess: (path: string) => {
+      const isEmergency = path.includes('/.vfinancy/backups') || path.includes('vfinancy/backups');
+      if (isEmergency) {
+        push({
+          title: 'Resguardo de emergencia',
+          description: `La carpeta configurada no estaba disponible. La copia se guardó en el directorio interno (${path}).`,
+          variant: 'destructive',
+        });
+        return;
+      }
+      push({ title: 'Copia de seguridad creada', description: path, variant: 'success' });
+    },
     onError: (err: unknown) =>
       push({ title: 'No se pudo crear la copia', description: err instanceof Error ? err.message : undefined, variant: 'destructive' }),
   });

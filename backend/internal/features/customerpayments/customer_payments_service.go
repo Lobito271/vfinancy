@@ -456,3 +456,9 @@ func (s *CustomerPaymentService) ListPayments(ctx context.Context, filter sales.
 func (s *CustomerPaymentService) ListAdvances(ctx context.Context, customerID uuid.UUID) ([]*sales.CustomerAdvance, error) {
 	return s.advances.ListByCustomer(ctx, customerID)
 }
+
+// ListPaymentsForSale returns the customer payments allocated to a
+// given sale, most recent first.
+func (s *CustomerPaymentService) ListPaymentsForSale(ctx context.Context, saleID uuid.UUID) ([]*sales.CustomerPayment, error) {
+	return s.payments.ListAllocationsForSale(ctx, saleID)
+}

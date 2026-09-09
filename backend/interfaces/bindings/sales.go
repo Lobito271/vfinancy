@@ -35,6 +35,7 @@ type SaleDTO struct {
 	CustomerID   string         `json:"customerId"`
 	CustomerName string         `json:"customerName"`
 	Date         string         `json:"date"`
+	DueDate      string         `json:"dueDate"`
 	Status       string         `json:"status"`
 	Subtotal     string         `json:"subtotal"`
 	Tax          string         `json:"tax"`
@@ -64,6 +65,10 @@ func toSaleDTO(ctx context.Context, customers *customer.CustomerService, s *sale
 	if cust, err := customers.GetByID(ctx, s.CustomerID); err == nil {
 		customerName = cust.BusinessName.String()
 	}
+	dueDate := ""
+	if s.DueDate != nil {
+		dueDate = s.DueDate.Format("2006-01-02")
+	}
 	items := make([]*SaleItemDTO, 0, len(s.Items))
 	for _, it := range s.Items {
 		items = append(items, &SaleItemDTO{
@@ -86,6 +91,7 @@ func toSaleDTO(ctx context.Context, customers *customer.CustomerService, s *sale
 		CustomerID:   s.CustomerID.String(),
 		CustomerName: customerName,
 		Date:         s.SaleDate.Format("2006-01-02"),
+		DueDate:      dueDate,
 		Status:       s.Status.String(),
 		Subtotal:     s.Subtotal.String(),
 		Tax:          s.TaxAmount.String(),
@@ -442,4 +448,51 @@ func (a *App) RegisterPartialSalePayment(req RegisterPartialSalePaymentRequest) 
 		return nil, utils.ProcessError(err)
 	}
 	return toSaleDTO(a.Context(), a.customersSvc, sale), nil
+}
+
+// SalePaymentDTO is a customer payment allocated to a sale.
+type SalePaymentDTO struct {
+	ID          string `json:"id"`
+	Number      string `json:"number"`
+	PaymentDate string `json:"paymentDate"`
+	Amount      string `json:"amount"`
+	Total       string `json:"total"`
+	Method      string `json:"method"`
+	Reference   string `json:"reference"`
+	Notes       string `json:"notes"`
+}
+
+// ListSalePayments returns the customer payments applied to a sale,
+// most recent first.
+func (a *App) ListSalePayments(id string) ([]*SalePaymentDTO, error) {
+	ctx := a.Context()
+	sid, err := uuid.Parse(id)
+	if err != nil {
+		return nil, utils.ProcessError(err)
+	}
+	payments, err := a.paymentSvc.ListPaymentsForSale(ctx, sid)
+	if err != nil {
+		return nil, utils.ProcessError(err)
+	}
+	out := make([]*SalePaymentDTO, 0, len(payments))
+	for _, p := range payments {
+		applied := valueobjects.Zero()
+		for _, alloc := range p.Allocations() {
+			if alloc.SaleID == sid {
+				applied = alloc.Amount
+				break
+			}
+		}
+		out = append(out, &SalePaymentDTO{
+			ID:          p.ID.String(),
+			Number:      p.Number,
+			PaymentDate: p.PaymentDate.Format("2006-01-02"),
+			Amount:      applied.String(),
+			Total:       p.Amount.String(),
+			Method:      p.Method.String(),
+			Reference:   p.Reference,
+			Notes:       p.Notes,
+		})
+	}
+	return out, nil
 }

@@ -81,6 +81,7 @@ type SystemPreferences struct {
 	ClearanceDaysThreshold int
 	ImportCostFactor       float64
 	FallbackExchangeRate   float64
+	CustomsLimitUSD        float64
 	SaleNumberPrefix       string
 	PurchaseNumberPrefix   string
 }
@@ -193,6 +194,7 @@ func (s *SettingsService) GetPreferences(ctx context.Context, companyID uuid.UUI
 		ClearanceDaysThreshold: 25,
 		ImportCostFactor:       0.07,
 		FallbackExchangeRate:   3.75,
+		CustomsLimitUSD:        220,
 		SaleNumberPrefix:       "V",
 		PurchaseNumberPrefix:   "PO",
 	}
@@ -242,6 +244,8 @@ func (s *SettingsService) GetPreferences(ctx context.Context, companyID uuid.UUI
 			prefs.ImportCostFactor = setting.Float64Value()
 		case "preferences.fallback_exchange_rate":
 			prefs.FallbackExchangeRate = setting.Float64Value()
+		case "preferences.customs_limit_usd":
+			prefs.CustomsLimitUSD = setting.Float64Value()
 		case "preferences.sale_number_prefix":
 			prefs.SaleNumberPrefix = setting.StringValue()
 		case "preferences.purchase_number_prefix":
@@ -268,7 +272,7 @@ func (s *SettingsService) UpdatePreference(ctx context.Context, companyID uuid.U
 				return derrors.New("INVALID", "preference must be an integer")
 			}
 			value = n
-		case "import_cost_factor", "fallback_exchange_rate":
+		case "import_cost_factor", "fallback_exchange_rate", "customs_limit_usd":
 			f, err := strconv.ParseFloat(raw, 64)
 			if err != nil {
 				return derrors.New("INVALID", "preference must be a decimal number")

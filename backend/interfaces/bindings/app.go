@@ -194,6 +194,14 @@ func (a *App) initializeServices(ctx context.Context) error {
 	a.salesSvc = sales.New(orders, customers, a.inventorySvc, productClassifier, txm, a.log)
 	a.paymentSvc = customerpayments.New(payments, advances, orders, customers, txm, a.log)
 	a.purchasingSvc = purchasing.New(purchaseOrders, supplierPayments, a.inventorySvc, txm, a.log)
+	a.purchasingSvc.SetImportLots(purchasingpostgres.NewImportLotRepository(db.DB))
+	a.purchasingSvc.SetImportFactor(func(ctx context.Context, companyID uuid.UUID) float64 {
+		prefs, err := a.settingsSvc.GetPreferences(ctx, companyID)
+		if err != nil {
+			return 0.07
+		}
+		return prefs.ImportCostFactor
+	})
 	a.customersSvc = customer.New(customers, txm, a.log)
 	a.productsSvc = product.New(products, txm, a.log)
 	a.suppliersSvc = supplier.New(suppliers, txm, a.log)

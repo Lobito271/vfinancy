@@ -2,6 +2,8 @@ package workspace
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"strings"
 	"sync"
 	"time"
@@ -330,6 +332,7 @@ func (s *Service) RemovePassword(ctx context.Context, current string) error {
 	}
 	s.profile.PasswordHash = ""
 	s.profile.PasswordEnabled = false
+	s.profile.RecoveryTokenHash = ""
 	s.profile.FailedAttempts = 0
 	s.profile.LockedUntil = nil
 	s.profile.UpdatedAt = time.Now().UTC()
@@ -338,6 +341,37 @@ func (s *Service) RemovePassword(ctx context.Context, current string) error {
 	}
 	s.unlocked = true
 	return nil
+}
+
+// GenerateRecoveryToken creates a one-time recovery secret, stores only
+// its hash, and returns the plaintext value. It can only be issued
+// once per profile; subsequent calls return ErrRecoveryIssued. The
+// token must be shown to the user at activation time and never
+// recovered again from the stored hash.
+func (s *Service) GenerateRecoveryToken(ctx context.Context) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.profile == nil {
+		return "", ErrProfileNotFound
+	}
+	if s.profile.RecoveryTokenHash != "" {
+		return "", ErrRecoveryIssued
+	}
+	raw := make([]byte, 16)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	token := hex.EncodeToString(raw)
+	hash, err := HashPassword(token, nil)
+	if err != nil {
+		return "", err
+	}
+	s.profile.RecoveryTokenHash = hash
+	s.profile.UpdatedAt = time.Now().UTC()
+	if err := s.repo.UpdateProfile(ctx, s.profile); err != nil {
+		return "", err
+	}
+	return token, nil
 }
 
 func (s *Service) SetActiveCompany(ctx context.Context, id uuid.UUID) error {

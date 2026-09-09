@@ -96,6 +96,7 @@ interface PreferencesDTO {
   clearanceDaysThreshold: number;
   importCostFactor: number;
   fallbackExchangeRate: number;
+  customsLimitUSD: number;
   saleNumberPrefix: string;
   purchaseNumberPrefix: string;
 }
@@ -383,6 +384,7 @@ export interface SaleDTO {
   customerId: string;
   customerName: string;
   date: string;
+  dueDate: string;
   status: string;
   subtotal: string;
   tax: string;
@@ -698,6 +700,40 @@ export interface PurchaseOrderDTO {
   payments: CustomerOrderPaymentDTO[];
 }
 
+export interface ImportLotDTO {
+  id: string;
+  code: string;
+  description: string;
+  status: string;
+  totalUSD: string;
+  customsLimitUSD: string;
+  overLimit: boolean;
+  memberCount: number;
+  createdAt: string;
+}
+
+export interface ListImportLotsRequest {
+  status: string;
+  search: string;
+  page: number;
+  pageSize: number;
+}
+
+export interface CreateImportLotRequest {
+  description: string;
+  purchaseIds: string[];
+}
+
+export interface AddToImportLotRequest {
+  id: string;
+  purchaseIds: string[];
+}
+
+export interface RemoveFromImportLotRequest {
+  id: string;
+  purchaseId: string;
+}
+
 export interface ListPurchaseOrdersRequest extends PaginationRequest {
   status: string;
   orderType: string;
@@ -797,6 +833,17 @@ export interface RegisterSalePaymentRequest {
   notes: string;
 }
 
+export interface SalePaymentDTO {
+  id: string;
+  number: string;
+  paymentDate: string;
+  amount: string;
+  total: string;
+  method: string;
+  reference: string;
+  notes: string;
+}
+
 export interface AppBindings {
   GetLocalAuthState(): Promise<LocalAuthStateDTO>;
   GetLocalProfile(): Promise<LocalProfileDTO>;
@@ -863,6 +910,7 @@ export interface AppBindings {
   CreateSale(req: CreateSaleRequest): Promise<SaleDTO>;
   CancelSale(req: CancelSaleRequest): Promise<SaleDTO>;
   RegisterSalePayment(req: RegisterSalePaymentRequest): Promise<SaleDTO>;
+  ListSalePayments(id: string): Promise<SalePaymentDTO[]>;
   ListCustomerPayments(req: ListCustomerPaymentsRequest): Promise<PageResult<CustomerPaymentDTO>>;
   ListCustomerAdvances(customerId: string): Promise<CustomerAdvanceDTO[]>;
 
@@ -896,6 +944,11 @@ export interface AppBindings {
   GetPurchaseOrder(id: string): Promise<PurchaseOrderDTO>;
   CreatePurchaseOrder(req: CreatePurchaseOrderRequest): Promise<PurchaseOrderDTO>;
   CancelPurchaseOrder(req: CancelPurchaseOrderRequest): Promise<void>;
+  ListImportLots(req: ListImportLotsRequest): Promise<PageResult<ImportLotDTO>>;
+  GetImportLot(id: string): Promise<ImportLotDTO>;
+  CreateImportLot(req: CreateImportLotRequest): Promise<ImportLotDTO>;
+  AddToImportLot(req: AddToImportLotRequest): Promise<ImportLotDTO>;
+  RemoveFromImportLot(req: RemoveFromImportLotRequest): Promise<ImportLotDTO>;
   RegisterPurchasePayment(req: RegisterPurchasePaymentRequest): Promise<PurchaseOrderDTO>;
   MarkPurchaseFaulty(req: MarkPurchaseFaultyRequest): Promise<PurchaseOrderDTO>;
   MarkPurchaseReceived(req: MarkPurchaseReceivedRequest): Promise<PurchaseOrderDTO>;

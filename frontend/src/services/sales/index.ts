@@ -37,6 +37,9 @@ function toSale(dto: SaleDTO): Sale {
     total: Number(dto.total),
     cost: Number(dto.cost),
     profit: Number(dto.profit),
+    paid: Number(dto.paid),
+    balance: Number(dto.balance),
+    dueDate: dto.dueDate,
   };
 }
 

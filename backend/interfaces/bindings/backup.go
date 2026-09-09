@@ -45,7 +45,17 @@ func (a *App) CreateBackup() (string, error) {
 		return "", utils.ProcessError(err)
 	}
 	if err := copyFile(src, dst); err != nil {
-		return "", utils.ProcessError(err)
+		// The configured folder may be an external/unmounted drive.
+		// Fall back to the internal default so the data is never lost.
+		a.log.Warn("backup: configured folder failed, falling back to internal dir", "dir", dir, "error", err.Error())
+		internal := a.internalBackupFolder()
+		if err := os.MkdirAll(internal, 0o700); err != nil {
+			return "", utils.ProcessError(err)
+		}
+		dst = filepath.Join(internal, name)
+		if err := copyFile(src, dst); err != nil {
+			return "", utils.ProcessError(err)
+		}
 	}
 	return dst, nil
 }
@@ -172,6 +182,10 @@ func (a *App) resolveBackupFolder(ctx context.Context) string {
 			}
 		}
 	}
+	return a.internalBackupFolder()
+}
+
+func (a *App) internalBackupFolder() string {
 	home, _ := os.UserHomeDir()
 	if home == "" {
 		return filepath.Join(os.TempDir(), "vfinancy", "backups")

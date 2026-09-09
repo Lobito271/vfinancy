@@ -106,6 +106,7 @@ CREATE TABLE local_profiles (
     id UUID PRIMARY KEY,
     name VARCHAR(200) NOT NULL CHECK (length(trim(name)) > 0),
     password_hash TEXT,
+    recovery_token_hash TEXT,
     password_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     failed_attempts INTEGER NOT NULL DEFAULT 0 CHECK (failed_attempts >= 0),
     locked_until TIMESTAMPTZ,
@@ -1444,3 +1445,47 @@ CREATE TRIGGER trg_supplier_payments_set_updated_at
     BEFORE UPDATE ON supplier_payments
     FOR EACH ROW
     EXECUTE FUNCTION set_updated_at();
+
+
+CREATE TABLE import_lots (
+    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id  UUID        NOT NULL,
+    code        VARCHAR(30) NOT NULL,
+    description TEXT,
+    status      VARCHAR(20) NOT NULL DEFAULT 'active'
+        CHECK (status IN ('active', 'closed')),
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at  TIMESTAMPTZ,
+    created_by  UUID,
+    updated_by  UUID,
+
+    CONSTRAINT fk_import_lots_company
+        FOREIGN KEY (company_id) REFERENCES companies(id)
+        ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX uq_import_lots_company_code ON import_lots (company_id, code)
+    WHERE deleted_at IS NULL;
+CREATE INDEX idx_import_lots_company ON import_lots (company_id);
+
+CREATE TRIGGER trg_import_lots_set_updated_at
+    BEFORE UPDATE ON import_lots
+    FOR EACH ROW
+    EXECUTE FUNCTION set_updated_at();
+
+CREATE TABLE import_lot_purchase_orders (
+    import_lot_id     UUID        NOT NULL,
+    purchase_order_id UUID        NOT NULL,
+    added_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    PRIMARY KEY (import_lot_id, purchase_order_id),
+    CONSTRAINT fk_import_lot_members_lot
+        FOREIGN KEY (import_lot_id) REFERENCES import_lots(id)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_import_lot_members_purchase
+        FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id)
+        ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+CREATE INDEX idx_import_lot_members_purchase ON import_lot_purchase_orders (purchase_order_id);

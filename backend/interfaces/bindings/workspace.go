@@ -125,6 +125,16 @@ func (a *App) RemoveLocalPassword(current string) error {
 	return utils.ProcessError(a.workspaceSvc.RemovePassword(a.rawContext(), current))
 }
 
+// GetRecoveryToken issues the one-time recovery secret for the local
+// profile. It is only available before any token has been generated.
+func (a *App) GetRecoveryToken() (string, error) {
+	token, err := a.workspaceSvc.GenerateRecoveryToken(a.rawContext())
+	if err != nil {
+		return "", utils.ProcessError(err)
+	}
+	return token, nil
+}
+
 func (a *App) LockLocalProfile() {
 	a.workspaceSvc.Lock()
 }

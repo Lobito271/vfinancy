@@ -196,6 +196,27 @@ func TestCreateChargesCardWithOrderCost(t *testing.T) {
 	}
 }
 
+func TestCreateAcceptsNegativeProjectedProfit(t *testing.T) {
+	rate, _ := valueobjects.ExchangeRateFromDecimal(decimal.NewFromInt(3))
+	cardID := uuid.New()
+	svc := newService(&fakeOrders{}, &fakeTreasury{}, &fakeStock{})
+	po, err := svc.Create(context.Background(), purchasing.CreateInput{
+		CreditCardID: &cardID,
+		ExchangeRate: rate,
+		Items: []purchasing.CreateItemInput{{
+			Description: "Cosa",
+			Quantity:    valueobjects.QuantityFromInt64(2),
+			UnitCostUSD: money("10.00"),
+		}},
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if !po.ProjectedProfitPen.Equals(money("-60.21")) {
+		t.Fatalf("projected_profit_pen = %s, want -60.21", po.ProjectedProfitPen)
+	}
+}
+
 func TestCancelRefundsWhenCycleSettled(t *testing.T) {
 	cardID := uuid.New()
 	cycleStart := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)

@@ -41,7 +41,7 @@ const SaleFormSchema = z
       .array(
         z.object({
           productId: z.string().min(1, 'Seleccione un producto'),
-          quantity: z.number().positive('Cantidad debe ser mayor a 0'),
+          quantity: z.number().int('Debe ser entero').positive('Cantidad debe ser mayor a 0'),
           unitPrice: z.number().min(0.01, 'Ingrese el precio de venta'),
         }),
       )
@@ -160,8 +160,8 @@ function SaleLines({ productOptions, priceById }: SaleLinesProps) {
                 name={`items.${index}.quantity` as FieldPath<SaleFormValues>}
                 label="Cantidad"
                 required
-                min={0}
-                step={0.01}
+                min={1}
+                step={1}
               />
               <MoneyField
                 name={`items.${index}.unitPrice` as FieldPath<SaleFormValues>}

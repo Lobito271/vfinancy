@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
-import { Briefcase, ShieldCheck, HardDriveDownload, Cloud, Palette } from 'lucide-react';
+import { Briefcase, ShieldCheck, HardDriveDownload, Cloud, Palette, Building2 } from 'lucide-react';
 import { PageContainer, PageHeader } from '@/components/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card';
-import { Form, NumberField } from '@/components/form';
+import { Form, NumberField, TextField, EmailField } from '@/components/form';
 import { Button } from '@/components/button';
 import { Label } from '@/components/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select';
@@ -18,6 +18,7 @@ import { useThemeStore, type Theme } from '@/stores/theme';
 
 const tabs = [
   { id: 'business', label: 'Negocio', icon: Briefcase },
+  { id: 'company', label: 'Empresa', icon: Building2 },
   { id: 'auth', label: 'Autenticación', icon: ShieldCheck },
   { id: 'backup', label: 'Respaldos', icon: HardDriveDownload },
   { id: 'sync', label: 'Sincronización', icon: Cloud },
@@ -123,6 +124,74 @@ function BusinessTab() {
   );
 }
 
+const companySchema = z.object({
+  name: z.string().trim().min(2, 'Ingresa la razón social.'),
+  taxId: z.string().regex(/^(10|20)\d{9}$/, 'RUC debe tener 11 dígitos e iniciar con 10 o 20.').optional().or(z.literal('')),
+  email: z.string().email('Correo inválido.').optional().or(z.literal('')),
+  fiscalAddress: z.string().trim().optional().or(z.literal('')),
+});
+
+type CompanyValues = z.infer<typeof companySchema>;
+
+function CompanyTab() {
+  const queryClient = useQueryClient();
+  const push = useNotificationStore((s) => s.push);
+  const profile = useQuery({ queryKey: ['settings', 'profile'], queryFn: () => wailsClient.getLocalProfile() });
+
+  const save = async (values: CompanyValues) => {
+    try {
+      await wailsClient.updateLocalProfile(values);
+      await queryClient.invalidateQueries({ queryKey: ['settings', 'profile'] });
+      push({ title: 'Datos de la empresa guardados', variant: 'success' });
+    } catch (cause) {
+      push({
+        title: 'No se pudo guardar la información de la empresa',
+        description: cause instanceof Error ? cause.message : undefined,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  if (profile.isLoading) return null;
+
+  const defaults = {
+    name: profile.data?.name ?? '',
+    taxId: profile.data?.taxId ?? '',
+    email: profile.data?.email ?? '',
+    fiscalAddress: profile.data?.fiscalAddress ?? '',
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Datos de la empresa</CardTitle>
+        <CardDescription>Identidad corporativa usada en comprobantes y documentación.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Form<CompanyValues> key={JSON.stringify(defaults)} schema={companySchema} defaultValues={defaults} onSubmit={save}>
+          {({ formState }) => (
+            <div className="stack" style={{ maxWidth: '26rem' }}>
+              <TextField name="name" label="Razón social" required />
+              <TextField
+                name="taxId"
+                label="RUC"
+                description="11 dígitos, iniciando con 10 o 20."
+              />
+              <EmailField name="email" label="Correo electrónico" />
+              <TextField name="fiscalAddress" label="Dirección fiscal" />
+              <div>
+                <Button type="submit" loading={formState.isSubmitting}>
+                  Guardar
+                </Button>
+              </div>
+            </div>
+          )}
+        </Form>
+      </CardContent>
+    </Card>
+  );
+}
+
 function AuthTab() {
   const [authOpen, setAuthOpen] = useState(false);
 
@@ -190,7 +259,7 @@ function AppearanceTab() {
             </Select>
           </div>
           <div className="settings-row">
-            <span className="settings-row__label">Perfil</span>
+            <span className="settings-row__label">Empresa</span>
             <strong>{profile.data?.name}</strong>
           </div>
         </div>
@@ -227,6 +296,7 @@ export function SettingsPage() {
         <section className="stack" style={{ flex: 1 }}>
           <h2 className="sr-only">{active.label}</h2>
           {tab === 'business' && <BusinessTab />}
+          {tab === 'company' && <CompanyTab />}
           {tab === 'auth' && <AuthTab />}
           {tab === 'backup' && <BackupSection />}
           {tab === 'sync' && <CloudSyncSection />}

@@ -14,12 +14,17 @@ import { useNotificationStore } from '@/stores/notification';
 
 import type { InventoryItem } from '@/types/domain';
 
-const ReceiveSchema = z.object({
-  productId: z.string().min(1, 'Seleccione un producto'),
-  arrivalDate: z.string().min(1, 'Fecha requerida').regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido'),
-  quantity: z.number().positive('Cantidad debe ser mayor a 0'),
-  unitCost: z.number().min(0, 'Debe ser >= 0'),
-});
+const ReceiveSchema = z
+  .object({
+    productId: z.string().min(1, 'Seleccione un producto'),
+    arrivalDate: z.string().min(1, 'Fecha requerida').regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido'),
+    quantity: z.number().int('Debe ser entero').positive('Cantidad debe ser mayor a 0'),
+    unitCost: z.number().min(0, 'Debe ser >= 0'),
+  })
+  .refine(
+    (data) => data.arrivalDate <= today(),
+    { path: ['arrivalDate'], message: 'La fecha de ingreso no puede ser posterior a la fecha actual (reloj del sistema).' },
+  );
 
 type ReceiveFormValues = z.infer<typeof ReceiveSchema>;
 
@@ -78,8 +83,8 @@ export function InventoryReceiveDialog({ open, onOpenChange, preset }: Inventory
               <DialogBody>
                 <ProductSelectField name="productId" label="Producto" required />
                 <div className="form-grid">
-                  <DateField name="arrivalDate" label="Fecha de ingreso" required />
-                  <NumberField name="quantity" label="Cantidad" required min={0} step={0.01} description="Unidades ingresadas al almacén." />
+                  <DateField name="arrivalDate" label="Fecha de ingreso" required max={today()} />
+                  <NumberField name="quantity" label="Cantidad" required min={1} step={1} description="Unidades ingresadas al almacén." />
                 </div>
                 <MoneyField name="unitCost" label="Costo unitario" description="Costo de adquisición por unidad (PEN)." />
               </DialogBody>

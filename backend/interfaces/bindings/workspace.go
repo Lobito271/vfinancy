@@ -7,9 +7,12 @@ import (
 )
 
 type LocalProfileDTO struct {
-	ID              string `json:"id"`
-	Name            string `json:"name"`
-	PasswordEnabled bool   `json:"passwordEnabled"`
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	TaxID         string `json:"taxId"`
+	Email         string `json:"email"`
+	FiscalAddress string `json:"fiscalAddress"`
+	PasswordEnabled bool `json:"passwordEnabled"`
 }
 
 type LocalAuthStateDTO struct {
@@ -19,7 +22,8 @@ type LocalAuthStateDTO struct {
 }
 
 func profileDTO(p *workspace.LocalProfile) LocalProfileDTO {
-	return LocalProfileDTO{ID: p.ID.String(), Name: p.Name, PasswordEnabled: p.PasswordEnabled}
+	return LocalProfileDTO{ID: p.ID.String(), Name: p.Name, TaxID: p.TaxID, Email: p.Email,
+		FiscalAddress: p.FiscalAddress, PasswordEnabled: p.PasswordEnabled}
 }
 
 // GetLocalAuthState reports the profile state so the UI can route
@@ -46,17 +50,34 @@ func (a *App) GetLocalProfile() (LocalProfileDTO, error) {
 	return profileDTO(p), nil
 }
 
-// SetupWorkspaceRequest is the reduced first-run wizard payload: a
-// profile name and an optional password.
+// UpdateLocalProfile replaces the corporate identity of the profile.
+func (a *App) UpdateLocalProfile(req SetupWorkspaceRequest) (LocalProfileDTO, error) {
+	p, err := a.workspaceSvc.SetCompany(a.Context(), workspace.CompanyInput{
+		Name: req.Name, TaxID: req.TaxID, Email: req.Email, FiscalAddress: req.FiscalAddress,
+	})
+	if err != nil {
+		return LocalProfileDTO{}, err
+	}
+	return profileDTO(p), nil
+}
+
+// SetupWorkspaceRequest is the reduced first-run wizard payload: the
+// company identity and an optional password.
 type SetupWorkspaceRequest struct {
-	Name     string `json:"name"`
-	Password string `json:"password"`
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	TaxID         string `json:"taxId"`
+	Email         string `json:"email"`
+	FiscalAddress string `json:"fiscalAddress"`
+	Password      string `json:"password"`
 }
 
 // SetupWorkspace creates the single local profile. It runs before any
 // lock can exist, so it uses the raw runtime context.
 func (a *App) SetupWorkspace(req SetupWorkspaceRequest) (LocalProfileDTO, error) {
-	p, err := a.workspaceSvc.Setup(a.rawContext(), req.Name, req.Password)
+	p, err := a.workspaceSvc.Setup(a.rawContext(), workspace.CompanyInput{
+		Name: req.Name, TaxID: req.TaxID, Email: req.Email, FiscalAddress: req.FiscalAddress,
+	}, req.Password)
 	if err != nil {
 		return LocalProfileDTO{}, err
 	}

@@ -5,13 +5,20 @@ import { z } from 'zod';
 import { AlertCircle } from 'lucide-react';
 import { Button } from '@/components/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card';
-import { Form, TextField, PasswordField } from '@/components/form';
+import { Form, TextField, EmailField, PasswordField } from '@/components/form';
 import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
 import { Routes } from '@/constants/routes';
 
 const setupSchema = z.object({
-  profileName: z.string().trim().min(2, 'Ingresa tu nombre.'),
+  name: z.string().trim().min(2, 'Ingresa la razón social.'),
+  taxId: z
+    .string()
+    .regex(/^(10|20)\d{9}$/, 'RUC debe tener 11 dígitos e iniciar con 10 o 20.')
+    .optional()
+    .or(z.literal('')),
+  email: z.string().email('Correo inválido.').optional().or(z.literal('')),
+  fiscalAddress: z.string().trim().optional().or(z.literal('')),
   password: z.string().refine((value) => value === '' || value.length >= 8, 'Usa al menos 8 caracteres.'),
 });
 
@@ -27,10 +34,7 @@ export function SetupWizardPage() {
     setSaving(true);
     setError('');
     try {
-      await wailsClient.setupWorkspace({
-        name: values.profileName,
-        password: values.password,
-      });
+      await wailsClient.setupWorkspace(values);
       await queryClient.invalidateQueries({ queryKey: queryKeys.setup });
       navigate(Routes.Dashboard, { replace: true });
     } catch (cause) {
@@ -50,18 +54,21 @@ export function SetupWizardPage() {
           <p>Un solo paso para preparar tu espacio de trabajo.</p>
         </aside>
         <main className="setup-page__content">
-          <Form<SetupValues> defaultValues={{ profileName: '', password: '' }} schema={setupSchema} onSubmit={submit}>
+          <Form<SetupValues> defaultValues={{ taxId: '', email: '', fiscalAddress: '', password: '' }} schema={setupSchema} onSubmit={submit}>
             {() => (
               <Card className="setup-card">
                 <CardHeader>
-                  <CardTitle>Tu acceso</CardTitle>
+                  <CardTitle>Tu empresa</CardTitle>
                   <CardDescription>
-                    Los parámetros de negocio y de la empresa se pueden editar después desde Configuración.
+                    Un solo paso para preparar tu espacio de trabajo. Todo es editable después desde Configuración.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="setup-card__body">
                   <div className="setup-form-grid">
-                    <TextField name="profileName" label="Nombre del perfil" required className="setup-form-grid__wide" autoComplete="name" />
+                    <TextField name="name" label="Razón social" required className="setup-form-grid__wide" autoComplete="organization" />
+                    <TextField name="taxId" label="RUC (opcional)" autoComplete="off" />
+                    <EmailField name="email" label="Correo electrónico (opcional)" autoComplete="email" />
+                    <TextField name="fiscalAddress" label="Dirección fiscal (opcional)" className="setup-form-grid__wide" autoComplete="street-address" />
                     <PasswordField
                       name="password"
                       label="Contraseña (opcional)"

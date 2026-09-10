@@ -4,6 +4,9 @@
 CREATE TABLE local_profiles (
     id                  TEXT PRIMARY KEY,
     name                VARCHAR(200) NOT NULL CHECK (length(trim(name)) > 0),
+    tax_id              VARCHAR(11)  NOT NULL DEFAULT '' CHECK (tax_id = '' OR (length(tax_id) = 11 AND (substr(tax_id,1,2) IN ('10','20')))),
+    email               VARCHAR(200) NOT NULL DEFAULT '',
+    fiscal_address      VARCHAR(300) NOT NULL DEFAULT '',
     password_hash       TEXT,
     recovery_token_hash TEXT,
     password_enabled    BOOLEAN NOT NULL DEFAULT FALSE,

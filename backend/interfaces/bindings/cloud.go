@@ -1,6 +1,7 @@
 package bindings
 
 import (
+	"errors"
 	"time"
 
 	"vfinancy/backend/infrastructure/config"
@@ -101,4 +102,27 @@ func (a *App) TestSyncConnection(req SyncConfigDTO) error {
 	)
 	defer svc.Close()
 	return svc.TestConnection(a.rawContext())
+}
+
+// SyncNow runs one replication pass on demand, even when the
+// background worker interval is disabled.
+func (a *App) SyncNow() error {
+	if a.syncSvc != nil {
+		return a.syncSvc.RunOnce(a.rawContext())
+	}
+	cfg, err := a.effectiveSyncConfig()
+	if err != nil {
+		return err
+	}
+	if !cfg.Enabled || cfg.DSN() == "" {
+		return errors.New("sincronización desactivada: configura el servidor primero")
+	}
+	svc := sync.NewService(
+		syncpostgres.NewLocal(a.db.DB),
+		syncpostgres.NewRemote(cfg.DSN(), a.log),
+		sync.Config{DSN: cfg.DSN(), MigrationsFS: a.pgMigrationsFS},
+		a.log.Logger,
+	)
+	defer svc.Close()
+	return svc.RunOnce(a.rawContext())
 }

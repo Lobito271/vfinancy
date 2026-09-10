@@ -9,7 +9,6 @@ const es = {
     filter: 'Filtrar',
     clear: 'Limpiar',
     refresh: 'Actualizar',
-    export: 'Exportar',
     import: 'Importar',
     close: 'Cerrar',
     back: 'Volver',
@@ -122,7 +121,6 @@ const es = {
     clearance: 'Productos en remate',
     slowMoving: 'Productos de baja rotación',
     movements: 'Movimientos',
-    onlyClearance: 'Mostrar solo remate',
   },
   purchases: {
     title: 'Compras',

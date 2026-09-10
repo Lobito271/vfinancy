@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocation, useNavigate } from 'react-router-dom';
 import { Boxes, Pencil, Ban, Plus, Settings2, AlertTriangle, Download } from 'lucide-react';
 import { z } from 'zod';
 import { PageContainer, PageHeader, Grid } from '@/components/layout';
@@ -24,7 +23,6 @@ import { InventoryReceiveDialog } from '@/features/inventory/components/Inventor
 import { InventoryAdjustDialog } from '@/features/inventory/components/InventoryAdjustDialog';
 import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
-import { Routes } from '@/constants/routes';
 import type { InventoryItem } from '@/types/domain';
 import { formatCurrency, formatDate, formatNumber } from '@/utils/format';
 import { useNotificationStore } from '@/stores/notification';
@@ -181,10 +179,7 @@ function InventorySettingsDrawer({ open, onOpenChange }: { open: boolean; onOpen
 }
 
 export function InventoryPage() {
-  const navigate = useNavigate();
-  const { pathname } = useLocation();
-  const isClearanceRoute = pathname === Routes.InventoryClearance;
-  const { data, isLoading, isError, error, refetch } = useInventory({ onlyClearance: isClearanceRoute });
+  const { data, isLoading, isError, error, refetch } = useInventory();
   const voidStock = useVoidStock();
   const push = useNotificationStore((s) => s.push);
 
@@ -278,12 +273,12 @@ export function InventoryPage() {
       {clearance > 0 && (
         <div className="hstack" style={{ gap: '0.75rem', marginBottom: '1rem' }}>
           <Button
-            variant={isClearanceRoute ? 'primary' : 'outline'}
+            variant={statusFilter === 'clearance' ? 'primary' : 'outline'}
             size="sm"
-            onClick={() => navigate(isClearanceRoute ? Routes.Inventory : Routes.InventoryClearance)}
+            onClick={() => setStatusFilter(statusFilter === 'clearance' ? 'all' : 'clearance')}
           >
             <AlertTriangle />
-            {isClearanceRoute ? 'Mostrando productos en remate' : `Ver productos en remate (${clearance})`}
+            {statusFilter === 'clearance' ? 'Mostrando productos en remate' : `Ver productos en remate (${clearance})`}
           </Button>
         </div>
       )}

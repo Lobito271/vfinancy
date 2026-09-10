@@ -19,12 +19,26 @@ export type LocalAuthState = {
 export type LocalProfile = {
   id: string;
   name: string;
+  taxId: string;
+  email: string;
+  fiscalAddress: string;
   passwordEnabled: boolean;
 };
 
 export interface SetupWorkspaceRequest {
+  id?: string;
   name: string;
+  taxId?: string;
+  email?: string;
+  fiscalAddress?: string;
   password: string;
+}
+
+export interface UpdateLocalProfileRequest {
+  name: string;
+  taxId?: string;
+  email?: string;
+  fiscalAddress?: string;
 }
 
 export interface RecoverWithTokenRequest {
@@ -362,6 +376,7 @@ export interface ExchangeRateDTO {
 export interface AppBindings {
   GetLocalAuthState(): Promise<LocalAuthState>;
   GetLocalProfile(): Promise<LocalProfile>;
+  UpdateLocalProfile(req: UpdateLocalProfileRequest): Promise<LocalProfile>;
   SetupWorkspace(req: SetupWorkspaceRequest): Promise<LocalProfile>;
   UnlockLocalProfile(password: string): Promise<LocalProfile>;
   RecoverWithToken(req: RecoverWithTokenRequest): Promise<LocalProfile>;
@@ -377,6 +392,7 @@ export interface AppBindings {
   GetSyncConfig(): Promise<SyncConfig>;
   SaveSyncConfig(cfg: SyncConfig): Promise<void>;
   TestSyncConnection(cfg: SyncConfig): Promise<void>;
+  SyncNow(): Promise<void>;
 
   ChooseBackupFolder(): Promise<string>;
   SetBackupFolder(folder: string): Promise<void>;

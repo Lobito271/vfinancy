@@ -8,7 +8,7 @@ import { useNotificationStore } from '@/stores/notification';
 import type { InventoryItem } from '@/types/domain';
 
 const AdjustSchema = z.object({
-  newQuantity: z.number().positive('La existencia debe ser mayor a 0'),
+  newQuantity: z.number().int('Debe ser un entero').positive('La existencia debe ser mayor a 0'),
   notes: z.string().min(1, 'Motivo requerido').max(200),
 });
 
@@ -62,7 +62,7 @@ export function InventoryAdjustDialog({ open, onOpenChange, batch }: InventoryAd
           {({ formState }) => (
             <>
               <DialogBody>
-                <NumberField name="newQuantity" label="Nueva existencia" description="Cantidad total que quedará en el lote." required step={0.01} />
+                <NumberField name="newQuantity" label="Nueva existencia" description="Cantidad entera que quedará en el lote (>0)." required min={1} step={1} />
                 <TextField name="notes" label="Motivo" required maxLength={200} />
               </DialogBody>
               <DialogFooter>

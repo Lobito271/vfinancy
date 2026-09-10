@@ -18,6 +18,7 @@ import type {
   SetupWorkspaceRequest,
   SyncConfig,
   RecoverWithTokenRequest,
+  UpdateLocalProfileRequest,
   VoidStockRequest,
 } from './wails-types';
 
@@ -52,6 +53,10 @@ export const wailsClient = {
   async setupWorkspace(req: SetupWorkspaceRequest) {
     const b = await resolveBindings();
     return b.SetupWorkspace(req);
+  },
+  async updateLocalProfile(req: UpdateLocalProfileRequest) {
+    const b = await resolveBindings();
+    return b.UpdateLocalProfile(req);
   },
   async unlockLocalProfile(password: string) {
     const b = await resolveBindings();
@@ -102,6 +107,10 @@ export const wailsClient = {
   async testSyncConnection(cfg: SyncConfig) {
     const b = await resolveBindings();
     return b.TestSyncConnection(cfg);
+  },
+  async syncNow() {
+    const b = await resolveBindings();
+    return b.SyncNow();
   },
 
   async chooseBackupFolder() {

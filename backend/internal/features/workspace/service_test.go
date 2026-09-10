@@ -46,7 +46,7 @@ func setupService(t *testing.T, password string) (*Service, *memoryRepository) {
 	t.Helper()
 	repo := &memoryRepository{}
 	service := newTestService(repo)
-	if _, err := service.Setup(context.Background(), "Owner", password); err != nil {
+	if _, err := service.Setup(context.Background(), CompanyInput{Name: "Owner"}, password); err != nil {
 		t.Fatal(err)
 	}
 	return service, repo
@@ -56,7 +56,7 @@ func TestSetupCreatesTrimmedUnlockedProfileWithoutPassword(t *testing.T) {
 	repo := &memoryRepository{}
 	service := newTestService(repo)
 
-	profile, err := service.Setup(context.Background(), "  Owner  ", "")
+	profile, err := service.Setup(context.Background(), CompanyInput{Name: "  Owner  "}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestSetupRejectsWeakPasswordWithoutCreatingProfile(t *testing.T) {
 	repo := &memoryRepository{}
 	service := newTestService(repo)
 
-	if _, err := service.Setup(context.Background(), "Owner", "short"); err == nil {
+	if _, err := service.Setup(context.Background(), CompanyInput{Name: "Owner"}, "short"); err == nil {
 		t.Fatal("expected weak password to be rejected")
 	}
 	if repo.profile != nil {
@@ -101,10 +101,10 @@ func TestSetupRejectsExistingProfile(t *testing.T) {
 	repo := &memoryRepository{}
 	service := newTestService(repo)
 
-	if _, err := service.Setup(context.Background(), "Owner", ""); err != nil {
+	if _, err := service.Setup(context.Background(), CompanyInput{Name: "Owner"}, ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.Setup(context.Background(), "Second", ""); !errors.Is(err, ErrProfileExists) {
+	if _, err := service.Setup(context.Background(), CompanyInput{Name: "Second"}, ""); !errors.Is(err, ErrProfileExists) {
 		t.Fatalf("err = %v, want ErrProfileExists", err)
 	}
 }

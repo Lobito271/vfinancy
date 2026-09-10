@@ -31,22 +31,17 @@ async function skuIndex(): Promise<Map<string, string>> {
 
 export const inventoryService = {
   async list(
-    q: { search?: string; page?: number; pageSize?: number; onlyClearance?: boolean } = {},
+    q: { search?: string; page?: number; pageSize?: number } = {},
   ): Promise<InventoryItem[]> {
     const [res, skus] = await Promise.all([
       wailsClient.listInventoryBatches(
         { page: q.page ?? 1, pageSize: q.pageSize ?? 200 },
-        q.onlyClearance ?? false,
+        false,
         q.search ?? '',
       ),
       skuIndex(),
     ]);
     return (res.items as InventoryBatchDTO[]).map((dto) => toItem(dto, skus));
-  },
-
-  async listClearance(): Promise<InventoryItem[]> {
-    const [batches, skus] = await Promise.all([wailsClient.listClearanceProducts(), skuIndex()]);
-    return batches.map((dto) => toItem(dto, skus));
   },
 
   async movements(productId?: string): Promise<InventoryMovementDTO[]> {

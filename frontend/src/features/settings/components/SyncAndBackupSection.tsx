@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { Cloud, FolderOpen, HardDriveDownload } from 'lucide-react';
+import { Cloud, FolderOpen, HardDriveDownload, RefreshCw } from 'lucide-react';
 import { Section } from '@/components/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card';
 import { Button } from '@/components/button';
@@ -42,6 +42,13 @@ export function CloudSyncSection() {
     onSuccess: () => push({ title: 'Conexión exitosa', description: 'El servidor respondió correctamente.', variant: 'success' }),
     onError: (err: unknown) =>
       push({ title: 'Sin conexión', description: err instanceof Error ? err.message : undefined, variant: 'destructive' }),
+  });
+
+  const syncNow = useMutation({
+    mutationFn: () => wailsClient.syncNow(),
+    onSuccess: () => push({ title: 'Sincronización completada', variant: 'success' }),
+    onError: (err: unknown) =>
+      push({ title: 'No se pudo sincronizar', description: err instanceof Error ? err.message : undefined, variant: 'destructive' }),
   });
 
   useEffect(() => {
@@ -181,6 +188,9 @@ export function CloudSyncSection() {
               </Button>
               <Button onClick={() => save.mutate()} loading={save.isPending}>
                 <Cloud /> Guardar
+              </Button>
+              <Button onClick={() => syncNow.mutate()} loading={syncNow.isPending} variant="outline">
+                <RefreshCw /> Sincronizar ahora
               </Button>
             </div>
           </div>

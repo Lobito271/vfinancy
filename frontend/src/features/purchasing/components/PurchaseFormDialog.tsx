@@ -28,7 +28,7 @@ const lineSchema = z
   .object({
     productId: z.string(),
     description: z.string().trim(),
-    quantity: z.number().positive('Cantidad debe ser mayor a 0'),
+    quantity: z.number().int('Debe ser entero').positive('Cantidad debe ser mayor a 0'),
     unitPrice: z.number().positive('Costo USD debe ser mayor a 0'),
   })
   .refine((l) => l.productId !== '' || l.description !== '', {
@@ -179,7 +179,7 @@ function PurchaseLines({ products }: { products: ProductCostOption[] }) {
                 />
               </div>
               <div className="form-grid">
-                <NumberField name={`items.${index}.quantity` as Path<PurchaseFormValues>} label="Cantidad" required min={0} step={0.01} />
+                <NumberField name={`items.${index}.quantity` as Path<PurchaseFormValues>} label="Cantidad" required min={1} step={1} />
                 <NumberField name={`items.${index}.unitPrice` as Path<PurchaseFormValues>} label="Costo (USD)" required min={0} step={0.01} />
               </div>
             </div>

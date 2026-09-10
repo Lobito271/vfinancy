@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+
 	"vfinancy/backend/internal/domain/repositories"
 )
 
@@ -47,9 +49,10 @@ func (s *Service) Initialize(ctx context.Context) (*LocalProfile, error) {
 // fails with ErrProfileExists when a profile already exists. A
 // non-empty password is strength-checked and hashed, enabling the
 // lock screen.
-func (s *Service) Setup(ctx context.Context, name, password string) (*LocalProfile, error) {
-	profile, err := NewLocalProfile(name)
-	if err != nil {
+func (s *Service) Setup(ctx context.Context, in CompanyInput, password string) (*LocalProfile, error) {
+	profile := &LocalProfile{ID: uuid.New(), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	profile.SetCompany(in)
+	if err := profile.Validate(); err != nil {
 		return nil, err
 	}
 	if password != "" {
@@ -89,6 +92,24 @@ func (s *Service) Profile() (*LocalProfile, error) {
 	defer s.mu.RUnlock()
 	if s.profile == nil {
 		return nil, ErrProfileNotFound
+	}
+	return cloneProfile(s.profile), nil
+}
+
+// SetCompany updates the corporate identity of the profile.
+func (s *Service) SetCompany(ctx context.Context, in CompanyInput) (*LocalProfile, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.profile == nil {
+		return nil, ErrProfileNotFound
+	}
+	s.profile.SetCompany(in)
+	if err := s.profile.Validate(); err != nil {
+		return nil, err
+	}
+	s.profile.Touch()
+	if err := s.repo.UpdateProfile(ctx, s.profile); err != nil {
+		return nil, err
 	}
 	return cloneProfile(s.profile), nil
 }

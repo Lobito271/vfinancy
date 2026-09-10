@@ -71,13 +71,9 @@ export function App() {
           <Route element={<SetupState setup><AppLayout /></SetupState>}>
             <Route index element={<DashboardPage />} />
             <Route path={rel(Routes.Inventory)} element={<InventoryPage />} />
-            <Route path={rel(Routes.InventoryClearance)} element={<InventoryPage />} />
             <Route path={rel(Routes.Purchases)} element={<PurchasesPage />} />
-            <Route path={rel(Routes.PurchasesLots)} element={<PurchasesPage />} />
             <Route path={rel(Routes.Sales)} element={<SalesPage />} />
-            <Route path={rel(Routes.SalesPayments)} element={<SalesPage />} />
             <Route path={rel(Routes.Treasury)} element={<TreasuryPage />} />
-            <Route path={rel(Routes.TreasuryCycles)} element={<TreasuryPage />} />
             <Route path={rel(Routes.Settings)} element={<SettingsPage />} />
             <Route path="*" element={<Navigate to={Routes.Dashboard} replace />} />
           </Route>

@@ -38,10 +38,16 @@ type stockReserver interface {
 // ClientOrderCreator is the narrow purchasing contract consumed by the
 // sales slice. It is satisfied by *purchasing.PurchasingService; the
 // line type lives in the purchasing package to keep the dependency
-// one-way (sales -> purchasing).
+// one-way (sales -> purchasing). rate is the USD->PEN rate snapshotted
+// onto the linked import order.
 type ClientOrderCreator interface {
-	CreateClientOrder(ctx context.Context, customerID, saleID uuid.UUID, lines []purchasing.ClientOrderLine) error
+	CreateClientOrder(ctx context.Context, customerID, saleID uuid.UUID, rate valueobjects.ExchangeRate, lines []purchasing.ClientOrderLine) error
 }
+
+// ClientOrderRateProvider resolves the USD->PEN exchange rate used to
+// carry a client order's USD cost into PEN. When unset the rate falls
+// back to 1 (no conversion).
+type ClientOrderRateProvider func(ctx context.Context) valueobjects.ExchangeRate
 
 // SalesService owns the sales slice.
 type SalesService struct {
@@ -51,6 +57,7 @@ type SalesService struct {
 	products     *product.ProductService
 	stock        stockReserver
 	clientOrders ClientOrderCreator
+	clientRate   ClientOrderRateProvider
 	txm          repositories.TransactionManager
 	log          *logger.Logger
 }
@@ -58,6 +65,23 @@ type SalesService struct {
 // New returns a SalesService ready for use.
 func New(sales SaleRepository, payments CustomerPaymentRepository, customers *customer.CustomerService, products *product.ProductService, stock stockReserver, clientOrders ClientOrderCreator, txm repositories.TransactionManager, log *logger.Logger) *SalesService {
 	return &SalesService{sales: sales, payments: payments, customers: customers, products: products, stock: stock, clientOrders: clientOrders, txm: txm, log: log}
+}
+
+// SetClientOrderRateProvider installs the USD->PEN rate source used for
+// client-order cost snapshots. Without it client orders keep their USD
+// cost unchanged.
+func (s *SalesService) SetClientOrderRateProvider(fn ClientOrderRateProvider) {
+	if fn != nil {
+		s.clientRate = fn
+	}
+}
+
+// clientOrderRate returns the configured USD->PEN rate, defaulting to 1.
+func (s *SalesService) clientOrderRate(ctx context.Context) valueobjects.ExchangeRate {
+	if s.clientRate != nil {
+		return s.clientRate(ctx)
+	}
+	return valueobjects.One()
 }
 
 // ItemInput is one requested sale line.
@@ -150,6 +174,7 @@ func (s *SalesService) Create(ctx context.Context, in CreateInput) (*CreateResul
 		return nil, apperrors.Errorf(apperrors.ErrValidation, "la fecha de vencimiento no puede ser anterior a la fecha de venta")
 	}
 
+	clientRate := s.clientOrderRate(ctx)
 	var out *CreateResult
 	err = s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
 		if _, err := s.customers.GetByID(ctx, in.CustomerID); err != nil {
@@ -208,7 +233,7 @@ func (s *SalesService) Create(ctx context.Context, in CreateInput) (*CreateResul
 				if err != nil {
 					return err
 				}
-				li.CostSnapshot = prod.CostUSD
+				li.CostSnapshot = clientRate.Convert(prod.CostUSD)
 				lines = append(lines, purchasing.ClientOrderLine{
 					ProductID:    li.ProductID,
 					Description:  prod.Description,
@@ -247,7 +272,7 @@ func (s *SalesService) Create(ctx context.Context, in CreateInput) (*CreateResul
 			if s.clientOrders == nil {
 				return derrors.New("INTERNAL", "purchasing is not configured")
 			}
-			if err := s.clientOrders.CreateClientOrder(ctx, in.CustomerID, sale.ID, lines); err != nil {
+			if err := s.clientOrders.CreateClientOrder(ctx, in.CustomerID, sale.ID, clientRate, lines); err != nil {
 				return err
 			}
 		}

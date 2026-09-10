@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"vfinancy/backend/infrastructure/logger"
 	"vfinancy/backend/internal/domain/enums"
@@ -147,7 +148,7 @@ type fakeClientOrders struct {
 	calls [][]purchasing.ClientOrderLine
 }
 
-func (f *fakeClientOrders) CreateClientOrder(_ context.Context, _ uuid.UUID, _ uuid.UUID, lines []purchasing.ClientOrderLine) error {
+func (f *fakeClientOrders) CreateClientOrder(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ valueobjects.ExchangeRate, lines []purchasing.ClientOrderLine) error {
 	f.calls = append(f.calls, lines)
 	return nil
 }
@@ -254,6 +255,35 @@ func TestCreateClientOrderDoesNotReserveStock(t *testing.T) {
 	}
 	if !h.customers.byID[testCustomerID].CurrentDebt.Equals(money("100.00")) {
 		t.Fatalf("debt = %s, want 100.00", h.customers.byID[testCustomerID].CurrentDebt)
+	}
+}
+
+func TestCreateClientOrderConvertsCostToPEN(t *testing.T) {
+	h := newHarness()
+	rate, err := valueobjects.ExchangeRateFromDecimal(decimal.NewFromInt(4))
+	if err != nil {
+		t.Fatalf("rate: %v", err)
+	}
+	h.svc.SetClientOrderRateProvider(func(context.Context) valueobjects.ExchangeRate { return rate })
+	prod := &product.Product{ID: uuid.New(), Description: "Cosa importada", CostUSD: money("4.00")}
+	h.products.byID[prod.ID] = prod
+	in := stockInput(nil, valueobjects.Zero())
+	in.SaleType = enums.SaleTypeClientOrder
+	in.Items[0].ProductID = prod.ID
+	in.Items[0].Quantity = valueobjects.QuantityFromInt64(1)
+	in.Items[0].UnitPrice = money("50.00")
+	due := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	in.DueDate = &due
+
+	res, err := h.svc.Create(context.Background(), in)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if !res.Items[0].CostSnapshot.Equals(money("16.00")) {
+		t.Fatalf("cost snapshot = %s, want 16.00", res.Items[0].CostSnapshot)
+	}
+	if !res.Sale.Profit.Equals(money("34.00")) {
+		t.Fatalf("profit = %s, want 34.00", res.Sale.Profit)
 	}
 }
 

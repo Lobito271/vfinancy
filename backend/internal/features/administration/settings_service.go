@@ -98,8 +98,8 @@ func (s *SettingsService) UpdatePreference(ctx context.Context, key string, valu
 		value = n
 	case keyClearanceWarningDays:
 		n, ok := coerceInt(value)
-		if !ok || n < 1 {
-			return derrors.New("INVALID", "clearance warning days must be at least 1")
+		if !ok || n < 0 {
+			return derrors.New("INVALID", "clearance warning days must be zero or greater")
 		}
 		value = n
 	case keyImportCostFactor:

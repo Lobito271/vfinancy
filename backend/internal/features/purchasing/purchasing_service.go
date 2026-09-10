@@ -479,9 +479,10 @@ type ClientOrderLine struct {
 
 // CreateClientOrder creates the internal purchase order behind a sale:
 // order_type=customer, no credit card (the sale flow assigns cost and
-// rate later), and per-line cost taken from the product's USD cost.
-// It runs in the caller's transaction (the sales service).
-func (s *PurchasingService) CreateClientOrder(ctx context.Context, customerID, saleID uuid.UUID, lines []ClientOrderLine) error {
+// rate later), per-line cost taken from the product's USD cost, and
+// the USD->PEN rate snapshotted by the caller. It runs in the caller's
+// transaction (the sales service).
+func (s *PurchasingService) CreateClientOrder(ctx context.Context, customerID, saleID uuid.UUID, rate valueobjects.ExchangeRate, lines []ClientOrderLine) error {
 	if customerID == uuid.Nil {
 		return apperrors.Errorf(apperrors.ErrValidation, "customer is required")
 	}
@@ -493,6 +494,9 @@ func (s *PurchasingService) CreateClientOrder(ctx context.Context, customerID, s
 	}
 	if s.productByID == nil {
 		return derrors.New("INTERNAL", "products are not configured")
+	}
+	if !rate.Decimal().IsPositive() {
+		rate = valueobjects.One()
 	}
 	return s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
 		number, err := s.orders.NextNumber(ctx)
@@ -506,7 +510,7 @@ func (s *PurchasingService) CreateClientOrder(ctx context.Context, customerID, s
 			OrderDate:    now,
 			Status:       enums.PurchaseStatusPending,
 			CurrencyCode: USD,
-			ExchangeRate: valueobjects.One(),
+			ExchangeRate: rate,
 			OrderType:    enums.OrderTypeCustomer,
 			CustomerID:   &customerID,
 			Notes:        "pedido de cliente (venta " + saleID.String() + ")",

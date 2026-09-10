@@ -38,8 +38,6 @@ import { useNotificationStore } from '@/stores/notification';
 const statusMap: Record<string, { variant: 'success' | 'warning' | 'info' | 'destructive' | 'muted'; label: string }> = {
   pending: { variant: 'warning', label: 'Pendiente' },
   received: { variant: 'info', label: 'Recibida' },
-  paid: { variant: 'success', label: 'Pagada' },
-  reconciled: { variant: 'success', label: 'Conciliada' },
   cancelled: { variant: 'destructive', label: 'Anulada' },
 };
 
@@ -223,8 +221,6 @@ export function PurchasesPage() {
                 { value: 'all', label: 'Estado: todos' },
                 { value: 'pending', label: 'Pendientes' },
                 { value: 'received', label: 'Recibidas' },
-                { value: 'paid', label: 'Pagadas' },
-                { value: 'reconciled', label: 'Conciliadas' },
                 { value: 'cancelled', label: 'Anuladas' },
               ]}
               value={statusFilter}
@@ -237,8 +233,6 @@ export function PurchasesPage() {
                 <SelectItem value="all">Estado: todos</SelectItem>
                 <SelectItem value="pending">Pendientes</SelectItem>
                 <SelectItem value="received">Recibidas</SelectItem>
-                <SelectItem value="paid">Pagadas</SelectItem>
-                <SelectItem value="reconciled">Conciliadas</SelectItem>
                 <SelectItem value="cancelled">Anuladas</SelectItem>
               </SelectContent>
             </Select>

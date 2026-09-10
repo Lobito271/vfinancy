@@ -13,6 +13,7 @@ import (
 	"vfinancy/backend/infrastructure/migrations"
 	"vfinancy/backend/infrastructure/persistence"
 	"vfinancy/backend/infrastructure/sqlite"
+	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/features/administration"
 	adminpostgres "vfinancy/backend/internal/features/administration/postgres"
 	"vfinancy/backend/internal/features/customer"
@@ -177,8 +178,32 @@ func (a *App) initializeServices(ctx context.Context) error {
 	a.purchasingSvc.SetImportFactor(a.importFactor)
 	a.purchasingSvc.SetCustomsLimit(a.customsLimit)
 	a.salesSvc = sales.New(ordersRepo, paymentsRepo, a.customersSvc, a.productsSvc, a.inventorySvc, a.purchasingSvc, txm, a.log)
+	a.salesSvc.SetClientOrderRateProvider(a.clientOrderRate)
 
 	return nil
+}
+
+// clientOrderRate resolves the USD->PEN rate snapshotted onto
+// client-order cost snapshots and their linked import orders, falling
+// back to 1 when no rate is available.
+func (a *App) clientOrderRate(ctx context.Context) valueobjects.ExchangeRate {
+	usd, err := valueobjects.NewCurrencyCode("USD")
+	if err != nil {
+		return valueobjects.One()
+	}
+	pen, err := valueobjects.NewCurrencyCode("PEN")
+	if err != nil {
+		return valueobjects.One()
+	}
+	info, err := a.treasurySvc.LatestExchangeRate(ctx, usd, pen)
+	if err != nil {
+		return valueobjects.One()
+	}
+	rate, err := valueobjects.ExchangeRateFromDecimal(info.Rate.Decimal())
+	if err != nil {
+		return valueobjects.One()
+	}
+	return rate
 }
 
 func (a *App) stopWorkers() {

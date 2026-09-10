@@ -111,17 +111,11 @@ func (a *App) ListInventoryBatches(req PaginationRequest, onlyClearance bool, se
 	}
 	items := make([]InventoryBatchDTO, 0, len(page.Items))
 	for _, b := range page.Items {
-		items = append(items, InventoryBatchDTO{
-			ID:                  b.ID.String(),
-			ProductID:           b.ProductID.String(),
-			PurchaseOrderItemID: uuidPtrString(b.PurchaseOrderItemID),
-			ArrivalDate:         b.ArrivalDate.Format("2006-01-02"),
-			Quantity:            b.Quantity.Decimal().InexactFloat64(),
-			OriginalQuantity:    b.OriginalQuantity.Decimal().InexactFloat64(),
-			UnitCost:            b.UnitCost.Decimal().InexactFloat64(),
-			Status:              string(b.Status),
-			IsClearance:         b.IsClearance,
-		})
+		dto, err := batchDTO(a, b)
+		if err != nil {
+			return PageResult{}, err
+		}
+		items = append(items, dto)
 	}
 	return PageResult{Items: items, Total: page.Total, Page: req.Page, PageSize: req.PageSize}, nil
 }

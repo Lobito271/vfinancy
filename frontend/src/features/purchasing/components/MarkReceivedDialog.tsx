@@ -43,7 +43,7 @@ export function MarkReceivedDialog({ open, onOpenChange, documentNumber, loading
           <DialogTitle>Marcar como Recibido</DialogTitle>
           <DialogDescription>
             Confirma la llegada del pedido <span className="fw-medium">{documentNumber}</span>. La mercadería se
-            ingresará al inventario y comenzará a contar el plazo de liquidación (25 días).
+            ingresará al inventario y comenzará a contar el plazo de liquidación configurado.
           </DialogDescription>
         </DialogHeader>
 

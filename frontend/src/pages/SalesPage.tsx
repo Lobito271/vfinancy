@@ -225,9 +225,10 @@ export function SalesPage() {
         title="Cobrar venta"
         description="Registra el cobro total de la venta."
         documentNumber={collectTarget?.number ?? ''}
-        amount={collectTarget?.total ?? 0}
-        amountLabel="Total de la venta"
+        amount={collectTarget?.balance ?? 0}
+        amountLabel="Saldo pendiente"
         confirmLabel="Cobrar"
+        amountEditable
         loading={collect.isPending}
         onConfirm={(input: RegisterPaymentInput) => {
           if (!collectTarget) return;
@@ -235,7 +236,7 @@ export function SalesPage() {
             {
               saleId: collectTarget.id,
               input: {
-                amount: collectTarget.total,
+                amount: input.amount,
                 paymentMethod: (PaymentMethodOptions.some((o) => o.value === input.method)
                   ? input.method
                   : 'other') as 'cash' | 'transfer' | 'other',

@@ -41,7 +41,6 @@ type PurchaseOrderDTO struct {
 	CostUSD            float64            `json:"costUsd"`
 	SalePricePen       float64            `json:"salePricePen"`
 	RealCostPen        float64            `json:"realCostPen"`
-	ProjectedProfitPen float64            `json:"projectedProfitPen"`
 	RefundAmount       float64            `json:"refundAmount"`
 	Faulty             bool               `json:"faulty"`
 	FaultyReason       string             `json:"faultyReason"`
@@ -83,7 +82,6 @@ func purchaseDTO(po *purchasing.PurchaseOrder) PurchaseOrderDTO {
 		CostUSD:            moneyFloat(po.CostUSD),
 		SalePricePen:       moneyFloat(po.SalePricePen),
 		RealCostPen:        moneyFloat(po.RealCostPen),
-		ProjectedProfitPen: moneyFloat(po.ProjectedProfitPen),
 		RefundAmount:       moneyFloat(po.RefundAmount),
 		Faulty:             po.Faulty,
 		FaultyReason:       po.FaultyReason,

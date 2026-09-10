@@ -32,7 +32,7 @@ Como parte de la estrategia de aseguramiento de la calidad (QA) y estabilidad de
 
 * **Desfase del Reloj del Sistema Operativo (*Clock Skew*):**
 * *Escenario:* El usuario altera manualmente la fecha/hora de la computadora local (ej. cambia de 2026 a 2025 o viceversa).
-* *Comportamiento esperado:* Todas las fechas del sistema deben almacenarse e interpretarse en formato ISO-8601 / UTC. El cálculo de días de permanencia para remate debe basarse en la diferencia estricta de días calendario transcurridos, detectando e informando inconsistencias si la fecha de recepción es posterior a la fecha actual del sistema.
+* *Comportamiento esperado:* Todas las fechas del sistema deben almacenarse e interpretarse en formato ISO-8601 / UTC. El cálculo de días de permanencia para remate debe basarse en la diferencia estricta de días calendario transcurridos; la validación del formulario de recepción bloquea e informa cuando la fecha de ingreso es posterior a la fecha actual del sistema.
 
 
 * **Reconfiguración Dinámica del Límite de Permanencia:**
@@ -85,11 +85,16 @@ Como parte de la estrategia de aseguramiento de la calidad (QA) y estabilidad de
 * *Comportamiento esperado:* El algoritmo de proyección en Go ajustará automáticamente la fecha de corte al último día calendario del mes en curso para evitar saltos indeseados de ciclo.
 
 
+* **Anulación de Venta con Reversión:**
+* *Escenario:* El usuario anula una venta ya registrada (contado o crédito).
+* *Comportamiento esperado:* La aplicación devolverá el stock reservado y revertirá la deuda del cliente dentro de una misma transacción (sin escrituras parciales), dejando la venta marcada como cancelada en el historial y los indicadores del Dashboard recalculados sobre el estado vigente.
+
+
 * **Eliminación de Tarjeta con Historial de Operaciones:**
 * *Escenario:* El usuario intenta eliminar una tarjeta de crédito del catálogo de Tesorería que posee compras o compras proyectadas asociadas.
 
 
-* *Comportamiento esperado:* Se aplicará un borrado lógico (*soft delete*) marcando la tarjeta como inactiva para evitar nuevos registros, preservando la integridad referencial en SQLite y las proyecciones financieras históricas.
+* *Comportamiento esperado:* Tras confirmación explícita del usuario (diálogo de advertencia), se aplicará un borrado lógico (*soft delete*) marcando la tarjeta como inactiva para evitar nuevos registros, preservando la integridad referencial en SQLite y las proyecciones financieras históricas del catálogo.
 
 
 

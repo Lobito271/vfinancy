@@ -169,7 +169,6 @@ CREATE TABLE purchase_orders (
     cost_usd       TEXT        NOT NULL DEFAULT '0.00' CHECK (CAST(cost_usd AS REAL) >= 0),
     sale_price_pen TEXT        NOT NULL DEFAULT '0.00' CHECK (CAST(sale_price_pen AS REAL) >= 0),
     real_cost_pen  TEXT        NOT NULL DEFAULT '0.00' CHECK (CAST(real_cost_pen AS REAL) >= 0),
-    projected_profit_pen TEXT NOT NULL DEFAULT '0.00',
     refund_amount  TEXT        NOT NULL DEFAULT '0.00' CHECK (CAST(refund_amount AS REAL) >= 0),
     faulty         BOOLEAN     NOT NULL DEFAULT FALSE,
     faulty_reason  TEXT,

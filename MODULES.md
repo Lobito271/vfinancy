@@ -1,5 +1,7 @@
 La arquitectura consolida la gestión operativa bimonetaria en seis módulos lógicos para una aplicación de escritorio basada en Wails, React y SQLite, diseñada bajo un modelo *offline-first* para un único usuario. Esta estructura garantiza alta cohesión técnica y reduce la carga cognitiva al agrupar funciones según su ciclo de vida comercial.
 
+La navegación lateral es completamente **plana**, con una sola palabra por módulo: **Inicio · Compras · Inventario · Ventas · Tesorería · Ajustes**. No existen jerarquías ni submenús: las vistas auxiliares (lotes, cobros, ciclos, remate) operan como filtros, drawers y dialogs dentro de cada módulo.
+
 ## 1. Dashboard Financiero (Inicio)
 
 Consolida la analítica visual del negocio a través del cálculo de utilidad neta en moneda nacional.
@@ -240,11 +242,11 @@ Administración central de reglas de negocio, respaldos locales y sincronizació
 
 
 
-* **Componentes UI Principales:** Menú lateral de pestañas (Negocio, Autenticación, Respaldos, Sincronización, Apariencia). Switch/Toggles integrados y un *Directory Picker* nativo de SO.
+* **Componentes UI Principales:** Menú lateral de pestañas (Negocio, Empresa, Autenticación, Respaldos, Sincronización, Apariencia). Switch/Toggles integrados y un *Directory Picker* nativo de SO. La pestaña Empresa edita la identidad corporativa del perfil: Razón Social (obligatoria), RUC (opcional, regex 11 dígitos 10/20), Correo Electrónico y Dirección Fiscal.
 
 | Campo / Nombre | Componente UI | Clasificación / Validación |
 | --- | --- | --- |
-| Días para Remate | Input Number | Obligatorio.
+| Días para Remate | Input Number | Obligatorio, entero entre 1 y 365.
 
  |
 | Costo Importación | Input Number | Obligatorio, factor decimal (+USD) sumado a compras.

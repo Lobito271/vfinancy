@@ -60,16 +60,6 @@ const columns: Column<Purchase>[] = [
     cell: (row) => <span className="tabular">{formatCurrency(row.realCostPen)}</span>,
   },
   {
-    id: 'projectedProfitPen',
-    header: 'Utilidad proy.',
-    align: 'numeric',
-    cell: (row) => (
-      <span className={`tabular ${row.projectedProfitPen < 0 ? 'text-destructive' : 'text-success'}`}>
-        {formatCurrency(row.projectedProfitPen)}
-      </span>
-    ),
-  },
-  {
     id: 'status',
     header: 'Estado',
     cell: (row) => {

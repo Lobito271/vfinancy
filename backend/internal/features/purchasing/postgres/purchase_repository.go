@@ -28,7 +28,7 @@ const purchaseColumns = `
 	id, number, order_date, expected_date, received_date, arrival_date,
 	status, currency_code, exchange_rate, notes, order_type,
 	customer_id, credit_card_id,
-	cost_usd, sale_price_pen, real_cost_pen, projected_profit_pen, refund_amount,
+	cost_usd, sale_price_pen, real_cost_pen, refund_amount,
 	faulty, faulty_reason, cancelled_at, cancelled_reason,
 	created_at, updated_at, deleted_at, created_by, updated_by
 `
@@ -45,10 +45,10 @@ func (r *purchaseRepository) Create(ctx context.Context, po *purchasing.Purchase
 		id, number, order_date, expected_date, received_date, arrival_date,
 		status, currency_code, exchange_rate, notes, order_type,
 		customer_id, credit_card_id,
-		cost_usd, sale_price_pen, real_cost_pen, projected_profit_pen, refund_amount,
+		cost_usd, sale_price_pen, real_cost_pen, refund_amount,
 		faulty, faulty_reason, cancelled_at, cancelled_reason,
 		created_at, updated_at, created_by, updated_by
-	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)`
+	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)`
 	_, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
 		po.ID, po.Number, po.OrderDate,
 		persistence.NullIfZeroTime(po.ExpectedDate), persistence.NullIfZeroTime(po.ReceivedDate),
@@ -56,8 +56,7 @@ func (r *purchaseRepository) Create(ctx context.Context, po *purchasing.Purchase
 		po.Status.String(), po.CurrencyCode, po.ExchangeRate.String(),
 		persistence.NullIfEmpty(po.Notes), po.OrderType.String(),
 		persistence.NullIfEmptyUUID(po.CustomerID), persistence.NullIfEmptyUUID(po.CreditCardID),
-		po.CostUSD.String(), po.SalePricePen.String(), po.RealCostPen.String(),
-		po.ProjectedProfitPen.String(), po.RefundAmount.String(),
+		po.CostUSD.String(), po.SalePricePen.String(), po.RealCostPen.String(), po.RefundAmount.String(),
 		po.Faulty, persistence.NullIfEmpty(po.FaultyReason),
 		persistence.NullIfZeroTime(po.CancelledAt), persistence.NullIfEmpty(po.CancelledReason),
 		po.CreatedAt, po.UpdatedAt,
@@ -100,17 +99,16 @@ func (r *purchaseRepository) Update(ctx context.Context, po *purchasing.Purchase
 		expected_date = $1, received_date = $2, arrival_date = $3, status = $4,
 		notes = $5, customer_id = $6, credit_card_id = $7,
 		cost_usd = $8, sale_price_pen = $9, real_cost_pen = $10,
-		projected_profit_pen = $11, refund_amount = $12,
-		faulty = $13, faulty_reason = $14, cancelled_at = $15, cancelled_reason = $16,
-		updated_at = $17, updated_by = $18
-	 WHERE id = $19 AND deleted_at IS NULL`
+		refund_amount = $11,
+		faulty = $12, faulty_reason = $13, cancelled_at = $14, cancelled_reason = $15,
+		updated_at = $16, updated_by = $17
+	 WHERE id = $18 AND deleted_at IS NULL`
 	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
 		persistence.NullIfZeroTime(po.ExpectedDate), persistence.NullIfZeroTime(po.ReceivedDate),
 		persistence.NullIfZeroTime(po.ArrivalDate), po.Status.String(),
 		persistence.NullIfEmpty(po.Notes),
 		persistence.NullIfEmptyUUID(po.CustomerID), persistence.NullIfEmptyUUID(po.CreditCardID),
-		po.CostUSD.String(), po.SalePricePen.String(), po.RealCostPen.String(),
-		po.ProjectedProfitPen.String(), po.RefundAmount.String(),
+		po.CostUSD.String(), po.SalePricePen.String(), po.RealCostPen.String(), po.RefundAmount.String(),
 		po.Faulty, persistence.NullIfEmpty(po.FaultyReason),
 		persistence.NullIfZeroTime(po.CancelledAt), persistence.NullIfEmpty(po.CancelledReason),
 		time.Now().UTC(), persistence.NullIfEmptyUUID(po.UpdatedBy), po.ID,
@@ -271,7 +269,7 @@ type purchaseScan struct {
 	expectedDate, receivedDate, arrivalDate, cancelledAt, deletedAt      sql.NullTime
 	customerID, creditCardID                                             sql.NullString
 	status, orderType, currencyCode, exchangeRate                        string
-	costUSD, salePricePen, realCostPen, projectedProfitPen, refundAmount string
+	costUSD, salePricePen, realCostPen, refundAmount string
 	faulty                                                               bool
 }
 
@@ -283,7 +281,7 @@ func scanPurchaseOrder(row *sql.Row) (*purchasing.PurchaseOrder, error) {
 		&s.expectedDate, &s.receivedDate, &s.arrivalDate,
 		&s.status, &s.currencyCode, &s.exchangeRate, &s.notes, &s.orderType,
 		&s.customerID, &s.creditCardID,
-		&s.costUSD, &s.salePricePen, &s.realCostPen, &s.projectedProfitPen, &s.refundAmount,
+		&s.costUSD, &s.salePricePen, &s.realCostPen, &s.refundAmount,
 		&s.faulty, &s.faultyReason, &s.cancelledAt, &s.cancelledReason,
 		&p.CreatedAt, &p.UpdatedAt, &s.deletedAt, &s.createdBy, &s.updatedBy,
 	); err != nil {
@@ -303,7 +301,7 @@ func scanPurchaseOrderFromRows(rows *sql.Rows) (*purchasing.PurchaseOrder, error
 		&s.expectedDate, &s.receivedDate, &s.arrivalDate,
 		&s.status, &s.currencyCode, &s.exchangeRate, &s.notes, &s.orderType,
 		&s.customerID, &s.creditCardID,
-		&s.costUSD, &s.salePricePen, &s.realCostPen, &s.projectedProfitPen, &s.refundAmount,
+		&s.costUSD, &s.salePricePen, &s.realCostPen, &s.refundAmount,
 		&s.faulty, &s.faultyReason, &s.cancelledAt, &s.cancelledReason,
 		&p.CreatedAt, &p.UpdatedAt, &s.deletedAt, &s.createdBy, &s.updatedBy,
 	); err != nil {
@@ -376,9 +374,6 @@ func decodePurchaseOrder(p *purchasing.PurchaseOrder, s *purchaseScan) error {
 		return err
 	}
 	if p.RealCostPen, err = persistence.ParseMoney(s.realCostPen); err != nil {
-		return err
-	}
-	if p.ProjectedProfitPen, err = persistence.ParseMoney(s.projectedProfitPen); err != nil {
 		return err
 	}
 	if p.RefundAmount, err = persistence.ParseMoney(s.refundAmount); err != nil {

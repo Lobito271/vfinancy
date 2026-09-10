@@ -33,7 +33,6 @@ type PurchaseOrder struct {
 	CostUSD            valueobjects.Money
 	SalePricePen       valueobjects.Money
 	RealCostPen        valueobjects.Money
-	ProjectedProfitPen valueobjects.Money
 	RefundAmount       valueobjects.Money
 	Faulty             bool
 	FaultyReason       string
@@ -74,9 +73,7 @@ func (p *PurchaseOrder) Validate() error {
 		return derrors.Wrap(derrors.ErrOutOfRange, errField("exchange rate must be positive"))
 	}
 	// RefundAmount and CostUSD/SalePricePen/RealCostPen are recorded
-	// inputs and must never be negative; the profit projection is
-	// derived (sale price - landed cost) and may legitimately be
-	// negative.
+	// inputs and must never be negative.
 	if p.CostUSD.IsNegative() || p.SalePricePen.IsNegative() || p.RealCostPen.IsNegative() ||
 		p.RefundAmount.IsNegative() {
 		return derrors.Wrap(derrors.ErrNegativeMoney, errField("financial amounts cannot be negative"))

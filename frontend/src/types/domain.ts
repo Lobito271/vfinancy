@@ -71,7 +71,6 @@ export interface Purchase {
   costUsd: number;
   salePricePen: number;
   realCostPen: number;
-  projectedProfitPen: number;
   refundAmount: number;
   faulty: boolean;
   faultyReason: string;

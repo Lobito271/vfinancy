@@ -281,7 +281,6 @@ func (s *PurchasingService) Create(ctx context.Context, in CreateInput) (*Purcha
 			CreatedAt:    now,
 			UpdatedAt:    now,
 		}
-		po.ProjectedProfitPen = salePen.Sub(po.RealCostPen)
 		if err := po.Validate(); err != nil {
 			return err
 		}
@@ -543,7 +542,6 @@ func (s *PurchasingService) CreateClientOrder(ctx context.Context, customerID, s
 			po.SalePricePen = po.SalePricePen.Add(li.SalePricePen)
 		}
 		po.RealCostPen = s.realCostPEN(ctx, po.CostUSD, po.ExchangeRate)
-		po.ProjectedProfitPen = po.SalePricePen.Sub(po.RealCostPen)
 		if err := po.Validate(); err != nil {
 			return err
 		}

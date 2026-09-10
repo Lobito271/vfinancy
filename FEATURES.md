@@ -102,9 +102,9 @@
 
 
 * **Opciones y Flujos Personalizables:**
-* Realización de ajustes directos de stock manuales en casos excepcionales.
-* Filtrado rápido en tabla mediante el botón "Ver productos en Remate".
-
+* Realización de ajustes directos de stock manuales en casos excepcionales (cantidad entera > 0).
+* Filtrado rápido en la vista de Stock mediante el botón "Ver productos en Remate".
+* Bloqueo en formulario de fechas de ingreso posteriores a la fecha actual del sistema (mitigación de desfase de reloj).
 
 * Umbral de días máximos de permanencia configurable por el usuario (predeterminado en 25 días calendario).
 
@@ -143,6 +143,9 @@
 
 
 * Modalidad de venta: Contado o Crédito con fecha de vencimiento configurada.
+
+
+* Anulación de venta posterior (botón "Anular"): revierte el stock reservado y la deuda del cliente dentro de la misma transacción, dejando un registro cancelado en el historial.
 
 
 * **Campos Obligatorios:**
@@ -262,6 +265,7 @@
 
 
 * **Opciones y Flujos Personalizables:**
+* Edición de los Datos de la Empresa del perfil (Razón Social, RUC, Correo y Dirección Fiscal).
 * Modificación libre de los límites de permanencia para alertas de inventario.
 
 
@@ -310,6 +314,9 @@
 * **Contraseña Local:** Opcional. Si el estado de protección está deshabilitado, la aplicación omitirá la pantalla de login e ingresará directamente al panel principal.
 
 
+* **Datos de Empresa del Perfil:** Capturados en el asistente de primera ejecución y editables posteriormente en Configuración: Razón Social (obligatoria), RUC (opcional, 11 dígitos con prefijo 10/20), Correo Electrónico (opcional) y Dirección Fiscal (opcional), usados como identidad corporativa en la documentación del negocio.
+
+
 
 ---
 
@@ -339,7 +346,7 @@
 * **Descripción:** Permite replicar o enviar una copia contingente de los datos desde la base de datos SQLite local hacia una base de datos PostgreSQL hospedada en la nube, garantizando resguardo remoto y disponibilidad opcional.
 * **Opciones y Flujos Personalizables:**
 * Conmutador global para activar o desactivar el módulo de sincronización (*Opt-in*).
-* Sincronización manual iniciada por el usuario o automática en segundo plano cuando el equipo disponga de conexión a internet.
+* Sincronización manual iniciada por el usuario (botón "Sincronizar ahora") o automática en segundo plano cuando el equipo disponga de conexión a internet.
 
 
 * **Campos Obligatorios:**

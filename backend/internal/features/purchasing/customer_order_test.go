@@ -188,32 +188,8 @@ func TestCreateChargesCardWithOrderCost(t *testing.T) {
 	if !po.RealCostPen.Equals(money("60.21")) {
 		t.Fatalf("real_cost_pen = %s, want 60.21", po.RealCostPen)
 	}
-	if !po.ProjectedProfitPen.Equals(money("39.79")) {
-		t.Fatalf("projected_profit_pen = %s, want 39.79", po.ProjectedProfitPen)
-	}
 	if len(treasury.charges) != 1 || !treasury.charges[0].Equals(money("20.00")) {
 		t.Fatalf("charges = %v, want [20.00]", treasury.charges)
-	}
-}
-
-func TestCreateAcceptsNegativeProjectedProfit(t *testing.T) {
-	rate, _ := valueobjects.ExchangeRateFromDecimal(decimal.NewFromInt(3))
-	cardID := uuid.New()
-	svc := newService(&fakeOrders{}, &fakeTreasury{}, &fakeStock{})
-	po, err := svc.Create(context.Background(), purchasing.CreateInput{
-		CreditCardID: &cardID,
-		ExchangeRate: rate,
-		Items: []purchasing.CreateItemInput{{
-			Description: "Cosa",
-			Quantity:    valueobjects.QuantityFromInt64(2),
-			UnitCostUSD: money("10.00"),
-		}},
-	})
-	if err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	if !po.ProjectedProfitPen.Equals(money("-60.21")) {
-		t.Fatalf("projected_profit_pen = %s, want -60.21", po.ProjectedProfitPen)
 	}
 }
 

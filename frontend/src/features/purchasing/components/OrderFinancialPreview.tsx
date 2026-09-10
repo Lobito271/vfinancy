@@ -8,20 +8,15 @@ function round2(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-interface OrderFinancialPreviewProps {
-  showProfit?: boolean;
-}
-
 interface WatchedItem {
   unitPrice?: number;
   quantity?: number;
   discountPercent?: number;
 }
 
-export function OrderFinancialPreview({ showProfit = true }: OrderFinancialPreviewProps) {
+export function OrderFinancialPreview() {
   const { control } = useFormContext();
   const items = useWatch({ control, name: 'items' }) as WatchedItem[] | undefined;
-  const salePricePEN = useWatch({ control, name: 'salePricePEN' }) as number | undefined;
   const exchangeRate = (useWatch({ control, name: 'exchangeRate' }) as number | undefined) ?? 0;
 
   const costUSD = round2(
@@ -31,7 +26,6 @@ export function OrderFinancialPreview({ showProfit = true }: OrderFinancialPrevi
     }, 0),
   );
   const realCost = round2(costUSD * (exchangeRate + IMPORT_SURCHARGE));
-  const profit = showProfit ? round2((salePricePEN ?? 0) - realCost) : 0;
 
   return (
     <div className="stack">
@@ -53,14 +47,6 @@ export function OrderFinancialPreview({ showProfit = true }: OrderFinancialPrevi
           <div className="fact-grid__label">Costo real (PEN)</div>
           <div className="fact-grid__value">{formatCurrency(realCost)}</div>
         </div>
-        {showProfit && (
-          <div>
-            <div className="fact-grid__label">Utilidad proyectada</div>
-            <div className={`fact-grid__value ${profit < 0 ? 'text-destructive' : 'text-success'}`}>
-              {formatCurrency(profit)}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

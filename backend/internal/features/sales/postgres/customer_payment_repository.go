@@ -163,6 +163,40 @@ func (r *customerPaymentRepository) ListForSale(ctx context.Context, saleID uuid
 	return out, nil
 }
 
+// ListCollections returns the sale allocations of active payments
+// received in [from, to).
+func (r *customerPaymentRepository) ListCollections(ctx context.Context, from, to time.Time) ([]sales.SaleCollection, error) {
+	const q = `SELECT a.sale_id, cp.payment_date, a.allocated_amount
+		FROM customer_payments cp
+		JOIN customer_payment_allocations a ON a.customer_payment_id = cp.id
+		WHERE cp.deleted_at IS NULL AND cp.status = $1
+		  AND cp.payment_date >= $2 AND cp.payment_date < $3`
+	rows, err := persistence.Q(ctx, r.q).QueryContext(ctx, q, sales.PaymentStatusActive, from, to)
+	if err != nil {
+		return nil, persistence.Translate(err)
+	}
+	out := make([]sales.SaleCollection, 0)
+	if err := persistence.ScanRows(rows, func(row *sql.Rows) error {
+		var (
+			saleID      uuid.UUID
+			paymentDate time.Time
+			amountStr   string
+		)
+		if err := row.Scan(&saleID, &paymentDate, &amountStr); err != nil {
+			return persistence.Translate(err)
+		}
+		amount, err := persistence.ParseMoney(amountStr)
+		if err != nil {
+			return err
+		}
+		out = append(out, sales.SaleCollection{SaleID: saleID, PaymentDate: paymentDate, Amount: amount})
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func scanCustomerPayment(row *sql.Row) (*sales.CustomerPayment, error) {
 	p := &sales.CustomerPayment{}
 	var (

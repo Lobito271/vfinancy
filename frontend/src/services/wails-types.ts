@@ -113,6 +113,7 @@ export interface ProductDTO {
 export interface SaveProductRequest {
   id?: string;
   description: string;
+  unitCode: string;
   costUsd: number;
   salePrice: number;
 }
@@ -243,6 +244,12 @@ export interface CustomerPaymentDTO {
 export interface ListSalePaymentsRequest extends PaginationRequest {
   customerId: string;
   saleId: string;
+}
+
+export interface SaleCollectionDTO {
+  saleId: string;
+  paymentDate: string;
+  amount: number;
 }
 
 export interface PurchaseItemDTO {
@@ -411,6 +418,7 @@ export interface AppBindings {
   CreateProduct(req: SaveProductRequest): Promise<ProductDTO>;
   UpdateProduct(req: SaveProductRequest): Promise<ProductDTO>;
   RemoveProduct(id: string): Promise<void>;
+  SetProductActive(id: string, active: boolean): Promise<void>;
   GetProductStock(id: string): Promise<number>;
 
   ListInventoryBatches(req: PaginationRequest, onlyClearance: boolean, search: string): Promise<PageResult<InventoryBatchDTO>>;
@@ -426,6 +434,7 @@ export interface AppBindings {
   CancelSale(req: CancelSaleRequest): Promise<SaleDTO>;
   RegisterSalePayment(req: SalePaymentRequest): Promise<SaleDTO>;
   ListSalePayments(req: PaginationRequest, customerId: string, saleId: string): Promise<PageResult<CustomerPaymentDTO>>;
+  ListSaleCollections(from: string, to: string): Promise<SaleCollectionDTO[]>;
 
   ListPurchaseOrders(req: PurchaseFilterRequest): Promise<PageResult<PurchaseOrderDTO>>;
   GetPurchaseOrder(id: string): Promise<PurchaseOrderDTO>;
@@ -437,6 +446,7 @@ export interface AppBindings {
   AddToImportLot(lotId: string, purchaseIds: string[]): Promise<ImportLotDTO>;
   RemoveFromImportLot(lotId: string, purchaseId: string): Promise<ImportLotDTO>;
   GetImportLot(id: string): Promise<ImportLotDTO>;
+  CloseImportLot(id: string): Promise<ImportLotDTO>;
   ListImportLots(req: PaginationRequest, search: string): Promise<PageResult<ImportLotDTO>>;
   ListLotMembers(lotId: string): Promise<PurchaseOrderDTO[]>;
 

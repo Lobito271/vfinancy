@@ -36,3 +36,11 @@ export function useDeleteProduct() {
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.products.all }),
   });
 }
+
+export function useSetProductActive() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, active }: { id: string; active: boolean }) => productsService.setActive(id, active),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.products.all }),
+  });
+}

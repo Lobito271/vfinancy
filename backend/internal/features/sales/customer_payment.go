@@ -45,6 +45,15 @@ type PaymentAllocation struct {
 	CreatedAt         time.Time
 }
 
+// SaleCollection is the amount of an active payment allocated to a sale
+// on a given date. Used by the dashboard to attribute collected cash
+// (and the corresponding margin) to the period it was received.
+type SaleCollection struct {
+	SaleID      uuid.UUID
+	PaymentDate time.Time
+	Amount      valueobjects.Money
+}
+
 // NewCustomerPaymentOptions is the input to NewCustomerPayment.
 type NewCustomerPaymentOptions struct {
 	CustomerID    uuid.UUID

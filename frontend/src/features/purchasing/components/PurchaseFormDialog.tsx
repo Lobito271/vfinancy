@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useFieldArray, useFormContext, useWatch, type Path } from 'react-hook-form';import { useQuery } from '@tanstack/react-query';
 import { Trash2, Plus } from 'lucide-react';
 import { z } from 'zod';
@@ -14,6 +14,14 @@ import {
 import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { Badge } from '@/components/badge';
+import { Input, Label } from '@/components/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/select';
 import { useCreatePurchase } from '@/features/purchasing/hooks/usePurchases';
 import { useCreditCards } from '@/features/treasury/hooks/useTreasury';
 import { useProducts } from '@/features/products/hooks/useProducts';
@@ -30,6 +38,7 @@ const lineSchema = z
     description: z.string().trim(),
     quantity: z.number().int('Debe ser entero').positive('Cantidad debe ser mayor a 0'),
     unitPrice: z.number().positive('Costo USD debe ser mayor a 0'),
+    salePricePen: z.number().min(0, 'El precio de venta no puede ser negativo'),
   })
   .refine((l) => l.productId !== '' || l.description !== '', {
     message: 'Indique el producto o su descripción',
@@ -54,7 +63,7 @@ const PurchaseFormSchema = z
 
 type PurchaseFormValues = z.infer<typeof PurchaseFormSchema>;
 
-const emptyLine = () => ({ productId: '', description: '', quantity: 1, unitPrice: 0 });
+const emptyLine = () => ({ productId: '', description: '', quantity: 1, unitPrice: 0, salePricePen: 0 });
 
 function today(): string {
   const d = new Date();
@@ -130,6 +139,7 @@ function CustomerField({ customers }: { customers: SelectOption[] }) {
 
 interface ProductCostOption extends SelectOption {
   unitCost: number;
+  salePrice: number;
 }
 function PurchaseLines({ products }: { products: ProductCostOption[] }) {
   const { control, setValue } = useFormContext<PurchaseFormValues>();
@@ -142,6 +152,7 @@ function PurchaseLines({ products }: { products: ProductCostOption[] }) {
     if (!p) return;
     setValue(`items.${index}.description` as Path<PurchaseFormValues>, p.label);
     setValue(`items.${index}.unitPrice` as Path<PurchaseFormValues>, p.unitCost);
+    setValue(`items.${index}.salePricePen` as Path<PurchaseFormValues>, p.salePrice);
   };
 
   return (
@@ -181,6 +192,13 @@ function PurchaseLines({ products }: { products: ProductCostOption[] }) {
               <div className="form-grid">
                 <NumberField name={`items.${index}.quantity` as Path<PurchaseFormValues>} label="Cantidad" required min={1} step={1} />
                 <NumberField name={`items.${index}.unitPrice` as Path<PurchaseFormValues>} label="Costo (USD)" required min={0} step={0.01} />
+                <NumberField
+                  name={`items.${index}.salePricePen` as Path<PurchaseFormValues>}
+                  label="Precio de venta (PEN)"
+                  description="Precio sugerido al vender en soles."
+                  min={0}
+                  step={0.01}
+                />
               </div>
             </div>
           ))}
@@ -208,6 +226,7 @@ function formatUsd(value: number): string {
 export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogProps) {
   const create = useCreatePurchase();
   const push = useNotificationStore((s) => s.push);
+  const [lotId, setLotId] = useState('');
   const productsQuery = useProducts();
   const cardsQuery = useCreditCards();
   const customersQuery = useQuery({
@@ -219,6 +238,11 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
     queryKey: queryKeys.treasury.exchangeRate('USD', 'PEN'),
     queryFn: () => wailsClient.latestExchangeRate(),
     staleTime: 60 * 1000,
+  });
+  const lotsQuery = useQuery({
+    queryKey: queryKeys.importLots.list({ page: 1, pageSize: 100, search: '' }),
+    queryFn: () => wailsClient.listImportLots({ page: 1, pageSize: 100 }, ''),
+    enabled: open,
   });
 
   const cardOptions = useMemo<SelectOption[]>(
@@ -232,7 +256,7 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
   );
 
   const productOptions = useMemo<ProductCostOption[]>(
-    () => (productsQuery.data?.items ?? []).map((p) => ({ value: p.id, label: `${p.sku} — ${p.description}`, unitCost: p.costUsd })),
+    () => (productsQuery.data?.items ?? []).map((p) => ({ value: p.id, label: `${p.sku} — ${p.description}`, unitCost: p.costUsd, salePrice: p.salePrice })),
     [productsQuery.data],
   );
 
@@ -250,6 +274,10 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
     [],
   );
 
+  useEffect(() => {
+    if (!open) setLotId('');
+  }, [open]);
+
   const handleSubmit = (values: PurchaseFormValues) => {
     create.mutate(
       {
@@ -264,12 +292,32 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
           productId: it.productId,
           quantity: it.quantity,
           unitPrice: it.unitPrice,
+          salePricePen: it.salePricePen,
           description: it.description,
         })),
       },
       {
-        onSuccess: (purchase) => {
+        onSuccess: async (purchase) => {
+          if (lotId) {
+            try {
+              const lot = await wailsClient.addToImportLot(lotId, [purchase.id]);
+              if (lot.overLimit) {
+                push({
+                  title: 'El lote supera el tope aduanero',
+                  description: `El lote ${lot.code} supera ${formatCurrency(lot.customsLimitUsd, 'USD')}.`,
+                  variant: 'warning',
+                });
+              }
+            } catch (err) {
+              push({
+                title: 'La orden se creó, pero no se pudo asignar al lote',
+                description: err instanceof Error ? err.message : undefined,
+                variant: 'destructive',
+              });
+            }
+          }
           push({ title: 'Orden de compra creada', description: purchase.number, variant: 'success' });
+          setLotId('');
           onOpenChange(false);
         },
         onError: (err: unknown) => {
@@ -315,6 +363,39 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
                 <div className="form-grid">
                   <DateField name="orderDate" label="Fecha de pedido" required />
                   <DateField name="expectedDate" label="Fecha estimada" description="Opcional" />
+                </div>
+                <div className="form-grid">
+                  <div className="field">
+                    <Label htmlFor="purchase-unit-code">Unidad de medida</Label>
+                    <Input id="purchase-unit-code" value="Unidad" disabled readOnly aria-label="Unidad de medida" />
+                  </div>
+                  <div className="field">
+                    <Label htmlFor="purchase-lot">Lote de importación</Label>
+                    <Select
+                      items={[
+                        { value: '', label: 'Sin lote' },
+                        ...(lotsQuery.data?.items ?? [])
+                          .filter((l) => l.status === 'active')
+                          .map((l) => ({ value: l.id, label: `${l.code} · ${l.description || 'sin descripción'}` })),
+                      ]}
+                      value={lotId}
+                      onValueChange={(v) => setLotId(v ?? '')}
+                    >
+                      <SelectTrigger id="purchase-lot" aria-label="Lote de importación">
+                        <SelectValue placeholder="Sin lote" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Sin lote</SelectItem>
+                        {(lotsQuery.data?.items ?? [])
+                          .filter((l) => l.status === 'active')
+                          .map((l) => (
+                            <SelectItem key={l.id} value={l.id}>
+                              {l.code} · {l.description || 'sin descripción'}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <div className="form-grid form-grid--wide">
                   <div className="stack stack--tight">

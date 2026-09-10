@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Package, AlertTriangle, Ban, Plus, Download, Boxes, Filter } from 'lucide-react';
+import { Package, AlertTriangle, Ban, Plus, Download, Boxes, Filter, Eye } from 'lucide-react';
 import { PageContainer, PageHeader, Grid } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
 import { Badge } from '@/components/badge';
-import { EmptyState } from '@/components/feedback';
+import { EmptyState, Spinner } from '@/components/feedback';
 import { Button } from '@/components/button';
 import { Input, Label, SearchInput } from '@/components/input';
 import { CancelDialog } from '@/components/dialog';
@@ -26,13 +26,14 @@ import {
 } from '@/features/purchasing/hooks/usePurchases';
 import { PurchaseFormDialog } from '@/features/purchasing/components/PurchaseFormDialog';
 import { ImportLotsDialog } from '@/features/purchasing/components/ImportLotsDialog';
+import { ProductsDrawer } from '@/features/products/components/ProductsDrawer';
 import { MarkReceivedDialog } from '@/features/purchasing/components/MarkReceivedDialog';
 import { MarkFaultyDialog, type MarkFaultyInput } from '@/features/purchasing/components/MarkFaultyDialog';
 import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
 import type { CreditCardDTO, ImportLotDTO } from '@/services/wails-types';
 import type { Purchase } from '@/types/domain';
-import { formatCurrency, formatDate } from '@/utils/format';
+import { formatCurrency, formatDate, formatNumber } from '@/utils/format';
 import { useNotificationStore } from '@/stores/notification';
 
 const statusMap: Record<string, { variant: 'success' | 'warning' | 'info' | 'destructive' | 'muted'; label: string }> = {
@@ -95,10 +96,18 @@ export function PurchasesPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [lotsOpen, setLotsOpen] = useState(false);
+  const [productsOpen, setProductsOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Purchase | null>(null);
   const [receivedTarget, setReceivedTarget] = useState<Purchase | null>(null);
   const [faultyTarget, setFaultyTarget] = useState<Purchase | null>(null);
+  const [detailTarget, setDetailTarget] = useState<Purchase | null>(null);
+
+  const detailQuery = useQuery({
+    queryKey: ['purchase-detail', detailTarget?.id],
+    queryFn: () => wailsClient.getPurchaseOrder(detailTarget!.id),
+    enabled: Boolean(detailTarget),
+  });
 
   const lotsQuery = useQuery({
     queryKey: queryKeys.importLots.list({ page: 1, pageSize: 100, search: '' }),
@@ -142,6 +151,11 @@ export function PurchasesPage() {
           const open = row.status !== 'cancelled';
           const receivable = !row.arrivalDate && !row.faulty && row.status !== 'cancelled';
           const actions = [];
+          actions.push({
+            label: 'Ver detalle',
+            icon: Eye,
+            onSelect: () => setDetailTarget(row),
+          });
           if (receivable) {
             actions.push({
               label: 'Marcar como recibido',
@@ -180,6 +194,9 @@ export function PurchasesPage() {
           <div className="hstack hstack--sm">
             <Button variant="outline" onClick={() => setFiltersOpen(true)}>
               <Filter /> Filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+            </Button>
+            <Button variant="outline" onClick={() => setProductsOpen(true)}>
+              <Package /> Productos
             </Button>
             <Button variant="outline" onClick={() => setLotsOpen(true)}>
               <Boxes /> Lotes
@@ -314,6 +331,7 @@ export function PurchasesPage() {
 
       <PurchaseFormDialog open={formOpen} onOpenChange={setFormOpen} />
       <ImportLotsDialog open={lotsOpen} onOpenChange={setLotsOpen} />
+      <ProductsDrawer open={productsOpen} onOpenChange={setProductsOpen} />
 
       <MarkReceivedDialog
         open={!!receivedTarget}
@@ -401,6 +419,90 @@ export function PurchasesPage() {
           );
         }}
       />
+
+      <Drawer
+        open={!!detailTarget}
+        onOpenChange={(open) => {
+          if (!open) setDetailTarget(null);
+        }}
+        title="Detalle de compra"
+        description={detailTarget ? detailTarget.number : undefined}
+      >
+        {detailTarget &&
+          (detailQuery.isLoading ? (
+            <Spinner />
+          ) : detailQuery.isError ? (
+            <EmptyState title="No se pudo cargar" description="No se pudo cargar el detalle de la orden." />
+          ) : detailQuery.data ? (
+            <div className="stack">
+              <div className="doc-summary">
+                <div className="doc-summary__row">
+                  <div className="doc-summary__meta">Tipo</div>
+                  <div className="doc-summary__amount">
+                    {detailQuery.data.orderType === 'customer' ? 'Cliente a pedido' : 'General (stock)'}
+                  </div>
+                </div>
+                <div className="doc-summary__row">
+                  <div className="doc-summary__meta">Fecha de pedido</div>
+                  <div className="doc-summary__amount">{formatDate(detailQuery.data.orderDate)}</div>
+                </div>
+                {detailQuery.data.expectedDate && (
+                  <div className="doc-summary__row">
+                    <div className="doc-summary__meta">Fecha estimada</div>
+                    <div className="doc-summary__amount">{formatDate(detailQuery.data.expectedDate)}</div>
+                  </div>
+                )}
+                {detailQuery.data.receivedDate && (
+                  <div className="doc-summary__row">
+                    <div className="doc-summary__meta">Recepción</div>
+                    <div className="doc-summary__amount">{formatDate(detailQuery.data.receivedDate)}</div>
+                  </div>
+                )}
+                <div className="doc-summary__row">
+                  <div className="doc-summary__meta">Tipo de cambio</div>
+                  <div className="doc-summary__amount tabular">{detailQuery.data.exchangeRate}</div>
+                </div>
+                <div className="doc-summary__row">
+                  <div className="doc-summary__meta">Costo (USD)</div>
+                  <div className="doc-summary__amount">{formatCurrency(detailQuery.data.costUsd, 'USD')}</div>
+                </div>
+                <div className="doc-summary__row">
+                  <div className="doc-summary__meta">Costo real (PEN)</div>
+                  <div className="doc-summary__amount">{formatCurrency(detailQuery.data.realCostPen)}</div>
+                </div>
+                {detailQuery.data.refundAmount > 0 && (
+                  <div className="doc-summary__row">
+                    <div className="doc-summary__meta">Reintegro (USD)</div>
+                    <div className="doc-summary__amount">{formatCurrency(detailQuery.data.refundAmount, 'USD')}</div>
+                  </div>
+                )}
+              </div>
+              {detailQuery.data.notes && <p className="muted">{detailQuery.data.notes}</p>}
+              {detailQuery.data.faultyReason && <p className="field-hint">Defectuoso: {detailQuery.data.faultyReason}</p>}
+              {detailQuery.data.cancelledReason && (
+                <p className="field-hint">Anulada: {detailQuery.data.cancelledReason}</p>
+              )}
+              <div className="stack">
+                {detailQuery.data.items.map((it) => (
+                  <div
+                    key={it.id}
+                    className="hstack"
+                    style={{ justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--color-border)' }}
+                  >
+                    <span style={{ display: 'grid' }}>
+                      <strong style={{ fontWeight: 500 }}>{it.description}</strong>
+                      <small style={{ color: 'var(--color-fg-subtle)' }}>
+                        {formatNumber(it.quantity)} × {formatCurrency(it.unitCostUsd, 'USD')}
+                        {it.salePricePen > 0 ? ` · Venta ${formatCurrency(it.salePricePen)}` : ''}
+                      </small>
+                    </span>
+                    <span className="tabular">{formatCurrency(it.lineTotalUsd, 'USD')}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null)}
+      </Drawer>
     </PageContainer>
   );
 }

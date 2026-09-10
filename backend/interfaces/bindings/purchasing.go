@@ -384,6 +384,22 @@ func (a *App) GetImportLot(id string) (ImportLotDTO, error) {
 	return lotDTO(a, lot, total, over), nil
 }
 
+// CloseImportLot marks a customs lot as closed.
+func (a *App) CloseImportLot(id string) (ImportLotDTO, error) {
+	lid, err := parseUUID(id)
+	if err != nil {
+		return ImportLotDTO{}, err
+	}
+	if _, err := a.purchasingSvc.CloseImportLot(a.Context(), lid); err != nil {
+		return ImportLotDTO{}, err
+	}
+	lot, total, over, err := a.purchasingSvc.GetImportLot(a.Context(), lid)
+	if err != nil {
+		return ImportLotDTO{}, err
+	}
+	return lotDTO(a, lot, total, over), nil
+}
+
 // ListImportLots returns the import groups.
 func (a *App) ListImportLots(req PaginationRequest, search string) (PageResult, error) {
 	page, err := a.purchasingSvc.ListImportLots(a.Context(), purchasing.ImportLotFilter{Search: search, PageRequest: req.toPageRequest()})

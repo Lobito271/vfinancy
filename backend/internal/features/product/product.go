@@ -67,11 +67,17 @@ func NewProduct(description string, costUSD, salePrice valueobjects.Money) (*Pro
 // Touch stamps UpdatedAt with the current UTC time.
 func (p *Product) Touch() { p.UpdatedAt = time.Now().UTC() }
 
-// Validate checks the product invariants: non-blank description,
-// non-negative money fields.
+// Validate checks the product invariants: non-blank description and
+// unit code, non-negative money fields.
 func (p *Product) Validate() error {
 	if strings.TrimSpace(p.Description) == "" {
 		return derrors.Wrap(derrors.ErrRequired, errField("description is required"))
+	}
+	if strings.TrimSpace(p.UnitCode) == "" {
+		return derrors.Wrap(derrors.ErrRequired, errField("unit code is required"))
+	}
+	if len(p.UnitCode) > 20 {
+		return derrors.Wrap(derrors.ErrOutOfRange, errField("unit code is too long"))
 	}
 	if p.CostUSD.IsNegative() {
 		return derrors.Wrap(derrors.ErrNegativeMoney, errField("cost usd cannot be negative"))

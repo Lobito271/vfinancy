@@ -68,6 +68,7 @@ func (a *App) GetProduct(id string) (ProductDTO, error) {
 type SaveProductRequest struct {
 	ID          string  `json:"id"`
 	Description string  `json:"description"`
+	UnitCode    string  `json:"unitCode"`
 	CostUSD     float64 `json:"costUsd"`
 	SalePrice   float64 `json:"salePrice"`
 }
@@ -83,7 +84,7 @@ func (a *App) CreateProduct(req SaveProductRequest) (ProductDTO, error) {
 	if err != nil {
 		return ProductDTO{}, err
 	}
-	p, err := a.productsSvc.Create(a.Context(), product.CreateInput{Description: req.Description, CostUSD: cost, SalePrice: price})
+	p, err := a.productsSvc.Create(a.Context(), product.CreateInput{Description: req.Description, UnitCode: req.UnitCode, CostUSD: cost, SalePrice: price})
 	if err != nil {
 		return ProductDTO{}, err
 	}
@@ -104,11 +105,24 @@ func (a *App) UpdateProduct(req SaveProductRequest) (ProductDTO, error) {
 	if err != nil {
 		return ProductDTO{}, err
 	}
-	p, err := a.productsSvc.Update(a.Context(), product.UpdateInput{ID: pid, Description: req.Description, CostUSD: cost, SalePrice: price})
+	p, err := a.productsSvc.Update(a.Context(), product.UpdateInput{ID: pid, Description: req.Description, UnitCode: &req.UnitCode, CostUSD: cost, SalePrice: price})
 	if err != nil {
 		return ProductDTO{}, err
 	}
 	return productDTO(p), nil
+}
+
+// SetProductActive toggles catalog visibility without deleting the
+// product, preserving historical references.
+func (a *App) SetProductActive(id string, active bool) error {
+	pid, err := parseUUID(id)
+	if err != nil {
+		return err
+	}
+	if active {
+		return a.productsSvc.Activate(a.Context(), pid)
+	}
+	return a.productsSvc.Deactivate(a.Context(), pid)
 }
 
 // RemoveProduct soft-deletes a catalog item.

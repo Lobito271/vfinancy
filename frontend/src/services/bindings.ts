@@ -179,6 +179,10 @@ export const wailsClient = {
     const b = await resolveBindings();
     return b.RemoveProduct(id);
   },
+  async setProductActive(id: string, active: boolean) {
+    const b = await resolveBindings();
+    return b.SetProductActive(id, active);
+  },
   async getProductStock(id: string) {
     const b = await resolveBindings();
     return b.GetProductStock(id);
@@ -233,6 +237,10 @@ export const wailsClient = {
     const b = await resolveBindings();
     return b.ListSalePayments(req, customerId, saleId);
   },
+  async listSaleCollections(from: string, to: string) {
+    const b = await resolveBindings();
+    return b.ListSaleCollections(from, to);
+  },
 
   async listPurchaseOrders(req: PurchaseFilterRequest) {
     const b = await resolveBindings();
@@ -273,6 +281,10 @@ export const wailsClient = {
   async getImportLot(id: string) {
     const b = await resolveBindings();
     return b.GetImportLot(id);
+  },
+  async closeImportLot(id: string) {
+    const b = await resolveBindings();
+    return b.CloseImportLot(id);
   },
   async listImportLots(req: PaginationRequest, search: string) {
     const b = await resolveBindings();

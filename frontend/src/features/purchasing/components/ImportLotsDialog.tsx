@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Boxes, Plus } from 'lucide-react';
+import { Boxes, Lock, Plus, Trash2 } from 'lucide-react';
 import {
   Dialog,
   DialogBody,
@@ -20,6 +20,7 @@ import { wailsClient } from '@/services/bindings';
 import { usePurchases } from '@/features/purchasing/hooks/usePurchases';
 import type { ImportLotDTO } from '@/services/wails-types';
 import { formatCurrency } from '@/utils/format';
+import { useNotificationStore } from '@/stores/notification';
 
 interface ImportLotsDialogProps {
   open: boolean;
@@ -28,6 +29,7 @@ interface ImportLotsDialogProps {
 
 export function ImportLotsDialog({ open, onOpenChange }: ImportLotsDialogProps) {
   const qc = useQueryClient();
+  const push = useNotificationStore((s) => s.push);
   const { data: purchases = [], isLoading: purchasesLoading } = usePurchases();
   const lotsQuery = useQuery({
     queryKey: ['import-lots'],
@@ -40,7 +42,15 @@ export function ImportLotsDialog({ open, onOpenChange }: ImportLotsDialogProps) 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [warning, setWarning] = useState<{ lot: ImportLotDTO; purchaseIds: string[] } | null>(null);
 
-  const invalidate = () => void qc.invalidateQueries({ queryKey: ['import-lots'] });
+  const membersQuery = useQuery({
+    queryKey: ['import-lots', 'members', activeLotId],
+    queryFn: () => wailsClient.listLotMembers(activeLotId),
+    enabled: open && Boolean(activeLotId),
+  });
+
+  const invalidate = () => {
+    void qc.invalidateQueries({ queryKey: ['import-lots'] });
+  };
 
   const rollback = useMutation({
     mutationFn: (undo: { lotId: string; purchaseIds: string[] }) =>
@@ -50,7 +60,7 @@ export function ImportLotsDialog({ open, onOpenChange }: ImportLotsDialogProps) 
       setWarning(null);
     },
     onError: (err: unknown) => {
-      window.console.error(err);
+      push({ title: 'No se pudo revertir la agrupación', description: err instanceof Error ? err.message : undefined, variant: 'destructive' });
     },
   });
 
@@ -65,13 +75,45 @@ export function ImportLotsDialog({ open, onOpenChange }: ImportLotsDialogProps) 
       setSelected(new Set());
       setDescription('');
       invalidate();
+      void qc.invalidateQueries({ queryKey: ['import-lots', 'members', activeLotId] });
       if (res.overLimit) setWarning({ lot: res, purchaseIds });
+    },
+    onError: (err: unknown) => {
+      push({ title: 'No se pudo agrupar', description: err instanceof Error ? err.message : undefined, variant: 'destructive' });
     },
   });
 
+  const removeMember = useMutation({
+    mutationFn: (purchaseId: string) => wailsClient.removeFromImportLot(activeLotId, purchaseId),
+    onSuccess: () => {
+      invalidate();
+      void qc.invalidateQueries({ queryKey: ['import-lots', 'members', activeLotId] });
+    },
+    onError: (err: unknown) => {
+      push({ title: 'No se pudo quitar la orden', description: err instanceof Error ? err.message : undefined, variant: 'destructive' });
+    },
+  });
+
+  const closeLot = useMutation({
+    mutationFn: () => wailsClient.closeImportLot(activeLotId),
+    onSuccess: () => {
+      setActiveLotId('');
+      invalidate();
+      push({ title: 'Lote cerrado', variant: 'success' });
+    },
+    onError: (err: unknown) => {
+      push({ title: 'No se pudo cerrar el lote', description: err instanceof Error ? err.message : undefined, variant: 'destructive' });
+    },
+  });
+
+  const memberIds = useMemo(
+    () => new Set((membersQuery.data ?? []).map((p) => p.id)),
+    [membersQuery.data],
+  );
+
   const selectable = useMemo(
-    () => purchases.filter((p) => p.status !== 'cancelled' && !selected.has(p.id)),
-    [purchases, selected],
+    () => purchases.filter((p) => p.status !== 'cancelled' && !selected.has(p.id) && !memberIds.has(p.id)),
+    [purchases, selected, memberIds],
   );
 
   const toggle = (id: string, checked: boolean) => {
@@ -84,6 +126,7 @@ export function ImportLotsDialog({ open, onOpenChange }: ImportLotsDialogProps) 
   };
 
   const lots = lotsQuery.data?.items ?? [];
+  const activeLot = lots.find((l) => l.id === activeLotId) ?? null;
 
   return (
     <>
@@ -166,14 +209,24 @@ export function ImportLotsDialog({ open, onOpenChange }: ImportLotsDialogProps) 
                 ) : (
                   <div className="stack">
                     {lots.map((l) => (
-                      <div key={l.id} className="card" style={{ padding: '0.75rem' }}>
+                      <button
+                        key={l.id}
+                        type="button"
+                        className="card"
+                        data-active={l.id === activeLotId || undefined}
+                        style={{ padding: '0.75rem', textAlign: 'left', cursor: 'pointer' }}
+                        onClick={() => setActiveLotId(l.id === activeLotId ? '' : l.id)}
+                      >
                         <div className="hstack hstack--sm" style={{ justifyContent: 'space-between' }}>
                           <strong>{l.code}</strong>
-                          {l.overLimit ? (
-                            <Badge variant="destructive">Supera tope aduanero</Badge>
-                          ) : (
-                            <Badge variant="muted">Dentro del tope</Badge>
-                          )}
+                          <div className="hstack hstack--sm">
+                            {l.status === 'closed' && <Badge variant="muted">Cerrado</Badge>}
+                            {l.overLimit ? (
+                              <Badge variant="destructive">Supera tope aduanero</Badge>
+                            ) : (
+                              <Badge variant="muted">Dentro del tope</Badge>
+                            )}
+                          </div>
                         </div>
                         {l.description && <p className="muted" style={{ fontSize: '0.8rem' }}>{l.description}</p>}
                         <p className="muted" style={{ fontSize: '0.8rem' }}>
@@ -181,8 +234,42 @@ export function ImportLotsDialog({ open, onOpenChange }: ImportLotsDialogProps) 
                           <span className="tabular">{formatCurrency(l.totalUsd, 'USD')}</span> de{' '}
                           {formatCurrency(l.customsLimitUsd, 'USD')}
                         </p>
-                      </div>
+                      </button>
                     ))}
+                  </div>
+                )}
+
+                {activeLot && (
+                  <div className="stack">
+                    <Label>Órdenes del lote {activeLot.code}</Label>
+                    {membersQuery.isLoading ? (
+                      <Spinner />
+                    ) : (membersQuery.data ?? []).length === 0 ? (
+                      <EmptyState title="Sin órdenes" description="Este lote aún no tiene órdenes asignadas." />
+                    ) : (
+                      <div className="stack">
+                        {(membersQuery.data ?? []).map((m) => (
+                          <div
+                            key={m.id}
+                            className="hstack hstack--sm"
+                            style={{ justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid var(--color-border)' }}
+                          >
+                            <span style={{ flex: 1 }}>{m.number}</span>
+                            <span className="tabular muted">{formatCurrency(m.costUsd, 'USD')}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`Quitar ${m.number} del lote`}
+                              onClick={() => removeMember.mutate(m.id)}
+                              disabled={removeMember.isPending}
+                            >
+                              <Trash2 />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -192,10 +279,15 @@ export function ImportLotsDialog({ open, onOpenChange }: ImportLotsDialogProps) 
             <Button variant="outline" onClick={() => onOpenChange(false)} disabled={group.isPending}>
               Cerrar
             </Button>
+            {activeLot && activeLot.status === 'active' && (
+              <Button variant="outline" onClick={() => closeLot.mutate()} loading={closeLot.isPending}>
+                <Lock /> Cerrar lote
+              </Button>
+            )}
             <Button
               onClick={() => group.mutate()}
               loading={group.isPending}
-              disabled={selected.size === 0}
+              disabled={selected.size === 0 || activeLot?.status === 'closed'}
             >
               <Plus /> Agrupar
             </Button>

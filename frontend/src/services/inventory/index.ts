@@ -1,5 +1,6 @@
 import type { InventoryBatchDTO, InventoryMovementDTO, ReceiveStockRequest } from '../wails-types';
 import { wailsClient } from '../bindings';
+import { fetchAllPages } from '../paginate';
 import { productsService } from '../products';
 import { daysBetween } from '@/utils/format';
 import type { InventoryItem } from '@/types/domain';
@@ -33,15 +34,13 @@ export const inventoryService = {
   async list(
     q: { search?: string; page?: number; pageSize?: number } = {},
   ): Promise<InventoryItem[]> {
-    const [res, skus] = await Promise.all([
-      wailsClient.listInventoryBatches(
-        { page: q.page ?? 1, pageSize: q.pageSize ?? 200 },
-        false,
-        q.search ?? '',
+    const [items, skus] = await Promise.all([
+      fetchAllPages((page, pageSize) =>
+        wailsClient.listInventoryBatches({ page, pageSize }, false, q.search ?? ''),
       ),
       skuIndex(),
     ]);
-    return (res.items as InventoryBatchDTO[]).map((dto) => toItem(dto, skus));
+    return (items as InventoryBatchDTO[]).map((dto) => toItem(dto, skus));
   },
 
   async movements(productId?: string): Promise<InventoryMovementDTO[]> {

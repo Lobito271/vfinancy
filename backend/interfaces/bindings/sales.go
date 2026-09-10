@@ -303,3 +303,36 @@ func (a *App) ListSalePayments(req PaginationRequest, customerID, saleID string)
 	}
 	return PageResult{Items: items, Total: page.Total, Page: req.Page, PageSize: req.PageSize}, nil
 }
+
+// SaleCollectionDTO is one collected amount allocated to a sale.
+type SaleCollectionDTO struct {
+	SaleID      string  `json:"saleId"`
+	PaymentDate string  `json:"paymentDate"`
+	Amount      float64 `json:"amount"`
+}
+
+// ListSaleCollections returns the collections received in [from, to)
+// so the dashboard can attribute cash and margin to the period.
+func (a *App) ListSaleCollections(from, to string) ([]SaleCollectionDTO, error) {
+	start, err := parseDay(from)
+	if err != nil {
+		return nil, err
+	}
+	end, err := parseDay(to)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := a.salesSvc.ListCollections(a.Context(), start, end)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]SaleCollectionDTO, 0, len(rows))
+	for _, c := range rows {
+		items = append(items, SaleCollectionDTO{
+			SaleID:      c.SaleID.String(),
+			PaymentDate: dayStr(c.PaymentDate),
+			Amount:      moneyFloat(c.Amount),
+		})
+	}
+	return items, nil
+}

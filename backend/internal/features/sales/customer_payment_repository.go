@@ -26,4 +26,7 @@ type CustomerPaymentRepository interface {
 	NextNumber(ctx context.Context) (string, error)
 	List(ctx context.Context, filter CustomerPaymentFilter) (repositories.Page[*CustomerPayment], error)
 	ListForSale(ctx context.Context, saleID uuid.UUID) ([]*CustomerPayment, error)
+	// ListCollections returns the sale allocations of active payments
+	// whose payment date falls in [from, to).
+	ListCollections(ctx context.Context, from, to time.Time) ([]SaleCollection, error)
 }

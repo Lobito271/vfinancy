@@ -4,6 +4,7 @@ import type {
   PurchaseOrderDTO,
 } from '../wails-types';
 import { wailsClient } from '../bindings';
+import { fetchAllPages } from '../paginate';
 
 export interface PurchaseLineInput {
   productId: string;
@@ -56,18 +57,20 @@ export interface PurchaseCreateInput {
 
 export const purchasingService = {
   async list(q: PurchaseQuery = {}): Promise<Purchase[]> {
-    const res = await wailsClient.listPurchaseOrders({
-      page: q.page ?? 1,
-      pageSize: q.pageSize ?? 200,
-      search: q.search ?? '',
-      status: q.status ?? '',
-      orderType: q.orderType ?? '',
-      creditCardId: q.creditCardId ?? '',
-      importLotId: q.importLotId ?? '',
-      from: q.from ?? '',
-      to: q.to ?? '',
-    });
-    return (res.items as PurchaseOrderDTO[]).map(toPurchase);
+    const items = await fetchAllPages((page, pageSize) =>
+      wailsClient.listPurchaseOrders({
+        page,
+        pageSize,
+        search: q.search ?? '',
+        status: q.status ?? '',
+        orderType: q.orderType ?? '',
+        creditCardId: q.creditCardId ?? '',
+        importLotId: q.importLotId ?? '',
+        from: q.from ?? '',
+        to: q.to ?? '',
+      }),
+    );
+    return (items as PurchaseOrderDTO[]).map(toPurchase);
   },
 
   async get(id: string): Promise<Purchase> {

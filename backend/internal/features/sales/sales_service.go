@@ -526,3 +526,9 @@ func (s *SalesService) ListPayments(ctx context.Context, filter CustomerPaymentF
 func (s *SalesService) ListPaymentsForSale(ctx context.Context, saleID uuid.UUID) ([]*CustomerPayment, error) {
 	return s.payments.ListForSale(ctx, saleID)
 }
+
+// ListCollections returns the sale allocations of active payments
+// received in [from, to), used by dashboard analytics.
+func (s *SalesService) ListCollections(ctx context.Context, from, to time.Time) ([]SaleCollection, error) {
+	return s.payments.ListCollections(ctx, from, to)
+}

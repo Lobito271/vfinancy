@@ -682,6 +682,35 @@ func (s *PurchasingService) RemoveFromImportLot(ctx context.Context, lotID, purc
 	return total, nil
 }
 
+// CloseImportLot marks a lot as closed. Closed lots keep their members
+// and history but are excluded from active customs tracking.
+func (s *PurchasingService) CloseImportLot(ctx context.Context, lotID uuid.UUID) (*ImportLot, error) {
+	if err := s.requireLots(); err != nil {
+		return nil, err
+	}
+	var out *ImportLot
+	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		lot, err := s.lots.GetByID(ctx, lotID)
+		if err != nil {
+			return err
+		}
+		if lot.Status != ImportLotStatusClosed {
+			lot.Status = ImportLotStatusClosed
+			lot.UpdatedAt = time.Now().UTC()
+			if err := s.lots.Update(ctx, lot); err != nil {
+				return err
+			}
+		}
+		out = lot
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.log.Info("import lot closed", "lot_id", lotID)
+	return out, nil
+}
+
 // GetImportLot returns a lot with its customs total and over-limit
 // warning.
 func (s *PurchasingService) GetImportLot(ctx context.Context, lotID uuid.UUID) (*ImportLot, valueobjects.Money, bool, error) {

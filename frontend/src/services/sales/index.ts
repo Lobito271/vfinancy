@@ -4,6 +4,7 @@ import type {
   SalePaymentRequest,
 } from '../wails-types';
 import { wailsClient } from '../bindings';
+import { fetchAllPages } from '../paginate';
 import { customersService } from '../customers';
 import type { Sale } from '@/types/domain';
 
@@ -78,21 +79,23 @@ function emptyRequest(input: SaleCreateInput, items: SaleLineInput[]): SaleReque
 
 export const salesService = {
   async list(q: SaleQuery = {}): Promise<Sale[]> {
-    const [res, names] = await Promise.all([
-      wailsClient.listSales({
-        page: q.page ?? 1,
-        pageSize: q.pageSize ?? 200,
-        search: q.search ?? '',
-        status: q.status ?? '',
-        saleType: q.saleType ?? '',
-        customerId: q.customerId ?? '',
-        from: q.from ?? '',
-        to: q.to ?? '',
-        onlyUnpaid: q.onlyUnpaid ?? false,
-      }),
+    const [items, names] = await Promise.all([
+      fetchAllPages((page, pageSize) =>
+        wailsClient.listSales({
+          page,
+          pageSize,
+          search: q.search ?? '',
+          status: q.status ?? '',
+          saleType: q.saleType ?? '',
+          customerId: q.customerId ?? '',
+          from: q.from ?? '',
+          to: q.to ?? '',
+          onlyUnpaid: q.onlyUnpaid ?? false,
+        }),
+      ),
       customerNames(),
     ]);
-    return res.items.map((dto) => toSale(dto as SaleDTO, names));
+    return items.map((dto) => toSale(dto as SaleDTO, names));
   },
 
   async get(id: string): Promise<Sale> {

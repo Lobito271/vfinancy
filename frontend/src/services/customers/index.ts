@@ -1,5 +1,6 @@
 import type { CustomerDTO, SaveCustomerRequest } from '../wails-types';
 import { wailsClient } from '../bindings';
+import { fetchAllPages } from '../paginate';
 
 export interface CustomerQuery {
   search?: string;
@@ -11,11 +12,10 @@ export type CustomerInput = Omit<SaveCustomerRequest, 'id'>;
 
 export const customersService = {
   async list(q: CustomerQuery = {}): Promise<{ items: CustomerDTO[]; total: number }> {
-    const res = await wailsClient.listCustomers(
-      { page: q.page ?? 1, pageSize: q.pageSize ?? 200 },
-      q.search ?? '',
+    const items = await fetchAllPages((page, pageSize) =>
+      wailsClient.listCustomers({ page, pageSize }, q.search ?? ''),
     );
-    return { items: res.items as CustomerDTO[], total: res.total };
+    return { items, total: items.length };
   },
 
   async getOptions(): Promise<CustomerDTO[]> {

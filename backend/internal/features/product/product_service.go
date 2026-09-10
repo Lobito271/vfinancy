@@ -27,9 +27,10 @@ func NewService(repo ProductRepository, txm repositories.TransactionManager, log
 }
 
 // CreateInput is the payload for Create / GetOrCreate. Cost and price
-// default to zero when unset.
+// default to zero when unset; an empty UnitCode keeps the default.
 type CreateInput struct {
 	Description string
+	UnitCode    string
 	CostUSD     valueobjects.Money
 	SalePrice   valueobjects.Money
 }
@@ -39,6 +40,12 @@ type CreateInput struct {
 func (s *ProductService) Create(ctx context.Context, in CreateInput) (*Product, error) {
 	p, err := NewProduct(in.Description, in.CostUSD, in.SalePrice)
 	if err != nil {
+		return nil, err
+	}
+	if unit := strings.TrimSpace(in.UnitCode); unit != "" {
+		p.UnitCode = unit
+	}
+	if err := p.Validate(); err != nil {
 		return nil, err
 	}
 	err = s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
@@ -75,10 +82,12 @@ func (s *ProductService) GetOrCreate(ctx context.Context, in CreateInput) (*Prod
 }
 
 // UpdateInput is the payload for Update. An empty description keeps
-// the current one; nil money pointers keep the current value.
+// the current one; nil money pointers keep the current value; a nil
+// UnitCode keeps the current unit.
 type UpdateInput struct {
 	ID          uuid.UUID
 	Description string
+	UnitCode    *string
 	CostUSD     *valueobjects.Money
 	SalePrice   *valueobjects.Money
 }
@@ -96,6 +105,9 @@ func (s *ProductService) Update(ctx context.Context, in UpdateInput) (*Product, 
 		}
 		if in.Description != "" {
 			p.Description = strings.TrimSpace(in.Description)
+		}
+		if in.UnitCode != nil && strings.TrimSpace(*in.UnitCode) != "" {
+			p.UnitCode = strings.TrimSpace(*in.UnitCode)
 		}
 		if in.CostUSD != nil {
 			p.CostUSD = *in.CostUSD

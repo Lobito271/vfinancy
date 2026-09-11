@@ -56,11 +56,6 @@ func (a *App) UpdatePreference(key string, value interface{}) (PreferencesDTO, e
 	return a.preferencesDTO(ctx)
 }
 
-// GetClearanceDays exposes the active threshold for the inventory UI.
-func (a *App) GetClearanceDays() int {
-	return a.inventorySvc.ClearanceDaysFor(a.Context())
-}
-
 type InventoryBatchDTO struct {
 	ID                  string  `json:"id"`
 	ProductID           string  `json:"productId"`

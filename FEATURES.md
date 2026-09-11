@@ -81,7 +81,6 @@
 * **Opciones y Flujos Personalizables:**
   * Selección de clientes existentes o creación de nuevos clientes durante el flujo de venta.
   * Modalidad de venta: Contado o Crédito con fecha de vencimiento configurada.
-  * Anulación de venta posterior (botón "Anular"): revierte el stock reservado y la deuda del cliente dentro de la misma transacción, dejando un registro cancelado en el historial.
 
 * **Campos Obligatorios:**
   * **Datos de Identificación del Cliente (DNI / RUC / Nombre o Razón Social):** Obligatorio según normativa de la SUNAT (Resolución de Superintendencia N.º 007-99/SUNAT) para la posterior emisión de Comprobantes de Pago Electrónicos (Boleta de Venta o Factura Electrónica).

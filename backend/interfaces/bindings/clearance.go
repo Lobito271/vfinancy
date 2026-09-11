@@ -2,8 +2,6 @@ package bindings
 
 import (
 	"time"
-
-	"vfinancy/backend/internal/features/inventory"
 )
 
 // GetClearancePreview returns the batches currently in or near
@@ -23,5 +21,3 @@ func (a *App) ListClearanceProducts() ([]InventoryBatchDTO, error) {
 	}
 	return items, nil
 }
-
-var _ = inventory.ClearanceDays

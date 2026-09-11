@@ -460,7 +460,7 @@ export function PurchasesPage() {
                 )}
                 <div className="doc-summary__row">
                   <div className="doc-summary__meta">Tipo de cambio</div>
-                  <div className="doc-summary__amount tabular">{detailQuery.data.exchangeRate}</div>
+                  <div className="doc-summary__amount tabular">{formatNumber(detailQuery.data.exchangeRate, 4)}</div>
                 </div>
                 <div className="doc-summary__row">
                   <div className="doc-summary__meta">Costo (USD)</div>

@@ -4,6 +4,7 @@ import {
   NetProfitWidget,
   MonthlyNetProfitChart,
   MonthStatusBadgesWidget,
+  ClearanceWidget,
 } from '@/features/dashboard/widgets';
 import { PageContainer, PageHeader } from '@/components/layout';
 
@@ -12,6 +13,7 @@ const defaultLayout: DashboardGridItem[] = [
   { id: 'monthProfit', size: 'sm', content: <NetProfitWidget /> },
   { id: 'monthStatus', size: 'sm', content: <MonthStatusBadgesWidget /> },
   { id: 'profitChart', size: 'lg', content: <MonthlyNetProfitChart /> },
+  { id: 'clearance', size: 'full', content: <ClearanceWidget /> },
 ];
 
 export function DashboardPage() {

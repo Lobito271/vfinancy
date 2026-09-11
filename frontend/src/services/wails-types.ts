@@ -393,7 +393,6 @@ export interface AppBindings {
 
   GetPreferences(): Promise<Preferences>;
   UpdatePreference(key: string, value: number | string): Promise<Preferences>;
-  GetClearanceDays(): Promise<number>;
 
   GetSyncConfig(): Promise<SyncConfig>;
   SaveSyncConfig(cfg: SyncConfig): Promise<void>;
@@ -445,7 +444,6 @@ export interface AppBindings {
   CreateImportLot(description: string, purchaseIds: string[]): Promise<ImportLotDTO>;
   AddToImportLot(lotId: string, purchaseIds: string[]): Promise<ImportLotDTO>;
   RemoveFromImportLot(lotId: string, purchaseId: string): Promise<ImportLotDTO>;
-  GetImportLot(id: string): Promise<ImportLotDTO>;
   CloseImportLot(id: string): Promise<ImportLotDTO>;
   ListImportLots(req: PaginationRequest, search: string): Promise<PageResult<ImportLotDTO>>;
   ListLotMembers(lotId: string): Promise<PurchaseOrderDTO[]>;

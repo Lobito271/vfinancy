@@ -91,10 +91,6 @@ export const wailsClient = {
     const b = await resolveBindings();
     return b.UpdatePreference(key, value);
   },
-  async getClearanceDays() {
-    const b = await resolveBindings();
-    return b.GetClearanceDays();
-  },
 
   async getSyncConfig() {
     const b = await resolveBindings();
@@ -277,10 +273,6 @@ export const wailsClient = {
   async removeFromImportLot(lotId: string, purchaseId: string) {
     const b = await resolveBindings();
     return b.RemoveFromImportLot(lotId, purchaseId);
-  },
-  async getImportLot(id: string) {
-    const b = await resolveBindings();
-    return b.GetImportLot(id);
   },
   async closeImportLot(id: string) {
     const b = await resolveBindings();

@@ -1,14 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  inventoryService,
-  type InventoryReceiveInput,
-} from '@/services/inventory';
+import { inventoryService } from '@/services/inventory';
 import { queryKeys } from '@/services/queryKeys';
+import type { ReceiveStockRequest } from '@/services/wails-types';
 
-export function useInventory() {
+export function useInventory(query?: { search?: string }) {
   return useQuery({
-    queryKey: queryKeys.inventory.list,
-    queryFn: () => inventoryService.list(),
+    queryKey: queryKeys.inventory.list(query ?? null),
+    queryFn: () => inventoryService.list(query),
   });
 }
 
@@ -23,7 +21,7 @@ function useInvalidateInventory() {
 export function useReceiveStock() {
   const invalidate = useInvalidateInventory();
   return useMutation({
-    mutationFn: (input: InventoryReceiveInput) => inventoryService.receive(input),
+    mutationFn: (input: ReceiveStockRequest) => inventoryService.receive(input),
     onSuccess: invalidate,
   });
 }
@@ -31,8 +29,8 @@ export function useReceiveStock() {
 export function useAdjustStock() {
   const invalidate = useInvalidateInventory();
   return useMutation({
-    mutationFn: ({ batchId, delta, reason }: { batchId: string; delta: number; reason: string }) =>
-      inventoryService.adjust(batchId, delta, reason),
+    mutationFn: ({ batchId, newQuantity, notes }: { batchId: string; newQuantity: number; notes: string }) =>
+      inventoryService.adjust(batchId, newQuantity, notes),
     onSuccess: invalidate,
   });
 }
@@ -40,7 +38,7 @@ export function useAdjustStock() {
 export function useVoidStock() {
   const invalidate = useInvalidateInventory();
   return useMutation({
-    mutationFn: ({ batchId, reason }: { batchId: string; reason?: string }) =>
+    mutationFn: ({ batchId, reason }: { batchId: string; reason: string }) =>
       inventoryService.void(batchId, reason),
     onSuccess: invalidate,
   });

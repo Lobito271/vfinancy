@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { z } from 'zod';
-import { Form, TextField, NumberField } from '@/components/form';
+import { Form, NumberField, TextField } from '@/components/form';
 import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { useAdjustStock } from '@/features/inventory/hooks/useInventory';
@@ -8,8 +8,8 @@ import { useNotificationStore } from '@/stores/notification';
 import type { InventoryItem } from '@/types/domain';
 
 const AdjustSchema = z.object({
-  delta: z.number().refine((v) => v !== 0, 'El ajuste no puede ser 0'),
-  reason: z.string().min(1, 'Motivo requerido').max(200),
+  newQuantity: z.number().int('Debe ser un entero').positive('La existencia debe ser mayor a 0'),
+  notes: z.string().min(1, 'Motivo requerido').max(200),
 });
 
 type AdjustFormValues = z.infer<typeof AdjustSchema>;
@@ -24,12 +24,12 @@ export function InventoryAdjustDialog({ open, onOpenChange, batch }: InventoryAd
   const adjust = useAdjustStock();
   const push = useNotificationStore((s) => s.push);
 
-  const defaults = useMemo<AdjustFormValues>(() => ({ delta: 0, reason: '' }), []);
+  const defaults = useMemo<AdjustFormValues>(() => ({ newQuantity: batch?.quantity ?? 0, notes: '' }), [batch]);
 
   const handleSubmit = (values: AdjustFormValues) => {
     if (!batch) return;
     adjust.mutate(
-      { batchId: batch.id, delta: values.delta, reason: values.reason },
+      { batchId: batch.id, newQuantity: values.newQuantity, notes: values.notes },
       {
         onSuccess: () => {
           push({ title: 'Ajuste aplicado', variant: 'success' });
@@ -62,8 +62,8 @@ export function InventoryAdjustDialog({ open, onOpenChange, batch }: InventoryAd
           {({ formState }) => (
             <>
               <DialogBody>
-                <NumberField name="delta" label="Cantidad de ajuste" description="Usa valores negativos para reducir stock." required step={0.01} />
-                <TextField name="reason" label="Motivo" required maxLength={200} />
+                <NumberField name="newQuantity" label="Nueva existencia" description="Cantidad entera que quedará en el lote (>0)." required min={1} step={1} />
+                <TextField name="notes" label="Motivo" required maxLength={200} />
               </DialogBody>
               <DialogFooter>
                 <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={adjust.isPending}>

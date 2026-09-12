@@ -13,48 +13,28 @@ import (
 	"vfinancy/backend/internal/domain/valueobjects"
 )
 
-// WarehouseResolver locates the destination warehouse for automated
-// inbound stock movements.
-type WarehouseResolver interface {
-	// DefaultWarehouseID returns the default active warehouse for a
-	// company. An error is returned when no warehouse is configured.
-	DefaultWarehouseID(ctx context.Context, companyID uuid.UUID) (uuid.UUID, error)
-}
-
-// ProductClassifier tells whether a product is a physical good (stock
-// tracked) or a service (no stock).
-type ProductClassifier interface {
-	IsService(ctx context.Context, productID uuid.UUID) (bool, error)
-}
-
 // ReserveForSaleInput is the payload of ReserveForSale.
 type ReserveForSaleInput struct {
-	CompanyID uuid.UUID
 	ProductID uuid.UUID
 	Quantity  valueobjects.Quantity
 	SaleID    uuid.UUID
 }
 
 // ReserveForSale consumes `in.Quantity` from the active batches of the
-// product at the company's default warehouse using FIFO ordering (the
-// batch with the earliest arrival date is consumed first). For every
-// consumed batch an outbound "sale" movement referencing the sale is
-// appended to the ledger. The whole operation runs on a single
-// transaction with each batch row locked.
+// product using FIFO ordering (the batch with the earliest arrival
+// date is consumed first). For every consumed batch an outbound "sale"
+// movement referencing the sale is appended to the ledger. The whole
+// operation runs on a single transaction with each batch row locked.
 //
 // It returns the weighted average unit cost of the consumed units; the
-// caller uses it as the sale line's cost snapshot.
+// caller uses it as the sale line's cost snapshot. When the stock is
+// short the transaction is rolled back and ErrInsufficientStock is
+// returned.
 func (s *InventoryService) ReserveForSale(ctx context.Context, in ReserveForSaleInput) (valueobjects.Money, error) {
 	var weighted valueobjects.Money
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
-		warehouseID, err := s.warehouses.DefaultWarehouseID(ctx, in.CompanyID)
-		if err != nil {
-			return err
-		}
 		page, err := s.batches.List(ctx, InventoryBatchFilter{
-			CompanyID:   &in.CompanyID,
 			ProductID:   &in.ProductID,
-			WarehouseID: &warehouseID,
 			OnlyActive:  true,
 			PageRequest: repositories.PageRequest{Limit: 1000},
 		})
@@ -83,8 +63,8 @@ func (s *InventoryService) ReserveForSale(ctx context.Context, in ReserveForSale
 				return err
 			}
 			take := remaining
-			if take.GreaterThan(locked.CurrentQuantity) {
-				take = locked.CurrentQuantity
+			if take.GreaterThan(locked.Quantity) {
+				take = locked.Quantity
 			}
 			if take.IsZero() {
 				continue
@@ -95,34 +75,28 @@ func (s *InventoryService) ReserveForSale(ctx context.Context, in ReserveForSale
 			if err := s.batches.Update(ctx, locked); err != nil {
 				return err
 			}
-			mv, err := NewInventoryMovement(NewInventoryMovementOptions{
-				CompanyID:    in.CompanyID,
+			movement, err := NewInventoryMovement(now, NewInventoryMovementOptions{
+				BatchID:      locked.ID,
 				ProductID:    in.ProductID,
-				WarehouseID:  warehouseID,
-				BatchID:      &locked.ID,
 				Type:         enums.MovementTypeSale,
 				Quantity:     take.Neg(),
+				BalanceAfter: locked.Quantity,
 				UnitCost:     locked.UnitCost,
-				CurrencyCode: locked.CurrencyCode,
-				OccurredAt:   now,
 				Reference:    &ref,
 				Notes:        "sale issue (FIFO)",
 			})
 			if err != nil {
 				return err
 			}
-			if err := s.movements.Create(ctx, mv); err != nil {
+			if err := s.movements.Create(ctx, movement); err != nil {
 				return err
 			}
 			totalCost = totalCost.Add(locked.UnitCost.Decimal().Mul(take.Decimal()))
 			totalQty = totalQty.Add(take.Decimal())
 			remaining = remaining.Sub(take)
 		}
-		if !remaining.IsZero() {
-			return derrors.Wrap(derrors.ErrInsufficientStock, errField("no enough stock for product "+in.ProductID.String()))
-		}
-		if totalQty.IsZero() {
-			return derrors.Wrap(derrors.ErrInsufficientStock, errField("no stock available for product "+in.ProductID.String()))
+		if !remaining.IsZero() || totalQty.IsZero() {
+			return derrors.Wrap(derrors.ErrInsufficientStock, errField("not enough stock for product "+in.ProductID.String()))
 		}
 		weighted, err = valueobjects.MoneyFromDecimal(totalCost.Div(totalQty))
 		return err
@@ -143,10 +117,9 @@ func (s *InventoryService) ReserveForSale(ctx context.Context, in ReserveForSale
 // finds every "sale" movement referencing the sale and writes a
 // compensating inbound "void_sale" movement back to the same batch,
 // inside a single transaction.
-func (s *InventoryService) ReturnVoidedSale(ctx context.Context, companyID, saleID uuid.UUID) error {
+func (s *InventoryService) ReturnVoidedSale(ctx context.Context, saleID uuid.UUID) error {
 	return s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
 		page, err := s.movements.List(ctx, InventoryMovementFilter{
-			CompanyID:     &companyID,
 			ReferenceType: enums.ReferenceTypeSale.String(),
 			ReferenceID:   &saleID,
 			PageRequest:   repositories.PageRequest{Limit: 1000},
@@ -160,37 +133,35 @@ func (s *InventoryService) ReturnVoidedSale(ctx context.Context, companyID, sale
 		}
 		now := time.Now().UTC()
 		for _, m := range page.Items {
-			if m.Type != enums.MovementTypeSale || m.BatchID == nil {
+			if m.Type != enums.MovementTypeSale {
 				continue
 			}
-			locked, err := s.batches.GetByIDForUpdate(ctx, *m.BatchID)
+			locked, err := s.batches.GetByIDForUpdate(ctx, m.BatchID)
 			if err != nil {
 				return err
 			}
-			restore := m.Quantity.Abs()
-			if _, err := locked.Receive(restore); err != nil {
+			restore := m.QuantityDelta.Abs()
+			newQuantity, err := locked.Receive(restore)
+			if err != nil {
 				return err
 			}
 			if err := s.batches.Update(ctx, locked); err != nil {
 				return err
 			}
-			mv, err := NewInventoryMovement(NewInventoryMovementOptions{
-				CompanyID:    m.CompanyID,
-				ProductID:    m.ProductID,
-				WarehouseID:  m.WarehouseID,
+			movement, err := NewInventoryMovement(now, NewInventoryMovementOptions{
 				BatchID:      m.BatchID,
+				ProductID:    m.ProductID,
 				Type:         enums.MovementTypeVoidSale,
 				Quantity:     restore,
+				BalanceAfter: newQuantity,
 				UnitCost:     m.UnitCost,
-				CurrencyCode: m.CurrencyCode,
-				OccurredAt:   now,
 				Reference:    &ref,
 				Notes:        "sale voided, stock returned",
 			})
 			if err != nil {
 				return err
 			}
-			if err := s.movements.Create(ctx, mv); err != nil {
+			if err := s.movements.Create(ctx, movement); err != nil {
 				return err
 			}
 		}
@@ -200,23 +171,20 @@ func (s *InventoryService) ReturnVoidedSale(ctx context.Context, companyID, sale
 
 // ReceiveFromPurchaseInput is the payload of ReceiveFromPurchase.
 type ReceiveFromPurchaseInput struct {
-	CompanyID      uuid.UUID
-	SupplierID     *uuid.UUID
 	ProductID      uuid.UUID
 	PurchaseLineID uuid.UUID
-	LotNumber      valueobjects.LotNumber
 	ArrivalDate    valueobjects.Date
 	Quantity       valueobjects.Quantity
 	UnitCost       valueobjects.Money
-	CurrencyCode   valueobjects.CurrencyCode
-	ExpiryDate     *valueobjects.Date
+	ExchangeRate   valueobjects.ExchangeRate
 }
 
 // ReceiveFromPurchase registers the goods received from a purchase
 // order line as a new inventory batch with an inbound
 // "purchase_receipt" movement. The operation is idempotent per line: a
 // line that already has a batch is skipped, so Create / Approve /
-// MarkAsReceived can all trigger the receipt safely.
+// MarkAsReceived can all trigger the receipt safely. The arrival date
+// cannot be in the future.
 func (s *InventoryService) ReceiveFromPurchase(ctx context.Context, in ReceiveFromPurchaseInput) (*InventoryBatch, error) {
 	var out *InventoryBatch
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
@@ -227,22 +195,13 @@ func (s *InventoryService) ReceiveFromPurchase(ctx context.Context, in ReceiveFr
 		if exists {
 			return nil
 		}
-		warehouseID, err := s.warehouses.DefaultWarehouseID(ctx, in.CompanyID)
-		if err != nil {
-			return err
-		}
 		batch, err := NewInventoryBatch(time.Now().UTC(), NewInventoryBatchOptions{
-			CompanyID:       in.CompanyID,
-			ProductID:       in.ProductID,
-			WarehouseID:     warehouseID,
-			SupplierID:      in.SupplierID,
-			PurchaseLineID:  &in.PurchaseLineID,
-			LotNumber:       in.LotNumber,
-			ArrivalDate:     in.ArrivalDate,
-			ExpiryDate:      in.ExpiryDate,
-			InitialQuantity: in.Quantity,
-			UnitCost:        in.UnitCost,
-			CurrencyCode:    in.CurrencyCode,
+			ProductID:           in.ProductID,
+			PurchaseOrderItemID: &in.PurchaseLineID,
+			ArrivalDate:         in.ArrivalDate,
+			InitialQuantity:     in.Quantity,
+			UnitCost:            in.UnitCost,
+			ExchangeRate:        in.ExchangeRate,
 		})
 		if err != nil {
 			return err
@@ -254,23 +213,20 @@ func (s *InventoryService) ReceiveFromPurchase(ctx context.Context, in ReceiveFr
 		if err != nil {
 			return err
 		}
-		mv, err := NewInventoryMovement(NewInventoryMovementOptions{
-			CompanyID:    in.CompanyID,
-			ProductID:    in.ProductID,
-			WarehouseID:  warehouseID,
-			BatchID:      &batch.ID,
+		movement, err := NewInventoryMovement(time.Now().UTC(), NewInventoryMovementOptions{
+			BatchID:      batch.ID,
+			ProductID:    batch.ProductID,
 			Type:         enums.MovementTypePurchaseReceipt,
 			Quantity:     in.Quantity,
+			BalanceAfter: batch.Quantity,
 			UnitCost:     in.UnitCost,
-			CurrencyCode: in.CurrencyCode,
-			OccurredAt:   time.Now().UTC(),
 			Reference:    &ref,
 			Notes:        "purchase receipt",
 		})
 		if err != nil {
 			return err
 		}
-		if err := s.movements.Create(ctx, mv); err != nil {
+		if err := s.movements.Create(ctx, movement); err != nil {
 			return err
 		}
 		out = batch
@@ -284,7 +240,7 @@ func (s *InventoryService) ReceiveFromPurchase(ctx context.Context, in ReceiveFr
 			"batch_id", out.ID,
 			"purchase_line_id", in.PurchaseLineID,
 			"product_id", in.ProductID,
-			"quantity", out.InitialQuantity,
+			"quantity", out.Quantity,
 		)
 	}
 	return out, nil
@@ -295,12 +251,11 @@ func (s *InventoryService) ReceiveFromPurchase(ctx context.Context, in ReceiveFr
 // "void_purchase" movement. Batches already consumed (zero remaining)
 // are left untouched; batch rows are kept for audit and to preserve
 // historical sale allocations.
-func (s *InventoryService) VoidPurchaseReceipt(ctx context.Context, companyID uuid.UUID, purchaseLineIDs []uuid.UUID) error {
+func (s *InventoryService) VoidPurchaseReceipt(ctx context.Context, purchaseLineIDs []uuid.UUID) error {
 	return s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
 		now := time.Now().UTC()
 		for _, lineID := range purchaseLineIDs {
 			page, err := s.batches.List(ctx, InventoryBatchFilter{
-				CompanyID:      &companyID,
 				PurchaseLineID: &lineID,
 				OnlyActive:     true,
 				PageRequest:    repositories.PageRequest{Limit: 100},
@@ -317,7 +272,7 @@ func (s *InventoryService) VoidPurchaseReceipt(ctx context.Context, companyID uu
 				if err != nil {
 					return err
 				}
-				remaining := locked.CurrentQuantity
+				remaining := locked.Quantity
 				if !remaining.IsPositive() {
 					continue
 				}
@@ -327,23 +282,20 @@ func (s *InventoryService) VoidPurchaseReceipt(ctx context.Context, companyID uu
 				if err := s.batches.Update(ctx, locked); err != nil {
 					return err
 				}
-				mv, err := NewInventoryMovement(NewInventoryMovementOptions{
-					CompanyID:    locked.CompanyID,
+				movement, err := NewInventoryMovement(now, NewInventoryMovementOptions{
+					BatchID:      locked.ID,
 					ProductID:    locked.ProductID,
-					WarehouseID:  locked.WarehouseID,
-					BatchID:      &locked.ID,
 					Type:         enums.MovementTypeVoidPurchase,
 					Quantity:     remaining.Neg(),
+					BalanceAfter: locked.Quantity,
 					UnitCost:     locked.UnitCost,
-					CurrencyCode: locked.CurrencyCode,
-					OccurredAt:   now,
 					Reference:    &ref,
 					Notes:        "purchase voided, stock deducted",
 				})
 				if err != nil {
 					return err
 				}
-				if err := s.movements.Create(ctx, mv); err != nil {
+				if err := s.movements.Create(ctx, movement); err != nil {
 					return err
 				}
 			}

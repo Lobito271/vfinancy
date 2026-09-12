@@ -1,149 +1,103 @@
 import { useQuery } from '@tanstack/react-query';
-import { salesService } from '@/services/sales';
-import { purchasingService } from '@/services/purchasing';
-import { customersService } from '@/services/customers';
-import { suppliersService } from '@/services/suppliers';
-import { inventoryService } from '@/services/inventory';
 import { wailsClient } from '@/services/bindings';
-import type { ActivityItem, ChartPoint } from '@/types/domain';
+import { fetchAllPages } from '@/services/paginate';
+import { queryKeys } from '@/services/queryKeys';
+import type { ChartPoint } from '@/types/domain';
 
-export interface DashboardKpis {
-  monthSales: number;
-  monthPurchases: number;
-  profit: number;
-  inventoryValue: number;
-  accountsReceivable: number;
-  accountsPayable: number;
-  clearanceProducts: number;
-  customersWithDebt: number;
-  lowStock: number;
-  activeProducts: number;
-  activeCustomers: number;
+export interface DashboardData {
+  monthCollected: number;
+  monthProfit: number;
+  profitSeries: ChartPoint[];
+  monthPaidCount: number;
+  monthPendingCount: number;
+  monthCancelledCount: number;
 }
 
-interface DashboardData {
-  kpis: DashboardKpis;
-  salesLast7Days: ChartPoint[];
-  salesByStatus: ChartPoint[];
-  topProducts: ChartPoint[];
-  activity: ActivityItem[];
+const monthLabels = new Intl.DateTimeFormat('es-PE', { month: 'short' });
+
+const dayPattern = /^(\d{4})-(\d{2})-(\d{2})/;
+
+function parseDay(value: string): { y: number; m: number } | null {
+  const match = dayPattern.exec(value);
+  if (!match) return null;
+  return { y: Number(match[1]), m: Number(match[2]) - 1 };
 }
 
-function isCurrentMonth(iso: string): boolean {
-  const date = new Date(iso);
-  const now = new Date();
-  return (
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth()
-  );
-}
-
-function dayKey(iso: string): string {
-  const date = new Date(iso);
-  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-}
-
-const dayFormatter = new Intl.DateTimeFormat('es-PE', { weekday: 'short' });
-
-function last7Days(): Array<{ key: string; label: string }> {
-  const out: Array<{ key: string; label: string }> = [];
-  const now = new Date();
-  for (let i = 6; i >= 0; i -= 1) {
-    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
-    out.push({ key: dayKey(d.toISOString()), label: dayFormatter.format(d) });
-  }
-  return out;
+function firstOfMonth(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
 }
 
 export function useDashboardData() {
   return useQuery({
-    queryKey: ['dashboard', 'overview'],
+    queryKey: queryKeys.dashboard.overview,
     queryFn: async (): Promise<DashboardData> => {
-      const [sales, purchases, customersRes, suppliersRes, clearance, lowStock, batches] = await Promise.all([
-        salesService.list(),
-        purchasingService.list(),
-        customersService.list({ page: 1, pageSize: 500 }),
-        suppliersService.list({ page: 1, pageSize: 500 }),
-        inventoryService.getClearance(),
-        inventoryService.getLowStock(),
-        wailsClient.listInventoryBatches({ onlyClearance: false, page: 1, pageSize: 500 }),
+      const now = new Date();
+      const rangeStart = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+      const rangeEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+      const [collections, sales] = await Promise.all([
+        wailsClient.listSaleCollections(firstOfMonth(rangeStart), firstOfMonth(rangeEnd)),
+        fetchAllPages((page, pageSize) =>
+          wailsClient.listSales({
+            page,
+            pageSize,
+            search: '',
+            status: '',
+            saleType: '',
+            customerId: '',
+            from: '',
+            to: '',
+            onlyUnpaid: false,
+          }),
+        ),
       ]);
 
-      const monthSales = sales.filter((s) => isCurrentMonth(s.date));
-      const monthPurchases = purchases.filter((p) => isCurrentMonth(p.date));
+      const saleById = new Map(sales.map((s) => [s.id, s]));
 
-      const inventoryValue = batches.items.reduce(
-        (sum, b) => sum + Number(b.currentQuantity) * Number(b.unitCost),
-        0,
-      );
+      const series: ChartPoint[] = [];
+      const index = new Map<number, number>();
+      for (let i = 5; i >= 0; i -= 1) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        index.set(d.getFullYear() * 12 + d.getMonth(), series.length);
+        series.push({ label: monthLabels.format(d), value: 0 });
+      }
 
-      const customers = customersRes.items;
-      const suppliers = suppliersRes.items;
+      let monthCollected = 0;
+      let monthProfit = 0;
+      for (const c of collections) {
+        const sale = saleById.get(c.saleId);
+        if (!sale || sale.status === 'cancelled') continue;
+        const day = parseDay(c.paymentDate);
+        if (!day) continue;
+        const slot = index.get(day.y * 12 + day.m);
+        if (slot === undefined) continue;
+        const margin = sale.total > 0 ? sale.profit / sale.total : 0;
+        const collectedProfit = c.amount * margin;
+        series[slot].value += collectedProfit;
+        if (slot === series.length - 1) {
+          monthCollected += c.amount;
+          monthProfit += collectedProfit;
+        }
+      }
 
-      const kpis: DashboardKpis = {
-        monthSales: monthSales.reduce((s, x) => s + x.total, 0),
-        monthPurchases: monthPurchases.reduce((s, x) => s + x.total, 0),
-        profit: monthSales.reduce((s, x) => s + x.profit, 0),
-        inventoryValue,
-        accountsReceivable: customers.reduce((s, c) => s + c.currentDebt, 0),
-        accountsPayable: suppliers.reduce((s, c) => s + c.currentDebt, 0),
-        clearanceProducts: clearance.length,
-        customersWithDebt: customers.filter((c) => c.currentDebt > 0).length,
-        lowStock: lowStock.length,
-        activeProducts: 0,
-        activeCustomers: customers.length,
-      };
-
-      const days = last7Days();
-      const byDay = new Map(days.map((d) => [d.key, 0]));
+      let monthPaidCount = 0;
+      let monthPendingCount = 0;
+      let monthCancelledCount = 0;
       for (const sale of sales) {
-        const key = dayKey(sale.date);
-        if (byDay.has(key)) byDay.set(key, (byDay.get(key) ?? 0) + sale.total);
+        const day = parseDay(sale.saleDate);
+        if (!day || day.y !== now.getFullYear() || day.m !== now.getMonth()) continue;
+        if (sale.status === 'paid') monthPaidCount += 1;
+        else if (sale.status === 'pending' || sale.status === 'partial') monthPendingCount += 1;
+        else if (sale.status === 'cancelled') monthCancelledCount += 1;
       }
-      const salesLast7Days: ChartPoint[] = days.map((d) => ({ label: d.label, value: byDay.get(d.key) ?? 0 }));
-
-      const statusLabels: Record<string, string> = {
-        paid: 'Cobrada',
-        pending: 'Pendiente',
-        partial: 'Parcial',
-        cancelled: 'Anulada',
-      };
-      const statusCounts = new Map<string, number>();
-      for (const sale of sales) {
-        statusCounts.set(sale.status, (statusCounts.get(sale.status) ?? 0) + 1);
-      }
-      const salesByStatus: ChartPoint[] = [];
-      for (const [status, count] of statusCounts.entries()) {
-        if (count > 0) salesByStatus.push({ label: statusLabels[status] ?? status, value: count });
-      }
-
-      const activity: ActivityItem[] = [
-        ...sales.map<ActivityItem>((s) => ({
-          id: `sale-${s.id}`,
-          type: 'sale',
-          description: `Venta ${s.number} — ${s.customerName}`,
-          amount: s.total,
-          date: s.date,
-          user: '',
-        })),
-        ...purchases.map<ActivityItem>((p) => ({
-          id: `purchase-${p.id}`,
-          type: 'purchase',
-          description: `Compra ${p.number} — ${p.supplierName}`,
-          amount: p.total,
-          date: p.date,
-          user: '',
-        })),
-      ]
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .slice(0, 8);
 
       return {
-        kpis,
-        salesLast7Days,
-        salesByStatus,
-        topProducts: [],
-        activity,
+        monthCollected,
+        monthProfit,
+        profitSeries: series,
+        monthPaidCount,
+        monthPendingCount,
+        monthCancelledCount,
       };
     },
   });

@@ -3,33 +3,24 @@ package enums
 // InventoryMovementType classifies a single inventory event.
 //
 // The signed quantity on the movement is positive for inbound and
-// negative for outbound. MovementType is the *reason*; the sign is
+// negative for outbound. The type is the reason; the sign is
 // independent and validated by the entity.
 type InventoryMovementType string
 
 const (
-	MovementTypePurchase        InventoryMovementType = "purchase"
 	MovementTypePurchaseReceipt InventoryMovementType = "purchase_receipt"
 	MovementTypeSale            InventoryMovementType = "sale"
 	MovementTypeVoidSale        InventoryMovementType = "void_sale"
 	MovementTypeVoidPurchase    InventoryMovementType = "void_purchase"
-	MovementTypeTransferIn      InventoryMovementType = "transfer_in"
-	MovementTypeTransferOut     InventoryMovementType = "transfer_out"
 	MovementTypeAdjustmentIn    InventoryMovementType = "adjustment_in"
 	MovementTypeAdjustmentOut   InventoryMovementType = "adjustment_out"
-	MovementTypeReturnIn        InventoryMovementType = "return_in"
-	MovementTypeReturnOut       InventoryMovementType = "return_out"
-	MovementTypeDamageOut       InventoryMovementType = "damage_out"
-	MovementTypeVoidOut         InventoryMovementType = "void_out"
 )
 
 // IsInbound reports whether the movement increases stock. The caller is
 // still expected to use a positive signed quantity.
 func (m InventoryMovementType) IsInbound() bool {
 	switch m {
-	case MovementTypePurchase, MovementTypePurchaseReceipt, MovementTypeVoidSale,
-		MovementTypeTransferIn, MovementTypeAdjustmentIn,
-		MovementTypeReturnIn:
+	case MovementTypePurchaseReceipt, MovementTypeVoidSale, MovementTypeAdjustmentIn:
 		return true
 	}
 	return false
@@ -38,9 +29,7 @@ func (m InventoryMovementType) IsInbound() bool {
 // IsOutbound reports whether the movement decreases stock.
 func (m InventoryMovementType) IsOutbound() bool {
 	switch m {
-	case MovementTypeSale, MovementTypeVoidPurchase, MovementTypeTransferOut,
-		MovementTypeAdjustmentOut, MovementTypeReturnOut, MovementTypeDamageOut,
-		MovementTypeVoidOut:
+	case MovementTypeSale, MovementTypeVoidPurchase, MovementTypeAdjustmentOut:
 		return true
 	}
 	return false
@@ -48,12 +37,8 @@ func (m InventoryMovementType) IsOutbound() bool {
 
 func (m InventoryMovementType) Valid() bool {
 	switch m {
-	case MovementTypePurchase, MovementTypePurchaseReceipt, MovementTypeSale,
-		MovementTypeVoidSale, MovementTypeVoidPurchase,
-		MovementTypeTransferIn, MovementTypeTransferOut,
-		MovementTypeAdjustmentIn, MovementTypeAdjustmentOut,
-		MovementTypeReturnIn, MovementTypeReturnOut,
-		MovementTypeDamageOut, MovementTypeVoidOut:
+	case MovementTypePurchaseReceipt, MovementTypeSale, MovementTypeVoidSale,
+		MovementTypeVoidPurchase, MovementTypeAdjustmentIn, MovementTypeAdjustmentOut:
 		return true
 	}
 	return false

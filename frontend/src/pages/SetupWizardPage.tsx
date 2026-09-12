@@ -2,88 +2,67 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
+import { AlertCircle } from 'lucide-react';
 import { Button } from '@/components/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card';
-import { Form, TextField, NumberField, PasswordField, SelectField } from '@/components/form';
-import { AlertCircle, ArrowLeft, ArrowRight, Plus } from 'lucide-react';
+import { Form, TextField, EmailField, PasswordField } from '@/components/form';
 import { wailsClient } from '@/services/bindings';
-import type { SetupWorkspaceRequest } from '@/services/wails-types';
+import { queryKeys } from '@/services/queryKeys';
 import { Routes } from '@/constants/routes';
 
 const setupSchema = z.object({
-  legalName: z.string().trim().min(2, 'Ingresa la razón social.'),
-  tradeName: z.string().trim().min(2, 'Ingresa el nombre comercial.'),
-  code: z.string().trim().min(2, 'Ingresa un código de empresa.'),
-  taxId: z.string().trim().min(8, 'Ingresa el número de identificación fiscal.'),
-  address: z.string().trim().min(3, 'Ingresa una dirección.'),
-  phone: z.string().trim(),
-  email: z.string().trim().email('Ingresa un correo válido.'),
-  countryCode: z.string().min(2),
-  functionalCurrency: z.string().min(3),
-  timezone: z.string().min(1),
-  fiscalYearStartMonth: z.number().int().min(1).max(12),
-  profileName: z.string().trim().min(2, 'Ingresa tu nombre.'),
+  name: z.string().trim().min(2, 'Ingresa la razón social.'),
+  taxId: z
+    .string()
+    .regex(/^(10|20)\d{9}$/, 'RUC debe tener 11 dígitos e iniciar con 10 o 20.')
+    .optional()
+    .or(z.literal('')),
+  email: z.string().email('Correo inválido.').optional().or(z.literal('')),
+  fiscalAddress: z.string().trim().optional().or(z.literal('')),
   password: z.string().refine((value) => value === '' || value.length >= 8, 'Usa al menos 8 caracteres.'),
 });
 
 type SetupValues = z.infer<typeof setupSchema>;
 
-const defaultValues: SetupValues = {
-  legalName: '',
-  tradeName: '',
-  code: '',
-  taxId: '',
-  address: '',
-  phone: '',
-  email: '',
-  countryCode: 'PE',
-  functionalCurrency: 'PEN',
-  timezone: 'America/Lima',
-  fiscalYearStartMonth: 1,
-  profileName: '',
-  password: '',
-};
-
-const steps = [
-  { title: 'Tu empresa', description: 'Identifica el negocio que vas a administrar.' },
-  { title: 'Configuración regional', description: 'Define cómo se registrarán tus operaciones.' },
-  { title: 'Tu acceso', description: 'Crea el perfil local para entrar a vfinancy.' },
-];
-
 export function SetupWizardPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [step, setStep] = useState(0);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [recoveryToken, setRecoveryToken] = useState('');
+
+  async function done() {
+    await queryClient.invalidateQueries({ queryKey: queryKeys.setup });
+    navigate(Routes.Dashboard, { replace: true });
+  }
 
   async function submit(values: SetupValues) {
     setSaving(true);
     setError('');
     try {
-      await wailsClient.setupWorkspace({
-        code: values.code,
-        legalName: values.legalName,
-        tradeName: values.tradeName,
-        taxId: values.taxId,
-        address: values.address,
-        phone: values.phone,
-        email: values.email,
-        countryCode: values.countryCode,
-        functionalCurrency: values.functionalCurrency,
-        timezone: values.timezone,
-        fiscalYearStartMonth: values.fiscalYearStartMonth,
-        profileName: values.profileName,
-        password: values.password,
-      } satisfies SetupWorkspaceRequest);
-      await queryClient.invalidateQueries({ queryKey: ['setup'] });
-      navigate(Routes.Dashboard, { replace: true });
+      await wailsClient.setupWorkspace(values);
+      if (values.password) {
+        const token = await wailsClient.getRecoveryToken();
+        setRecoveryToken(token);
+      } else {
+        await done();
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'No se pudo completar la configuración.');
     } finally {
       setSaving(false);
     }
   }
+
+  const downloadRecovery = () => {
+    const content = `Clave de recuperación de vfinancy\n\n${recoveryToken}\n\nGuárdala en un lugar seguro. Si pierdes la contraseña,\nesta clave te permite recuperar el acceso a este equipo.\n`;
+    const url = URL.createObjectURL(new Blob([content], { type: 'text/plain' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'vfinancy-recovery-key.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="setup-page">
@@ -92,57 +71,72 @@ export function SetupWizardPage() {
         <aside className="setup-page__intro">
           <span className="setup-page__eyebrow">configuración inicial</span>
           <h1>Tu operación empieza aquí.</h1>
-          <p>Completa estos datos una sola vez para preparar tu espacio de trabajo.</p>
-          <ol className="setup-steps">
-            {steps.map((item, index) => (
-              <li className={index === step ? 'setup-step setup-step--active' : 'setup-step'} key={item.title}>
-                <span className="setup-step__number">{index + 1}</span>
-                <span><strong>{item.title}</strong><small>{item.description}</small></span>
-              </li>
-            ))}
-          </ol>
+          <p>Un solo paso para preparar tu espacio de trabajo.</p>
         </aside>
         <main className="setup-page__content">
-          <Form<SetupValues> defaultValues={defaultValues} schema={setupSchema} onSubmit={submit}>
-            {(form) => (
-              <Card className="setup-card">
-                <CardHeader>
-                  <span className="setup-card__counter">paso {step + 1} de {steps.length}</span>
-                  <CardTitle>{steps[step].title}</CardTitle>
-                  <CardDescription>{steps[step].description}</CardDescription>
-                </CardHeader>
-                <CardContent className="setup-card__body">
-                  {step === 0 && <div className="setup-form-grid">
-                    <TextField name="legalName" label="Razón social" required autoComplete="organization" />
-                    <TextField name="tradeName" label="Nombre comercial" required />
-                    <TextField name="code" label="Código interno" required description="Ejemplo: ACME" />
-                    <TextField name="taxId" label="RUC o identificación fiscal" required description="Solo dígitos." />
-                    <TextField name="address" label="Dirección" required className="setup-form-grid__wide" />
-                    <TextField name="phone" label="Teléfono" type="tel" />
-                    <TextField name="email" label="Correo" type="email" required />
-                  </div>}
-                  {step === 1 && <div className="setup-form-grid">
-                    <SelectField name="countryCode" label="País" required options={[{ value: 'PE', label: 'Perú' }]} clearable={false} />
-                    <SelectField name="functionalCurrency" label="Moneda funcional" required options={[{ value: 'PEN', label: 'PEN · Sol peruano' }, { value: 'USD', label: 'USD · Dólar estadounidense' }]} clearable={false} />
-                    <SelectField name="timezone" label="Zona horaria" required options={[{ value: 'America/Lima', label: 'America/Lima' }]} clearable={false} />
-                    <NumberField name="fiscalYearStartMonth" label="Mes de inicio fiscal" required min={1} max={12} />
-                  </div>}
-                  {step === 2 && <div className="setup-form-grid">
-                    <TextField name="profileName" label="Nombre del perfil" required className="setup-form-grid__wide" autoComplete="name" />
-                    <PasswordField name="password" label="Contraseña (opcional)" description="Podrás agregarla después desde Configuración." autoComplete="new-password" className="setup-form-grid__wide" />
-                  </div>}
-                  {error && <p className="setup-error" role="alert"><AlertCircle />{error}</p>}
-                  <div className="setup-card__footer">
-                    {step > 0 ? <Button type="button" variant="ghost" onClick={() => setStep((current) => current - 1)}><ArrowLeft /> Atrás</Button> : <span />}
-                    {step < steps.length - 1 ? <Button type="button" onClick={async () => {
-                      const fields = step === 0 ? ['legalName', 'tradeName', 'code', 'taxId', 'address', 'phone', 'email'] : ['countryCode', 'functionalCurrency', 'timezone', 'fiscalYearStartMonth'];
-                      if (await form.trigger(fields as Array<keyof SetupValues>)) setStep((current) => current + 1);
-                    }}>Continuar <ArrowRight /></Button> : <Button type="submit" loading={saving}>Crear empresa <Plus /></Button>}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </Form>
+          {recoveryToken ? (
+            <Card className="setup-card">
+              <CardHeader>
+                <CardTitle>Clave de recuperación</CardTitle>
+                <CardDescription>
+                  Guarda esta clave en un lugar seguro. Es la única forma de recuperar el acceso si pierdes tu contraseña.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="setup-card__body">
+                <div className="dialog-note">
+                  <p className="fw-medium">Guarda esta clave en un lugar seguro.</p>
+                  <code className="recovery-token">{recoveryToken}</code>
+                </div>
+                <div className="setup-card__footer">
+                  <Button onClick={downloadRecovery}>
+                    Descargar clave
+                  </Button>
+                  <Button variant="outline" onClick={() => void done()}>
+                    Continuar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Form<SetupValues> defaultValues={{ taxId: '', email: '', fiscalAddress: '', password: '' }} schema={setupSchema} onSubmit={submit}>
+              {() => (
+                <Card className="setup-card">
+                  <CardHeader>
+                    <CardTitle>Tu empresa</CardTitle>
+                    <CardDescription>
+                      Un solo paso para preparar tu espacio de trabajo. Todo es editable después desde Configuración.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="setup-card__body">
+                    <div className="setup-form-grid">
+                      <TextField name="name" label="Razón social" required className="setup-form-grid__wide" autoComplete="organization" />
+                      <TextField name="taxId" label="RUC (opcional)" autoComplete="off" />
+                      <EmailField name="email" label="Correo electrónico (opcional)" autoComplete="email" />
+                      <TextField name="fiscalAddress" label="Dirección fiscal (opcional)" className="setup-form-grid__wide" autoComplete="street-address" />
+                      <PasswordField
+                        name="password"
+                        label="Contraseña (opcional)"
+                        description="Mínimo 8 caracteres. Podrás agregarla después desde Configuración."
+                        autoComplete="new-password"
+                        className="setup-form-grid__wide"
+                      />
+                    </div>
+                    {error && (
+                      <p className="setup-error" role="alert">
+                        <AlertCircle />
+                        {error}
+                      </p>
+                    )}
+                    <div className="setup-card__footer">
+                      <Button type="submit" loading={saving}>
+                        Comenzar
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </Form>
+          )}
         </main>
       </div>
     </div>

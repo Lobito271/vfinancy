@@ -6,7 +6,6 @@ type CustomerStatus string
 const (
 	CustomerStatusActive   CustomerStatus = "active"
 	CustomerStatusInactive CustomerStatus = "inactive"
-	CustomerStatusBlocked  CustomerStatus = "blocked"
 )
 
 // AllCustomerStatuses returns every valid CustomerStatus. Useful for
@@ -15,13 +14,12 @@ func AllCustomerStatuses() []CustomerStatus {
 	return []CustomerStatus{
 		CustomerStatusActive,
 		CustomerStatusInactive,
-		CustomerStatusBlocked,
 	}
 }
 
 func (s CustomerStatus) Valid() bool {
 	switch s {
-	case CustomerStatusActive, CustomerStatusInactive, CustomerStatusBlocked:
+	case CustomerStatusActive, CustomerStatusInactive:
 		return true
 	}
 	return false

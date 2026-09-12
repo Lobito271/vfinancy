@@ -1,7 +1,7 @@
 import { Link, NavLink } from 'react-router-dom';
 import { ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { cx } from '@/utils/cx';
-import { navRoutes } from './nav';
+import { navItems } from './nav';
 import { useSidebarStore } from '@/stores/sidebar';
 import { Button } from '@/components/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/misc';
@@ -29,7 +29,7 @@ export function Sidebar({ mobile = false }: { mobile?: boolean }) {
 
       <nav className="sidebar__nav scrollbar-thin">
         <ul className="sidebar__list">
-          {navRoutes.map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon;
             return (
               <li key={item.to}>
@@ -45,7 +45,9 @@ export function Sidebar({ mobile = false }: { mobile?: boolean }) {
                       {({ isActive }) => (
                         <>
                           <Icon aria-hidden="true" strokeWidth={2.5} />
-                          {(mobile || !collapsed) && <span className="truncate">{item.label}</span>}
+                          {(mobile || !collapsed) && (
+                            <span className="truncate">{item.label}</span>
+                          )}
                           {isActive && (mobile || !collapsed) && (
                             <span className="sidebar__dot" aria-hidden="true" />
                           )}

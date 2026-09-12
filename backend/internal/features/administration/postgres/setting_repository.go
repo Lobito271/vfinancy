@@ -5,11 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 
-	"github.com/google/uuid"
-
-	"vfinancy/backend/internal/features/administration"
 	"vfinancy/backend/infrastructure/persistence"
 	"vfinancy/backend/internal/domain/repositories"
+	"vfinancy/backend/internal/features/administration"
 )
 
 type settingRepository struct {
@@ -20,112 +18,47 @@ func NewSettingRepository(db *sql.DB) *settingRepository {
 	return &settingRepository{q: persistence.FromDB(db)}
 }
 
-
-const settingColumns = `
-	id, company_id, key, value, category, label, description, is_public,
-	created_at, updated_at, updated_by
-`
+const settingColumns = `id, key, value, created_at, updated_at`
 
 func (r *settingRepository) Upsert(ctx context.Context, s *administration.ApplicationSetting) error {
-	const q = `INSERT INTO application_settings (
-		id, company_id, key, value, category, label, description, is_public,
-		created_at, updated_at, updated_by
-	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-	ON CONFLICT (company_id, key) DO UPDATE SET
-		value = EXCLUDED.value,
-		category = EXCLUDED.category,
-		label = EXCLUDED.label,
-		description = EXCLUDED.description,
-		is_public = EXCLUDED.is_public,
-		updated_at = EXCLUDED.updated_at,
-		updated_by = EXCLUDED.updated_by`
+	const q = `INSERT INTO application_settings (id, key, value, created_at, updated_at)
+	 VALUES ($1, $2, $3, $4, $5)
+	 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`
 	_, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
-		s.ID, s.CompanyID, s.Key, []byte(s.Value), s.Category, s.Label, s.Description, s.IsPublic,
-		s.CreatedAt, s.UpdatedAt, persistence.NullIfEmptyUUID(s.UpdatedBy),
-	)
+		s.ID, s.Key, []byte(s.Value), s.CreatedAt, s.UpdatedAt)
 	return persistence.Translate(err)
 }
 
-func (r *settingRepository) GetByKey(ctx context.Context, companyID uuid.UUID, key string) (*administration.ApplicationSetting, error) {
-	q := `SELECT ` + settingColumns + ` FROM application_settings WHERE company_id = $1 AND key = $2`
-	row := persistence.Q(ctx, r.q).QueryRowContext(ctx, q, companyID, key)
-	return scanSetting(row)
-}
-
-func (r *settingRepository) ListByCompany(ctx context.Context, companyID uuid.UUID) ([]*administration.ApplicationSetting, error) {
-	q := `SELECT ` + settingColumns + ` FROM application_settings WHERE company_id = $1 ORDER BY category, key`
-	rows, err := persistence.Q(ctx, r.q).QueryContext(ctx, q, companyID)
-	if err != nil {
-		return nil, persistence.Translate(err)
-	}
-	return scanSettings(rows)
-}
-
-func (r *settingRepository) ListByCategory(ctx context.Context, companyID uuid.UUID, category string) ([]*administration.ApplicationSetting, error) {
-	q := `SELECT ` + settingColumns + ` FROM application_settings WHERE company_id = $1 AND category = $2 ORDER BY key`
-	rows, err := persistence.Q(ctx, r.q).QueryContext(ctx, q, companyID, category)
-	if err != nil {
-		return nil, persistence.Translate(err)
-	}
-	return scanSettings(rows)
-}
-
-func (r *settingRepository) Delete(ctx context.Context, companyID uuid.UUID, key string) error {
-	const q = `DELETE FROM application_settings WHERE company_id = $1 AND key = $2`
-	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q, companyID, key)
-	if err != nil {
-		return persistence.Translate(err)
-	}
-	n, _ := res.RowsAffected()
-	if n == 0 {
-		return repositories.ErrNotFound
-	}
-	return nil
-}
-
-func scanSetting(row *sql.Row) (*administration.ApplicationSetting, error) {
+func (r *settingRepository) GetByKey(ctx context.Context, key string) (*administration.ApplicationSetting, error) {
+	const q = `SELECT ` + settingColumns + ` FROM application_settings WHERE key = $1`
 	s := &administration.ApplicationSetting{}
-	var (
-		value     []byte
-		updatedBy sql.NullString
-	)
-	err := row.Scan(
-		&s.ID, &s.CompanyID, &s.Key, &value, &s.Category, &s.Label, &s.Description, &s.IsPublic,
-		&s.CreatedAt, &s.UpdatedAt, &updatedBy,
-	)
-	if err != nil {
+	var value []byte
+	if err := persistence.Q(ctx, r.q).QueryRowContext(ctx, q, key).Scan(
+		&s.ID, &s.Key, &value, &s.CreatedAt, &s.UpdatedAt,
+	); err != nil {
 		if persistence.IsPgNoRows(err) {
 			return nil, repositories.ErrNotFound
 		}
 		return nil, persistence.Translate(err)
 	}
 	s.Value = json.RawMessage(value)
-	if updatedBy.Valid {
-		id := persistence.ParseUUID(updatedBy.String)
-		s.UpdatedBy = &id
-	}
 	return s, nil
 }
 
-func scanSettings(rows *sql.Rows) ([]*administration.ApplicationSetting, error) {
+func (r *settingRepository) List(ctx context.Context) ([]*administration.ApplicationSetting, error) {
+	const q = `SELECT ` + settingColumns + ` FROM application_settings ORDER BY key`
+	rows, err := persistence.Q(ctx, r.q).QueryContext(ctx, q)
+	if err != nil {
+		return nil, persistence.Translate(err)
+	}
 	out := make([]*administration.ApplicationSetting, 0)
-	err := persistence.ScanRows(rows, func(r *sql.Rows) error {
+	err = persistence.ScanRows(rows, func(row *sql.Rows) error {
 		s := &administration.ApplicationSetting{}
-		var (
-			value     []byte
-			updatedBy sql.NullString
-		)
-		if err := r.Scan(
-			&s.ID, &s.CompanyID, &s.Key, &value, &s.Category, &s.Label, &s.Description, &s.IsPublic,
-			&s.CreatedAt, &s.UpdatedAt, &updatedBy,
-		); err != nil {
+		var value []byte
+		if err := row.Scan(&s.ID, &s.Key, &value, &s.CreatedAt, &s.UpdatedAt); err != nil {
 			return persistence.Translate(err)
 		}
 		s.Value = json.RawMessage(value)
-		if updatedBy.Valid {
-			id := persistence.ParseUUID(updatedBy.String)
-			s.UpdatedBy = &id
-		}
 		out = append(out, s)
 		return nil
 	})
@@ -136,5 +69,3 @@ func scanSettings(rows *sql.Rows) ([]*administration.ApplicationSetting, error) 
 }
 
 var _ administration.SettingRepository = (*settingRepository)(nil)
-
-

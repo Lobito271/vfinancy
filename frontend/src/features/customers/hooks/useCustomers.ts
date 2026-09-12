@@ -1,10 +1,5 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import {
-  customersService,
-  type CustomerCreateInput,
-  type CustomerQuery,
-  type CustomerUpdateInput,
-} from '@/services/customers';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { customersService, type CustomerInput, type CustomerQuery } from '@/services/customers';
 import { queryKeys } from '@/services/queryKeys';
 
 export function useCustomers(query: CustomerQuery = {}) {
@@ -14,26 +9,32 @@ export function useCustomers(query: CustomerQuery = {}) {
   });
 }
 
-export function useCreateCustomer() {
+function useInvalidateCustomers() {
   const qc = useQueryClient();
+  return () => void qc.invalidateQueries({ queryKey: queryKeys.customers.all });
+}
+
+export function useCreateCustomer() {
+  const invalidate = useInvalidateCustomers();
   return useMutation({
-    mutationFn: (input: CustomerCreateInput) => customersService.create(input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.customers.all }),
+    mutationFn: (input: CustomerInput) => customersService.create(input),
+    onSuccess: invalidate,
   });
 }
 
 export function useUpdateCustomer() {
-  const qc = useQueryClient();
+  const invalidate = useInvalidateCustomers();
   return useMutation({
-    mutationFn: (input: CustomerUpdateInput) => customersService.update(input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.customers.all }),
+    mutationFn: ({ id, ...input }: { id: string } & CustomerInput) =>
+      customersService.update(id, input),
+    onSuccess: invalidate,
   });
 }
 
 export function useDeleteCustomer() {
-  const qc = useQueryClient();
+  const invalidate = useInvalidateCustomers();
   return useMutation({
     mutationFn: (id: string) => customersService.remove(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.customers.all }),
+    onSuccess: invalidate,
   });
 }

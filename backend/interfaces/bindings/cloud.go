@@ -1,97 +1,128 @@
 package bindings
 
 import (
-	"context"
-	"fmt"
-	"net/http"
-	"strings"
+	"errors"
 	"time"
 
-	"vfinancy/backend/internal/utils"
+	"vfinancy/backend/infrastructure/config"
+	"vfinancy/backend/internal/features/sync"
+	syncpostgres "vfinancy/backend/internal/features/sync/postgres"
 )
 
-// SyncConfigDTO is the sync-server configuration surface to the
-// settings screen.
+// SyncConfigDTO mirrors the cloud sync connection fields required by
+// the spec: host, port, database, user, password (+ interval).
 type SyncConfigDTO struct {
-	ServerURL       string `json:"serverUrl"`
-	APIKey          string `json:"apiKey"`
-	Enabled         bool   `json:"enabled"`
-	PollIntervalSec int    `json:"pollIntervalSec"`
+	Enabled        bool   `json:"enabled"`
+	Host           string `json:"host"`
+	Port           int    `json:"port"`
+	Database       string `json:"database"`
+	User           string `json:"user"`
+	Password       string `json:"password"`
+	SSLMode        string `json:"sslMode"`
+	PollIntervalSec int   `json:"pollIntervalSec"`
 }
 
-// GetSyncConfig returns the persisted sync configuration, falling back
-// to the values loaded from the environment.
-func (a *App) GetSyncConfig() (SyncConfigDTO, error) {
-	p, err := loadPersistedSettings()
+// effectiveSyncConfig merges the env config with the runtime settings
+// file (UI takes precedence).
+func (a *App) effectiveSyncConfig() (config.SyncConfig, error) {
+	cfg := a.cfg.Sync
+	persisted, err := loadPersistedSettings()
 	if err != nil {
-		return SyncConfigDTO{}, utils.ProcessError(err)
+		a.log.Warn("load settings file failed; using env sync config", "error", err.Error())
+		return cfg, nil
 	}
-	if p.Sync != nil {
-		return *p.Sync, nil
+	if persisted.Sync != nil {
+		s := persisted.Sync
+		if s.Host != "" {
+			cfg.Host = s.Host
+		}
+		if s.Port > 0 {
+			cfg.Port = s.Port
+		}
+		if s.Database != "" {
+			cfg.Name = s.Database
+		}
+		if s.User != "" {
+			cfg.User = s.User
+		}
+		if s.Password != "" {
+			cfg.Password = s.Password
+		}
+		if s.SSLMode != "" {
+			cfg.SSLMode = s.SSLMode
+		}
+		if s.PollIntervalSec > 0 {
+			cfg.PollInterval = time.Duration(s.PollIntervalSec) * time.Second
+		}
+		cfg.Enabled = s.Enabled && cfg.Host != "" && cfg.Name != "" && cfg.User != ""
+	}
+	return cfg, nil
+}
+
+// GetSyncConfig returns the current cloud sync configuration.
+func (a *App) GetSyncConfig() (SyncConfigDTO, error) {
+	cfg, err := a.effectiveSyncConfig()
+	if err != nil {
+		return SyncConfigDTO{}, err
 	}
 	return SyncConfigDTO{
-		ServerURL:       a.cfg.Sync.ServerURL,
-		APIKey:          a.cfg.Sync.APIKey,
-		Enabled:         a.cfg.Sync.Enabled,
-		PollIntervalSec: int(a.cfg.Sync.PollInterval / time.Second),
+		Enabled:        cfg.Enabled,
+		Host:           cfg.Host,
+		Port:           cfg.Port,
+		Database:       cfg.Name,
+		User:           cfg.User,
+		Password:       cfg.Password,
+		SSLMode:        cfg.SSLMode,
+		PollIntervalSec: int(cfg.PollInterval / time.Second),
 	}, nil
 }
 
-// SaveSyncConfig persists the sync configuration, applies it to the
-// running app and restarts the background worker.
-func (a *App) SaveSyncConfig(cfg SyncConfigDTO) error {
-	cfg.ServerURL = strings.TrimRight(cfg.ServerURL, "/")
-	if cfg.PollIntervalSec <= 0 {
-		cfg.PollIntervalSec = 30
+// SaveSyncConfig persists the cloud sync connection and restarts the
+// background worker (opt-in switch per spec).
+func (a *App) SaveSyncConfig(req SyncConfigDTO) error {
+	if err := savePersistedSettings(persistedSettings{Sync: &req}); err != nil {
+		return err
 	}
-
-	p, err := loadPersistedSettings()
-	if err != nil {
-		return utils.ProcessError(err)
-	}
-	p.Sync = &cfg
-	if err := savePersistedSettings(p); err != nil {
-		return utils.ProcessError(err)
-	}
-
-	a.cfg.Sync.ServerURL = cfg.ServerURL
-	a.cfg.Sync.APIKey = cfg.APIKey
-	a.cfg.Sync.Enabled = cfg.Enabled
-	a.cfg.Sync.PollInterval = time.Duration(cfg.PollIntervalSec) * time.Second
-
-	if a.syncCancel != nil {
-		a.syncCancel()
-		a.syncCancel = nil
-	}
-	if a.db != nil {
-		a.startSyncWorker(a.rawContext())
-	}
+	a.startSyncWorker()
 	return nil
 }
 
-// TestSyncConnection verifies a sync server is reachable and the API
-// key is accepted. A 200 from /api/v1/health proves both.
-func (a *App) TestSyncConnection(serverURL, apiKey string) error {
-	serverURL = strings.TrimRight(serverURL, "/")
-	if serverURL == "" {
-		return fmt.Errorf("bindings: sync server URL is required")
+// TestSyncConnection dials the cloud PostgreSQL mirror and verifies the
+// remote schema.
+func (a *App) TestSyncConnection(req SyncConfigDTO) error {
+	dsn := (&config.SyncConfig{
+		Host: req.Host, Port: req.Port, Name: req.Database,
+		User: req.User, Password: req.Password, SSLMode: req.SSLMode,
+	}).DSN()
+	svc := sync.NewService(
+		syncpostgres.NewLocal(a.db.DB),
+		syncpostgres.NewRemote(dsn, a.log),
+		sync.Config{DSN: dsn, MigrationsFS: a.pgMigrationsFS},
+		a.log.Logger,
+	)
+	defer svc.Close()
+	return svc.TestConnection(a.rawContext())
+}
+
+// SyncNow runs one replication pass on demand, even when the
+// background worker interval is disabled.
+func (a *App) SyncNow() error {
+	if a.syncSvc != nil {
+		return a.syncSvc.RunOnce(a.rawContext())
 	}
-	ctx, cancel := context.WithTimeout(a.rawContext(), 10*time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, serverURL+"/api/v1/health", nil)
+	cfg, err := a.effectiveSyncConfig()
 	if err != nil {
-		return utils.ProcessError(err)
+		return err
 	}
-	if apiKey != "" {
-		req.Header.Set("X-API-Key", apiKey)
+	if !cfg.Enabled || cfg.DSN() == "" {
+		return errors.New("sincronización desactivada: configura el servidor primero")
 	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return utils.ProcessError(err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("bindings: sync server responded %d", resp.StatusCode)
-	}
-	return nil
+	svc := sync.NewService(
+		syncpostgres.NewLocal(a.db.DB),
+		syncpostgres.NewRemote(cfg.DSN(), a.log),
+		sync.Config{DSN: cfg.DSN(), MigrationsFS: a.pgMigrationsFS},
+		a.log.Logger,
+	)
+	defer svc.Close()
+	return svc.RunOnce(a.rawContext())
 }

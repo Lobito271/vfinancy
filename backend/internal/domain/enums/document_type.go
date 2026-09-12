@@ -1,20 +1,20 @@
 package enums
 
-// DocumentType is the per-country identification document type
-// (DNI, RUC, CE, etc.). It is *separate* from the fiscal document type
-// used in sales/purchases (FACTURA, BOLETA, NC, ND, etc.).
+// DocumentType identifies the kind of personal identification document
+// (DNI or RUC). TypeNone means the customer has no document.
 type DocumentType string
 
 const (
-	DocumentTypeDNI       DocumentType = "DNI"
-	DocumentTypeRUC       DocumentType = "RUC"
-	DocumentTypeCE        DocumentType = "CE"
-	DocumentTypePassport  DocumentType = "PASSPORT"
+	TypeNone        DocumentType = ""
+	DocumentTypeDNI DocumentType = "DNI"
+	DocumentTypeRUC DocumentType = "RUC"
 )
 
+// Valid reports whether d is a known document type, including the
+// empty (no document) type.
 func (d DocumentType) Valid() bool {
 	switch d {
-	case DocumentTypeDNI, DocumentTypeRUC, DocumentTypeCE, DocumentTypePassport:
+	case TypeNone, DocumentTypeDNI, DocumentTypeRUC:
 		return true
 	}
 	return false

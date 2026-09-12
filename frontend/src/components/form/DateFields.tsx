@@ -32,6 +32,7 @@ export function DateField<T extends FieldValues>({
       <Input
         id={String(name)}
         type="date"
+        lang="es-PE"
         invalid={!!error}
         min={min}
         max={max}

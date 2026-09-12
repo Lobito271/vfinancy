@@ -17,29 +17,29 @@ type creditCardRepository struct {
 	q persistence.Querier
 }
 
+// NewCreditCardRepository returns a CreditCardRepository backed by the
+// given database handle.
 func NewCreditCardRepository(db *sql.DB) *creditCardRepository {
 	return &creditCardRepository{q: persistence.FromDB(db)}
 }
 
 const creditCardColumns = `
-	id, company_id, branch_id, issuer, last_four, card_holder,
-	expiration_month, expiration_year, credit_limit, current_balance,
-	cut_off_day, payment_due_day, currency_code, is_active,
+	id, issuer, last_four, credit_limit, current_balance,
+	cut_off_day, payment_due_day, is_active,
 	created_at, updated_at, deleted_at, created_by, updated_by
 `
 
+const creditCardInsert = `INSERT INTO credit_cards (
+	id, issuer, last_four, credit_limit, current_balance,
+	cut_off_day, payment_due_day, is_active,
+	created_at, updated_at, deleted_at, created_by, updated_by
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`
+
 func (r *creditCardRepository) Create(ctx context.Context, c *treasury.CreditCard) error {
-	const q = `INSERT INTO credit_cards (
-		id, company_id, branch_id, issuer, last_four, card_holder,
-		expiration_month, expiration_year, credit_limit, current_balance,
-		cut_off_day, payment_due_day, currency_code, is_active,
-		created_at, updated_at, deleted_at, created_by, updated_by
-	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`
-	_, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
-		c.ID, c.CompanyID, persistence.NullIfEmptyUUID(c.BranchID),
-		c.Issuer, c.LastFour, c.CardHolder,
-		c.ExpirationMonth, c.ExpirationYear, c.CreditLimit.String(), c.CurrentBalance.String(),
-		c.CutOffDay, c.PaymentDueDay, c.CurrencyCode.String(), c.IsActive,
+	_, err := persistence.Q(ctx, r.q).ExecContext(ctx, creditCardInsert,
+		c.ID, c.Issuer, c.LastFour,
+		c.CreditLimit.String(), c.CurrentBalance.String(),
+		c.CutOffDay, c.PaymentDueDay, c.IsActive,
 		c.CreatedAt, c.UpdatedAt, persistence.NullIfZeroTime(c.DeletedAt),
 		persistence.NullIfEmptyUUID(c.CreatedBy), persistence.NullIfEmptyUUID(c.UpdatedBy),
 	)
@@ -48,18 +48,14 @@ func (r *creditCardRepository) Create(ctx context.Context, c *treasury.CreditCar
 
 func (r *creditCardRepository) Update(ctx context.Context, c *treasury.CreditCard) error {
 	const q = `UPDATE credit_cards SET
-		issuer = $1, last_four = $2, card_holder = $3,
-		expiration_month = $4, expiration_year = $5, credit_limit = $6,
-		current_balance = $7, cut_off_day = $8, payment_due_day = $9,
-		currency_code = $10, is_active = $11,
-		branch_id = $12, updated_at = $13, updated_by = $14
-	 WHERE id = $15 AND deleted_at IS NULL`
+		issuer = $1, last_four = $2, credit_limit = $3,
+		current_balance = $4, cut_off_day = $5, payment_due_day = $6,
+		is_active = $7, updated_at = $8, updated_by = $9
+	 WHERE id = $10 AND deleted_at IS NULL`
 	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
-		c.Issuer, c.LastFour, c.CardHolder,
-		c.ExpirationMonth, c.ExpirationYear, c.CreditLimit.String(),
+		c.Issuer, c.LastFour, c.CreditLimit.String(),
 		c.CurrentBalance.String(), c.CutOffDay, c.PaymentDueDay,
-		c.CurrencyCode.String(), c.IsActive,
-		persistence.NullIfEmptyUUID(c.BranchID), time.Now().UTC(), persistence.NullIfEmptyUUID(c.UpdatedBy),
+		c.IsActive, time.Now().UTC(), persistence.NullIfEmptyUUID(c.UpdatedBy),
 		c.ID,
 	)
 	if err != nil {
@@ -72,10 +68,10 @@ func (r *creditCardRepository) Update(ctx context.Context, c *treasury.CreditCar
 	return nil
 }
 
-func (r *creditCardRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	const q = `UPDATE credit_cards SET deleted_at = $1, updated_at = $2, is_active = FALSE WHERE id = $3 AND deleted_at IS NULL`
+func (r *creditCardRepository) SoftDelete(ctx context.Context, id uuid.UUID) error {
+	const q = `UPDATE credit_cards SET deleted_at = $1, updated_at = $1, is_active = FALSE WHERE id = $2 AND deleted_at IS NULL`
 	now := time.Now().UTC()
-	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q, now, now, id)
+	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q, now, id)
 	if err != nil {
 		return persistence.Translate(err)
 	}
@@ -92,16 +88,28 @@ func (r *creditCardRepository) GetByID(ctx context.Context, id uuid.UUID) (*trea
 	return scanCreditCard(row)
 }
 
-func (r *creditCardRepository) List(ctx context.Context, companyID uuid.UUID) ([]*treasury.CreditCard, error) {
+func (r *creditCardRepository) GetByIDForUpdate(ctx context.Context, id uuid.UUID) (*treasury.CreditCard, error) {
+	// SQLite has no FOR UPDATE; its single-writer model plus the
+	// BEGIN IMMEDIATE transaction gives the needed lock. Postgres
+	// locks the row for the duration of the write transaction.
+	lock := " FOR UPDATE"
+	if persistence.IsSQLite() {
+		lock = ""
+	}
+	q := `SELECT ` + creditCardColumns + ` FROM credit_cards WHERE id = $1 AND deleted_at IS NULL` + lock
+	row := persistence.Q(ctx, r.q).QueryRowContext(ctx, q, id)
+	return scanCreditCard(row)
+}
+
+func (r *creditCardRepository) List(ctx context.Context) ([]*treasury.CreditCard, error) {
 	rows, err := persistence.Q(ctx, r.q).QueryContext(ctx,
-		`SELECT `+creditCardColumns+` FROM credit_cards WHERE company_id = $1 AND deleted_at IS NULL AND is_active = TRUE ORDER BY issuer`,
-		companyID)
+		`SELECT `+creditCardColumns+` FROM credit_cards WHERE deleted_at IS NULL ORDER BY issuer`)
 	if err != nil {
 		return nil, persistence.Translate(err)
 	}
 	out := make([]*treasury.CreditCard, 0)
-	if err := persistence.ScanRows(rows, func(r *sql.Rows) error {
-		c, err := scanCreditCardFromRows(r)
+	if err := persistence.ScanRows(rows, func(rows *sql.Rows) error {
+		c, err := scanCreditCardFromRows(rows)
 		if err != nil {
 			return err
 		}
@@ -113,23 +121,51 @@ func (r *creditCardRepository) List(ctx context.Context, companyID uuid.UUID) ([
 	return out, nil
 }
 
+func (r *creditCardRepository) CycleTotals(ctx context.Context, cardID uuid.UUID, from, to time.Time) (valueobjects.Money, valueobjects.Money, error) {
+	fromStr, toStr := from.Format("2006-01-02"), to.Format("2006-01-02")
+	const (
+		qTotal = `SELECT COALESCE(SUM(cost_usd), 0) FROM purchase_orders
+			WHERE credit_card_id = $1 AND deleted_at IS NULL
+			AND order_date >= $2 AND order_date < $3 AND status <> 'cancelled'`
+		qRefunds = `SELECT COALESCE(SUM(refund_amount), 0) FROM purchase_orders
+			WHERE credit_card_id = $1 AND deleted_at IS NULL
+			AND order_date >= $2 AND order_date < $3 AND status = 'cancelled'`
+	)
+	var totalStr, refundStr string
+	q := persistence.Q(ctx, r.q)
+	if err := q.QueryRowContext(ctx, qTotal, cardID, fromStr, toStr).Scan(&totalStr); err != nil {
+		return valueobjects.Money{}, valueobjects.Money{}, persistence.Translate(err)
+	}
+	if err := q.QueryRowContext(ctx, qRefunds, cardID, fromStr, toStr).Scan(&refundStr); err != nil {
+		return valueobjects.Money{}, valueobjects.Money{}, persistence.Translate(err)
+	}
+	total, err := persistence.ParseMoney(totalStr)
+	if err != nil {
+		return valueobjects.Money{}, valueobjects.Money{}, err
+	}
+	refunds, err := persistence.ParseMoney(refundStr)
+	if err != nil {
+		return valueobjects.Money{}, valueobjects.Money{}, err
+	}
+	return total, refunds, nil
+}
+
 func scanCreditCard(row *sql.Row) (*treasury.CreditCard, error) {
 	c := &treasury.CreditCard{}
 	var (
-		branchID, createdBy, updatedBy            sql.NullString
-		deletedAt                                 sql.NullTime
-		currencyCode, creditLimit, currentBalance string
+		creditLimit, currentBalance string
+		createdBy, updatedBy        sql.NullString
+		deletedAt                   sql.NullTime
 	)
 	err := persistence.ScanRow(row,
-		&c.ID, &c.CompanyID, &branchID, &c.Issuer, &c.LastFour, &c.CardHolder,
-		&c.ExpirationMonth, &c.ExpirationYear, &creditLimit, &currentBalance,
-		&c.CutOffDay, &c.PaymentDueDay, &currencyCode, &c.IsActive,
+		&c.ID, &c.Issuer, &c.LastFour, &creditLimit, &currentBalance,
+		&c.CutOffDay, &c.PaymentDueDay, &c.IsActive,
 		&c.CreatedAt, &c.UpdatedAt, &deletedAt, &createdBy, &updatedBy,
 	)
 	if err != nil {
 		return nil, err
 	}
-	if err := decodeCreditCard(c, branchID, createdBy, updatedBy, deletedAt, currencyCode, creditLimit, currentBalance); err != nil {
+	if err := decodeCreditCard(c, creditLimit, currentBalance, createdBy, updatedBy, deletedAt); err != nil {
 		return nil, err
 	}
 	return c, nil
@@ -138,34 +174,24 @@ func scanCreditCard(row *sql.Row) (*treasury.CreditCard, error) {
 func scanCreditCardFromRows(rows *sql.Rows) (*treasury.CreditCard, error) {
 	c := &treasury.CreditCard{}
 	var (
-		branchID, createdBy, updatedBy            sql.NullString
-		deletedAt                                 sql.NullTime
-		currencyCode, creditLimit, currentBalance string
+		creditLimit, currentBalance string
+		createdBy, updatedBy        sql.NullString
+		deletedAt                   sql.NullTime
 	)
 	if err := rows.Scan(
-		&c.ID, &c.CompanyID, &branchID, &c.Issuer, &c.LastFour, &c.CardHolder,
-		&c.ExpirationMonth, &c.ExpirationYear, &creditLimit, &currentBalance,
-		&c.CutOffDay, &c.PaymentDueDay, &currencyCode, &c.IsActive,
+		&c.ID, &c.Issuer, &c.LastFour, &creditLimit, &currentBalance,
+		&c.CutOffDay, &c.PaymentDueDay, &c.IsActive,
 		&c.CreatedAt, &c.UpdatedAt, &deletedAt, &createdBy, &updatedBy,
 	); err != nil {
 		return nil, persistence.Translate(err)
 	}
-	if err := decodeCreditCard(c, branchID, createdBy, updatedBy, deletedAt, currencyCode, creditLimit, currentBalance); err != nil {
+	if err := decodeCreditCard(c, creditLimit, currentBalance, createdBy, updatedBy, deletedAt); err != nil {
 		return nil, err
 	}
 	return c, nil
 }
 
-func decodeCreditCard(c *treasury.CreditCard, branchID, createdBy, updatedBy sql.NullString, deletedAt sql.NullTime, currencyCode, creditLimit, currentBalance string) error {
-	if branchID.Valid {
-		id := persistence.ParseUUID(branchID.String)
-		c.BranchID = &id
-	}
-	cc, err := valueobjects.NewCurrencyCode(currencyCode)
-	if err != nil {
-		return err
-	}
-	c.CurrencyCode = cc
+func decodeCreditCard(c *treasury.CreditCard, creditLimit, currentBalance string, createdBy, updatedBy sql.NullString, deletedAt sql.NullTime) error {
 	lim, err := persistence.ParseMoney(creditLimit)
 	if err != nil {
 		return err
@@ -189,37 +215,6 @@ func decodeCreditCard(c *treasury.CreditCard, branchID, createdBy, updatedBy sql
 		c.DeletedAt = &t
 	}
 	return nil
-}
-
-func (r *creditCardRepository) SumCostsByCard(ctx context.Context, companyID uuid.UUID, from, to time.Time) (map[uuid.UUID]float64, error) {
-	fromStr := from.Format("2006-01-02")
-	toStr := to.Format("2006-01-02")
-	q := `SELECT credit_card_id, COALESCE(SUM(cost_usd), 0)
-		FROM purchase_orders
-		WHERE company_id = $1
-		  AND credit_card_id IS NOT NULL
-		  AND deleted_at IS NULL
-		  AND status != 'cancelled'
-		  AND order_date >= $2
-		  AND order_date <= $3
-		GROUP BY credit_card_id`
-	rows, err := persistence.Q(ctx, r.q).QueryContext(ctx, q, companyID, fromStr, toStr)
-	if err != nil {
-		return nil, persistence.Translate(err)
-	}
-	out := make(map[uuid.UUID]float64)
-	if err := persistence.ScanRows(rows, func(rows *sql.Rows) error {
-		var cardID uuid.UUID
-		var total float64
-		if err := rows.Scan(&cardID, &total); err != nil {
-			return persistence.Translate(err)
-		}
-		out[cardID] = total
-		return nil
-	}); err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 var _ treasury.CreditCardRepository = (*creditCardRepository)(nil)

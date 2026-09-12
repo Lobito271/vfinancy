@@ -1,316 +1,149 @@
 package bindings
 
 import (
-	"strings"
-	"time"
-
-	"github.com/google/uuid"
-
-	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/features/product"
-	"vfinancy/backend/internal/shared/apperrors"
-	"vfinancy/backend/internal/utils"
 )
 
-// ProductDTO is the serializable view of a product.
 type ProductDTO struct {
-	ID           string `json:"id"`
-	SKU          string `json:"sku"`
-	Barcode      string `json:"barcode"`
-	Description  string `json:"description"`
-	CategoryID   string `json:"categoryId"`
-	BrandID      string `json:"brandId"`
-	UnitID       string `json:"unitId"`
-	TaxID        string `json:"taxId"`
-	Category     string `json:"category"`
-	Brand        string `json:"brand"`
-	Unit         string `json:"unit"`
-	CostUSD      string `json:"costUSD"`
-	SalePrice    string `json:"salePrice"`
-	SaleCurrency string `json:"saleCurrency"`
-	MinStock     string `json:"minStock"`
-	MaxStock     string `json:"maxStock"`
-	Weight       string `json:"weight"`
-	IsActive     bool   `json:"isActive"`
-	IsService    bool   `json:"isService"`
-	CreatedAt    string `json:"createdAt"`
+	ID          string  `json:"id"`
+	SKU         string  `json:"sku"`
+	Description string  `json:"description"`
+	UnitCode    string  `json:"unitCode"`
+	CostUSD     float64 `json:"costUsd"`
+	SalePrice   float64 `json:"salePrice"`
+	IsActive    bool    `json:"isActive"`
 }
 
-func toProductDTO(p *product.Product) *ProductDTO {
-	return &ProductDTO{
-		ID:           p.ID.String(),
-		SKU:          p.SKU.String(),
-		Barcode:      p.Barcode.String(),
-		Description:  p.Description,
-		CategoryID:   uuidPtrString(p.CategoryID),
-		BrandID:      uuidPtrString(p.BrandID),
-		UnitID:       p.UnitID.String(),
-		TaxID:        p.TaxID.String(),
-		Category:     p.CategoryName,
-		Brand:        p.BrandName,
-		Unit:         p.UnitName,
-		CostUSD:      p.CostUSD.String(),
-		SalePrice:    p.SalePrice.String(),
-		SaleCurrency: p.SaleCurrency.String(),
-		MinStock:     p.MinStock.String(),
-		MaxStock:     p.MaxStock.String(),
-		Weight:       p.Weight.String(),
-		IsActive:     p.IsActive,
-		IsService:    p.IsService,
-		CreatedAt:    p.CreatedAt.Format(time.RFC3339),
+func productDTO(p *product.Product) ProductDTO {
+	return ProductDTO{
+		ID:          p.ID.String(),
+		SKU:         p.SKU.String(),
+		Description: p.Description,
+		UnitCode:    p.UnitCode,
+		CostUSD:     moneyFloat(p.CostUSD),
+		SalePrice:   moneyFloat(p.SalePrice),
+		IsActive:    p.IsActive,
 	}
 }
 
-// ListProductsRequest filters the product catalog.
-type ListProductsRequest struct {
-	Search string `json:"search"`
-	Status string `json:"status"`
-	PaginationRequest
-}
-
-// ListProducts returns paged products.
-func (a *App) ListProducts(req ListProductsRequest) (PageResult, error) {
-	var isActive *bool
-	switch req.Status {
-	case "active":
-		v := true
-		isActive = &v
-	case "inactive":
-		v := false
-		isActive = &v
-	}
-	filter := product.ProductFilter{
-		CompanyID:   a.companyIDPtr(),
-		Search:      req.Search,
-		IsActive:    isActive,
-		PageRequest: req.toPageRequest(),
-	}
-	page, err := a.productsSvc.List(a.Context(), filter)
+// ListProducts returns the catalog created through purchase orders.
+func (a *App) ListProducts(req PaginationRequest, search string) (PageResult, error) {
+	page, err := a.productsSvc.List(a.Context(), product.ProductFilter{Search: search, PageRequest: req.toPageRequest()})
 	if err != nil {
-		return PageResult{}, utils.ProcessError(err)
+		return PageResult{}, err
 	}
-	items := make([]*ProductDTO, 0, len(page.Items))
+	items := make([]ProductDTO, 0, len(page.Items))
 	for _, p := range page.Items {
-		items = append(items, toProductDTO(p))
+		items = append(items, productDTO(p))
 	}
-	return PageResult{Items: items, Total: page.Total, Page: page.Offset/page.Limit + 1, PageSize: page.Limit}, nil
+	return PageResult{Items: items, Total: page.Total, Page: req.Page, PageSize: req.PageSize}, nil
 }
 
-// GetProduct returns a single product by ID.
-func (a *App) GetProduct(id string) (*ProductDTO, error) {
-	pid, err := uuid.Parse(id)
+// ProductOptions returns the active catalog for selects.
+func (a *App) ProductOptions() ([]ProductDTO, error) {
+	products, err := a.productsSvc.Options(a.Context())
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return nil, err
+	}
+	items := make([]ProductDTO, 0, len(products))
+	for _, p := range products {
+		items = append(items, productDTO(p))
+	}
+	return items, nil
+}
+
+// GetProduct returns one catalog item.
+func (a *App) GetProduct(id string) (ProductDTO, error) {
+	pid, err := parseUUID(id)
+	if err != nil {
+		return ProductDTO{}, err
 	}
 	p, err := a.productsSvc.GetByID(a.Context(), pid)
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return ProductDTO{}, err
 	}
-	return toProductDTO(p), nil
+	return productDTO(p), nil
 }
 
-// CreateProductRequest creates a product.
-type CreateProductRequest struct {
-	SKU          string `json:"sku"`
-	Barcode      string `json:"barcode"`
-	Description  string `json:"description"`
-	CategoryID   string `json:"categoryId"`
-	BrandID      string `json:"brandId"`
-	UnitID       string `json:"unitId"`
-	TaxID        string `json:"taxId"`
-	CostUSD      string `json:"costUSD"`
-	SalePrice    string `json:"salePrice"`
-	SaleCurrency string `json:"saleCurrency"`
-	MinStock     string `json:"minStock"`
-	MaxStock     string `json:"maxStock"`
-	Weight       string `json:"weight"`
-	IsService    bool   `json:"isService"`
+type SaveProductRequest struct {
+	ID          string  `json:"id"`
+	Description string  `json:"description"`
+	UnitCode    string  `json:"unitCode"`
+	CostUSD     float64 `json:"costUsd"`
+	SalePrice   float64 `json:"salePrice"`
 }
 
-// CreateProduct persists a new product.
-func (a *App) CreateProduct(req CreateProductRequest) (*ProductDTO, error) {
-	categoryID, err := parseOptionalUUID(req.CategoryID)
+// CreateProduct registers a catalog item (the reception of a purchase
+// also creates items implicitly by description).
+func (a *App) CreateProduct(req SaveProductRequest) (ProductDTO, error) {
+	cost, err := moneyFromFloat(req.CostUSD)
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return ProductDTO{}, err
 	}
-	brandID, err := parseOptionalUUID(req.BrandID)
+	price, err := moneyFromFloat(req.SalePrice)
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return ProductDTO{}, err
 	}
-	unitID, err := parseOptionalUUID(req.UnitID)
+	p, err := a.productsSvc.Create(a.Context(), product.CreateInput{Description: req.Description, UnitCode: req.UnitCode, CostUSD: cost, SalePrice: price})
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return ProductDTO{}, err
 	}
-	if unitID == nil {
-		return nil, apperrors.Errorf(apperrors.ErrValidation, "unit id is required")
-	}
-	taxID, err := parseOptionalUUID(req.TaxID)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	if taxID == nil {
-		return nil, apperrors.Errorf(apperrors.ErrValidation, "tax id is required")
-	}
-	currency, err := currencyOrDefault(req.SaleCurrency)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	barcode, err := valueobjects.OptionalBarcode(req.Barcode)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	cost, err := moneyOrZero(req.CostUSD)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	salePrice, err := moneyOrZero(req.SalePrice)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	minStock, err := quantityOrZero(req.MinStock)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	maxStock, err := quantityOrZero(req.MaxStock)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	weight, err := quantityOrZero(req.Weight)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	sku, err := valueobjects.NewSKU(req.SKU)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	in := product.CreateInput{
-		CompanyID:    a.companyID(),
-		SKU:          sku,
-		Barcode:      barcode,
-		Description:  req.Description,
-		CategoryID:   categoryID,
-		BrandID:      brandID,
-		UnitID:       *unitID,
-		TaxID:        *taxID,
-		CostUSD:       cost,
-		SalePrice:    salePrice,
-		SaleCurrency: currency,
-		MinStock:     minStock,
-		MaxStock:     maxStock,
-		Weight:       weight,
-		IsService:    req.IsService,
-	}
-	p, err := a.productsSvc.Create(a.Context(), in)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return toProductDTO(p), nil
+	return productDTO(p), nil
 }
 
-// UpdateProductRequest updates a product.
-type UpdateProductRequest struct {
-	ID          string `json:"id"`
-	Description string `json:"description"`
-	CategoryID  string `json:"categoryId"`
-	BrandID     string `json:"brandId"`
-	UnitID      string `json:"unitId"`
-	CostUSD      string `json:"costUSD"`
-	SalePrice    string `json:"salePrice"`
-	MinStock    string `json:"minStock"`
-	MaxStock    string `json:"maxStock"`
-	IsActive    *bool  `json:"isActive"`
+// UpdateProduct edits description and/or prices (nil = keep).
+func (a *App) UpdateProduct(req SaveProductRequest) (ProductDTO, error) {
+	pid, err := parseUUID(req.ID)
+	if err != nil {
+		return ProductDTO{}, err
+	}
+	cost, err := moneyPtrFromFloat(req.CostUSD)
+	if err != nil {
+		return ProductDTO{}, err
+	}
+	price, err := moneyPtrFromFloat(req.SalePrice)
+	if err != nil {
+		return ProductDTO{}, err
+	}
+	p, err := a.productsSvc.Update(a.Context(), product.UpdateInput{ID: pid, Description: req.Description, UnitCode: &req.UnitCode, CostUSD: cost, SalePrice: price})
+	if err != nil {
+		return ProductDTO{}, err
+	}
+	return productDTO(p), nil
 }
 
-// UpdateProduct updates the mutable product fields.
-func (a *App) UpdateProduct(req UpdateProductRequest) (*ProductDTO, error) {
-	pid, err := uuid.Parse(req.ID)
+// SetProductActive toggles catalog visibility without deleting the
+// product, preserving historical references.
+func (a *App) SetProductActive(id string, active bool) error {
+	pid, err := parseUUID(id)
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return err
 	}
-	in := product.UpdateInput{ID: pid, Description: req.Description, IsActive: req.IsActive}
-	if req.CategoryID != "" {
-		id, err := parseOptionalUUID(req.CategoryID)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		in.CategoryID = id
+	if active {
+		return a.productsSvc.Activate(a.Context(), pid)
 	}
-	if req.BrandID != "" {
-		id, err := parseOptionalUUID(req.BrandID)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		in.BrandID = id
-	}
-	if req.UnitID != "" {
-		id, err := parseOptionalUUID(req.UnitID)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		in.UnitID = id
-	}
-	if req.CostUSD != "" {
-		cost, err := valueobjects.MoneyFromString(req.CostUSD)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		in.CostUSD = &cost
-	}
-	if req.SalePrice != "" {
-		price, err := valueobjects.MoneyFromString(req.SalePrice)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		in.SalePrice = &price
-	}
-	if req.MinStock != "" && req.MaxStock != "" {
-		min, err := valueobjects.QuantityFromString(req.MinStock)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		max, err := valueobjects.QuantityFromString(req.MaxStock)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		in.MinStock = &min
-		in.MaxStock = &max
-	}
-	p, err := a.productsSvc.Update(a.Context(), in)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return toProductDTO(p), nil
+	return a.productsSvc.Deactivate(a.Context(), pid)
 }
 
-// RemoveProduct hard-deletes a product. Referenced products (e.g. ones
-// already in a sale) are rejected with a friendly error.
+// RemoveProduct soft-deletes a catalog item.
 func (a *App) RemoveProduct(id string) error {
-	pid, err := uuid.Parse(id)
+	pid, err := parseUUID(id)
 	if err != nil {
-		return utils.ProcessError(err)
+		return err
 	}
-	return utils.ProcessError(a.productsSvc.Delete(a.Context(), pid))
+	return a.productsSvc.Delete(a.Context(), pid)
 }
 
-// --- helpers ---
-
-func moneyOrZero(s string) (valueobjects.Money, error) {
-	if strings.TrimSpace(s) == "" {
-		return valueobjects.Zero(), nil
+// GetProductStock returns the total available quantity of a product in
+// the main warehouse (edge case 4.3: block stock sales without stock).
+func (a *App) GetProductStock(id string) (float64, error) {
+	pid, err := parseUUID(id)
+	if err != nil {
+		return 0, err
 	}
-	return valueobjects.MoneyFromString(s)
-}
-
-func quantityOrZero(s string) (valueobjects.Quantity, error) {
-	if strings.TrimSpace(s) == "" {
-		return valueobjects.ZeroQuantity(), nil
+	q, err := a.inventorySvc.StockForProduct(a.Context(), pid)
+	if err != nil {
+		return 0, err
 	}
-	return valueobjects.QuantityFromString(s)
-}
-
-func currencyOrDefault(s string) (valueobjects.CurrencyCode, error) {
-	if strings.TrimSpace(s) == "" {
-		return valueobjects.MustCurrencyCode("PEN"), nil
-	}
-	return valueobjects.NewCurrencyCode(s)
+	return quantityFloat(q), nil
 }

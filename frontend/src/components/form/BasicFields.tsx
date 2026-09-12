@@ -44,6 +44,7 @@ export function TextField<T extends FieldValues>({
 }
 
 interface NumberFieldProps<T extends FieldValues> extends BaseFieldProps<T> {
+  kind?: 'integer' | 'decimal';
   min?: number;
   max?: number;
   step?: number | 'any';
@@ -57,15 +58,17 @@ export function NumberField<T extends FieldValues>({
   description,
   required,
   className,
+  kind,
   min,
   max,
-  step,
+  step: stepProp,
   disabled,
   readOnly,
   placeholder,
 }: NumberFieldProps<T>) {
   const { control, formState } = useFormContext<T>();
   const error = formState.errors[name]?.message as string | undefined;
+  const step = stepProp ?? (kind === 'decimal' ? 0.01 : 1);
   return (
     <Field label={label} required={required} description={description} error={error} className={className} htmlFor={String(name)}>
       <Controller

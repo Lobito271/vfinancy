@@ -2,7 +2,9 @@ package workspace
 
 import (
 	"context"
-	"strings"
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
 	"sync"
 	"time"
 
@@ -19,10 +21,15 @@ type Service struct {
 	unlocked bool
 }
 
+// NewService builds the workspace service over the local-profile
+// repository and the shared transaction manager.
 func NewService(repo Repository, txm repositories.TransactionManager) *Service {
 	return &Service{repo: repo, txm: txm}
 }
 
+// Initialize loads the stored local profile into memory and marks the
+// workspace unlocked when the profile has no password. It returns
+// ErrProfileNotFound when no profile has been set up yet.
 func (s *Service) Initialize(ctx context.Context) (*LocalProfile, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -33,139 +40,21 @@ func (s *Service) Initialize(ctx context.Context) (*LocalProfile, error) {
 	if err != nil {
 		return nil, err
 	}
-	company, err := s.repo.GetCompany(ctx, profile.ActiveCompanyID)
-	if err != nil {
-		return nil, err
-	}
-	if !company.IsActive || company.DeletedAt != nil {
-		return nil, ErrCompanyInactive
-	}
 	s.profile = profile
 	s.unlocked = !profile.PasswordEnabled
 	return cloneProfile(profile), nil
 }
 
-func (s *Service) CreateProfile(ctx context.Context, name string, companyID uuid.UUID) (*LocalProfile, error) {
-	company, err := s.repo.GetCompany(ctx, companyID)
-	if err != nil {
-		return nil, err
-	}
-	if !company.IsActive || company.DeletedAt != nil {
-		return nil, ErrCompanyInactive
-	}
-	profile := &LocalProfile{
-		ID:              uuid.New(),
-		Name:            strings.TrimSpace(name),
-		ActiveCompanyID: companyID,
-		Theme:           "system",
-		Language:        "es-PE",
-		DateFormat:      "DD/MM/YYYY",
-		NumberFormat:    "es-PE",
-		DecimalPlaces:   2,
-		Timezone:        "America/Lima",
-		CreatedAt:       time.Now().UTC(),
-		UpdatedAt:       time.Now().UTC(),
-	}
+// Setup creates the one-and-only local profile and returns it. It
+// fails with ErrProfileExists when a profile already exists. A
+// non-empty password is strength-checked and hashed, enabling the
+// lock screen.
+func (s *Service) Setup(ctx context.Context, in CompanyInput, password string) (*LocalProfile, error) {
+	profile := &LocalProfile{ID: uuid.New(), CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC()}
+	profile.SetCompany(in)
 	if err := profile.Validate(); err != nil {
 		return nil, err
 	}
-	if err := s.repo.CreateProfile(ctx, profile); err != nil {
-		return nil, err
-	}
-	s.mu.Lock()
-	s.profile = profile
-	s.unlocked = true
-	s.mu.Unlock()
-	return cloneProfile(profile), nil
-}
-
-func (s *Service) Profile() (*LocalProfile, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if s.profile == nil {
-		return nil, ErrProfileNotFound
-	}
-	return cloneProfile(s.profile), nil
-}
-
-func (s *Service) UpdateProfile(ctx context.Context, name, theme, language, dateFormat, numberFormat, timezone string, decimalPlaces int) (*LocalProfile, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.profile == nil {
-		return nil, ErrProfileNotFound
-	}
-	if strings.TrimSpace(name) != "" {
-		s.profile.Name = strings.TrimSpace(name)
-	}
-	if theme != "" {
-		s.profile.Theme = theme
-	}
-	if language != "" {
-		s.profile.Language = language
-	}
-	if dateFormat != "" {
-		s.profile.DateFormat = dateFormat
-	}
-	if numberFormat != "" {
-		s.profile.NumberFormat = numberFormat
-	}
-	if timezone != "" {
-		s.profile.Timezone = timezone
-	}
-	if decimalPlaces >= 0 {
-		s.profile.DecimalPlaces = decimalPlaces
-	}
-	s.profile.UpdatedAt = time.Now().UTC()
-	if err := s.profile.Validate(); err != nil {
-		return nil, err
-	}
-	if err := s.repo.UpdateProfile(ctx, s.profile); err != nil {
-		return nil, err
-	}
-	return cloneProfile(s.profile), nil
-}
-
-func (s *Service) ListCompanies(ctx context.Context) ([]*Company, error) {
-	return s.repo.ListCompanies(ctx)
-}
-
-func (s *Service) GetCompany(ctx context.Context, id uuid.UUID) (*Company, error) {
-	return s.repo.GetCompany(ctx, id)
-}
-
-func (s *Service) CreateCompany(ctx context.Context, company *Company) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := s.prepareCompany(company); err != nil {
-		return err
-	}
-	return s.repo.CreateCompany(ctx, company)
-}
-
-func (s *Service) SetupCompany(ctx context.Context, company *Company, profileName, password string) (*Company, error) {
-	if err := s.prepareCompany(company); err != nil {
-		return nil, err
-	}
-
-	profileName = strings.TrimSpace(profileName)
-	now := time.Now().UTC()
-	profile := &LocalProfile{
-		ID:              uuid.New(),
-		Name:            profileName,
-		ActiveCompanyID: company.ID,
-		Theme:           "system",
-		Language:        "es-PE",
-		DateFormat:      "DD/MM/YYYY",
-		NumberFormat:    "es-PE",
-		DecimalPlaces:   2,
-		Timezone:        "America/Lima",
-		CreatedAt:       now,
-		UpdatedAt:       now,
-	}
-	if err := profile.Validate(); err != nil {
-		return nil, err
-	}
-
 	if password != "" {
 		if err := ValidatePasswordStrength(password); err != nil {
 			return nil, err
@@ -177,72 +66,76 @@ func (s *Service) SetupCompany(ctx context.Context, company *Company, profileNam
 		profile.PasswordHash = hash
 		profile.PasswordEnabled = true
 	}
-
 	if err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
-		if err := s.repo.CreateCompany(ctx, company); err != nil {
+		_, err := s.repo.GetProfile(ctx)
+		switch {
+		case err == nil:
+			return ErrProfileExists
+		case !errors.Is(err, ErrProfileNotFound):
 			return err
 		}
 		return s.repo.CreateProfile(ctx, profile)
 	}); err != nil {
 		return nil, err
 	}
-
 	s.mu.Lock()
 	s.profile = profile
 	s.unlocked = true
 	s.mu.Unlock()
-	return company, nil
+	return cloneProfile(profile), nil
 }
 
-func (s *Service) prepareCompany(company *Company) error {
-	if company.ID == uuid.Nil {
-		company.ID = uuid.New()
-	}
-	if company.CreatedAt.IsZero() {
-		company.CreatedAt = time.Now().UTC()
-	}
-	if company.UpdatedAt.IsZero() {
-		company.UpdatedAt = company.CreatedAt
-	}
-	if company.Timezone == "" {
-		company.Timezone = "America/Lima"
-	}
-	if company.CountryCode == "" {
-		company.CountryCode = "PE"
-	}
-	if company.FunctionalCurrency == "" {
-		company.FunctionalCurrency = "PEN"
-	}
-	if company.FiscalYearStartMonth == 0 {
-		company.FiscalYearStartMonth = 1
-	}
-	company.IsActive = true
-	return company.Validate()
-}
-
-func (s *Service) UpdateCompany(ctx context.Context, company *Company) error {
-	if err := company.Validate(); err != nil {
-		return err
-	}
-	company.UpdatedAt = time.Now().UTC()
-	return s.repo.UpdateCompany(ctx, company)
-}
-
-func (s *Service) CurrentCompanyID() (uuid.UUID, error) {
+// Profile returns a copy of the in-memory profile, or
+// ErrProfileNotFound when none is loaded.
+func (s *Service) Profile() (*LocalProfile, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.profile == nil || s.profile.ActiveCompanyID == uuid.Nil {
-		return uuid.Nil, ErrCompanyRequired
+	if s.profile == nil {
+		return nil, ErrProfileNotFound
 	}
-	return s.profile.ActiveCompanyID, nil
+	return cloneProfile(s.profile), nil
 }
 
+// SetCompany updates the corporate identity of the profile.
+func (s *Service) SetCompany(ctx context.Context, in CompanyInput) (*LocalProfile, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.profile == nil {
+		return nil, ErrProfileNotFound
+	}
+	s.profile.SetCompany(in)
+	if err := s.profile.Validate(); err != nil {
+		return nil, err
+	}
+	s.profile.Touch()
+	if err := s.repo.UpdateProfile(ctx, s.profile); err != nil {
+		return nil, err
+	}
+	return cloneProfile(s.profile), nil
+}
+
+// IsConfigured reports whether a profile is loaded in memory.
+func (s *Service) IsConfigured() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.profile != nil
+}
+
+// PasswordEnabled reports whether the loaded profile requires a password.
+func (s *Service) PasswordEnabled() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.profile != nil && s.profile.PasswordEnabled
+}
+
+// IsUnlocked reports whether the workspace is currently unlocked.
 func (s *Service) IsUnlocked() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.unlocked
 }
 
+// RequireUnlocked returns ErrProfileLocked while the workspace is locked.
 func (s *Service) RequireUnlocked() error {
 	if !s.IsUnlocked() {
 		return ErrProfileLocked
@@ -250,12 +143,15 @@ func (s *Service) RequireUnlocked() error {
 	return nil
 }
 
+// Lock locks the workspace.
 func (s *Service) Lock() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.unlocked = false
 }
 
+// Unlock verifies the password and unlocks the workspace. Five
+// consecutive wrong attempts lock the profile for fifteen minutes.
 func (s *Service) Unlock(ctx context.Context, password string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -287,6 +183,8 @@ func (s *Service) Unlock(ctx context.Context, password string) error {
 	return s.repo.UpdateProfile(ctx, s.profile)
 }
 
+// SetPassword verifies the current password and replaces it. When the
+// profile has no password yet the current one is not required.
 func (s *Service) SetPassword(ctx context.Context, current, next string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -308,7 +206,7 @@ func (s *Service) SetPassword(ctx context.Context, current, next string) error {
 	}
 	s.profile.PasswordHash = hash
 	s.profile.PasswordEnabled = true
-	s.profile.UpdatedAt = time.Now().UTC()
+	s.profile.Touch()
 	if err := s.repo.UpdateProfile(ctx, s.profile); err != nil {
 		return err
 	}
@@ -316,6 +214,8 @@ func (s *Service) SetPassword(ctx context.Context, current, next string) error {
 	return nil
 }
 
+// RemovePassword verifies the current password and disables the lock
+// screen, clearing any pending recovery token and lockout state.
 func (s *Service) RemovePassword(ctx context.Context, current string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -330,9 +230,10 @@ func (s *Service) RemovePassword(ctx context.Context, current string) error {
 	}
 	s.profile.PasswordHash = ""
 	s.profile.PasswordEnabled = false
+	s.profile.RecoveryTokenHash = ""
 	s.profile.FailedAttempts = 0
 	s.profile.LockedUntil = nil
-	s.profile.UpdatedAt = time.Now().UTC()
+	s.profile.Touch()
 	if err := s.repo.UpdateProfile(ctx, s.profile); err != nil {
 		return err
 	}
@@ -340,38 +241,73 @@ func (s *Service) RemovePassword(ctx context.Context, current string) error {
 	return nil
 }
 
-func (s *Service) SetActiveCompany(ctx context.Context, id uuid.UUID) error {
-	company, err := s.repo.GetCompany(ctx, id)
+// GenerateRecoveryToken creates a one-time recovery secret, stores only
+// its hash, and returns the plaintext value. It can only be issued
+// once per profile; subsequent calls return ErrRecoveryIssued. The
+// token must be shown to the user at activation time and never
+// recovered again from the stored hash.
+func (s *Service) GenerateRecoveryToken(ctx context.Context) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.profile == nil {
+		return "", ErrProfileNotFound
+	}
+	if s.profile.RecoveryTokenHash != "" {
+		return "", ErrRecoveryIssued
+	}
+	raw := make([]byte, 16)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	token := hex.EncodeToString(raw)
+	hash, err := HashPassword(token, nil)
 	if err != nil {
-		return err
+		return "", err
 	}
-	if !company.IsActive || company.DeletedAt != nil {
-		return ErrCompanyInactive
+	s.profile.RecoveryTokenHash = hash
+	s.profile.Touch()
+	if err := s.repo.UpdateProfile(ctx, s.profile); err != nil {
+		return "", err
 	}
+	return token, nil
+}
+
+// UnlockWithRecoveryToken resets a forgotten password using the
+// one-time recovery token, clears the lockout state, and unlocks the
+// workspace. It works even while the profile is locked.
+func (s *Service) UnlockWithRecoveryToken(ctx context.Context, token, newPassword string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.profile == nil {
 		return ErrProfileNotFound
 	}
-	s.profile.ActiveCompanyID = id
-	s.profile.UpdatedAt = time.Now().UTC()
+	if !s.profile.PasswordEnabled {
+		return nil
+	}
+	match, err := VerifyPassword(token, s.profile.RecoveryTokenHash)
+	if err != nil || !match {
+		return ErrRecoveryTokenInvalid
+	}
+	if err := ValidatePasswordStrength(newPassword); err != nil {
+		return err
+	}
+	hash, err := HashPassword(newPassword, nil)
+	if err != nil {
+		return err
+	}
+	s.profile.PasswordHash = hash
+	s.profile.RecoveryTokenHash = ""
+	s.profile.FailedAttempts = 0
+	s.profile.LockedUntil = nil
+	s.profile.Touch()
 	if err := s.repo.UpdateProfile(ctx, s.profile); err != nil {
 		return err
 	}
+	s.unlocked = true
 	return nil
 }
 
-func (s *Service) DeactivateCompany(ctx context.Context, id uuid.UUID) error {
-	s.mu.RLock()
-	active := s.profile != nil && s.profile.ActiveCompanyID == id
-	s.mu.RUnlock()
-	if active {
-		return ErrCompanyActive
-	}
-	return s.repo.DeleteCompany(ctx, id)
-}
-
 func cloneProfile(p *LocalProfile) *LocalProfile {
-	copy := *p
-	return &copy
+	copied := *p
+	return &copied
 }

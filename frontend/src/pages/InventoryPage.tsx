@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Boxes, Pencil, Ban, Plus, Settings2, AlertTriangle } from 'lucide-react';
+import { Boxes, Pencil, Ban, Plus, Settings2, AlertTriangle, Download, History } from 'lucide-react';
 import { z } from 'zod';
 import { PageContainer, PageHeader, Grid } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
 import { Badge } from '@/components/badge';
-import { EmptyState } from '@/components/feedback';
+import { EmptyState, Spinner } from '@/components/feedback';
 import { Button } from '@/components/button';
 import { ConfirmDialog } from '@/components/dialog';
 import { Drawer, RowActions } from '@/components/misc';
@@ -93,6 +93,66 @@ const columns: Column<InventoryItem>[] = [
     },
   },
 ];
+
+const movementTypeLabels: Record<string, string> = {
+  purchase_receipt: 'Ingreso por compra',
+  sale: 'Venta',
+  void_sale: 'Reversión de venta',
+  void_purchase: 'Anulación de compra',
+  adjustment_in: 'Ajuste (entrada)',
+  adjustment_out: 'Ajuste (salida)',
+};
+
+function InventoryMovementsDrawer({ open, onOpenChange, batch }: { open: boolean; onOpenChange: (open: boolean) => void; batch: InventoryItem | null }) {
+  const movements = useQuery({
+    queryKey: ['inventory', 'movements', batch?.productId],
+    queryFn: () => wailsClient.listInventoryMovements({ page: 1, pageSize: 200 }, batch!.productId),
+    enabled: open && Boolean(batch),
+  });
+
+  return (
+    <Drawer
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Movimientos (Kardex)"
+      description={batch ? `${batch.productSku} — ${batch.productDescription}` : undefined}
+    >
+      {movements.isLoading ? (
+        <Spinner />
+      ) : movements.isError ? (
+        <EmptyState title="No se pudo cargar" description="No se pudieron cargar los movimientos del producto." />
+      ) : (movements.data?.items ?? []).length === 0 ? (
+        <EmptyState title="Sin movimientos" description="Este producto aún no registra movimientos de inventario." />
+      ) : (
+        <div className="stack">
+          {(movements.data?.items ?? []).map((m) => (
+            <div
+              key={m.id}
+              className="hstack"
+              style={{ justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--color-border)' }}
+            >
+              <span style={{ display: 'grid' }}>
+                <strong style={{ fontWeight: 500 }}>{movementTypeLabels[m.type] ?? m.type}</strong>
+                <small style={{ color: 'var(--color-fg-subtle)' }}>
+                  {formatDate(m.movementDate)}
+                  {m.notes ? ` · ${m.notes}` : ''}
+                </small>
+              </span>
+              <span className="tabular" style={{ textAlign: 'right' }}>
+                <span className={m.quantity >= 0 ? undefined : 'text-destructive'}>
+                  {m.quantity > 0 ? '+' : ''}
+                  {formatNumber(m.quantity)}
+                </span>
+                <br />
+                <small className="muted">Saldo {formatNumber(m.balanceAfter)}</small>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Drawer>
+  );
+}
 
 const clearanceSchema = z.object({
   clearanceDays: z.number().int().min(1, 'Usa al menos 1 día.').max(365),
@@ -184,11 +244,12 @@ export function InventoryPage() {
   const push = useNotificationStore((s) => s.push);
 
   const [receiveOpen, setReceiveOpen] = useState(false);
+  const [receiveTarget, setReceiveTarget] = useState<InventoryItem | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
-  const [showClearanceOnly, setShowClearanceOnly] = useState(false);
   const [adjustTarget, setAdjustTarget] = useState<InventoryItem | null>(null);
   const [voidTarget, setVoidTarget] = useState<InventoryItem | null>(null);
+  const [movementsTarget, setMovementsTarget] = useState<InventoryItem | null>(null);
 
   const items = data ?? [];
   const live = items.filter((i) => i.status !== 'voided');
@@ -198,18 +259,16 @@ export function InventoryPage() {
   const expiringSoon = live.filter((i) => i.daysRemaining >= 0 && i.daysRemaining < 5).length;
 
   const filteredItems = useMemo(() => {
-    let result = items;
-    if (showClearanceOnly) {
-      result = result.filter((i) => i.isClearance && i.status !== 'voided');
-    } else {
-      if (statusFilter === 'clearance') result = result.filter((i) => i.isClearance && i.status !== 'voided');
-      else if (statusFilter === 'expiring') result = live.filter((i) => i.daysRemaining >= 0 && i.daysRemaining < 5);
-      else if (statusFilter === 'voided') result = result.filter((i) => i.status === 'voided');
-    }
-    return result;
-  }, [items, live, statusFilter, showClearanceOnly]);
+    if (statusFilter === 'clearance') return items.filter((i) => i.isClearance && i.status !== 'voided');
+    if (statusFilter === 'expiring') return live.filter((i) => i.daysRemaining >= 0 && i.daysRemaining < 5);
+    if (statusFilter === 'voided') return items.filter((i) => i.status === 'voided');
+    return items;
+  }, [items, live, statusFilter]);
 
-  const openCreate = () => setReceiveOpen(true);
+  const openCreate = () => {
+    setReceiveTarget(null);
+    setReceiveOpen(true);
+  };
 
   const tableColumns = useMemo<Column<InventoryItem>[]>(() => [
     ...columns,
@@ -221,6 +280,19 @@ export function InventoryPage() {
         row.status !== 'voided' ? (
           <RowActions
             actions={[
+              {
+                label: 'Ver movimientos',
+                icon: History,
+                onSelect: () => setMovementsTarget(row),
+              },
+              {
+                label: 'Recibir',
+                icon: Download,
+                onSelect: () => {
+                  setReceiveTarget(row);
+                  setReceiveOpen(true);
+                },
+              },
               {
                 label: 'Ajustar stock',
                 icon: Pencil,
@@ -267,12 +339,12 @@ export function InventoryPage() {
       {clearance > 0 && (
         <div className="hstack" style={{ gap: '0.75rem', marginBottom: '1rem' }}>
           <Button
-            variant={showClearanceOnly ? 'primary' : 'outline'}
+            variant={statusFilter === 'clearance' ? 'primary' : 'outline'}
             size="sm"
-            onClick={() => setShowClearanceOnly(!showClearanceOnly)}
+            onClick={() => setStatusFilter(statusFilter === 'clearance' ? 'all' : 'clearance')}
           >
             <AlertTriangle />
-            {showClearanceOnly ? 'Mostrando productos en remate' : `Ver productos en remate (${clearance})`}
+            {statusFilter === 'clearance' ? 'Mostrando productos en remate' : `Ver productos en remate (${clearance})`}
           </Button>
         </div>
       )}
@@ -316,9 +388,14 @@ export function InventoryPage() {
         }
       />
 
-      <InventoryReceiveDialog open={receiveOpen} onOpenChange={setReceiveOpen} />
+      <InventoryReceiveDialog key={receiveTarget?.id ?? 'receive'} open={receiveOpen} onOpenChange={setReceiveOpen} preset={receiveTarget} />
       <InventoryAdjustDialog open={!!adjustTarget} onOpenChange={(o) => { if (!o) setAdjustTarget(null); }} batch={adjustTarget} />
       <InventorySettingsDrawer open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <InventoryMovementsDrawer
+        open={!!movementsTarget}
+        onOpenChange={(o) => { if (!o) setMovementsTarget(null); }}
+        batch={movementsTarget}
+      />
 
       <ConfirmDialog
         open={!!voidTarget}

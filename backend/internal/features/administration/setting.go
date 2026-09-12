@@ -5,55 +5,37 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"vfinancy/backend/internal/domain/errors"
 )
 
+// ApplicationSetting is one device-local preference row stored as a
+// JSON value under a unique key.
 type ApplicationSetting struct {
-	ID          uuid.UUID
-	CompanyID   uuid.UUID
-	Key         string
-	Value       json.RawMessage
-	Category    string
-	Label       string
-	Description string
-	IsPublic    bool
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	UpdatedBy   *uuid.UUID
+	ID        uuid.UUID
+	Key       string
+	Value     json.RawMessage
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
-func NewApplicationSetting(companyID uuid.UUID, key, category, label, description string, value json.RawMessage, isPublic bool) (*ApplicationSetting, error) {
-	if companyID == uuid.Nil {
-		return nil, errors.Wrap(errors.ErrRequired, errField("company id is required"))
-	}
-	if key == "" {
-		return nil, errors.Wrap(errors.ErrRequired, errField("key is required"))
-	}
-	if category == "" {
-		return nil, errors.Wrap(errors.ErrRequired, errField("category is required"))
-	}
-	now := time.Now()
+// NewApplicationSetting builds a setting with a fresh ID and UTC timestamps.
+func NewApplicationSetting(key string, value json.RawMessage) *ApplicationSetting {
+	now := time.Now().UTC()
 	return &ApplicationSetting{
-		ID:          uuid.New(),
-		CompanyID:   companyID,
-		Key:         key,
-		Value:       value,
-		Category:    category,
-		Label:       label,
-		Description: description,
-		IsPublic:    isPublic,
-		CreatedAt:   now,
-		UpdatedAt:   now,
-	}, nil
+		ID:        uuid.New(),
+		Key:       key,
+		Value:     value,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
 }
 
-func (s *ApplicationSetting) Update(value json.RawMessage, updatedBy uuid.UUID) {
-	s.Value = value
-	s.UpdatedAt = time.Now()
-	s.UpdatedBy = &updatedBy
+// Touch stamps UpdatedAt with the current UTC time.
+func (s *ApplicationSetting) Touch() {
+	s.UpdatedAt = time.Now().UTC()
 }
 
+// StringValue decodes the stored JSON value as a string, or "" when it
+// is not a JSON string.
 func (s *ApplicationSetting) StringValue() string {
 	var v string
 	if err := json.Unmarshal(s.Value, &v); err != nil {
@@ -62,6 +44,8 @@ func (s *ApplicationSetting) StringValue() string {
 	return v
 }
 
+// IntValue decodes the stored JSON value as an integer, or 0 when it
+// is not a JSON number.
 func (s *ApplicationSetting) IntValue() int {
 	var v int
 	if err := json.Unmarshal(s.Value, &v); err != nil {
@@ -70,14 +54,8 @@ func (s *ApplicationSetting) IntValue() int {
 	return v
 }
 
-func (s *ApplicationSetting) BoolValue() bool {
-	var v bool
-	if err := json.Unmarshal(s.Value, &v); err != nil {
-		return false
-	}
-	return v
-}
-
+// Float64Value decodes the stored JSON value as a float, or 0 when it
+// is not a JSON number.
 func (s *ApplicationSetting) Float64Value() float64 {
 	var v float64
 	if err := json.Unmarshal(s.Value, &v); err != nil {

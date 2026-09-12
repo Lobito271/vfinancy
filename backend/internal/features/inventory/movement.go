@@ -12,45 +12,41 @@ import (
 
 // InventoryMovement is an immutable, append-only stock event. Once
 // persisted, a movement is never updated or deleted — corrections
-// produce new compensating movements. This is the source of truth
-// for stock; InventoryBatch.current_quantity is a denormalized cache.
+// produce new compensating movements. The ledger is the source of
+// truth for stock; InventoryBatch.quantity is a denormalized cache
+// maintained by the service.
 type InventoryMovement struct {
-	ID          uuid.UUID
-	CompanyID   uuid.UUID
-	ProductID   uuid.UUID
-	WarehouseID uuid.UUID
-	BatchID     *uuid.UUID
-	Type        enums.InventoryMovementType
-	// Quantity is signed. Positive for inbound, negative for outbound.
-	// The entity validates sign matches Type on construction.
-	Quantity    valueobjects.Quantity
-	UnitCost    valueobjects.Money
-	CurrencyCode valueobjects.CurrencyCode
-	Reference   *valueobjects.Reference
-	OccurredAt  time.Time
-	Notes       string
-	CreatedAt   time.Time
-	CreatedBy   *uuid.UUID
+	ID            uuid.UUID
+	BatchID       uuid.UUID
+	ProductID     uuid.UUID
+	MovementDate  time.Time
+	Type          enums.InventoryMovementType
+	Reference     *valueobjects.Reference
+	QuantityDelta valueobjects.Quantity
+	BalanceAfter  valueobjects.Quantity
+	UnitCost      valueobjects.Money
+	Notes         string
+	CreatedAt     time.Time
 }
 
 // NewInventoryMovementOptions is the input to NewInventoryMovement.
 type NewInventoryMovementOptions struct {
-	CompanyID    uuid.UUID
+	BatchID      uuid.UUID
 	ProductID    uuid.UUID
-	WarehouseID  uuid.UUID
-	BatchID      *uuid.UUID
 	Type         enums.InventoryMovementType
 	Quantity     valueobjects.Quantity
+	BalanceAfter valueobjects.Quantity
 	UnitCost     valueobjects.Money
-	CurrencyCode valueobjects.CurrencyCode
 	Reference    *valueobjects.Reference
-	OccurredAt   time.Time
 	Notes        string
 }
 
 // NewInventoryMovement validates and constructs a movement. The sign
-// of quantity must agree with the movement type.
-func NewInventoryMovement(opts NewInventoryMovementOptions) (*InventoryMovement, error) {
+// of the quantity must agree with the movement type.
+func NewInventoryMovement(now time.Time, opts NewInventoryMovementOptions) (*InventoryMovement, error) {
+	if opts.BatchID == uuid.Nil || opts.ProductID == uuid.Nil {
+		return nil, derrors.Wrap(derrors.ErrRequired, errField("batch and product are required"))
+	}
 	if !opts.Type.Valid() {
 		return nil, derrors.Wrap(derrors.ErrInvalidEnum, errField("movement type is invalid"))
 	}
@@ -60,36 +56,24 @@ func NewInventoryMovement(opts NewInventoryMovementOptions) (*InventoryMovement,
 	if opts.UnitCost.IsNegative() {
 		return nil, derrors.Wrap(derrors.ErrNegativeMoney, errField("unit cost cannot be negative"))
 	}
-	if opts.CompanyID == uuid.Nil || opts.ProductID == uuid.Nil || opts.WarehouseID == uuid.Nil {
-		return nil, derrors.Wrap(derrors.ErrRequired, errField("company, product and warehouse are required"))
-	}
-	if opts.OccurredAt.IsZero() {
-		return nil, derrors.Wrap(derrors.ErrRequired, errField("occurred at is required"))
-	}
-
-	inbound := opts.Type.IsInbound()
-	outbound := opts.Type.IsOutbound()
-	if inbound && opts.Quantity.IsNegative() {
+	if opts.Type.IsInbound() && opts.Quantity.IsNegative() {
 		return nil, derrors.Wrap(derrors.ErrInvalidPayment, errField("inbound movements must have positive quantity"))
 	}
-	if outbound && opts.Quantity.IsPositive() {
+	if opts.Type.IsOutbound() && opts.Quantity.IsPositive() {
 		return nil, derrors.Wrap(derrors.ErrInvalidPayment, errField("outbound movements must have negative quantity"))
 	}
-
 	return &InventoryMovement{
-		ID:           uuid.New(),
-		CompanyID:    opts.CompanyID,
-		ProductID:    opts.ProductID,
-		WarehouseID:  opts.WarehouseID,
-		BatchID:      opts.BatchID,
-		Type:         opts.Type,
-		Quantity:     opts.Quantity,
-		UnitCost:     opts.UnitCost,
-		CurrencyCode: opts.CurrencyCode,
-		Reference:    opts.Reference,
-		OccurredAt:   opts.OccurredAt,
-		Notes:        opts.Notes,
-		CreatedAt:    time.Now().UTC(),
+		ID:            uuid.New(),
+		BatchID:       opts.BatchID,
+		ProductID:     opts.ProductID,
+		MovementDate:  now,
+		Type:          opts.Type,
+		Reference:     opts.Reference,
+		QuantityDelta: opts.Quantity,
+		BalanceAfter:  opts.BalanceAfter,
+		UnitCost:      opts.UnitCost,
+		Notes:         opts.Notes,
+		CreatedAt:     now,
 	}, nil
 }
 
@@ -100,15 +84,15 @@ func (m *InventoryMovement) IsOutbound() bool { return m.Type.IsOutbound() }
 // SignedQuantity returns the quantity as a signed decimal string for
 // display ("+12.5000" or "-3.0000").
 func (m *InventoryMovement) SignedQuantity() string {
-	if m.Quantity.IsPositive() {
-		return "+" + m.Quantity.String()
+	if m.QuantityDelta.IsPositive() {
+		return "+" + m.QuantityDelta.String()
 	}
-	return m.Quantity.String()
+	return m.QuantityDelta.String()
 }
 
 // TotalCost returns the total cost of the movement (|quantity| * unit_cost).
 // For inbound movements this is the value added to inventory; for
 // outbound it is the COGS to record.
 func (m *InventoryMovement) TotalCost() valueobjects.Money {
-	return m.UnitCost.MulByDecimal(m.Quantity.Decimal().Abs())
+	return m.UnitCost.MulByDecimal(m.QuantityDelta.Decimal().Abs())
 }

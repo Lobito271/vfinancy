@@ -1,9 +1,7 @@
 package enums
 
 // OrderType is the kind of purchase order. "general" orders restock
-// the store; "customer" orders are placed for a specific customer and
-// carry an anticipo (down payment) with the balance tracked as
-// "por cobrar".
+// the store; "customer" orders are placed for a specific customer.
 type OrderType string
 
 const (

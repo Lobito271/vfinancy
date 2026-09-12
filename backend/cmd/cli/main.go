@@ -62,10 +62,7 @@ func openLocal(cfg *config.Config) (*database.DB, error) {
 }
 
 func openCloud(ctx context.Context, cfg *config.Config, log *logger.Logger) (*database.DB, error) {
-	if err := postgres.EnsureDatabase(ctx, &cfg.Database, log); err != nil {
-		return nil, err
-	}
-	return postgres.Connect(ctx, &cfg.Database, log)
+	return postgres.ConnectDSN(ctx, cfg.Sync.DSN(), log)
 }
 
 func openTarget(ctx context.Context, cfg *config.Config, log *logger.Logger, dialect string) (*database.DB, error) {

@@ -8,14 +8,14 @@ const (
 	BatchStatusActive BatchStatus = "active"
 	// BatchStatusDepleted — quantity = 0; historical record.
 	BatchStatusDepleted BatchStatus = "depleted"
-	// BatchStatusWrittenOff — quantity discarded (damage, expiry);
-	// generates an adjustment movement.
-	BatchStatusWrittenOff BatchStatus = "written_off"
+	// BatchStatusVoided — receipt cancelled by the operator; the row
+	// is kept for audit and rejects every further stock change.
+	BatchStatusVoided BatchStatus = "voided"
 )
 
 func (b BatchStatus) Valid() bool {
 	switch b {
-	case BatchStatusActive, BatchStatusDepleted, BatchStatusWrittenOff:
+	case BatchStatusActive, BatchStatusDepleted, BatchStatusVoided:
 		return true
 	}
 	return false

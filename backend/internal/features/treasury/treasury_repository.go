@@ -6,70 +6,44 @@ import (
 
 	"github.com/google/uuid"
 
-	"vfinancy/backend/internal/domain/repositories"
+	"vfinancy/backend/internal/domain/valueobjects"
 )
-
-// BankAccountFilter is the input to BankAccountRepository.List.
-type BankAccountFilter struct {
-	CompanyID *uuid.UUID
-	BranchID  *uuid.UUID
-	IsActive  *bool
-	repositories.PageRequest
-}
-
-// BankAccountRepository persists bank accounts and their
-// transactions.
-type BankAccountRepository interface {
-	Create(ctx context.Context, a *BankAccount) error
-	Update(ctx context.Context, a *BankAccount) error
-	Delete(ctx context.Context, id uuid.UUID) error
-
-	GetByID(ctx context.Context, id uuid.UUID) (*BankAccount, error)
-	List(ctx context.Context, filter BankAccountFilter) (repositories.Page[*BankAccount], error)
-}
-
-// BankTransactionFilter is the input to
-// BankTransactionRepository.List.
-type BankTransactionFilter struct {
-	BankAccountID *uuid.UUID
-	Reconciled     *bool
-	OccurredRange  repositories.TimeRange
-	repositories.PageRequest
-}
-
-// BankTransactionRepository persists bank transactions (movements
-// against a bank account). Reconciliation is reflected by the
-// is_reconciled flag.
-type BankTransactionRepository interface {
-	Create(ctx context.Context, t *BankTransaction) error
-	Update(ctx context.Context, t *BankTransaction) error
-
-	GetByID(ctx context.Context, id uuid.UUID) (*BankTransaction, error)
-	List(ctx context.Context, filter BankTransactionFilter) (repositories.Page[*BankTransaction], error)
-}
 
 // CreditCardRepository persists company-issued credit cards.
 type CreditCardRepository interface {
 	Create(ctx context.Context, c *CreditCard) error
 	Update(ctx context.Context, c *CreditCard) error
-	Delete(ctx context.Context, id uuid.UUID) error
+	// SoftDelete sets deleted_at and is_active=false in one step.
+	SoftDelete(ctx context.Context, id uuid.UUID) error
 
 	GetByID(ctx context.Context, id uuid.UUID) (*CreditCard, error)
-	List(ctx context.Context, companyID uuid.UUID) ([]*CreditCard, error)
+	// GetByIDForUpdate locks the row (SELECT ... FOR UPDATE) for the
+	// duration of the surrounding write transaction.
+	GetByIDForUpdate(ctx context.Context, id uuid.UUID) (*CreditCard, error)
+	List(ctx context.Context) ([]*CreditCard, error)
 
-	// SumCostsByCard sums cost_usd from purchase_orders for each card
-	// within the given date range. Returns a map of card_id → total cost.
-	SumCostsByCard(ctx context.Context, companyID uuid.UUID, from, to time.Time) (map[uuid.UUID]float64, error)
+	// CycleTotals sums, for purchase orders charged to the card with
+	// order_date in [from, to): totalUSD is the summed cost_usd of
+	// non-cancelled orders; refundsUSD the summed refund_amount of
+	// cancelled orders.
+	CycleTotals(ctx context.Context, cardID uuid.UUID, from, to time.Time) (totalUSD, refundsUSD valueobjects.Money, err error)
+}
+
+// ExchangeRateSnapshot is a stored daily rate for a currency pair.
+type ExchangeRateSnapshot struct {
+	From     valueobjects.CurrencyCode
+	To       valueobjects.CurrencyCode
+	RateDate time.Time
+	Rate     valueobjects.Money
+	Source   string
 }
 
 // ExchangeRateRepository persists daily exchange rates (one row per
-// (from, to, effective_date)).
+// (from, to, rate_date)).
 type ExchangeRateRepository interface {
-	Upsert(ctx context.Context, from, to string, rate string, effectiveDate string, source string) error
-	// GetForDate returns the rate effective at (or before) the given
-	// date for the (from, to) pair. Returns ErrNotFound if no rate
-	// has been recorded yet.
-	GetForDate(ctx context.Context, from, to string, date string) (string, error)
-	// GetLatest returns the most recent rate for the (from, to) pair.
-	GetLatest(ctx context.Context, from, to string) (string, error)
+	// Latest returns the most recent snapshot by rate_date for the
+	// pair. Returns repositories.ErrNotFound when nothing is stored.
+	Latest(ctx context.Context, from, to valueobjects.CurrencyCode) (*ExchangeRateSnapshot, error)
+	// Upsert inserts or overwrites the rate for the given date.
+	Upsert(ctx context.Context, from, to valueobjects.CurrencyCode, rateDate time.Time, rate valueobjects.Money, source string) error
 }

@@ -1,20 +1,19 @@
 // Package customer implements the business logic for the customer
-// aggregate: creation, validation, lifecycle, credit management.
+// aggregate: creation, validation, lifecycle, debt ledger.
 package customer
 
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/google/uuid"
 
+	"vfinancy/backend/infrastructure/logger"
 	"vfinancy/backend/internal/domain/enums"
 	derrors "vfinancy/backend/internal/domain/errors"
 	"vfinancy/backend/internal/domain/repositories"
 	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/shared/apperrors"
-	"vfinancy/backend/infrastructure/logger"
 )
 
 // CustomerService is the entry point for all customer-related
@@ -26,147 +25,131 @@ type CustomerService struct {
 	log  *logger.Logger
 }
 
-// New returns a CustomerService ready for use.
-func New(repo CustomerRepository, txm repositories.TransactionManager, log *logger.Logger) *CustomerService {
-	if repo == nil {
-		panic("customer: nil repo")
-	}
-	if txm == nil {
-		panic("customer: nil txm")
-	}
-	if log == nil {
-		panic("customer: nil logger")
-	}
+// NewService returns a CustomerService ready for use.
+func NewService(repo CustomerRepository, txm repositories.TransactionManager, log *logger.Logger) *CustomerService {
 	return &CustomerService{repo: repo, txm: txm, log: log}
 }
 
-// CreateInput is the payload for CreateCustomer. DocumentType and
-// DocumentNumber are required; the rest has sensible defaults.
+// CreateInput is the payload for Create. DocType is "" (no document),
+// "DNI" or "RUC"; Email, Phone and Address are optional.
 type CreateInput struct {
-	CompanyID       uuid.UUID
-	DocumentType    enums.DocumentType
-	DocumentNumber  string
-	BusinessName    string
-	TradeName       string // optional
-	TaxCategory     enums.TaxCategory
-	CreditLimit     valueobjects.Money
-	PaymentTermDays int
-	Email           string
-	Phone           string
-	Address         string
-	BranchID        *uuid.UUID
+	BusinessName string
+	DocType      string
+	DocNumber    string
+	Email        string
+	Phone        string
+	Address      string
 }
 
-// now returns the current UTC time.
-func (in CreateInput) now() time.Time { return time.Now().UTC() }
+// parseDocType converts a raw string to a DocumentType, rejecting
+// unknown values.
+func parseDocType(s string) (enums.DocumentType, error) {
+	dt := enums.DocumentType(s)
+	if !dt.Valid() {
+		return enums.TypeNone, derrors.Wrap(derrors.ErrInvalidEnum, errField("document type is invalid: "+s))
+	}
+	return dt, nil
+}
 
-// CreateCustomer validates the input, constructs a Customer entity
-// via the domain constructor, and persists it. The whole operation
-// runs inside a transaction.
+// optional builds an optional value object: empty input yields the
+// zero value, anything else is validated.
+func optional[T any](s string, build func(string) (T, error)) (T, error) {
+	var zero T
+	if s == "" {
+		return zero, nil
+	}
+	return build(s)
+}
+
+// conflict is the user-facing error for a duplicated document pair.
+func conflict() error {
+	return apperrors.Errorf(apperrors.ErrConflict, "ya existe un cliente con ese tipo y número de documento")
+}
+
+// Create validates the input, constructs a Customer and persists it
+// inside a transaction. A duplicated document pair is rejected.
 func (s *CustomerService) Create(ctx context.Context, in CreateInput) (*Customer, error) {
-	if in.CompanyID == uuid.Nil {
-		return nil, derrors.New("REQUIRED", "company id is required")
-	}
-	doc, err := valueobjects.NewDocumentNumber(in.DocumentType, in.DocumentNumber)
+	docType, err := parseDocType(in.DocType)
 	if err != nil {
 		return nil, err
 	}
-	email, err := valueobjects.NewEmail(in.Email)
+	if err := valueobjects.ValidateDocument(docType, in.DocNumber); err != nil {
+		return nil, err
+	}
+	email, err := optional(in.Email, valueobjects.NewEmail)
 	if err != nil {
 		return nil, err
 	}
-	addr, err := valueobjects.NewAddress(in.Address)
+	phone, err := optional(in.Phone, valueobjects.NewPhone)
 	if err != nil {
 		return nil, err
 	}
-	var phone valueobjects.Phone
-	if in.Phone != "" {
-		p, err := valueobjects.NewPhone(in.Phone)
-		if err != nil {
-			return nil, err
-		}
-		phone = p
+	addr, err := optional(in.Address, func(s string) (valueobjects.Address, error) {
+		return valueobjects.NewAddress(s)
+	})
+	if err != nil {
+		return nil, err
 	}
-	var tradeName valueobjects.FullName
-	if in.TradeName != "" {
-		tn, err := valueobjects.NewFullName(in.TradeName)
-		if err != nil {
-			return nil, err
-		}
-		tradeName = tn
+	c, err := NewCustomer(in.BusinessName, docType, in.DocNumber)
+	if err != nil {
+		return nil, err
 	}
+	c.Email = email
+	c.Phone = phone
+	c.Address = addr
 
-	var out *Customer
 	err = s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
-		c, err := NewCustomer(in.now(), NewCustomerOptions{
-			CompanyID:       in.CompanyID,
-			Document:        doc,
-			BusinessName:    valueobjects.MustFullName(in.BusinessName),
-			TradeName:       tradeName,
-			TaxCategory:     in.TaxCategory,
-			CreditLimit:     in.CreditLimit,
-			PaymentTermDays: in.PaymentTermDays,
-			Email:           email,
-			Phone:           phone,
-			Address:         addr,
-			BranchID:        in.BranchID,
-		})
-		if err != nil {
-			return err
+		if in.DocNumber != "" {
+			_, err := s.repo.GetByDocument(ctx, in.DocType, in.DocNumber)
+			if err == nil {
+				return conflict()
+			}
+			if !errors.Is(err, repositories.ErrNotFound) {
+				return err
+			}
 		}
 		if err := s.repo.Create(ctx, c); err != nil {
+			if errors.Is(err, repositories.ErrDuplicate) {
+				return conflict()
+			}
 			return err
 		}
-		out = c
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	s.log.Info("customer created",
-		"customer_id", out.ID,
-		"company_id", out.CompanyID,
-		"document_number", out.Document.Number(),
-	)
-	return out, nil
+	s.log.Info("customer created", "customer_id", c.ID)
+	return c, nil
 }
 
-// UpdateInput is the payload for UpdateCustomer. All fields except
-// ID are optional — only the non-zero ones are applied.
+// UpdateInput is the payload for Update. A non-empty BusinessName is
+// applied; DocType "" clears the document pair (empty DocNumber with a
+// type is rejected by validation); Email, Phone and Address are
+// cleared when empty and validated otherwise; Status "" keeps the
+// current value, anything else must be a valid CustomerStatus.
 type UpdateInput struct {
-	ID              uuid.UUID
-	BusinessName    string // optional
-	TradeName       string // optional, "" means clear
-	TaxCategory     enums.TaxCategory
-	CreditLimit     *valueobjects.Money // nil = unchanged
-	PaymentTermDays *int                // nil = unchanged
-	Email           string
-	Phone           string
-	Address         string
-	IsActive        *bool // nil = unchanged
+	ID           uuid.UUID
+	BusinessName string
+	DocType      string
+	DocNumber    string
+	Email        string
+	Phone        string
+	Address      string
+	Status       string
 }
 
-// UpdateCustomer loads the customer, applies the requested changes,
-// persists the updated entity. Blocked customers cannot be edited.
+// Update loads the customer, applies the requested changes and
+// persists the entity inside a transaction.
 func (s *CustomerService) Update(ctx context.Context, in UpdateInput) (*Customer, error) {
 	if in.ID == uuid.Nil {
-		return nil, derrors.New("REQUIRED", "customer id is required")
+		return nil, derrors.Wrap(derrors.ErrRequired, errField("customer id is required"))
 	}
 	var out *Customer
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
 		c, err := s.repo.GetByID(ctx, in.ID)
 		if err != nil {
 			return err
-		}
-		if c.Status == enums.CustomerStatusBlocked {
-			return apperrors.ErrCustomerBlocked
-		}
-		if in.IsActive != nil {
-			if *in.IsActive {
-				c.Activate()
-			} else {
-				c.Deactivate()
-			}
 		}
 		if in.BusinessName != "" {
 			name, err := valueobjects.NewFullName(in.BusinessName)
@@ -175,50 +158,45 @@ func (s *CustomerService) Update(ctx context.Context, in UpdateInput) (*Customer
 			}
 			c.BusinessName = name
 		}
-		if in.TradeName == "" {
-			c.TradeName = valueobjects.FullName{}
-		} else {
-			tn, err := valueobjects.NewFullName(in.TradeName)
-			if err != nil {
-				return err
+		docType, err := parseDocType(in.DocType)
+		if err != nil {
+			return err
+		}
+		doc, err := valueobjects.NewDocumentNumber(docType, in.DocNumber)
+		if err != nil {
+			return err
+		}
+		c.DocumentType = docType
+		c.DocumentNumber = doc
+		email, err := optional(in.Email, valueobjects.NewEmail)
+		if err != nil {
+			return err
+		}
+		c.Email = email
+		phone, err := optional(in.Phone, valueobjects.NewPhone)
+		if err != nil {
+			return err
+		}
+		c.Phone = phone
+		addr, err := optional(in.Address, func(s string) (valueobjects.Address, error) {
+			return valueobjects.NewAddress(s)
+		})
+		if err != nil {
+			return err
+		}
+		c.Address = addr
+		if in.Status != "" {
+			st := enums.CustomerStatus(in.Status)
+			if !st.Valid() {
+				return derrors.Wrap(derrors.ErrInvalidEnum, errField("customer status is invalid: "+in.Status))
 			}
-			c.TradeName = tn
+			c.Status = st
 		}
-		if in.TaxCategory != "" {
-			c.TaxCategory = in.TaxCategory
-		}
-		if in.CreditLimit != nil {
-			if err := c.UpdateCreditLimit(*in.CreditLimit); err != nil {
-				return err
-			}
-		}
-		if in.PaymentTermDays != nil {
-			if err := c.ChangePaymentTerms(*in.PaymentTermDays); err != nil {
-				return err
-			}
-		}
-		if in.Email != "" {
-			email, err := valueobjects.NewEmail(in.Email)
-			if err != nil {
-				return err
-			}
-			c.Email = email
-		}
-		if in.Phone != "" {
-			p, err := valueobjects.NewPhone(in.Phone)
-			if err != nil {
-				return err
-			}
-			c.Phone = p
-		}
-		if in.Address != "" {
-			addr, err := valueobjects.NewAddress(in.Address)
-			if err != nil {
-				return err
-			}
-			c.Address = addr
-		}
+		c.Touch()
 		if err := s.repo.Update(ctx, c); err != nil {
+			if errors.Is(err, repositories.ErrDuplicate) {
+				return conflict()
+			}
 			return err
 		}
 		out = c
@@ -231,190 +209,94 @@ func (s *CustomerService) Update(ctx context.Context, in UpdateInput) (*Customer
 	return out, nil
 }
 
-// Deactivate marks the customer as inactive. Already-inactive or
-// already-deleted customers are no-ops.
-func (s *CustomerService) Deactivate(ctx context.Context, id uuid.UUID) error {
-	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
-		c, err := s.repo.GetByID(ctx, id)
-		if err != nil {
-			return err
-		}
-		c.Deactivate()
-		return s.repo.Update(ctx, c)
-	})
-	if err != nil {
-		return err
-	}
-	s.log.Info("customer deactivated", "customer_id", id)
-	return nil
-}
-
-// Delete physically removes the customer. It fails with a friendly
-// error if the customer is referenced by sales, payments or advances,
-// in which case the caller should edit the record and set it to
-// Inactive instead.
+// Delete soft-deletes the customer. Historical references are
+// preserved.
 func (s *CustomerService) Delete(ctx context.Context, id uuid.UUID) error {
-	err := s.repo.Delete(ctx, id)
-	if errors.Is(err, repositories.ErrForeignKey) {
-		return apperrors.Errorf(apperrors.ErrConflict,
-			"no se puede eliminar porque tiene transacciones asociadas. Por favor, edite el registro y cambie su estado a Inactivo")
-	}
-	if err != nil {
+	if err := s.repo.SoftDelete(ctx, id); err != nil {
 		return err
 	}
 	s.log.Info("customer deleted", "customer_id", id)
 	return nil
 }
 
-// Block marks the customer as blocked with a reason. The reason is
-// mandatory and free-form (typically a payment-related note).
-func (s *CustomerService) Block(ctx context.Context, id uuid.UUID, reason string) error {
-	if reason == "" {
-		return derrors.New("REQUIRED", "block reason is required")
-	}
-	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
-		c, err := s.repo.GetByID(ctx, id)
-		if err != nil {
-			return err
-		}
-		c.Block(reason)
-		return s.repo.Update(ctx, c)
-	})
-	if err != nil {
-		return err
-	}
-	s.log.Info("customer blocked", "customer_id", id, "reason", reason)
-	return nil
-}
-
-// Unblock clears the blocked state, returning the customer to active.
-func (s *CustomerService) Unblock(ctx context.Context, id uuid.UUID) error {
-	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
-		c, err := s.repo.GetByID(ctx, id)
-		if err != nil {
-			return err
-		}
-		c.Unblock()
-		return s.repo.Update(ctx, c)
-	})
-	if err != nil {
-		return err
-	}
-	s.log.Info("customer unblocked", "customer_id", id)
-	return nil
-}
-
-// UpdateCreditLimit changes the customer's credit limit. The new limit
-// must be non-negative. This is a thin wrapper around the entity
-// method that loads + validates + saves the customer.
-func (s *CustomerService) UpdateCreditLimit(ctx context.Context, id uuid.UUID, limit valueobjects.Money) error {
-	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
-		c, err := s.repo.GetByID(ctx, id)
-		if err != nil {
-			return err
-		}
-		if err := c.UpdateCreditLimit(limit); err != nil {
-			return err
-		}
-		return s.repo.Update(ctx, c)
-	})
-	if err != nil {
-		return err
-	}
-	s.log.Info("customer credit limit updated", "customer_id", id, "new_limit", limit)
-	return nil
-}
-
-// RecordSale adds a sale amount to the customer's current debt. Called
-// by the sales workflow when a sale is finalized.
-func (s *CustomerService) RecordSale(ctx context.Context, id uuid.UUID, amount valueobjects.Money) (valueobjects.Money, error) {
-	var balance valueobjects.Money
-	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
-		c, err := s.repo.GetByID(ctx, id)
-		if err != nil {
-			return err
-		}
-		balance = c.RecordSale(amount)
-		return s.repo.Update(ctx, c)
-	})
-	if err != nil {
-		return valueobjects.Money{}, err
-	}
-	return balance, nil
-}
-
-// RecordPayment reduces the customer's debt by a payment. Used by the
-// payments slice.
-func (s *CustomerService) RecordPayment(ctx context.Context, id uuid.UUID, amount valueobjects.Money) (valueobjects.Money, error) {
-	var balance valueobjects.Money
-	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
-		c, err := s.repo.GetByID(ctx, id)
-		if err != nil {
-			return err
-		}
-		balance, err = c.RecordPayment(amount)
-		if err != nil {
-			return err
-		}
-		return s.repo.Update(ctx, c)
-	})
-	if err != nil {
-		return valueobjects.Money{}, err
-	}
-	return balance, nil
-}
-
-// OutstandingBalance returns the customer's current debt. It is a
-// convenience over the repo that does not require a transaction.
-func (s *CustomerService) OutstandingBalance(ctx context.Context, id uuid.UUID) (valueobjects.Money, error) {
-	c, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		return valueobjects.Money{}, err
-	}
-	return c.CurrentDebt, nil
-}
-
-// AvailableCredit returns credit_limit - current_debt, clamped to zero.
-// Used by sales UI to decide whether a new sale is allowed.
-func (s *CustomerService) AvailableCredit(ctx context.Context, id uuid.UUID) (valueobjects.Money, error) {
-	c, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		return valueobjects.Money{}, err
-	}
-	return c.AvailableCredit(), nil
-}
-
-// IsOverLimit returns whether current_debt exceeds credit_limit.
-func (s *CustomerService) IsOverLimit(ctx context.Context, id uuid.UUID) (bool, error) {
-	c, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		return false, err
-	}
-	return c.IsOverLimit(), nil
-}
-
-// CanPlaceSale is a guard: returns nil if a new sale of the given
-// amount is allowed, or a domain error if not (blocked customer,
-// inactive, would exceed credit limit).
-func (s *CustomerService) CanPlaceSale(ctx context.Context, id uuid.UUID, amount valueobjects.Money) error {
-	c, err := s.repo.GetByID(ctx, id)
-	if err != nil {
-		return err
-	}
-	return c.CanPlaceSale(amount)
-}
-
-// GetByID is a convenience that returns the customer aggregate.
+// GetByID returns a single customer.
 func (s *CustomerService) GetByID(ctx context.Context, id uuid.UUID) (*Customer, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
 // GetByDocument looks up a customer by document type + number.
-func (s *CustomerService) GetByDocument(ctx context.Context, companyID uuid.UUID, docType enums.DocumentType, docNum string) (*Customer, error) {
-	return s.repo.GetByDocument(ctx, companyID, string(docType), docNum)
+func (s *CustomerService) GetByDocument(ctx context.Context, docType, docNumber string) (*Customer, error) {
+	return s.repo.GetByDocument(ctx, docType, docNumber)
 }
 
 // List returns customers matching the filter.
 func (s *CustomerService) List(ctx context.Context, filter CustomerFilter) (repositories.Page[*Customer], error) {
 	return s.repo.List(ctx, filter)
+}
+
+// Options returns active customers for the sale form selects.
+func (s *CustomerService) Options(ctx context.Context) ([]*Customer, error) {
+	page, err := s.repo.List(ctx, CustomerFilter{
+		Status:      string(enums.CustomerStatusActive),
+		PageRequest: repositories.PageRequest{Limit: 1000},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return page.Items, nil
+}
+
+// mutateDebt applies a signed delta to the customer's debt, with a
+// floor of zero, and persists it in a transaction.
+func (s *CustomerService) mutateDebt(ctx context.Context, id uuid.UUID, delta valueobjects.Money) (valueobjects.Money, error) {
+	var out valueobjects.Money
+	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
+		c, err := s.repo.GetByID(ctx, id)
+		if err != nil {
+			return err
+		}
+		debt := c.CurrentDebt.Add(delta)
+		if debt.IsNegative() {
+			debt = valueobjects.Zero()
+		}
+		c.CurrentDebt = debt
+		c.Touch()
+		if err := s.repo.Update(ctx, c); err != nil {
+			return err
+		}
+		out = debt
+		return nil
+	})
+	if err != nil {
+		return valueobjects.Money{}, err
+	}
+	return out, nil
+}
+
+// RecordSale adds a sale amount to the customer's debt and returns the
+// new balance. Called when a sale is finalized.
+func (s *CustomerService) RecordSale(ctx context.Context, id uuid.UUID, amount valueobjects.Money) (valueobjects.Money, error) {
+	return s.mutateDebt(ctx, id, amount)
+}
+
+// RecordPayment reduces the customer's debt by a payment amount, with
+// a floor of zero, and returns the new balance.
+func (s *CustomerService) RecordPayment(ctx context.Context, id uuid.UUID, amount valueobjects.Money) (valueobjects.Money, error) {
+	return s.mutateDebt(ctx, id, amount.Neg())
+}
+
+// AdjustDebt applies a signed delta to the customer's debt, with a
+// floor of zero, and returns the new balance. Used by sale
+// cancellation.
+func (s *CustomerService) AdjustDebt(ctx context.Context, id uuid.UUID, delta valueobjects.Money) (valueobjects.Money, error) {
+	return s.mutateDebt(ctx, id, delta)
+}
+
+// OutstandingBalance returns the customer's stored current debt.
+func (s *CustomerService) OutstandingBalance(ctx context.Context, id uuid.UUID) (valueobjects.Money, error) {
+	raw, err := s.repo.GetOutstandingBalance(ctx, id)
+	if err != nil {
+		return valueobjects.Money{}, err
+	}
+	return valueobjects.MoneyFromString(raw)
 }

@@ -1,36 +1,35 @@
 package sales
 
 import (
-	"vfinancy/backend/internal/domain/repositories"
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 
+	"vfinancy/backend/internal/domain/repositories"
 )
 
-// SaleFilter is the input to SalesRepository.List.
+// SaleFilter is the input to SaleRepository.List. Any non-zero field
+// is included in the WHERE clause.
 type SaleFilter struct {
-	CompanyID  *uuid.UUID
-	CustomerID *uuid.UUID
-	BranchID   *uuid.UUID
-	SellerID   *uuid.UUID
-	Status     string
-	IssueRange repositories.TimeRange
+	Search         string
+	Status         string
+	SaleType       string
+	CustomerID     *uuid.UUID
+	From           *time.Time
+	To             *time.Time
+	OnlyUnpaid     bool
+	IncludeDeleted bool
 	repositories.PageRequest
 }
 
-// SalesRepository persists sales and their line items. Updates to a
-// posted sale are blocked at the entity level; the repository does
-// not enforce immutability on its own.
-type SalesRepository interface {
-	Create(ctx context.Context, s *Sale) error
-	Update(ctx context.Context, s *Sale) error
-	Delete(ctx context.Context, id uuid.UUID) error
-
+// SaleRepository persists sales and their line items.
+type SaleRepository interface {
+	Create(ctx context.Context, sale *Sale, items []*SaleItem) error
+	Update(ctx context.Context, sale *Sale) error
+	SoftDelete(ctx context.Context, id uuid.UUID) error
 	GetByID(ctx context.Context, id uuid.UUID) (*Sale, error)
-	GetByNumber(ctx context.Context, companyID uuid.UUID, number string) (*Sale, error)
-	Exists(ctx context.Context, id uuid.UUID) (bool, error)
+	ListItems(ctx context.Context, saleID uuid.UUID) ([]*SaleItem, error)
+	NextNumber(ctx context.Context) (string, error)
 	List(ctx context.Context, filter SaleFilter) (repositories.Page[*Sale], error)
-
-	GetNextNumber(ctx context.Context, companyID uuid.UUID) (string, error)
 }

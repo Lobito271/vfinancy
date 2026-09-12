@@ -1,5 +1,6 @@
+import { useMemo } from 'react';
 import { z } from 'zod';
-import { Form, DateField, SelectField, TextareaField } from '@/components/form';
+import { Form, DateField, SelectField, TextareaField, MoneyField } from '@/components/form';
 import type { SelectOption } from '@/components/form';
 import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
@@ -14,11 +15,6 @@ const BasePaymentSchema = z.object({
   notes: z.string().optional(),
 });
 
-const CreditCardPaymentSchema = BasePaymentSchema.refine(
-  (v) => Boolean(v.creditCardId),
-  { message: 'Seleccione una tarjeta', path: ['creditCardId'] },
-);
-
 type RegisterPaymentValues = z.infer<typeof BasePaymentSchema>;
 
 export interface RegisterPaymentInput {
@@ -27,6 +23,7 @@ export interface RegisterPaymentInput {
   creditCardId: string;
   reference: string;
   notes: string;
+  amount: number;
 }
 
 interface RegisterPaymentDialogProps {
@@ -42,6 +39,7 @@ interface RegisterPaymentDialogProps {
   currencyCode?: string;
   creditCardOptions?: SelectOption[];
   creditCardLoading?: boolean;
+  amountEditable?: boolean;
   onConfirm: (input: RegisterPaymentInput) => void;
 }
 
@@ -63,15 +61,30 @@ export function RegisterPaymentDialog({
   currencyCode = 'PEN',
   creditCardOptions,
   creditCardLoading,
+  amountEditable = false,
   onConfirm,
 }: RegisterPaymentDialogProps) {
   const useCreditCard = Boolean(creditCardOptions && creditCardOptions.length > 0);
-  const defaults: RegisterPaymentValues = {
+  const schema = useMemo(() => {
+    const base = BasePaymentSchema.extend({
+      amount: amountEditable
+        ? z
+            .number()
+            .positive('El monto debe ser mayor a 0')
+            .max(amount, `No puede superar el saldo pendiente (${formatCurrency(amount, currencyCode)})`)
+        : z.number().optional(),
+    });
+    return useCreditCard
+      ? base.refine((v) => Boolean(v.creditCardId), { message: 'Seleccione una tarjeta', path: ['creditCardId'] })
+      : base;
+  }, [amountEditable, amount, currencyCode, useCreditCard]);
+  const defaults: RegisterPaymentValues & { amount: number } = {
     paymentDate: today(),
     method: useCreditCard ? 'card' : 'cash',
     creditCardId: creditCardOptions?.[0]?.value ?? '',
     reference: '',
     notes: '',
+    amount,
   };
 
   return (
@@ -93,7 +106,7 @@ export function RegisterPaymentDialog({
 
         <Form
           key={documentNumber}
-          schema={useCreditCard ? CreditCardPaymentSchema : BasePaymentSchema}
+          schema={schema}
           defaultValues={defaults}
           onSubmit={(values) =>
             onConfirm({
@@ -101,6 +114,7 @@ export function RegisterPaymentDialog({
               creditCardId: values.creditCardId ?? '',
               reference: values.reference ?? '',
               notes: values.notes ?? '',
+              amount: values.amount ?? amount,
             })
           }
         >
@@ -122,6 +136,15 @@ export function RegisterPaymentDialog({
                     <SelectField name="method" label="Método de pago" required placeholder="Seleccione…" options={PaymentMethodOptions} />
                   )}
                 </div>
+                {amountEditable && (
+                  <MoneyField
+                    name="amount"
+                    label="Monto a cobrar"
+                    currency={currencyCode as 'PEN' | 'USD'}
+                    required
+                    description={`Saldo pendiente: ${formatCurrency(amount, currencyCode)}`}
+                  />
+                )}
                 <TextareaField name="reference" label="Referencia" rows={1} />
                 <TextareaField name="notes" label="Notas" rows={2} />
               </DialogBody>

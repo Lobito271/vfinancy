@@ -1,13 +1,12 @@
-const PaymentMethods = {
-  Cash: { code: 'cash', label: 'Efectivo' },
-  BankTransfer: { code: 'bank_transfer', label: 'Transferencia bancaria' },
-  Check: { code: 'check', label: 'Cheque' },
-  Card: { code: 'card', label: 'Tarjeta' },
-  Credit: { code: 'credit', label: 'Crédito' },
-  Other: { code: 'other', label: 'Otro' },
-} as const;
+export type PaymentMethodCode = 'cash' | 'transfer' | 'other';
 
-export const PaymentMethodOptions = Object.values(PaymentMethods).map((m) => ({
-  value: m.code,
-  label: m.label,
+const PaymentMethods: Record<PaymentMethodCode, string> = {
+  cash: 'Efectivo',
+  transfer: 'Transferencia',
+  other: 'Otro',
+};
+
+export const PaymentMethodOptions = Object.entries(PaymentMethods).map(([value, label]) => ({
+  value,
+  label,
 }));

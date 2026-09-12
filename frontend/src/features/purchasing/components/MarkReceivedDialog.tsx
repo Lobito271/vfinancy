@@ -5,7 +5,11 @@ import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, Dia
 import { Button } from '@/components/button';
 
 const ReceivedSchema = z.object({
-  arrivalDate: z.string().min(1, 'Fecha requerida').regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido'),
+  arrivalDate: z
+    .string()
+    .min(1, 'Fecha requerida')
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido')
+    .refine((value) => value <= today(), 'La fecha de recepción no puede ser posterior a hoy'),
 });
 
 type ReceivedValues = z.infer<typeof ReceivedSchema>;
@@ -39,7 +43,7 @@ export function MarkReceivedDialog({ open, onOpenChange, documentNumber, loading
           <DialogTitle>Marcar como Recibido</DialogTitle>
           <DialogDescription>
             Confirma la llegada del pedido <span className="fw-medium">{documentNumber}</span>. La mercadería se
-            ingresará al inventario y comenzará a contar el plazo de liquidación (25 días).
+            ingresará al inventario y comenzará a contar el plazo de liquidación configurado.
           </DialogDescription>
         </DialogHeader>
 

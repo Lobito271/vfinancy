@@ -1,18 +1,16 @@
 import { useMemo } from 'react';
 import { z } from 'zod';
-import { Form, DateField, TextareaField } from '@/components/form';
+import { Form, TextareaField } from '@/components/form';
 import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 
 const FaultySchema = z.object({
-  arrivalDate: z.string().min(1, 'Fecha requerida').regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido'),
   reason: z.string().min(1, 'Indique el motivo'),
 });
 
 type FaultyValues = z.infer<typeof FaultySchema>;
 
 export interface MarkFaultyInput {
-  arrivalDate: string;
   reason: string;
 }
 
@@ -24,15 +22,8 @@ interface MarkFaultyDialogProps {
   onConfirm: (input: MarkFaultyInput) => void;
 }
 
-function today(): string {
-  const d = new Date();
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
-}
-
-const todayString = today();
-
 export function MarkFaultyDialog({ open, onOpenChange, documentNumber, loading, onConfirm }: MarkFaultyDialogProps) {
-  const defaults = useMemo<FaultyValues>(() => ({ arrivalDate: todayString, reason: '' }), []);
+  const defaults = useMemo<FaultyValues>(() => ({ reason: '' }), []);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -49,7 +40,6 @@ export function MarkFaultyDialog({ open, onOpenChange, documentNumber, loading, 
           {({ formState }) => (
             <>
               <DialogBody>
-                <DateField name="arrivalDate" label="Fecha de llegada" required />
                 <TextareaField name="reason" label="Motivo del daño" rows={3} required placeholder="Describa el estado de la mercadería…" />
               </DialogBody>
               <DialogFooter>

@@ -1,216 +1,194 @@
 package bindings
 
 import (
-	"github.com/google/uuid"
-
 	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/features/treasury"
-	"vfinancy/backend/internal/utils"
 )
 
-// CreditCardDTO is the serializable view of a credit card.
 type CreditCardDTO struct {
-	ID              string `json:"id"`
-	Issuer          string `json:"issuer"`
-	LastFour        string `json:"lastFour"`
-	CardHolder      string `json:"cardHolder"`
-	ExpirationMonth int    `json:"expirationMonth"`
-	ExpirationYear  int    `json:"expirationYear"`
-	CreditLimit     string `json:"creditLimit"`
-	CurrentBalance  string `json:"currentBalance"`
-	AvailableCredit string `json:"availableCredit"`
-	CutOffDay       int    `json:"cutOffDay"`
-	PaymentDueDay   int    `json:"paymentDueDay"`
-	CurrencyCode    string `json:"currencyCode"`
-	IsActive        bool   `json:"isActive"`
+	ID             string  `json:"id"`
+	Issuer         string  `json:"issuer"`
+	LastFour       string  `json:"lastFour"`
+	CreditLimit    float64 `json:"creditLimit"`
+	CurrentBalance float64 `json:"currentBalance"`
+	CutOffDay      int     `json:"cutOffDay"`
+	PaymentDueDay  int     `json:"paymentDueDay"`
+	IsActive       bool    `json:"isActive"`
 }
 
-func toCreditCardDTO(c *treasury.CreditCard) *CreditCardDTO {
-	return &CreditCardDTO{
-		ID: c.ID.String(), Issuer: c.Issuer, LastFour: c.LastFour, CardHolder: c.CardHolder,
-		ExpirationMonth: c.ExpirationMonth, ExpirationYear: c.ExpirationYear,
-		CreditLimit: c.CreditLimit.String(), CurrentBalance: c.CurrentBalance.String(),
-		AvailableCredit: c.AvailableCredit().String(), CutOffDay: c.CutOffDay,
-		PaymentDueDay: c.PaymentDueDay, CurrencyCode: c.CurrencyCode.String(), IsActive: c.IsActive,
-	}
-}
-
-func (a *App) ListCreditCards() ([]*CreditCardDTO, error) {
-	cards, err := a.treasurySvc.ListCards(a.Context(), a.companyID())
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	result := make([]*CreditCardDTO, 0, len(cards))
-	for _, card := range cards {
-		result = append(result, toCreditCardDTO(card))
-	}
-	return result, nil
-}
-
-type IssueCreditCardRequest struct {
-	Issuer          string `json:"issuer"`
-	LastFour        string `json:"lastFour"`
-	CardHolder      string `json:"cardHolder"`
-	ExpirationMonth int    `json:"expirationMonth"`
-	ExpirationYear  int    `json:"expirationYear"`
-	CreditLimit     string `json:"creditLimit"`
-	CutOffDay       int    `json:"cutOffDay"`
-	PaymentDueDay   int    `json:"paymentDueDay"`
-	CurrencyCode    string `json:"currencyCode"`
-}
-
-func (a *App) IssueCreditCard(req IssueCreditCardRequest) (*CreditCardDTO, error) {
-	limit, err := valueobjects.MoneyFromString(req.CreditLimit)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	currency, err := valueobjects.NewCurrencyCode(req.CurrencyCode)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	card, err := a.treasurySvc.IssueCard(a.Context(), treasury.IssueCardInput{
-		CompanyID: a.companyID(), Issuer: req.Issuer, LastFour: req.LastFour, CardHolder: req.CardHolder,
-		ExpirationMonth: req.ExpirationMonth, ExpirationYear: req.ExpirationYear, CreditLimit: limit,
-		CutOffDay: req.CutOffDay, PaymentDueDay: req.PaymentDueDay, CurrencyCode: currency,
-	})
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return toCreditCardDTO(card), nil
-}
-
-type UpdateCreditCardRequest struct {
-	ID            string `json:"id"`
-	Issuer        string `json:"issuer"`
-	LastFour      string `json:"lastFour"`
-	CardHolder    string `json:"cardHolder"`
-	CreditLimit   string `json:"creditLimit"`
-	CutOffDay     int    `json:"cutOffDay"`
-	PaymentDueDay int    `json:"paymentDueDay"`
-	IsActive      bool   `json:"isActive"`
-}
-
-func (a *App) UpdateCreditCard(req UpdateCreditCardRequest) (*CreditCardDTO, error) {
-	id, err := uuid.Parse(req.ID)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	limit, err := valueobjects.MoneyFromString(req.CreditLimit)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	card, err := a.treasurySvc.UpdateCard(a.Context(), treasury.UpdateCardInput{
-		ID:            id,
-		Issuer:        req.Issuer,
-		LastFour:      req.LastFour,
-		CardHolder:    req.CardHolder,
-		CreditLimit:   limit,
-		CutOffDay:     req.CutOffDay,
-		PaymentDueDay: req.PaymentDueDay,
-		IsActive:      req.IsActive,
-	})
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return toCreditCardDTO(card), nil
-}
-
-func (a *App) DeleteCreditCard(id string) error {
-	cardID, err := uuid.Parse(id)
-	if err != nil {
-		return utils.ProcessError(err)
-	}
-	return utils.ProcessError(a.treasurySvc.DeleteCard(a.Context(), cardID))
-}
-
-type CreditCardAmountRequest struct {
-	ID     string `json:"id"`
-	Amount string `json:"amount"`
-}
-
-func (a *App) ChargeCreditCard(req CreditCardAmountRequest) error {
-	id, err := uuid.Parse(req.ID)
-	if err != nil {
-		return utils.ProcessError(err)
-	}
-	amount, err := valueobjects.MoneyFromString(req.Amount)
-	if err != nil {
-		return utils.ProcessError(err)
-	}
-	return utils.ProcessError(a.treasurySvc.ChargeCard(a.Context(), id, amount))
-}
-
-// LatestExchangeRate returns the most recent rate for a currency pair.
-func (a *App) LatestExchangeRate(from, to string) (string, error) {
-	f, err := valueobjects.NewCurrencyCode(from)
-	if err != nil {
-		return "", utils.ProcessError(err)
-	}
-	t, err := valueobjects.NewCurrencyCode(to)
-	if err != nil {
-		return "", utils.ProcessError(err)
-	}
-	rate, err := a.treasurySvc.LatestExchangeRate(a.Context(), f, t)
-	if err != nil {
-		return "", utils.ProcessError(err)
-	}
-	return rate.String(), nil
-}
-
-// CardProjectionDTO is the serializable view of a credit card payment projection.
-type CardProjectionDTO struct {
-	CardID          string  `json:"cardId"`
-	Issuer          string  `json:"issuer"`
-	LastFour        string  `json:"lastFour"`
-	CardHolder      string  `json:"cardHolder"`
-	ProjectedUSD    float64 `json:"projectedUSD"`
-	CycleStart      string  `json:"cycleStart"`
-	NextCutOffDate  string  `json:"nextCutOffDate"`
-	NextPaymentDate string  `json:"nextPaymentDate"`
-}
-
-func toCardProjectionDTO(p treasury.CardPaymentProjection) *CardProjectionDTO {
-	return &CardProjectionDTO{
-		CardID:          p.CardID,
-		Issuer:          p.Issuer,
-		LastFour:        p.LastFour,
-		CardHolder:      p.CardHolder,
-		ProjectedUSD:    p.ProjectedUSD,
-		CycleStart:      p.CycleStart,
-		NextCutOffDate:  p.NextCutOffDate,
-		NextPaymentDate: p.NextPaymentDate,
+func cardDTO(c *treasury.CreditCard) CreditCardDTO {
+	return CreditCardDTO{
+		ID:             c.ID.String(),
+		Issuer:         c.Issuer,
+		LastFour:       c.LastFour,
+		CreditLimit:    moneyFloat(c.CreditLimit),
+		CurrentBalance: moneyFloat(c.CurrentBalance),
+		CutOffDay:      c.CutOffDay,
+		PaymentDueDay:  c.PaymentDueDay,
+		IsActive:       c.IsActive,
 	}
 }
 
-// GetCardProjections returns the projected USD debt for each credit card.
-func (a *App) GetCardProjections() ([]*CardProjectionDTO, error) {
-	projections, err := a.treasurySvc.ProjectPayments(a.Context(), a.companyID())
+// ListCreditCards returns the treasury card catalog.
+func (a *App) ListCreditCards() ([]CreditCardDTO, error) {
+	cards, err := a.treasurySvc.ListCards(a.Context())
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return nil, err
 	}
-	items := make([]*CardProjectionDTO, 0, len(projections))
-	for _, p := range projections {
-		items = append(items, toCardProjectionDTO(p))
+	items := make([]CreditCardDTO, 0, len(cards))
+	for _, c := range cards {
+		items = append(items, cardDTO(c))
 	}
 	return items, nil
 }
 
-// PayCreditCardRequest records a payment against a credit card.
-type PayCreditCardRequest struct {
-	CardID string `json:"cardId"`
-	Amount string `json:"amount"`
+type SaveCreditCardRequest struct {
+	ID            string  `json:"id"`
+	Issuer        string  `json:"issuer"`
+	LastFour      string  `json:"lastFour"`
+	CreditLimit   float64 `json:"creditLimit"`
+	CutOffDay     int     `json:"cutOffDay"`
+	PaymentDueDay int     `json:"paymentDueDay"`
 }
 
-// PayCreditCard pays the given amount against a credit card, reducing
-// its outstanding balance.
-func (a *App) PayCreditCard(req PayCreditCardRequest) error {
-	cardID, err := uuid.Parse(req.CardID)
+// IssueCreditCard registers a new international card (USD).
+func (a *App) IssueCreditCard(req SaveCreditCardRequest) (CreditCardDTO, error) {
+	limit, err := moneyFromFloat(req.CreditLimit)
 	if err != nil {
-		return utils.ProcessError(err)
+		return CreditCardDTO{}, err
 	}
-	amount, err := valueobjects.MoneyFromString(req.Amount)
+	c, err := a.treasurySvc.IssueCard(a.Context(), treasury.IssueCardInput{
+		Issuer:        req.Issuer,
+		LastFour:      req.LastFour,
+		CreditLimit:   limit,
+		CutOffDay:     req.CutOffDay,
+		PaymentDueDay: req.PaymentDueDay,
+	})
 	if err != nil {
-		return utils.ProcessError(err)
+		return CreditCardDTO{}, err
 	}
-	return utils.ProcessError(a.treasurySvc.PayCard(a.Context(), cardID, amount))
+	return cardDTO(c), nil
+}
+
+// UpdateCreditCard edits the card parameters.
+func (a *App) UpdateCreditCard(req SaveCreditCardRequest) (CreditCardDTO, error) {
+	id, err := parseUUID(req.ID)
+	if err != nil {
+		return CreditCardDTO{}, err
+	}
+	limit, err := moneyPtrFromFloat(req.CreditLimit)
+	if err != nil {
+		return CreditCardDTO{}, err
+	}
+	c, err := a.treasurySvc.UpdateCard(a.Context(), treasury.UpdateCardInput{
+		ID:            id,
+		Issuer:        &req.Issuer,
+		LastFour:      &req.LastFour,
+		CreditLimit:   limit,
+		CutOffDay:     &req.CutOffDay,
+		PaymentDueDay: &req.PaymentDueDay,
+	})
+	if err != nil {
+		return CreditCardDTO{}, err
+	}
+	return cardDTO(c), nil
+}
+
+// DeleteCreditCard soft-deletes a card preserving the historical
+// projections (edge case 4.4).
+func (a *App) DeleteCreditCard(id string) error {
+	cid, err := parseUUID(id)
+	if err != nil {
+		return err
+	}
+	return a.treasurySvc.DeleteCard(a.Context(), cid)
+}
+
+type CardPaymentRequest struct {
+	CardID string  `json:"cardId"`
+	Amount float64 `json:"amount"`
+}
+
+// PayCreditCard liquidates the active cycle (full amount resets the
+// balance to zero).
+func (a *App) PayCreditCard(req CardPaymentRequest) (CreditCardDTO, error) {
+	cid, err := parseUUID(req.CardID)
+	if err != nil {
+		return CreditCardDTO{}, err
+	}
+	amount, err := moneyFromFloat(req.Amount)
+	if err != nil {
+		return CreditCardDTO{}, err
+	}
+	if err := a.treasurySvc.PayCard(a.Context(), cid, amount); err != nil {
+		return CreditCardDTO{}, err
+	}
+	c, err := a.treasurySvc.GetCard(a.Context(), cid)
+	if err != nil {
+		return CreditCardDTO{}, err
+	}
+	return cardDTO(c), nil
+}
+
+type CardProjectionDTO struct {
+	CardID       string  `json:"cardId"`
+	Issuer       string  `json:"issuer"`
+	LastFour     string  `json:"lastFour"`
+	CycleStart   string  `json:"cycleStart"`
+	CycleEnd     string  `json:"cycleEnd"`
+	PaymentDue   string  `json:"paymentDue"`
+	TotalUSD     float64 `json:"totalUsd"`
+	RefundsUSD   float64 `json:"refundsUsd"`
+	Status       string  `json:"status"`
+	CurrentBalance float64 `json:"currentBalance"`
+}
+
+// GetCardProjections returns the active billing cycle per card with the
+// month-end clamping applied (edge case 4.4).
+func (a *App) GetCardProjections() ([]CardProjectionDTO, error) {
+	projections, err := a.treasurySvc.ProjectPayments(a.Context())
+	if err != nil {
+		return nil, err
+	}
+	items := make([]CardProjectionDTO, 0, len(projections))
+	for _, p := range projections {
+		items = append(items, CardProjectionDTO{
+			CardID:         p.Card.ID.String(),
+			Issuer:         p.Card.Issuer,
+			LastFour:       p.Card.LastFour,
+			CycleStart:     dayStr(p.CycleStart),
+			CycleEnd:       dayStr(p.CycleEnd),
+			PaymentDue:     dayStr(p.PaymentDue),
+			TotalUSD:       moneyFloat(p.TotalUSD),
+			RefundsUSD:     moneyFloat(p.RefundsUSD),
+			Status:         p.Status,
+			CurrentBalance: moneyFloat(p.Card.CurrentBalance),
+		})
+	}
+	return items, nil
+}
+
+type ExchangeRateDTO struct {
+	Rate       float64 `json:"rate"`
+	Source     string  `json:"source"`
+	IsFallback bool    `json:"isFallback"`
+}
+
+// LatestExchangeRate returns the USD/PEN rate with its source so the UI
+// can surface the "Modo Contingencia" indicator when the API failed
+// (edge case 4.1).
+func (a *App) LatestExchangeRate() (ExchangeRateDTO, error) {
+	usd, err := valueobjects.NewCurrencyCode("USD")
+	if err != nil {
+		return ExchangeRateDTO{}, err
+	}
+	pen, err := valueobjects.NewCurrencyCode("PEN")
+	if err != nil {
+		return ExchangeRateDTO{}, err
+	}
+	info, err := a.treasurySvc.LatestExchangeRate(a.Context(), usd, pen)
+	if err != nil {
+		return ExchangeRateDTO{}, err
+	}
+	return ExchangeRateDTO{Rate: moneyFloat(info.Rate), Source: info.Source, IsFallback: info.IsFallback}, nil
 }

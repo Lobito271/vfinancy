@@ -1,309 +1,217 @@
 package bindings
 
 import (
+	"context"
 	"time"
-	"github.com/google/uuid"
 
-	"vfinancy/backend/internal/domain/enums"
-	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/features/inventory"
-	"vfinancy/backend/internal/utils"
 )
 
-// InventoryBatchDTO is the serializable view of a stock batch.
-type InventoryBatchDTO struct {
-	ID              string `json:"id"`
-	ProductID       string `json:"productId"`
-	WarehouseID     string `json:"warehouseId"`
-	LotNumber       string `json:"lotNumber"`
-	ArrivalDate     string `json:"arrivalDate"`
-	ExpiryDate      string `json:"expiryDate"`
-	InitialQuantity string `json:"initialQuantity"`
-	CurrentQuantity string `json:"currentQuantity"`
-	UnitCost        string `json:"unitCost"`
-	CurrencyCode    string `json:"currencyCode"`
-	Status          string `json:"status"`
-	MaxSaleDate     string `json:"maxSaleDate"`
-	IsClearance     bool   `json:"isClearance"`
+type PreferencesDTO struct {
+	ClearanceDays        int     `json:"clearanceDays"`
+	ClearanceWarningDays int     `json:"clearanceWarningDays"`
+	ImportCostFactor     float64 `json:"importCostFactor"`
+	FallbackExchangeRate float64 `json:"fallbackExchangeRate"`
+	CustomsLimitUSD      float64 `json:"customsLimitUSD"`
+	BackupFolder         string  `json:"backupFolder"`
+	BackupFrequency      string  `json:"backupFrequency"`
 }
 
-// InventoryMovementDTO is the serializable view of a stock movement.
-type InventoryMovementDTO struct {
-	ID          string `json:"id"`
-	ProductID   string `json:"productId"`
-	WarehouseID string `json:"warehouseId"`
-	BatchID     string `json:"batchId"`
-	Type        string `json:"type"`
-	Quantity    string `json:"quantity"`
-	UnitCost    string `json:"unitCost"`
-	OccurredAt  string `json:"occurredAt"`
-	Notes       string `json:"notes"`
-}
-
-func toInventoryBatchDTO(today valueobjects.Date, b *inventory.InventoryBatch) *InventoryBatchDTO {
-	expiry := ""
-	if b.ExpiryDate != nil {
-		expiry = b.ExpiryDate.Format("2006-01-02")
-	}
-	return &InventoryBatchDTO{
-		ID:              b.ID.String(),
-		ProductID:       b.ProductID.String(),
-		WarehouseID:     b.WarehouseID.String(),
-		LotNumber:       b.LotNumber.String(),
-		ArrivalDate:     b.ArrivalDate.Format("2006-01-02"),
-		ExpiryDate:      expiry,
-		InitialQuantity: b.InitialQuantity.String(),
-		CurrentQuantity: b.CurrentQuantity.String(),
-		UnitCost:        b.UnitCost.String(),
-		CurrencyCode:    b.CurrencyCode.String(),
-		Status:          b.Status,
-		MaxSaleDate:     b.MaximumSaleDate().Format("2006-01-02"),
-		IsClearance:     b.IsClearance(today),
-	}
-}
-
-func toInventoryMovementDTO(m *inventory.InventoryMovement) *InventoryMovementDTO {
-	batchID := ""
-	if m.BatchID != nil {
-		batchID = m.BatchID.String()
-	}
-	return &InventoryMovementDTO{
-		ID:          m.ID.String(),
-		ProductID:   m.ProductID.String(),
-		WarehouseID: m.WarehouseID.String(),
-		BatchID:     batchID,
-		Type:        m.Type.String(),
-		Quantity:    m.Quantity.String(),
-		UnitCost:    m.UnitCost.String(),
-		OccurredAt:  m.OccurredAt.Format(time.RFC3339),
-		Notes:       m.Notes,
-	}
-}
-
-// ListInventoryBatchesRequest filters the batch listing.
-type ListInventoryBatchesRequest struct {
-	OnlyClearance bool `json:"onlyClearance"`
-	PaginationRequest
-}
-
-// WarehouseDTO is the serializable view of a warehouse.
-type WarehouseDTO struct {
-	ID              string `json:"id"`
-	Code            string `json:"code"`
-	Name            string `json:"name"`
-	IsDefault       bool   `json:"isDefault"`
-	AllowsClearance bool   `json:"allowsClearance"`
-	IsActive        bool   `json:"isActive"`
-}
-
-// ListWarehouses returns the warehouses of the active company.
-func (a *App) ListWarehouses() ([]WarehouseDTO, error) {
-	rows, err := a.db.QueryContext(a.Context(),
-		`SELECT id, code, name, is_default, allows_clearance, is_active
-		   FROM warehouses
-		  WHERE company_id = $1 AND deleted_at IS NULL
-		  ORDER BY is_default DESC, name`, a.companyID())
+func (a *App) preferencesDTO(ctx context.Context) (PreferencesDTO, error) {
+	prefs, err := a.settingsSvc.GetPreferences(ctx)
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return PreferencesDTO{}, err
 	}
-	defer rows.Close()
-	out := make([]WarehouseDTO, 0, 8)
-	for rows.Next() {
-		var w WarehouseDTO
-		if err := rows.Scan(&w.ID, &w.Code, &w.Name, &w.IsDefault, &w.AllowsClearance, &w.IsActive); err != nil {
-			return nil, utils.ProcessError(err)
+	return PreferencesDTO{
+		ClearanceDays:        prefs.ClearanceDays,
+		ClearanceWarningDays: prefs.ClearanceWarningDays,
+		ImportCostFactor:     prefs.ImportCostFactor,
+		FallbackExchangeRate: prefs.FallbackExchangeRate,
+		CustomsLimitUSD:      prefs.CustomsLimitUSD,
+		BackupFolder:         prefs.BackupFolder,
+		BackupFrequency:      prefs.BackupFrequency,
+	}, nil
+}
+
+// GetPreferences returns the business parameters (edge-case driven:
+// clearance days, import cost factor, fallback rate, customs cap,
+// backup policy).
+func (a *App) GetPreferences() (PreferencesDTO, error) {
+	return a.preferencesDTO(a.Context())
+}
+
+// UpdatePreference stores one business parameter by key. Changing the
+// clearance threshold recomputes the clearance flags immediately
+// (edge case 4.2: no app restart).
+func (a *App) UpdatePreference(key string, value interface{}) (PreferencesDTO, error) {
+	ctx := a.Context()
+	if err := a.settingsSvc.UpdatePreference(ctx, key, value); err != nil {
+		return PreferencesDTO{}, err
+	}
+	if key == "clearance_days" || key == "clearance_warning_days" {
+		if _, err := a.inventorySvc.RefreshClearanceFlags(ctx, time.Now().UTC()); err != nil {
+			a.log.Warn("clearance refresh after settings change failed", "error", err.Error())
 		}
-		out = append(out, w)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return out, nil
+	return a.preferencesDTO(ctx)
 }
 
-// ListInventoryBatches returns paged stock batches.
-func (a *App) ListInventoryBatches(req ListInventoryBatchesRequest) (PageResult, error) {
-	ctx := a.Context()
-	filter := inventory.InventoryBatchFilter{
-		CompanyID:     a.companyIDPtr(),
-		OnlyClearance: req.OnlyClearance,
+type InventoryBatchDTO struct {
+	ID                  string  `json:"id"`
+	ProductID           string  `json:"productId"`
+	ProductDescription  string  `json:"productDescription"`
+	PurchaseOrderItemID string  `json:"purchaseOrderItemId"`
+	ArrivalDate         string  `json:"arrivalDate"`
+	Quantity            float64 `json:"quantity"`
+	OriginalQuantity    float64 `json:"originalQuantity"`
+	UnitCost            float64 `json:"unitCost"`
+	Status              string  `json:"status"`
+	IsClearance         bool    `json:"isClearance"`
+	MaxSaleDate         string  `json:"maxSaleDate"`
+}
+
+type InventoryMovementDTO struct {
+	ID           string  `json:"id"`
+	BatchID      string  `json:"batchId"`
+	ProductID    string  `json:"productId"`
+	MovementDate string  `json:"movementDate"`
+	Type         string  `json:"type"`
+	Quantity     float64 `json:"quantity"`
+	BalanceAfter float64 `json:"balanceAfter"`
+	UnitCost     float64 `json:"unitCost"`
+	Notes        string  `json:"notes"`
+}
+
+type ProductRefDTO struct {
+	ID          string  `json:"id"`
+	SKU         string  `json:"sku"`
+	Description string  `json:"description"`
+	UnitCode    string  `json:"unitCode"`
+	CostUSD     float64 `json:"costUsd"`
+	SalePrice   float64 `json:"salePrice"`
+	Stock       float64 `json:"stock"`
+}
+
+// ListInventoryBatches returns the kardex batches, optionally filtered
+// to the clearance view.
+func (a *App) ListInventoryBatches(req PaginationRequest, onlyClearance bool, search string) (PageResult, error) {
+	page, err := a.inventorySvc.ListBatches(a.Context(), inventory.InventoryBatchFilter{
+		OnlyActive:    true,
+		OnlyClearance: onlyClearance,
+		Search:        search,
 		PageRequest:   req.toPageRequest(),
-	}
-	page, err := a.inventorySvc.ListBatches(ctx, filter)
-	if err != nil {
-		return PageResult{}, utils.ProcessError(err)
-	}
-	today := valueobjects.Date(time.Now().UTC())
-	items := make([]*InventoryBatchDTO, 0, len(page.Items))
-	for _, b := range page.Items {
-		items = append(items, toInventoryBatchDTO(today, b))
-	}
-	return PageResult{Items: items, Total: page.Total, Page: page.Offset/page.Limit + 1, PageSize: page.Limit}, nil
-}
-
-// ListInventoryMovementsRequest filters the movement listing.
-type ListInventoryMovementsRequest struct {
-	ProductID string `json:"productId"`
-	PaginationRequest
-}
-
-// ListInventoryMovements returns paged stock movements.
-func (a *App) ListInventoryMovements(req ListInventoryMovementsRequest) (PageResult, error) {
-	ctx := a.Context()
-	filter := inventory.InventoryMovementFilter{
-		CompanyID:   a.companyIDPtr(),
-		PageRequest: req.toPageRequest(),
-	}
-	productID, err := parseOptionalUUID(req.ProductID)
-	if err != nil {
-		return PageResult{}, utils.ProcessError(err)
-	}
-	filter.ProductID = productID
-	page, err := a.inventorySvc.ListMovements(ctx, filter)
-	if err != nil {
-		return PageResult{}, utils.ProcessError(err)
-	}
-	items := make([]*InventoryMovementDTO, 0, len(page.Items))
-	for _, m := range page.Items {
-		items = append(items, toInventoryMovementDTO(m))
-	}
-	return PageResult{Items: items, Total: page.Total, Page: page.Offset/page.Limit + 1, PageSize: page.Limit}, nil
-}
-
-// ReceiveStockRequest receives stock into a new batch.
-type ReceiveStockRequest struct {
-	ProductID    string `json:"productId"`
-	WarehouseID  string `json:"warehouseId"`
-	LotNumber    string `json:"lotNumber"`
-	ArrivalDate  string `json:"arrivalDate"`
-	Quantity     string `json:"quantity"`
-	UnitCost     string `json:"unitCost"`
-	CurrencyCode string `json:"currencyCode"`
-}
-
-// ReceiveStock persists a new inventory batch.
-func (a *App) ReceiveStock(req ReceiveStockRequest) (*InventoryBatchDTO, error) {
-	ctx := a.Context()
-	productID, err := uuid.Parse(req.ProductID)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	warehouseID, err := uuid.Parse(req.WarehouseID)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	lot, err := valueobjects.NewLotNumber(req.LotNumber)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	arrival, err := time.Parse("2006-01-02", req.ArrivalDate)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	qty, err := valueobjects.QuantityFromString(req.Quantity)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	cost, err := valueobjects.MoneyFromString(req.UnitCost)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	cc, err := valueobjects.NewCurrencyCode(req.CurrencyCode)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	batch, err := a.inventorySvc.Receive(ctx, inventory.ReceiveInput{
-		CompanyID:    a.companyID(),
-		ProductID:    productID,
-		WarehouseID:  warehouseID,
-		LotNumber:    lot,
-		ArrivalDate:  valueobjects.Date(arrival),
-		Quantity:     qty,
-		UnitCost:     cost,
-		CurrencyCode: cc,
 	})
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return PageResult{}, err
 	}
-	today := valueobjects.Date(time.Now().UTC())
-	return toInventoryBatchDTO(today, batch), nil
+	items := make([]InventoryBatchDTO, 0, len(page.Items))
+	for _, b := range page.Items {
+		dto, err := batchDTO(a, b)
+		if err != nil {
+			return PageResult{}, err
+		}
+		items = append(items, dto)
+	}
+	return PageResult{Items: items, Total: page.Total, Page: req.Page, PageSize: req.PageSize}, nil
 }
 
-// IssueStockRequest removes stock from a batch (sale, write-off...).
-type IssueStockRequest struct {
-	BatchID  string `json:"batchId"`
-	Quantity string `json:"quantity"`
+// ListInventoryMovements returns the kardex ledger.
+func (a *App) ListInventoryMovements(req PaginationRequest, productID string) (PageResult, error) {
+	pid, err := parseOptionalUUID(productID)
+	if err != nil {
+		return PageResult{}, err
+	}
+	page, err := a.inventorySvc.ListMovements(a.Context(), inventory.InventoryMovementFilter{
+		ProductID:   pid,
+		PageRequest: req.toPageRequest(),
+	})
+	if err != nil {
+		return PageResult{}, err
+	}
+	items := make([]InventoryMovementDTO, 0, len(page.Items))
+	for _, m := range page.Items {
+		items = append(items, InventoryMovementDTO{
+			ID:           m.ID.String(),
+			BatchID:      m.BatchID.String(),
+			ProductID:    m.ProductID.String(),
+			MovementDate: m.MovementDate.Format(time.RFC3339),
+			Type:         string(m.Type),
+			Quantity:     m.QuantityDelta.Decimal().InexactFloat64(),
+			BalanceAfter: m.BalanceAfter.Decimal().InexactFloat64(),
+			UnitCost:     m.UnitCost.Decimal().InexactFloat64(),
+			Notes:        m.Notes,
+		})
+	}
+	return PageResult{Items: items, Total: page.Total, Page: req.Page, PageSize: req.PageSize}, nil
 }
 
-// IssueStock records an inventory exit from a batch.
-func (a *App) IssueStock(req IssueStockRequest) error {
-	ctx := a.Context()
-	batchID, err := uuid.Parse(req.BatchID)
-	if err != nil {
-		return utils.ProcessError(err)
-	}
-	qty, err := valueobjects.QuantityFromString(req.Quantity)
-	if err != nil {
-		return utils.ProcessError(err)
-	}
-	ref, err := valueobjects.NewReference(enums.ReferenceTypeManual, batchID)
-	if err != nil {
-		return utils.ProcessError(err)
-	}
-	return utils.ProcessError(a.inventorySvc.Issue(ctx, inventory.IssueInput{
-		BatchID:   batchID,
-		Quantity:  qty,
-		Reference: ref,
-	}))
+type ReceiveStockRequest struct {
+	ProductID   string  `json:"productId"`
+	Quantity    float64 `json:"quantity"`
+	ArrivalDate string  `json:"arrivalDate"`
+	UnitCost    float64 `json:"unitCost"`
 }
 
-// AdjustStockRequest corrects the stock level of a batch. Delta is
-// signed: positive adds stock, negative removes it.
+// ReceiveStock registers a manual goods intake ("Almacén Principal" is
+// implicit). The arrival date cannot be in the future.
+func (a *App) ReceiveStock(req ReceiveStockRequest) (InventoryBatchDTO, error) {
+	pid, err := parseUUID(req.ProductID)
+	if err != nil {
+		return InventoryBatchDTO{}, err
+	}
+	arrival, err := parseDate(req.ArrivalDate)
+	if err != nil {
+		return InventoryBatchDTO{}, err
+	}
+	qty, err := quantityFromFloat(req.Quantity)
+	if err != nil {
+		return InventoryBatchDTO{}, err
+	}
+	unitCost, err := moneyFromFloat(req.UnitCost)
+	if err != nil {
+		return InventoryBatchDTO{}, err
+	}
+	batch, err := a.inventorySvc.Receive(a.Context(), inventory.ReceiveInput{
+		ProductID:   pid,
+		Quantity:    qty,
+		ArrivalDate: arrival,
+		UnitCost:    unitCost,
+	})
+	if err != nil {
+		return InventoryBatchDTO{}, err
+	}
+	return batchDTO(a, batch)
+}
+
 type AdjustStockRequest struct {
-	BatchID string `json:"batchId"`
-	Delta   string `json:"delta"`
-	Reason  string `json:"reason"`
+	BatchID     string  `json:"batchId"`
+	NewQuantity float64 `json:"newQuantity"`
+	Notes       string  `json:"notes"`
 }
 
-// AdjustStock records a manual inventory adjustment.
+// AdjustStock sets the batch quantity to an absolute positive target.
 func (a *App) AdjustStock(req AdjustStockRequest) error {
-	ctx := a.Context()
-	batchID, err := uuid.Parse(req.BatchID)
+	bid, err := parseUUID(req.BatchID)
 	if err != nil {
-		return utils.ProcessError(err)
+		return err
 	}
-	delta, err := valueobjects.QuantityFromString(req.Delta)
+	qty, err := quantityFromFloat(req.NewQuantity)
 	if err != nil {
-		return utils.ProcessError(err)
+		return err
 	}
-	ref, err := valueobjects.NewReference(enums.ReferenceTypeAdjustment, batchID)
-	if err != nil {
-		return utils.ProcessError(err)
-	}
-	return utils.ProcessError(a.inventorySvc.Adjust(ctx, inventory.AdjustInput{
-		BatchID:   batchID,
-		Delta:     delta,
-		Reason:    req.Reason,
-		Reference: ref,
-	}))
+	return a.inventorySvc.Adjust(a.Context(), inventory.AdjustInput{BatchID: bid, NewQuantity: qty, Notes: req.Notes})
 }
 
-// VoidStockRequest cancels a mistaken stock receipt.
 type VoidStockRequest struct {
 	BatchID string `json:"batchId"`
 	Reason  string `json:"reason"`
 }
 
-// VoidStock cancels a mistaken stock receipt. The batch row is kept,
-// its remaining quantity is zeroed and its status becomes "voided".
+// VoidStock zeroes the remaining stock of a batch (write-off).
 func (a *App) VoidStock(req VoidStockRequest) error {
-	ctx := a.Context()
-	batchID, err := uuid.Parse(req.BatchID)
+	bid, err := parseUUID(req.BatchID)
 	if err != nil {
-		return utils.ProcessError(err)
+		return err
 	}
-	return utils.ProcessError(a.inventorySvc.Void(ctx, inventory.VoidInput{
-		BatchID: batchID,
-		Reason:  req.Reason,
-	}))
+	return a.inventorySvc.Void(a.Context(), inventory.VoidInput{BatchID: bid, Reason: req.Reason})
 }

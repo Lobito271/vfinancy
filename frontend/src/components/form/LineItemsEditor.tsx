@@ -100,7 +100,7 @@ export function LineItemsEditor({ products, isSale = false, currency = DefaultCu
               </Button>
             </div>
             <Grid cols={4}>
-              <NumberField name={`items.${index}.quantity` as Path<LineForm>} label="Cant." required min={0} step={0.01} />
+              <NumberField name={`items.${index}.quantity` as Path<LineForm>} label="Cant." required min={1} step={1} />
               <MoneyField name={`items.${index}.unitPrice` as Path<LineForm>} label="P. unitario" currency={currency} />
               <PercentageField name={`items.${index}.discountPercent` as Path<LineForm>} label="Dscto %" />
               <PercentageField name={`items.${index}.taxRate` as Path<LineForm>} label="IGV %" />

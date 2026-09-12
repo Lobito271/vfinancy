@@ -1,204 +1,176 @@
+// Package sync replicates business rows between the local SQLite
+// runtime database (the single source of truth) and a cloud PostgreSQL
+// mirror over a direct pgx connection. A background worker calls
+// RunOnce on a ticker: per table it pulls mirror rows and applies them
+// with last-writer-wins, pushes local changes, then pushes local
+// hard-deletes. Every error is returned to the worker, which logs it
+// and retries on the next tick, so a sync failure never takes the app
+// down.
 package sync
 
 import (
 	"context"
-	"errors"
+	"fmt"
+	"io/fs"
 	"log/slog"
 	"time"
-
-	"vfinancy/backend/internal/domain/repositories"
 )
 
-// Service drives the local side of replication: it pushes local changes
-// to the sync server and pulls remote changes back, resolving conflicts
-// with last-writer-wins and recording every conflict in sync_conflicts.
+const (
+	cursorPush = ":push"
+	cursorPull = ":pull"
+)
+
+// Config wires the sync service to the cloud mirror.
+type Config struct {
+	Enabled      bool
+	DSN          string
+	PollInterval time.Duration
+	MigrationsFS fs.FS
+}
+
+// Service performs bidirectional watermark replication between the
+// local store and the mirror.
 type Service struct {
-	repo     Repository
-	client   *HTTPClient
-	log      *slog.Logger
-	name     string
-	platform string
+	local       LocalStore
+	remote      RemoteStore
+	cfg         Config
+	log         *slog.Logger
+	schemaReady bool
 }
 
-// NewService returns a worker bound to a repository and a server client.
-func NewService(repo Repository, client *HTTPClient, log *slog.Logger, name, platform string) *Service {
-	return &Service{repo: repo, client: client, log: log, name: name, platform: platform}
+// NewService returns a replication service bound to both stores.
+func NewService(local LocalStore, remote RemoteStore, cfg Config, log *slog.Logger) *Service {
+	return &Service{local: local, remote: remote, cfg: cfg, log: log}
 }
 
-// RunOnce performs one full replication exchange. It is safe to call
-// repeatedly from a background loop: it registers the device on first
-// contact, pushes pending changes, applies the server response with LWW,
-// advances the per-table cursors and prunes consumed tombstones.
+// RunOnce performs one full replication exchange. The first error
+// aborts the pass; the caller logs it and retries on the next tick.
 func (s *Service) RunOnce(ctx context.Context) error {
-	device, err := s.ensureDevice(ctx)
-	if err != nil {
+	if err := s.ensureSchema(ctx); err != nil {
 		return err
 	}
-
-	cursors, err := s.repo.GetCursors(ctx, device.ID)
-	if err != nil {
-		return err
-	}
-
-	req := &Request{Cursors: cursors}
-	for _, meta := range SyncedTables {
-		cur := cursors[meta.Name]
-		rows, _, err := s.repo.RowsChangedSince(ctx, meta, cur)
-		if err != nil {
-			return err
+	for _, meta := range SyncedTables() {
+		if err := s.pullTable(ctx, meta); err != nil {
+			return fmt.Errorf("sync: pull %s: %w", meta.Name, err)
 		}
-		req.Rows = append(req.Rows, rows...)
-		tombs, err := s.repo.TombstonesSince(ctx, meta.Name, cur)
-		if err != nil {
-			return err
+		if err := s.pushTable(ctx, meta); err != nil {
+			return fmt.Errorf("sync: push %s: %w", meta.Name, err)
 		}
-		req.Tombstones = append(req.Tombstones, tombs...)
-	}
-
-	resp, err := s.client.Sync(ctx, device.Token, req)
-	if err != nil {
-		return err
-	}
-
-	conflicts := s.applyResponse(ctx, device.ID, resp)
-
-	if err := s.repo.UpdateCursors(ctx, device.ID, resp.Cursors); err != nil {
-		return err
-	}
-	for table, wm := range resp.Cursors {
-		if _, err := s.repo.PurgeTombstones(ctx, table, wm); err != nil {
-			s.log.Warn("sync: tombstone purge failed", "table", table, "error", err)
-		}
-	}
-	if resp.ServerTime > 0 {
-		if err := s.repo.TouchDeviceSeen(ctx, device.ID, resp.ServerTime); err != nil {
-			s.log.Warn("sync: touch device failed", "error", err)
-		}
-	}
-	for _, c := range conflicts {
-		if err := s.repo.LogConflict(ctx, c); err != nil {
-			s.log.Warn("sync: persist conflict failed", "table", c.TableName, "record", c.RecordID, "error", err)
+		if err := s.pushDeletes(ctx, meta); err != nil {
+			return fmt.Errorf("sync: push deletes %s: %w", meta.Name, err)
 		}
 	}
 	return nil
 }
 
-// applyResponse applies the rows and tombstones returned by the server
-// with LWW and collects the conflicts that were resolved.
-func (s *Service) applyResponse(ctx context.Context, deviceID string, resp *Response) []*Conflict {
-	out := make([]*Conflict, 0)
-
-	for _, ch := range resp.Rows {
-		meta := LookupTable(ch.TableName)
-		if meta == nil {
-			s.log.Warn("sync: ignoring unknown table", "table", ch.TableName)
-			continue
-		}
-		applied, localTime, err := s.repo.ApplyRow(ctx, meta, ch.Payload, ch.UpdatedAt)
-		if err != nil {
-			s.log.Warn("sync: apply row failed", "table", ch.TableName, "record", ch.RecordID, "error", err)
-			continue
-		}
-		if !applied {
-			out = append(out, newConflict(deviceID, ch.TableName, ch.RecordID, "UPDATE",
-				msToTime(localTime), msToTime(ch.UpdatedAt), ResolutionLocalWon, "local row is newer"))
-		}
+// TestConnection verifies the mirror is reachable and its schema is
+// current. The settings UI calls it before saving the configuration.
+func (s *Service) TestConnection(ctx context.Context) error {
+	if err := s.remote.EnsureSchema(ctx, s.cfg.MigrationsFS); err != nil {
+		return fmt.Errorf("sync: test connection: %w", err)
 	}
-
-	for _, tb := range resp.Tombstones {
-		meta := LookupTable(tb.TableName)
-		if meta == nil {
-			continue
-		}
-		applied, localTime, err := s.repo.ApplyTombstone(ctx, meta, tb.RecordID, tb.UpdatedAt)
-		if err != nil {
-			s.log.Warn("sync: apply tombstone failed", "table", tb.TableName, "record", tb.RecordID, "error", err)
-			continue
-		}
-		if !applied {
-			out = append(out, newConflict(deviceID, tb.TableName, tb.RecordID, "DELETE",
-				msToTime(localTime), msToTime(tb.UpdatedAt), ResolutionLocalWon, "local row is newer than the remote delete"))
-		}
-	}
-
-	for _, r := range resp.Results {
-		if r.Status != StatusConflict {
-			continue
-		}
-		msg := r.Message
-		if msg == "" {
-			msg = "server kept the newer version"
-		}
-		out = append(out, newConflict(deviceID, r.TableName, r.RecordID, "UPDATE",
-			nil, nil, ResolutionRemoteWon, msg))
-	}
-
-	return out
+	s.schemaReady = true
+	return nil
 }
 
-// ensureDevice returns the local device, registering it with the server
-// on first contact. Until registration succeeds the device id is
-// unknown, so no cursors exist yet; local writes still proceed because
-// row replication does not depend on the device row.
-func (s *Service) ensureDevice(ctx context.Context) (*Device, error) {
-	d, err := s.repo.GetLocalDevice(ctx)
-	if err == nil {
-		return d, nil
-	}
-	if !errors.Is(err, repositories.ErrNotFound) {
-		return nil, err
-	}
-	companyID, err := s.repo.FirstCompanyID(ctx)
-	if err != nil {
-		return nil, err
-	}
-	reg, err := s.client.Register(ctx, &RegisterRequest{
-		CompanyID: companyID,
-		Name:      s.name,
-		Platform:  s.platform,
-	})
-	if err != nil {
-		return nil, err
-	}
-	d = &Device{
-		ID:        reg.DeviceID,
-		CompanyID: companyID,
-		Name:      s.name,
-		Platform:  s.platform,
-		Token:     reg.Token,
-		IsLocal:   true,
-		IsActive:  true,
-	}
-	if err := s.repo.RegisterDevice(ctx, d); err != nil {
-		return nil, err
-	}
-	s.log.Info("sync: device registered", "device_id", d.ID)
-	return d, nil
+// Close releases the mirror connection pool.
+func (s *Service) Close() {
+	_ = s.remote.Close()
 }
 
-func newConflict(deviceID, table, recordID, operation string, local, remote *time.Time, resolution, message string) *Conflict {
-	return &Conflict{
-		ID:              newID(),
-		DeviceID:        strPtr(deviceID),
-		TableName:       table,
-		RecordID:        recordID,
-		Operation:       operation,
-		LocalUpdatedAt:  local,
-		RemoteUpdatedAt: remote,
-		Resolution:      resolution,
-		Message:         message,
-		CreatedAt:       time.Now().UTC(),
-	}
+// ResolveLWW reports whether an incoming copy of a row must overwrite
+// the local copy: absent or equally old local rows accept the incoming
+// value, strictly newer local rows win.
+func ResolveLWW(local, remote time.Time) bool {
+	return !local.After(remote)
 }
 
-func msToTime(ms int64) *time.Time {
-	if ms == 0 {
+func (s *Service) ensureSchema(ctx context.Context) error {
+	if s.schemaReady {
 		return nil
 	}
-	t := time.UnixMilli(ms).UTC()
-	return &t
+	if err := s.remote.EnsureSchema(ctx, s.cfg.MigrationsFS); err != nil {
+		return fmt.Errorf("sync: ensure mirror schema: %w", err)
+	}
+	s.schemaReady = true
+	return nil
 }
 
-func strPtr(s string) *string {
-	return &s
+func (s *Service) pullTable(ctx context.Context, meta TableMeta) error {
+	since, err := s.local.Cursor(ctx, meta.Name+cursorPull)
+	if err != nil {
+		return err
+	}
+	rows, err := s.remote.Changes(ctx, meta, since)
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	conflicts, err := s.local.UpsertRows(ctx, meta, rows)
+	if err != nil {
+		return err
+	}
+	for _, c := range conflicts {
+		s.log.Warn("sync: conflict",
+			"table", c.TableName,
+			"record", c.RecordID,
+			"resolution", c.Resolution,
+			"message", c.Message,
+		)
+	}
+	return s.local.SetCursor(ctx, meta.Name+cursorPull, rowWatermark(meta, rows))
+}
+
+func (s *Service) pushTable(ctx context.Context, meta TableMeta) error {
+	since, err := s.local.Cursor(ctx, meta.Name+cursorPush)
+	if err != nil {
+		return err
+	}
+	rows, err := s.local.Changes(ctx, meta, since)
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	if err := s.remote.UpsertRows(ctx, meta, rows); err != nil {
+		return err
+	}
+	s.log.Debug("sync: rows pushed", "table", meta.Name, "count", len(rows))
+	return s.local.SetCursor(ctx, meta.Name+cursorPush, rowWatermark(meta, rows))
+}
+
+func (s *Service) pushDeletes(ctx context.Context, meta TableMeta) error {
+	tombs, err := s.local.Tombstones(ctx, meta.Name)
+	if err != nil {
+		return err
+	}
+	if len(tombs) == 0 {
+		return nil
+	}
+	ids := make([]string, len(tombs))
+	for i, tb := range tombs {
+		ids[i] = tb.ID
+	}
+	if err := s.remote.ApplyDeletes(ctx, meta, ids); err != nil {
+		return err
+	}
+	if err := s.local.ForgetTombstones(ctx, meta.Name, ids); err != nil {
+		return err
+	}
+	s.log.Debug("sync: deletes pushed", "table", meta.Name, "count", len(ids))
+	return nil
+}
+
+// rowWatermark returns the time column of the last row; rows arrive
+// ordered ascending by that column.
+func rowWatermark(meta TableMeta, rows []map[string]any) time.Time {
+	last := rows[len(rows)-1]
+	if t, ok := last[meta.TimeColumn].(time.Time); ok {
+		return t
+	}
+	return time.Time{}
 }

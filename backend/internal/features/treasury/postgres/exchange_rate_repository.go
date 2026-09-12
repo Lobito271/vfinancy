@@ -3,10 +3,13 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	"vfinancy/backend/infrastructure/persistence"
-	"vfinancy/backend/internal/domain/repositories"
+	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/features/treasury"
 )
 
@@ -14,49 +17,77 @@ type exchangeRateRepository struct {
 	q persistence.Querier
 }
 
+// NewExchangeRateRepository returns an ExchangeRateRepository backed by
+// the given database handle.
 func NewExchangeRateRepository(db *sql.DB) *exchangeRateRepository {
 	return &exchangeRateRepository{q: persistence.FromDB(db)}
 }
 
-func (r *exchangeRateRepository) Upsert(ctx context.Context, from, to string, rate string, effectiveDate string, source string) error {
-	const q = `INSERT INTO exchange_rates (company_id, from_currency, to_currency, rate, rate_date, source, created_at)
-	VALUES (NULL, $1, $2, $3, $4, $5, $6)
+func (r *exchangeRateRepository) Upsert(ctx context.Context, from, to valueobjects.CurrencyCode, rateDate time.Time, rate valueobjects.Money, source string) error {
+	const q = `INSERT INTO exchange_rates (
+		id, from_currency, to_currency, rate_date, rate, source, created_at
+	) VALUES ($1, $2, $3, $4, $5, $6, $7)
 	ON CONFLICT (from_currency, to_currency, rate_date) DO UPDATE SET
 		rate = EXCLUDED.rate,
 		source = EXCLUDED.source,
 		created_at = EXCLUDED.created_at`
-	_, err := persistence.Q(ctx, r.q).ExecContext(ctx, q, from, to, rate, effectiveDate, source, time.Now().UTC())
+	_, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
+		uuid.New(), from.String(), to.String(),
+		rateDate.Format("2006-01-02"), rate.String(), source, time.Now().UTC(),
+	)
 	return persistence.Translate(err)
 }
 
-func (r *exchangeRateRepository) GetForDate(ctx context.Context, from, to string, date string) (string, error) {
-	const q = `SELECT rate FROM exchange_rates
-	WHERE from_currency = $1 AND to_currency = $2 AND rate_date <= $3
-	ORDER BY rate_date DESC LIMIT 1`
-	var rate string
-	err := persistence.Q(ctx, r.q).QueryRowContext(ctx, q, from, to, date).Scan(&rate)
-	if err != nil {
-		if persistence.IsPgNoRows(err) {
-			return "", repositories.ErrNotFound
-		}
-		return "", persistence.Translate(err)
-	}
-	return rate, nil
-}
-
-func (r *exchangeRateRepository) GetLatest(ctx context.Context, from, to string) (string, error) {
-	const q = `SELECT rate FROM exchange_rates
+func (r *exchangeRateRepository) Latest(ctx context.Context, from, to valueobjects.CurrencyCode) (*treasury.ExchangeRateSnapshot, error) {
+	const q = `SELECT from_currency, to_currency, rate_date, rate, source FROM exchange_rates
 	WHERE from_currency = $1 AND to_currency = $2
 	ORDER BY rate_date DESC LIMIT 1`
-	var rate string
-	err := persistence.Q(ctx, r.q).QueryRowContext(ctx, q, from, to).Scan(&rate)
+	row := persistence.Q(ctx, r.q).QueryRowContext(ctx, q, from.String(), to.String())
+	snap := &treasury.ExchangeRateSnapshot{}
+	var (
+		fromStr, toStr, rate string
+		rateDate             any
+	)
+	err := persistence.ScanRow(row, &fromStr, &toStr, &rateDate, &rate, &snap.Source)
 	if err != nil {
-		if persistence.IsPgNoRows(err) {
-			return "", repositories.ErrNotFound
-		}
-		return "", persistence.Translate(err)
+		return nil, err
 	}
-	return rate, nil
+	if snap.From, err = valueobjects.NewCurrencyCode(fromStr); err != nil {
+		return nil, err
+	}
+	if snap.To, err = valueobjects.NewCurrencyCode(toStr); err != nil {
+		return nil, err
+	}
+	date, err := decodeRateDate(rateDate)
+	if err != nil {
+		return nil, err
+	}
+	snap.RateDate = date
+	money, err := persistence.ParseMoney(rate)
+	if err != nil {
+		return nil, err
+	}
+	snap.Rate = money
+	return snap, nil
+}
+
+// decodeRateDate normalises a rate_date value: SQLite stores DATE
+// columns as TEXT, PostgreSQL as time.Time.
+func decodeRateDate(v any) (time.Time, error) {
+	switch t := v.(type) {
+	case time.Time:
+		return t, nil
+	case string:
+		var formats = []string{"2006-01-02", "2006-01-02 15:04:05.999999999-07:00", "2006-01-02 15:04:05"}
+		for _, f := range formats {
+			if parsed, err := time.Parse(f, t); err == nil {
+				return parsed, nil
+			}
+		}
+		return time.Time{}, fmt.Errorf("exchange rate: invalid rate_date %q", t)
+	default:
+		return time.Time{}, fmt.Errorf("exchange rate: unsupported rate_date type %T", v)
+	}
 }
 
 var _ treasury.ExchangeRateRepository = (*exchangeRateRepository)(nil)

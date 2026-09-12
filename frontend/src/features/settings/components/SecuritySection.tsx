@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { KeyRound, Lock } from 'lucide-react';
+import { KeyRound, Lock, ShieldCheck } from 'lucide-react';
 import { Section } from '@/components/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card';
 import { Button } from '@/components/button';
@@ -20,6 +20,8 @@ export function SecuritySection() {
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [busy, setBusy] = useState(false);
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const [recoveryToken, setRecoveryToken] = useState('');
   const passwordEnabled = auth.data?.passwordEnabled ?? false;
 
   const valid = next === '' || next.length >= 8;
@@ -45,7 +47,7 @@ export function SecuritySection() {
 
   const savePassword = () =>
     run(
-      () => wailsClient.setLocalPassword(current, next),
+      () => wailsClient.setLocalPassword({ current, next }),
       passwordEnabled ? 'Contraseña actualizada' : 'Contraseña creada',
     );
 
@@ -57,6 +59,32 @@ export function SecuritySection() {
       await wailsClient.lockLocalProfile();
       navigate(Routes.Welcome, { replace: true });
     }, 'Aplicación bloqueada');
+
+  const generateRecovery = async () => {
+    setRecoveryBusy(true);
+    try {
+      const token = await wailsClient.getRecoveryToken();
+      setRecoveryToken(token);
+    } catch (cause) {
+      push({
+        title: 'No se pudo generar la clave',
+        description: cause instanceof Error ? cause.message : undefined,
+        variant: 'destructive',
+      });
+    } finally {
+      setRecoveryBusy(false);
+    }
+  };
+
+  const downloadRecovery = () => {
+    const content = `Clave de recuperación de vfinancy\n\n${recoveryToken}\n\nGuárdala en un lugar seguro. Si pierdes la contraseña,\nesta clave te permite recuperar el acceso a este equipo.\n`;
+    const url = URL.createObjectURL(new Blob([content], { type: 'text/plain' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'vfinancy-recovery-key.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <Section
@@ -114,6 +142,28 @@ export function SecuritySection() {
                 </Button>
               )}
             </div>
+
+            {!recoveryToken && (
+              <div className="hstack hstack--sm">
+                <Button variant="outline" onClick={generateRecovery} loading={recoveryBusy}>
+                  <ShieldCheck /> Generar clave de recuperación
+                </Button>
+              </div>
+            )}
+            {recoveryToken && (
+              <div className="dialog-note">
+                <p className="fw-medium">Guarda esta clave en un lugar seguro.</p>
+                <code className="recovery-token">{recoveryToken}</code>
+                <div className="hstack hstack--sm" style={{ marginTop: '0.5rem' }}>
+                  <Button size="sm" onClick={downloadRecovery}>
+                    Descargar clave
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setRecoveryToken('')}>
+                    Entendido
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -14,6 +14,9 @@ var assets embed.FS
 //go:embed all:backend/migrations/sqlite
 var sqliteMigrations embed.FS
 
+//go:embed all:backend/migrations/postgres
+var postgresMigrations embed.FS
+
 func main() {
 	app := NewApp()
 

@@ -5,74 +5,62 @@ import (
 
 	"github.com/google/uuid"
 
+	"vfinancy/backend/internal/domain/enums"
 	derrors "vfinancy/backend/internal/domain/errors"
 	"vfinancy/backend/internal/domain/valueobjects"
 )
 
-// ClearanceDays is the maximum number of days a batch may sit in stock
+// ClearanceDays is the default number of days a batch may sit in stock
 // before it is flagged as clearance. The 25-day rule is a hard business
-// rule driven by the perishable-goods nature of the business.
-//
-// Past this date, batches are sold at reduced (clearance) prices and
-// appear on the operator dashboard under "Productos en remate".
+// rule driven by the perishable-goods nature of the business; the
+// user-configured setting (if any) overrides it. Past this date,
+// batches are sold at reduced (clearance) prices and appear on the
+// operator dashboard under "Productos en remate".
 const ClearanceDays = 25
 
-// Batch statuses. "active" is sellable; "depleted" has no remaining
-// stock; "written_off" was zeroed by damage/expiry; "voided" was a
-// mistaken receipt cancelled by the operator (the row is kept for audit).
-const (
-	InventoryBatchStatusActive     = "active"
-	InventoryBatchStatusDepleted   = "depleted"
-	InventoryBatchStatusWrittenOff = "written_off"
-	InventoryBatchStatusVoided     = "voided"
-)
-
-// InventoryBatch groups a set of units of a single product that share
-// the same arrival date, lot and (optionally) supplier. Each batch
-// tracks its own quantity and its clearance deadline.
+// InventoryBatch groups the units of a single product that arrived on
+// the same date (typically from one purchase line). Each batch tracks
+// its own quantity and its clearance deadline.
 type InventoryBatch struct {
-	ID              uuid.UUID
-	CompanyID       uuid.UUID
-	ProductID       uuid.UUID
-	WarehouseID     uuid.UUID
-	SupplierID      *uuid.UUID
-	PurchaseLineID  *uuid.UUID
-	LotNumber       valueobjects.LotNumber
-	SerialNumber    string
-	ArrivalDate     valueobjects.Date
-	ExpiryDate      *valueobjects.Date
-	InitialQuantity valueobjects.Quantity
-	CurrentQuantity valueobjects.Quantity
-	UnitCost        valueobjects.Money
-	CurrencyCode    valueobjects.CurrencyCode
-	Status          string
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	CreatedBy       *uuid.UUID
-	UpdatedBy       *uuid.UUID
+	ID                  uuid.UUID
+	ProductID           uuid.UUID
+	PurchaseOrderItemID *uuid.UUID
+	ArrivalDate         valueobjects.Date
+	Quantity            valueobjects.Quantity
+	OriginalQuantity    valueobjects.Quantity
+	UnitCost            valueobjects.Money
+	ExchangeRate        valueobjects.ExchangeRate
+	Status              enums.BatchStatus
+	IsClearance         bool
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	CreatedBy           string
+	UpdatedBy           string
 }
 
 // NewInventoryBatchOptions is the input to NewInventoryBatch.
 type NewInventoryBatchOptions struct {
-	CompanyID       uuid.UUID
-	ProductID       uuid.UUID
-	WarehouseID     uuid.UUID
-	SupplierID      *uuid.UUID
-	PurchaseLineID  *uuid.UUID
-	LotNumber       valueobjects.LotNumber
-	SerialNumber    string
-	ArrivalDate     valueobjects.Date
-	ExpiryDate      *valueobjects.Date
-	InitialQuantity valueobjects.Quantity
-	UnitCost        valueobjects.Money
-	CurrencyCode    valueobjects.CurrencyCode
+	ProductID           uuid.UUID
+	PurchaseOrderItemID *uuid.UUID
+	ArrivalDate         valueobjects.Date
+	InitialQuantity     valueobjects.Quantity
+	UnitCost            valueobjects.Money
+	ExchangeRate        valueobjects.ExchangeRate
 }
 
 // NewInventoryBatch validates and constructs a new batch. The batch
-// starts with status "active" and current_quantity == initial_quantity.
+// starts with status "active" and quantity == original_quantity; the
+// arrival date cannot be in the future.
 func NewInventoryBatch(now time.Time, opts NewInventoryBatchOptions) (*InventoryBatch, error) {
-	if opts.CompanyID == uuid.Nil || opts.ProductID == uuid.Nil || opts.WarehouseID == uuid.Nil {
-		return nil, derrors.Wrap(derrors.ErrRequired, errField("company, product and warehouse are required"))
+	if opts.ProductID == uuid.Nil {
+		return nil, derrors.Wrap(derrors.ErrRequired, errField("product is required"))
+	}
+	if opts.ArrivalDate.IsZero() {
+		return nil, derrors.Wrap(derrors.ErrRequired, errField("arrival date is required"))
+	}
+	today := valueobjects.NewDateFromTime(now)
+	if opts.ArrivalDate.After(today) {
+		return nil, derrors.Wrap(derrors.ErrOutOfRange, errField("arrival date cannot be in the future"))
 	}
 	if !opts.InitialQuantity.IsPositive() {
 		return nil, derrors.Wrap(derrors.ErrNegativeQuantity, errField("initial quantity must be positive"))
@@ -80,131 +68,99 @@ func NewInventoryBatch(now time.Time, opts NewInventoryBatchOptions) (*Inventory
 	if opts.UnitCost.IsNegative() {
 		return nil, derrors.Wrap(derrors.ErrNegativeMoney, errField("unit cost cannot be negative"))
 	}
+	if !opts.ExchangeRate.Decimal().IsPositive() {
+		return nil, derrors.Wrap(derrors.ErrOutOfRange, errField("exchange rate must be positive"))
+	}
 	return &InventoryBatch{
-		ID:              uuid.New(),
-		CompanyID:       opts.CompanyID,
-		ProductID:       opts.ProductID,
-		WarehouseID:     opts.WarehouseID,
-		SupplierID:      opts.SupplierID,
-		PurchaseLineID:  opts.PurchaseLineID,
-		LotNumber:       opts.LotNumber,
-		SerialNumber:    opts.SerialNumber,
-		ArrivalDate:     opts.ArrivalDate,
-		ExpiryDate:      opts.ExpiryDate,
-		InitialQuantity: opts.InitialQuantity,
-		CurrentQuantity: opts.InitialQuantity,
-		UnitCost:        opts.UnitCost,
-		CurrencyCode:    opts.CurrencyCode,
-		Status:          InventoryBatchStatusActive,
-		CreatedAt:       now,
-		UpdatedAt:       now,
+		ID:                  uuid.New(),
+		ProductID:           opts.ProductID,
+		PurchaseOrderItemID: opts.PurchaseOrderItemID,
+		ArrivalDate:         opts.ArrivalDate,
+		Quantity:            opts.InitialQuantity,
+		OriginalQuantity:    opts.InitialQuantity,
+		UnitCost:            opts.UnitCost,
+		ExchangeRate:        opts.ExchangeRate,
+		Status:              enums.BatchStatusActive,
+		CreatedAt:           now,
+		UpdatedAt:           now,
 	}, nil
 }
 
-// MaximumSaleDate returns the last date the batch may be sold at full
-// price: arrival date plus the default clearance period.
-func (b *InventoryBatch) MaximumSaleDate() valueobjects.Date {
-	return b.MaximumSaleDateAfter(ClearanceDays)
-}
-
-func (b *InventoryBatch) MaximumSaleDateAfter(days int) valueobjects.Date {
-	if days < 0 {
-		days = ClearanceDays
+// Consume reduces quantity by a positive amount. Used by sales and
+// outbound movements. It cannot reduce below zero and rejects
+// consumption from a voided batch.
+func (b *InventoryBatch) Consume(qty valueobjects.Quantity) error {
+	if b.Status == enums.BatchStatusVoided {
+		return derrors.Wrap(derrors.ErrInvalidStateTransition, errField("cannot consume from a voided batch"))
 	}
-	return valueobjects.AddDays(b.ArrivalDate, days)
-}
-
-// DaysInStock returns the number of days between the arrival date and
-// `today` (negative if the batch has not yet arrived).
-func (b *InventoryBatch) DaysInStock(today valueobjects.Date) int {
-	return int(today.Sub(b.ArrivalDate).Hours() / 24)
-}
-
-// DaysUntilClearance returns the remaining days before the batch
-// reaches its clearance date.
-func (b *InventoryBatch) DaysUntilClearance(today valueobjects.Date) int {
-	return int(b.MaximumSaleDate().Sub(today).Hours() / 24)
-}
-
-// IsClearance reports whether a stocked batch has passed its
-// clearance date.
-func (b *InventoryBatch) IsClearance(today valueobjects.Date) bool {
-	return b.IsClearanceAfter(today, ClearanceDays)
-}
-
-func (b *InventoryBatch) IsClearanceAfter(today valueobjects.Date, days int) bool {
-	if b.CurrentQuantity.IsZero() {
-		return false
+	if !qty.IsPositive() {
+		return derrors.Wrap(derrors.ErrNegativeQuantity, errField("consume quantity must be positive"))
 	}
-	date := b.MaximumSaleDateAfter(days)
-	return today.After(date) || today.Equal(date)
-}
-
-// NeedsClearanceSoon reports whether a stocked batch is near its
-// clearance date.
-func (b *InventoryBatch) NeedsClearanceSoon(today valueobjects.Date) bool {
-	return b.NeedsClearanceSoonAfter(today, ClearanceDays, 3)
-}
-
-func (b *InventoryBatch) NeedsClearanceSoonAfter(today valueobjects.Date, days, warningDays int) bool {
-	if b.CurrentQuantity.IsZero() {
-		return false
-	}
-	until := int(b.MaximumSaleDateAfter(days).Sub(today).Hours() / 24)
-	return until <= warningDays && !b.IsClearanceAfter(today, days)
-}
-
-// Consume reduces current_quantity by a positive amount. Used by sales
-// and outbound adjustments. Cannot reduce below zero. Rejects
-// consumption from a voided or written-off batch.
-func (b *InventoryBatch) Consume(amount valueobjects.Quantity) error {
-	if b.Status == InventoryBatchStatusVoided || b.Status == InventoryBatchStatusWrittenOff {
-		return derrors.Wrap(derrors.ErrInvalidStateTransition, errField("cannot consume from a voided or written-off batch"))
-	}
-	if !amount.IsPositive() {
-		return derrors.Wrap(derrors.ErrNegativeQuantity, errField("consume amount must be positive"))
-	}
-	if amount.GreaterThan(b.CurrentQuantity) {
+	if qty.GreaterThan(b.Quantity) {
 		return derrors.Wrap(derrors.ErrInsufficientStock, errField("consume exceeds available quantity"))
 	}
-	b.CurrentQuantity = b.CurrentQuantity.Sub(amount)
-	if b.CurrentQuantity.IsZero() {
-		b.Status = InventoryBatchStatusDepleted
+	b.Quantity = b.Quantity.Sub(qty)
+	if b.Quantity.IsZero() {
+		b.Status = enums.BatchStatusDepleted
 	}
 	return nil
 }
 
-// Receive adds quantity to the batch (e.g. on a stock correction
-// adjustment or a partial re-receipt from a supplier). Returns the
-// new current quantity. Rejects receipt into a voided or written-off
-// batch.
-func (b *InventoryBatch) Receive(amount valueobjects.Quantity) (valueobjects.Quantity, error) {
-	if b.Status == InventoryBatchStatusVoided || b.Status == InventoryBatchStatusWrittenOff {
-		return b.CurrentQuantity, derrors.Wrap(derrors.ErrInvalidStateTransition, errField("cannot receive into a voided or written-off batch"))
+// Receive adds quantity to the batch (stock corrections, sale voids).
+// It returns the new quantity and rejects receipt into a voided batch.
+func (b *InventoryBatch) Receive(qty valueobjects.Quantity) (valueobjects.Quantity, error) {
+	if b.Status == enums.BatchStatusVoided {
+		return b.Quantity, derrors.Wrap(derrors.ErrInvalidStateTransition, errField("cannot receive into a voided batch"))
 	}
-	if !amount.IsPositive() {
-		return b.CurrentQuantity, derrors.Wrap(derrors.ErrNegativeQuantity, errField("receive amount must be positive"))
+	if !qty.IsPositive() {
+		return b.Quantity, derrors.Wrap(derrors.ErrNegativeQuantity, errField("receive quantity must be positive"))
 	}
-	b.CurrentQuantity = b.CurrentQuantity.Add(amount)
-	if b.Status == InventoryBatchStatusDepleted {
-		b.Status = InventoryBatchStatusActive
+	b.Quantity = b.Quantity.Add(qty)
+	if b.Status == enums.BatchStatusDepleted {
+		b.Status = enums.BatchStatusActive
 	}
-	return b.CurrentQuantity, nil
+	return b.Quantity, nil
 }
 
-// WriteOff marks the batch as written off (damage, expiry) and
-// zeroes the quantity. The write-off event must be accompanied by an
-// inventory_movement row in the application layer.
-func (b *InventoryBatch) WriteOff() {
-	b.CurrentQuantity = valueobjects.ZeroQuantity()
-	b.Status = InventoryBatchStatusWrittenOff
+// Touch refreshes the updated_at timestamp.
+func (b *InventoryBatch) Touch() { b.UpdatedAt = time.Now().UTC() }
+
+// Validate checks the entity invariants.
+func (b *InventoryBatch) Validate() error {
+	if b.ProductID == uuid.Nil {
+		return derrors.Wrap(derrors.ErrRequired, errField("product is required"))
+	}
+	if b.Quantity.IsNegative() {
+		return derrors.Wrap(derrors.ErrNegativeQuantity, errField("quantity cannot be negative"))
+	}
+	if b.UnitCost.IsNegative() {
+		return derrors.Wrap(derrors.ErrNegativeMoney, errField("unit cost cannot be negative"))
+	}
+	if !b.ExchangeRate.Decimal().IsPositive() {
+		return derrors.Wrap(derrors.ErrOutOfRange, errField("exchange rate must be positive"))
+	}
+	if !b.Status.Valid() {
+		return derrors.Wrap(derrors.ErrInvalidEnum, errField("status is invalid"))
+	}
+	return nil
 }
 
-// Void cancels a mistaken receipt. The batch row is kept for audit
-// purposes, its remaining quantity is zeroed and its status flips to
-// "voided" — no further consumption, adjustment or transfer is allowed.
-// The application layer records a compensating "void_out" movement.
-func (b *InventoryBatch) Void() {
-	b.CurrentQuantity = valueobjects.ZeroQuantity()
-	b.Status = InventoryBatchStatusVoided
+// MaxSaleDate returns the last date the batch may be sold at full
+// price: arrival date plus the clearance period.
+func (b *InventoryBatch) MaxSaleDate(clearanceDays int) valueobjects.Date {
+	if clearanceDays < 0 {
+		clearanceDays = ClearanceDays
+	}
+	return valueobjects.AddDays(b.ArrivalDate, clearanceDays)
+}
+
+// IsClearanceOn reports whether a stocked batch has reached its
+// clearance date as of `at`.
+func (b *InventoryBatch) IsClearanceOn(clearanceDays int, at time.Time) bool {
+	if b.Quantity.IsZero() {
+		return false
+	}
+	today := valueobjects.NewDateFromTime(at)
+	date := b.MaxSaleDate(clearanceDays)
+	return today.After(date) || today.Equal(date)
 }

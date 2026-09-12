@@ -6,28 +6,22 @@ import (
 	"vfinancy/backend/internal/domain/valueobjects"
 )
 
-// CardBillingCycle is the projected statement window for a card charge.
-type CardBillingCycle struct {
-	// CutOffDate is the statement cut-off that captures the charge.
-	CutOffDate valueobjects.Date
-	// DueDate is the day the issuer must be paid.
-	DueDate valueobjects.Date
-}
-
-// NextBillingCycle projects the first statement that would include a
-// charge placed on anchor and the corresponding payment-due date. The
-// cut-off and payment-due days come from the card's billing cycle. A
-// charge made on the cut-off day itself belongs to that statement.
-func (c *CreditCard) NextBillingCycle(anchor time.Time) CardBillingCycle {
-	cutOff := monthDay(anchor, c.CutOffDay)
-	if dateAfter(anchor, cutOff) {
-		cutOff = monthDay(addMonth(cutOff), c.CutOffDay)
+// NextBillingCycle projects the statement cycle that captures a charge
+// placed on at. The cycle starts the day after the previous cut-off,
+// closes on the next cut-off (clamped to the month's last day: a 31st
+// cut-off falls on Feb 28/29 or the 30th of short months) and the
+// payment-due date is the due day of the following month with the same
+// clamp. A charge made on the cut-off day itself belongs to that
+// statement.
+func NextBillingCycle(card *CreditCard, at time.Time) (cycleStart, cycleEnd, paymentDue time.Time) {
+	cutOff := monthDay(at, card.CutOffDay)
+	if dateAfter(at, cutOff) {
+		cutOff = monthDay(addMonth(cutOff), card.CutOffDay)
 	}
-	due := monthDay(addMonth(cutOff), c.PaymentDueDay)
-	return CardBillingCycle{
-		CutOffDate: valueobjects.NewDateFromTime(cutOff),
-		DueDate:    valueobjects.NewDateFromTime(due),
-	}
+	start := monthDay(time.Date(cutOff.Year(), cutOff.Month()-1, 1, 0, 0, 0, 0, cutOff.Location()), card.CutOffDay)
+	start = time.Date(start.Year(), start.Month(), start.Day()+1, 0, 0, 0, 0, time.UTC)
+	due := monthDay(addMonth(cutOff), card.PaymentDueDay)
+	return start, cutOff, due
 }
 
 // monthDay returns midnight of the given month at day, clamping the day
@@ -71,21 +65,27 @@ func dateAfter(anchor, target time.Time) bool {
 }
 
 // CardPaymentProjection is the projected payment summary for a single
-// credit card in the current billing cycle.
+// credit card in its current billing cycle.
 type CardPaymentProjection struct {
-	CardID         string  `json:"cardId"`
-	Issuer         string  `json:"issuer"`
-	LastFour       string  `json:"lastFour"`
-	CardHolder     string  `json:"cardHolder"`
-	ProjectedUSD   float64 `json:"projectedUSD"`
-	CycleStart     string  `json:"cycleStart"`
-	NextCutOffDate string  `json:"nextCutOffDate"`
-	NextPaymentDate string `json:"nextPaymentDate"`
+	Card       *CreditCard
+	CycleStart time.Time
+	CycleEnd   time.Time
+	PaymentDue time.Time
+	// TotalUSD sums cost_usd of purchase orders charged to the card
+	// inside the cycle (cancelled orders excluded).
+	TotalUSD valueobjects.Money
+	// RefundsUSD sums refund_amount of cancelled purchase orders in
+	// the cycle (saldo a favor).
+	RefundsUSD valueobjects.Money
+	// Status is "open" or "settled" (settled once the cycle end has
+	// passed).
+	Status string
 }
 
 // CurrentCycleStart returns the start date of the current billing cycle
-// for the given card relative to today. The cycle begins the day after
-// the most recent past cut-off date.
+// for the given card relative to now. The cycle begins the day after
+// the most recent past cut-off date; a cut-off falling today means the
+// next cycle has already started.
 func (c *CreditCard) CurrentCycleStart(now time.Time) time.Time {
 	cutOff := monthDay(now, c.CutOffDay)
 	if dateAfter(now, cutOff) || now.Equal(cutOff) {
@@ -94,4 +94,14 @@ func (c *CreditCard) CurrentCycleStart(now time.Time) time.Time {
 	prevMonth := time.Date(now.Year(), now.Month()-1, 1, 0, 0, 0, 0, time.UTC)
 	prevCutOff := monthDay(prevMonth, c.CutOffDay)
 	return time.Date(prevCutOff.Year(), prevCutOff.Month(), prevCutOff.Day()+1, 0, 0, 0, 0, time.UTC)
+}
+
+// cycleEnd projects the cut-off closing the cycle opened at start,
+// clamped to its month.
+func (c *CreditCard) cycleEnd(start time.Time) time.Time {
+	end := monthDay(start, c.CutOffDay)
+	if !dateAfter(end, start) {
+		end = monthDay(addMonth(end), c.CutOffDay)
+	}
+	return end
 }

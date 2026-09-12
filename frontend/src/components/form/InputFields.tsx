@@ -28,6 +28,7 @@ interface EmailFieldProps<T extends FieldValues> {
   description?: string;
   required?: boolean;
   className?: string;
+  autoComplete?: string;
 }
 
 export function EmailField<T extends FieldValues>(props: EmailFieldProps<T>) {

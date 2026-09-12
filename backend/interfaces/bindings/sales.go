@@ -1,445 +1,338 @@
 package bindings
 
 import (
-	"context"
 	"time"
-	"github.com/google/uuid"
 
 	"vfinancy/backend/internal/domain/enums"
-	"vfinancy/backend/internal/domain/valueobjects"
-	"vfinancy/backend/internal/features/customer"
-	"vfinancy/backend/internal/features/customerpayments"
 	"vfinancy/backend/internal/features/sales"
-	"vfinancy/backend/internal/utils"
 )
 
-// SaleItemDTO is a serializable sale line.
 type SaleItemDTO struct {
-	ID              string `json:"id"`
-	ProductID       string `json:"productId"`
-	LineNumber      int    `json:"lineNumber"`
-	Quantity        string `json:"quantity"`
-	UnitPrice       string `json:"unitPrice"`
-	DiscountPercent string `json:"discountPercent"`
-	DiscountAmount  string `json:"discountAmount"`
-	TaxRate         string `json:"taxRate"`
-	TaxAmount       string `json:"taxAmount"`
-	CostSnapshot    string `json:"costSnapshot"`
-	Description     string `json:"description"`
+	ID             string  `json:"id"`
+	ProductID      string  `json:"productId"`
+	Description    string  `json:"description"`
+	Quantity       float64 `json:"quantity"`
+	UnitPrice      float64 `json:"unitPrice"`
+	LineTotal      float64 `json:"lineTotal"`
+	CostSnapshot   float64 `json:"costSnapshot"`
 }
 
-// SaleDTO is the serializable view of a sale.
 type SaleDTO struct {
-	ID           string         `json:"id"`
-	Number       string         `json:"number"`
-	CustomerID   string         `json:"customerId"`
-	CustomerName string         `json:"customerName"`
-	Date         string         `json:"date"`
-	Status       string         `json:"status"`
-	Subtotal     string         `json:"subtotal"`
-	Tax          string         `json:"tax"`
-	Discount     string         `json:"discount"`
-	Total        string         `json:"total"`
-	Cost         string         `json:"cost"`
-	Profit       string         `json:"profit"`
-	Paid         string         `json:"paid"`
-	Balance      string         `json:"balance"`
-	Items        []*SaleItemDTO `json:"items"`
+	ID              string        `json:"id"`
+	CustomerID      string        `json:"customerId"`
+	Number          string        `json:"number"`
+	SaleDate        string        `json:"saleDate"`
+	DueDate         string        `json:"dueDate"`
+	Status          string        `json:"status"`
+	SaleType        string        `json:"saleType"`
+	Total           float64       `json:"total"`
+	PaidAmount      float64       `json:"paidAmount"`
+	CostTotal       float64       `json:"costTotal"`
+	Profit          float64       `json:"profit"`
+	Notes           string        `json:"notes"`
+	CancelledAt     string        `json:"cancelledAt"`
+	CancelledReason string        `json:"cancelledReason"`
+	Items           []SaleItemDTO `json:"items"`
 }
 
-// CustomerAdvanceDTO is the serializable view of a customer advance.
-type CustomerAdvanceDTO struct {
-	ID           string `json:"id"`
-	Number       string `json:"number"`
-	CustomerID   string `json:"customerId"`
-	AdvanceDate  string `json:"advanceDate"`
-	Amount       string `json:"amount"`
-	CurrencyCode string `json:"currencyCode"`
-	Method       string `json:"method"`
-	Remaining    string `json:"remaining"`
-}
-
-func toSaleDTO(ctx context.Context, customers *customer.CustomerService, s *sales.Sale) *SaleDTO {
-	customerName := ""
-	if cust, err := customers.GetByID(ctx, s.CustomerID); err == nil {
-		customerName = cust.BusinessName.String()
-	}
-	items := make([]*SaleItemDTO, 0, len(s.Items))
+func saleDTO(s *sales.Sale) SaleDTO {
+	items := make([]SaleItemDTO, 0, len(s.Items))
 	for _, it := range s.Items {
-		items = append(items, &SaleItemDTO{
-			ID:              it.ID.String(),
-			ProductID:       it.ProductID.String(),
-			LineNumber:      it.LineNumber,
-			Quantity:        it.Quantity.String(),
-			UnitPrice:       it.UnitPrice.String(),
-			DiscountPercent: it.DiscountPercent.String(),
-			DiscountAmount:  it.DiscountAmount.String(),
-			TaxRate:         it.TaxRate.String(),
-			TaxAmount:       it.TaxAmount.String(),
-			CostSnapshot:    it.CostSnapshot.String(),
-			Description:     it.Description,
+		items = append(items, SaleItemDTO{
+			ID:           it.ID.String(),
+			ProductID:    it.ProductID.String(),
+			Description:  it.Description,
+			Quantity:     quantityFloat(it.Quantity),
+			UnitPrice:    moneyFloat(it.UnitPrice),
+			LineTotal:    moneyFloat(it.LineTotal),
+			CostSnapshot: moneyFloat(it.CostSnapshot),
 		})
 	}
-	return &SaleDTO{
-		ID:           s.ID.String(),
-		Number:       s.Number,
-		CustomerID:   s.CustomerID.String(),
-		CustomerName: customerName,
-		Date:         s.SaleDate.Format("2006-01-02"),
-		Status:       s.Status.String(),
-		Subtotal:     s.Subtotal.String(),
-		Tax:          s.TaxAmount.String(),
-		Discount:     s.DiscountAmount.String(),
-		Total:        s.Total.String(),
-		Cost:         s.CostTotal.String(),
-		Profit:       s.Profit.String(),
-		Paid:         s.Paid.String(),
-		Balance:      s.Balance().String(),
-		Items:        items,
+	return SaleDTO{
+		ID:              s.ID.String(),
+		CustomerID:      s.CustomerID.String(),
+		Number:          s.Number,
+		SaleDate:        dayStr(s.SaleDate),
+		DueDate:         dayStrPtr(s.DueDate),
+		Status:          string(s.Status),
+		SaleType:        string(s.SaleType),
+		Total:           moneyFloat(s.Total),
+		PaidAmount:      moneyFloat(s.PaidAmount),
+		CostTotal:       moneyFloat(s.CostTotal),
+		Profit:          moneyFloat(s.Profit),
+		Notes:           s.Notes,
+		CancelledAt:     dayStrPtr(s.CancelledAt),
+		CancelledReason: s.CancelledReason,
+		Items:           items,
 	}
 }
 
-// ListSalesRequest filters the sale listing.
-type ListSalesRequest struct {
-	CustomerID string `json:"customerId"`
-	Status     string `json:"status"`
+type SaleFilterRequest struct {
 	PaginationRequest
+	Search     string `json:"search"`
+	Status     string `json:"status"`
+	SaleType   string `json:"saleType"`
+	CustomerID string `json:"customerId"`
+	From       string `json:"from"`
+	To         string `json:"to"`
+	OnlyUnpaid bool   `json:"onlyUnpaid"`
 }
 
-// ListSales returns paged sales.
-func (a *App) ListSales(req ListSalesRequest) (PageResult, error) {
-	ctx := a.Context()
-	filter := sales.SaleFilter{
-		CompanyID:   a.companyIDPtr(),
-		Status:      req.Status,
-		PageRequest: req.toPageRequest(),
-	}
+// ListSales returns local PEN sales.
+func (a *App) ListSales(req SaleFilterRequest) (PageResult, error) {
 	customerID, err := parseOptionalUUID(req.CustomerID)
 	if err != nil {
-		return PageResult{}, utils.ProcessError(err)
+		return PageResult{}, err
 	}
-	filter.CustomerID = customerID
-	page, err := a.salesSvc.List(ctx, filter)
+	from, err := parseDayPtr(req.From)
 	if err != nil {
-		return PageResult{}, utils.ProcessError(err)
+		return PageResult{}, err
 	}
-	items := make([]*SaleDTO, 0, len(page.Items))
+	to, err := parseDayPtr(req.To)
+	if err != nil {
+		return PageResult{}, err
+	}
+	page, err := a.salesSvc.List(a.Context(), sales.SaleFilter{
+		Search:      req.Search,
+		Status:      req.Status,
+		SaleType:    req.SaleType,
+		CustomerID:  customerID,
+		From:        from,
+		To:          to,
+		OnlyUnpaid:  req.OnlyUnpaid,
+		PageRequest: req.toPageRequest(),
+	})
+	if err != nil {
+		return PageResult{}, err
+	}
+	items := make([]SaleDTO, 0, len(page.Items))
 	for _, s := range page.Items {
-		items = append(items, toSaleDTO(ctx, a.customersSvc, s))
+		items = append(items, saleDTO(s))
 	}
-	return PageResult{Items: items, Total: page.Total, Page: page.Offset/page.Limit + 1, PageSize: page.Limit}, nil
+	return PageResult{Items: items, Total: page.Total, Page: req.Page, PageSize: req.PageSize}, nil
 }
 
-// GetSale returns a single sale with its lines.
-func (a *App) GetSale(id string) (*SaleDTO, error) {
-	ctx := a.Context()
-	sid, err := uuid.Parse(id)
+// GetSale returns one sale with items.
+func (a *App) GetSale(id string) (SaleDTO, error) {
+	sid, err := parseUUID(id)
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return SaleDTO{}, err
 	}
-	s, err := a.salesSvc.GetByID(ctx, sid)
+	s, err := a.salesSvc.GetByID(a.Context(), sid)
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return SaleDTO{}, err
 	}
-	return toSaleDTO(ctx, a.customersSvc, s), nil
+	return saleDTO(s), nil
 }
 
-// CreateSaleItemRequest is one line of a new sale.
-type CreateSaleItemRequest struct {
-	ProductID       string `json:"productId"`
-	Quantity        string `json:"quantity"`
-	UnitPrice       string `json:"unitPrice"`
-	DiscountPercent string `json:"discountPercent"`
-	DiscountAmount  string `json:"discountAmount"`
-	TaxRate         string `json:"taxRate"`
-	TaxAmount       string `json:"taxAmount"`
-	CostSnapshot    string `json:"costSnapshot"`
-	Description     string `json:"description"`
+type SaleLineRequest struct {
+	ProductID string  `json:"productId"`
+	Quantity  float64 `json:"quantity"`
+	UnitPrice float64 `json:"unitPrice"`
 }
 
-// CreateSaleRequest creates a sale.
 type CreateSaleRequest struct {
-	CustomerID   string                  `json:"customerId"`
-	CurrencyCode string                  `json:"currencyCode"`
-	ExchangeRate string                  `json:"exchangeRate"`
-	Date         string                  `json:"date"`
-	DueDate      string                  `json:"dueDate"`
-	Notes        string                  `json:"notes"`
-	Items        []CreateSaleItemRequest `json:"items"`
+	CustomerID    string            `json:"customerId"`
+	SaleType      string            `json:"saleType"`
+	Date          string            `json:"date"`
+	DueDate       string            `json:"dueDate"`
+	PaymentMethod string            `json:"paymentMethod"`
+	Notes         string            `json:"notes"`
+	InitialPayment float64          `json:"initialPayment"`
+	Items         []SaleLineRequest `json:"items"`
 }
 
-// CreateSale persists a sale and records the customer's debt.
-func (a *App) CreateSale(req CreateSaleRequest) (*SaleDTO, error) {
-	ctx := a.Context()
-	cid, err := uuid.Parse(req.CustomerID)
+// CreateSale records a PEN sale. A "stock" sale without stock is
+// blocked (edge 4.3); a "client_order" sale registers the import
+// requirement without touching stock.
+func (a *App) CreateSale(req CreateSaleRequest) (SaleDTO, error) {
+	cid, err := parseUUID(req.CustomerID)
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return SaleDTO{}, err
 	}
-	cc, err := valueobjects.NewCurrencyCode(req.CurrencyCode)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	rate, err := valueobjects.ExchangeRateFromString(req.ExchangeRate)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	var saleDate valueobjects.Date
+	date := time.Now().UTC()
 	if req.Date != "" {
-		d, err := time.Parse("2006-01-02", req.Date)
+		t, err := parseDay(req.Date)
 		if err != nil {
-			return nil, utils.ProcessError(err)
+			return SaleDTO{}, err
 		}
-		saleDate = d
-	} else {
-		saleDate = valueobjects.NewDateFromTime(time.Now().UTC())
+		date = t
 	}
-	var dueDate *valueobjects.Date
-	if req.DueDate != "" {
-		d, err := time.Parse("2006-01-02", req.DueDate)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		dd := valueobjects.Date(d)
-		dueDate = &dd
-	}
-	items := make([]sales.CreateItemInput, 0, len(req.Items))
-	for _, it := range req.Items {
-		productID, err := uuid.Parse(it.ProductID)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		qty, err := valueobjects.QuantityFromString(it.Quantity)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		unitPrice, err := valueobjects.MoneyFromString(it.UnitPrice)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		discountPct, err := valueobjects.PercentageFromString(it.DiscountPercent)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		discountAmount, err := valueobjects.MoneyFromString(it.DiscountAmount)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		taxRate, err := valueobjects.PercentageFromString(it.TaxRate)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		taxAmount, err := valueobjects.MoneyFromString(it.TaxAmount)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		cost, err := valueobjects.MoneyFromString(it.CostSnapshot)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		items = append(items, sales.CreateItemInput{
-			ProductID:       productID,
-			Quantity:        qty,
-			UnitPrice:       unitPrice,
-			DiscountPercent: discountPct,
-			DiscountAmount:  discountAmount,
-			TaxRate:         taxRate,
-			TaxAmount:       taxAmount,
-			CostSnapshot:    cost,
-			Description:     it.Description,
-		})
-	}
-	in := sales.CreateInput{
-		CompanyID:    a.companyID(),
-		Number:       "",
-		CustomerID:   cid,
-		CurrencyCode: cc,
-		ExchangeRate: rate,
-		Date:         saleDate,
-		DueDate:      dueDate,
-		Notes:        req.Notes,
-		Items:        items,
-	}
-	res, err := a.salesSvc.Create(ctx, in)
+	due, err := parseDayPtr(req.DueDate)
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return SaleDTO{}, err
 	}
-	return toSaleDTO(ctx, a.customersSvc, res.Sale), nil
+	initial, err := moneyFromFloat(req.InitialPayment)
+	if err != nil {
+		return SaleDTO{}, err
+	}
+	items := make([]sales.ItemInput, 0, len(req.Items))
+	for _, it := range req.Items {
+		pid, err := parseUUID(it.ProductID)
+		if err != nil {
+			return SaleDTO{}, err
+		}
+		qty, err := quantityFromFloat(it.Quantity)
+		if err != nil {
+			return SaleDTO{}, err
+		}
+		price, err := moneyFromFloat(it.UnitPrice)
+		if err != nil {
+			return SaleDTO{}, err
+		}
+		items = append(items, sales.ItemInput{ProductID: pid, Quantity: qty, UnitPrice: price})
+	}
+	result, err := a.salesSvc.Create(a.Context(), sales.CreateInput{
+		CustomerID:    cid,
+		SaleType:      enums.SaleType(req.SaleType),
+		Date:          date,
+		DueDate:       due,
+		PaymentMethod: enums.PaymentMethod(req.PaymentMethod),
+		Notes:         req.Notes,
+		InitialPayment: initial,
+		Items:         items,
+	})
+	if err != nil {
+		return SaleDTO{}, err
+	}
+	return saleDTO(result.Sale), nil
 }
 
-// CancelSaleRequest cancels an existing sale.
 type CancelSaleRequest struct {
 	ID     string `json:"id"`
 	Reason string `json:"reason"`
 }
 
-// CancelSale cancels an existing sale.
-func (a *App) CancelSale(req CancelSaleRequest) (*SaleDTO, error) {
-	ctx := a.Context()
-	sid, err := uuid.Parse(req.ID)
+// CancelSale voids the sale and returns the stock.
+func (a *App) CancelSale(req CancelSaleRequest) (SaleDTO, error) {
+	sid, err := parseUUID(req.ID)
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return SaleDTO{}, err
 	}
-	s, err := a.salesSvc.Cancel(ctx, sales.CancelInput{ID: sid, Reason: req.Reason})
+	s, err := a.salesSvc.Cancel(a.Context(), sales.CancelInput{ID: sid, Reason: req.Reason})
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return SaleDTO{}, err
 	}
-	return toSaleDTO(ctx, a.customersSvc, s), nil
+	return saleDTO(s), nil
 }
 
-// RegisterSalePaymentRequest registers a full payment for a sale.
-type RegisterSalePaymentRequest struct {
-	ID          string `json:"id"`
-	PaymentDate string `json:"paymentDate"`
-	Method      string `json:"method"`
-	Reference   string `json:"reference"`
-	Notes       string `json:"notes"`
+type SalePaymentRequest struct {
+	SaleID        string  `json:"saleId"`
+	Amount        float64 `json:"amount"`
+	PaymentMethod string  `json:"paymentMethod"`
+	Reference     string  `json:"reference"`
+	Date          string  `json:"date"`
 }
 
-// RegisterSalePayment records a customer payment covering the sale's
-// full balance, applies it to the sale and reduces the customer's
-// debt. The sale status becomes "paid".
-func (a *App) RegisterSalePayment(req RegisterSalePaymentRequest) (*SaleDTO, error) {
-	ctx := a.Context()
-	sid, err := uuid.Parse(req.ID)
+// RegisterSalePayment records a collection ("cobro") against the sale
+// and reduces the customer debt.
+func (a *App) RegisterSalePayment(req SalePaymentRequest) (SaleDTO, error) {
+	sid, err := parseUUID(req.SaleID)
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return SaleDTO{}, err
 	}
-	var pd valueobjects.Date
-	if req.PaymentDate != "" {
-		t, err := time.Parse("2006-01-02", req.PaymentDate)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-		pd = valueobjects.Date(t)
-	} else {
-		pd = valueobjects.Date(time.Now().UTC())
-	}
-	method := enums.PaymentMethod(req.Method)
-	if !method.Valid() {
-		method = enums.PaymentMethodCash
-	}
-	s, err := a.paymentSvc.MarkPaid(ctx, sid, customerpayments.MarkPaidInput{
-		CompanyID:   a.companyID(),
-		PaymentDate: pd,
-		Method:      method,
-		Reference:   req.Reference,
-		Notes:       req.Notes,
-	})
+	amount, err := moneyFromFloat(req.Amount)
 	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return toSaleDTO(ctx, a.customersSvc, s), nil
-}
-
-type RegisterCustomerAdvanceRequest struct {
-	CustomerID   string `json:"customerId"`
-	AdvanceDate  string `json:"advanceDate"`
-	Amount       string `json:"amount"`
-	CurrencyCode string `json:"currencyCode"`
-	ExchangeRate string `json:"exchangeRate"`
-	Method       string `json:"method"`
-	Notes        string `json:"notes"`
-}
-
-func (a *App) RegisterCustomerAdvance(req RegisterCustomerAdvanceRequest) (*CustomerAdvanceDTO, error) {
-	customerID, err := uuid.Parse(req.CustomerID)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	amount, err := valueobjects.MoneyFromString(req.Amount)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	currency, err := valueobjects.NewCurrencyCode(req.CurrencyCode)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	rate, err := valueobjects.ExchangeRateFromString(req.ExchangeRate)
-	if err != nil {
-		return nil, utils.ProcessError(err)
+		return SaleDTO{}, err
 	}
 	date := time.Now().UTC()
-	if req.AdvanceDate != "" {
-		date, err = time.Parse("2006-01-02", req.AdvanceDate)
+	if req.Date != "" {
+		t, err := parseDay(req.Date)
 		if err != nil {
-			return nil, utils.ProcessError(err)
+			return SaleDTO{}, err
 		}
+		date = t
 	}
-	method := enums.PaymentMethod(req.Method)
-	if !method.Valid() {
-		method = enums.PaymentMethodCash
+	if _, err := a.salesSvc.ApplyPayment(a.Context(), sid, sales.PaymentInput{
+		Amount:        amount,
+		PaymentMethod: enums.PaymentMethod(req.PaymentMethod),
+		Reference:     req.Reference,
+		Date:          date,
+	}); err != nil {
+		return SaleDTO{}, err
 	}
-	advance, err := a.paymentSvc.RegisterAdvance(a.Context(), customerpayments.AdvanceInput{
-		CompanyID: a.companyID(), CustomerID: customerID, AdvanceDate: valueobjects.Date(date), Amount: amount,
-		CurrencyCode: currency, ExchangeRate: rate, Method: method, Notes: req.Notes,
+	s, err := a.salesSvc.GetByID(a.Context(), sid)
+	if err != nil {
+		return SaleDTO{}, err
+	}
+	return saleDTO(s), nil
+}
+
+type CustomerPaymentDTO struct {
+	ID            string  `json:"id"`
+	CustomerID    string  `json:"customerId"`
+	Number        string  `json:"number"`
+	PaymentDate   string  `json:"paymentDate"`
+	Amount        float64 `json:"amount"`
+	PaymentMethod string  `json:"paymentMethod"`
+	Reference     string  `json:"reference"`
+	Status        string  `json:"status"`
+}
+
+// ListSalePayments returns the collections ledger (optionally scoped to
+// one sale or customer).
+func (a *App) ListSalePayments(req PaginationRequest, customerID, saleID string) (PageResult, error) {
+	cid, err := parseOptionalUUID(customerID)
+	if err != nil {
+		return PageResult{}, err
+	}
+	sid, err := parseOptionalUUID(saleID)
+	if err != nil {
+		return PageResult{}, err
+	}
+	page, err := a.salesSvc.ListPayments(a.Context(), sales.CustomerPaymentFilter{
+		CustomerID:  cid,
+		SaleID:      sid,
+		PageRequest: req.toPageRequest(),
 	})
 	if err != nil {
-		return nil, utils.ProcessError(err)
+		return PageResult{}, err
 	}
-	return &CustomerAdvanceDTO{ID: advance.ID.String(), Number: advance.Number, CustomerID: advance.CustomerID.String(), AdvanceDate: advance.AdvanceDate.Format("2006-01-02"), Amount: advance.Amount.String(), CurrencyCode: advance.CurrencyCode.String(), Method: advance.Method.String(), Remaining: advance.Remaining().String()}, nil
+	items := make([]CustomerPaymentDTO, 0, len(page.Items))
+	for _, p := range page.Items {
+		items = append(items, CustomerPaymentDTO{
+			ID:            p.ID.String(),
+			CustomerID:    p.CustomerID.String(),
+			Number:        p.Number,
+			PaymentDate:   dayStr(p.PaymentDate),
+			Amount:        moneyFloat(p.Amount),
+			PaymentMethod: string(p.PaymentMethod),
+			Reference:     p.Reference,
+			Status:        p.Status,
+		})
+	}
+	return PageResult{Items: items, Total: page.Total, Page: req.Page, PageSize: req.PageSize}, nil
 }
 
-type ApplyCustomerAdvanceRequest struct {
-	AdvanceID string `json:"advanceId"`
-	SaleID    string `json:"saleId"`
-	Amount    string `json:"amount"`
+// SaleCollectionDTO is one collected amount allocated to a sale.
+type SaleCollectionDTO struct {
+	SaleID      string  `json:"saleId"`
+	PaymentDate string  `json:"paymentDate"`
+	Amount      float64 `json:"amount"`
 }
 
-func (a *App) ApplyCustomerAdvance(req ApplyCustomerAdvanceRequest) (string, error) {
-	advanceID, err := uuid.Parse(req.AdvanceID)
+// ListSaleCollections returns the collections received in [from, to)
+// so the dashboard can attribute cash and margin to the period.
+func (a *App) ListSaleCollections(from, to string) ([]SaleCollectionDTO, error) {
+	start, err := parseDay(from)
 	if err != nil {
-		return "", utils.ProcessError(err)
+		return nil, err
 	}
-	saleID, err := uuid.Parse(req.SaleID)
+	end, err := parseDay(to)
 	if err != nil {
-		return "", utils.ProcessError(err)
+		return nil, err
 	}
-	amount, err := valueobjects.MoneyFromString(req.Amount)
+	rows, err := a.salesSvc.ListCollections(a.Context(), start, end)
 	if err != nil {
-		return "", utils.ProcessError(err)
+		return nil, err
 	}
-	remaining, err := a.paymentSvc.ApplyAdvanceToSale(a.Context(), advanceID, saleID, amount)
-	if err != nil {
-		return "", utils.ProcessError(err)
+	items := make([]SaleCollectionDTO, 0, len(rows))
+	for _, c := range rows {
+		items = append(items, SaleCollectionDTO{
+			SaleID:      c.SaleID.String(),
+			PaymentDate: dayStr(c.PaymentDate),
+			Amount:      moneyFloat(c.Amount),
+		})
 	}
-	return remaining.String(), nil
-}
-
-type RegisterPartialSalePaymentRequest struct {
-	ID          string `json:"id"`
-	Amount      string `json:"amount"`
-	PaymentDate string `json:"paymentDate"`
-	Method      string `json:"method"`
-	Reference   string `json:"reference"`
-	Notes       string `json:"notes"`
-}
-
-func (a *App) RegisterPartialSalePayment(req RegisterPartialSalePaymentRequest) (*SaleDTO, error) {
-	saleID, err := uuid.Parse(req.ID)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	amount, err := valueobjects.MoneyFromString(req.Amount)
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	date := time.Now().UTC()
-	if req.PaymentDate != "" {
-		date, err = time.Parse("2006-01-02", req.PaymentDate)
-		if err != nil {
-			return nil, utils.ProcessError(err)
-		}
-	}
-	method := enums.PaymentMethod(req.Method)
-	if !method.Valid() {
-		method = enums.PaymentMethodCash
-	}
-	sale, err := a.paymentSvc.ApplyPayment(a.Context(), saleID, customerpayments.ApplyPaymentInput{
-		CompanyID: a.companyID(), PaymentDate: valueobjects.Date(date), Amount: amount, Method: method,
-		Reference: req.Reference, Notes: req.Notes,
-	})
-	if err != nil {
-		return nil, utils.ProcessError(err)
-	}
-	return toSaleDTO(a.Context(), a.customersSvc, sale), nil
+	return items, nil
 }

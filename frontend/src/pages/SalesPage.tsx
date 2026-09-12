@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react';
-import { ShoppingCart, CreditCard, Ban, Plus } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { ShoppingCart, CreditCard, Ban, Plus, ReceiptText, Eye, Users } from 'lucide-react';
 import { PageContainer, PageHeader, Grid } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
 import { SaleStatusBadge } from '@/components/badge';
 import { SearchInput } from '@/components/input';
-import { EmptyState } from '@/components/feedback';
+import { EmptyState, Spinner } from '@/components/feedback';
 import { Button } from '@/components/button';
 import { CancelDialog } from '@/components/dialog';
 import { RegisterPaymentDialog, type RegisterPaymentInput } from '@/features/treasury/components/RegisterPaymentDialog';
-import { RowActions } from '@/components/misc';
+import { RowActions, Drawer } from '@/components/misc';
 import {
   Select,
   SelectContent,
@@ -19,8 +20,11 @@ import {
 } from '@/components/select';
 import { useSales, useCancelSale, useCollectSalePayment } from '@/features/sales/hooks/useSales';
 import { SaleFormDialog } from '@/features/sales/components/SaleFormDialog';
+import { CustomersDrawer } from '@/features/customers/components/CustomersDrawer';
+import { wailsClient } from '@/services/bindings';
+import { PaymentMethodOptions } from '@/constants/paymentMethods';
 import type { Sale } from '@/types/domain';
-import { formatCurrency, formatDate } from '@/utils/format';
+import { formatCurrency, formatDate, formatNumber } from '@/utils/format';
 import { useNotificationStore } from '@/stores/notification';
 
 const columns: Column<Sale>[] = [
@@ -61,6 +65,9 @@ const columns: Column<Sale>[] = [
   },
 ];
 
+const methodLabel = (code: string) =>
+  PaymentMethodOptions.find((o) => o.value === code)?.label ?? code;
+
 export function SalesPage() {
   const { data, isLoading, isError, error, refetch } = useSales();
   const cancel = useCancelSale();
@@ -70,8 +77,23 @@ export function SalesPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [formOpen, setFormOpen] = useState(false);
+  const [customersOpen, setCustomersOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Sale | null>(null);
   const [collectTarget, setCollectTarget] = useState<Sale | null>(null);
+  const [historyTarget, setHistoryTarget] = useState<Sale | null>(null);
+  const [detailTarget, setDetailTarget] = useState<Sale | null>(null);
+
+  const detailQuery = useQuery({
+    queryKey: ['sale-detail', detailTarget?.id],
+    queryFn: () => wailsClient.getSale(detailTarget!.id),
+    enabled: Boolean(detailTarget),
+  });
+
+  const paymentsQuery = useQuery({
+    queryKey: ['sale-payments', historyTarget?.id],
+    queryFn: () => wailsClient.listSalePayments({ page: 1, pageSize: 100 }, '', historyTarget!.id),
+    enabled: Boolean(historyTarget),
+  });
 
   const sales = data ?? [];
   const filtered = useMemo(() => {
@@ -105,6 +127,16 @@ export function SalesPage() {
           const collectable = row.status === 'pending' || row.status === 'partial';
           const cancellable = row.status !== 'cancelled';
           const actions = [];
+          actions.push({
+            label: 'Ver detalle',
+            icon: Eye,
+            onSelect: () => setDetailTarget(row),
+          });
+          actions.push({
+            label: 'Cobros',
+            icon: ReceiptText,
+            onSelect: () => setHistoryTarget(row),
+          });
           if (collectable) {
             actions.push({
               label: 'Cobrar',
@@ -133,9 +165,14 @@ export function SalesPage() {
         title="Ventas"
         subtitle="Documentos de venta y estado de cobranza"
         actions={
-          <Button onClick={openCreate}>
-            <Plus /> Nueva venta
-          </Button>
+          <div className="hstack hstack--sm">
+            <Button variant="outline" onClick={() => setCustomersOpen(true)}>
+              <Users /> Clientes
+            </Button>
+            <Button onClick={openCreate}>
+              <Plus /> Nueva venta
+            </Button>
+          </div>
         }
       />
 
@@ -198,6 +235,7 @@ export function SalesPage() {
       />
 
       <SaleFormDialog open={formOpen} onOpenChange={setFormOpen} />
+      <CustomersDrawer open={customersOpen} onOpenChange={setCustomersOpen} />
 
       <RegisterPaymentDialog
         open={!!collectTarget}
@@ -207,14 +245,25 @@ export function SalesPage() {
         title="Cobrar venta"
         description="Registra el cobro total de la venta."
         documentNumber={collectTarget?.number ?? ''}
-        amount={collectTarget?.total ?? 0}
-        amountLabel="Total de la venta"
+        amount={collectTarget?.balance ?? 0}
+        amountLabel="Saldo pendiente"
         confirmLabel="Cobrar"
+        amountEditable
         loading={collect.isPending}
         onConfirm={(input: RegisterPaymentInput) => {
           if (!collectTarget) return;
           collect.mutate(
-            { id: collectTarget.id, input },
+            {
+              saleId: collectTarget.id,
+              input: {
+                amount: input.amount,
+                paymentMethod: (PaymentMethodOptions.some((o) => o.value === input.method)
+                  ? input.method
+                  : 'other') as 'cash' | 'transfer' | 'other',
+                reference: input.reference,
+                date: input.paymentDate,
+              },
+            },
             {
               onSuccess: () => {
                 push({ title: 'Cobro registrado', variant: 'success' });
@@ -262,6 +311,168 @@ export function SalesPage() {
           );
         }}
       />
+
+      <Drawer
+        open={!!historyTarget}
+        onOpenChange={(open) => {
+          if (!open) setHistoryTarget(null);
+        }}
+        title="Historial de cobros"
+        description={
+          historyTarget ? `${historyTarget.number} · ${historyTarget.customerName}` : undefined
+        }
+        footer={
+          <div className="hstack hstack--sm" style={{ justifyContent: 'flex-end' }}>
+            <Button variant="outline" onClick={() => setHistoryTarget(null)}>
+              Cerrar
+            </Button>
+            {(historyTarget?.status === 'pending' || historyTarget?.status === 'partial') && (
+              <Button
+                onClick={() => {
+                  setCollectTarget(historyTarget);
+                  setHistoryTarget(null);
+                }}
+              >
+                <CreditCard /> Cobrar
+              </Button>
+            )}
+          </div>
+        }
+      >
+        {historyTarget && (
+          <div className="stack">
+            <div className="doc-summary">
+              <div className="doc-summary__row">
+                <div className="doc-summary__meta">
+                  Total · <span className="doc-summary__doc-number">{historyTarget.number}</span>
+                </div>
+                <div className="doc-summary__amount">{formatCurrency(historyTarget.total)}</div>
+              </div>
+              <div className="doc-summary__row">
+                <div className="doc-summary__meta">Pagado</div>
+                <div className="doc-summary__amount">{formatCurrency(historyTarget.paid)}</div>
+              </div>
+              <div className="doc-summary__row">
+                <div className="doc-summary__meta">Saldo</div>
+                <div className="doc-summary__amount">{formatCurrency(historyTarget.balance)}</div>
+              </div>
+              {historyTarget.dueDate && (
+                <div className="doc-summary__row">
+                  <div className="doc-summary__meta">Vence</div>
+                  <div className="doc-summary__amount">{formatDate(historyTarget.dueDate)}</div>
+                </div>
+              )}
+            </div>
+
+            {paymentsQuery.isLoading ? (
+              <Spinner />
+            ) : paymentsQuery.isError ? (
+              <EmptyState title="No se pudo cargar" description="No se pudieron cargar los cobros de esta venta." />
+            ) : paymentsQuery.data && paymentsQuery.data.items.length > 0 ? (
+              <div className="stack">
+                {paymentsQuery.data.items.map((p) => (
+                  <div
+                    key={p.id}
+                    className="hstack"
+                    style={{
+                      justifyContent: 'space-between',
+                      padding: '0.5rem 0',
+                      borderBottom: '1px solid var(--color-border)',
+                    }}
+                  >
+                    <span style={{ display: 'grid' }}>
+                      <strong style={{ fontWeight: 500 }}>
+                        {p.number} · {methodLabel(p.paymentMethod)}
+                      </strong>
+                      <small style={{ color: 'var(--color-fg-subtle)' }}>
+                        {formatDate(p.paymentDate)}
+                        {p.reference ? ` · ${p.reference}` : ''}
+                      </small>
+                    </span>
+                    <span>{formatCurrency(Number(p.amount))}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState title="Sin cobros" description="Esta venta aún no tiene cobros registrados." />
+            )}
+          </div>
+        )}
+      </Drawer>
+
+      <Drawer
+        open={!!detailTarget}
+        onOpenChange={(open) => {
+          if (!open) setDetailTarget(null);
+        }}
+        title="Detalle de venta"
+        description={detailTarget ? `${detailTarget.number} · ${detailTarget.customerName}` : undefined}
+      >
+        {detailTarget &&
+          (detailQuery.isLoading ? (
+            <Spinner />
+          ) : detailQuery.isError ? (
+            <EmptyState title="No se pudo cargar" description="No se pudo cargar el detalle de la venta." />
+          ) : detailQuery.data ? (
+            <div className="stack">
+              <div className="doc-summary">
+                <div className="doc-summary__row">
+                  <div className="doc-summary__meta">Fecha</div>
+                  <div className="doc-summary__amount">{formatDate(detailQuery.data.saleDate)}</div>
+                </div>
+                {detailQuery.data.dueDate && (
+                  <div className="doc-summary__row">
+                    <div className="doc-summary__meta">Vence</div>
+                    <div className="doc-summary__amount">{formatDate(detailQuery.data.dueDate)}</div>
+                  </div>
+                )}
+                <div className="doc-summary__row">
+                  <div className="doc-summary__meta">Estado</div>
+                  <div className="doc-summary__amount">
+                    <SaleStatusBadge status={detailQuery.data.status as Sale['status']} />
+                  </div>
+                </div>
+                <div className="doc-summary__row">
+                  <div className="doc-summary__meta">Total</div>
+                  <div className="doc-summary__amount">{formatCurrency(detailQuery.data.total)}</div>
+                </div>
+                <div className="doc-summary__row">
+                  <div className="doc-summary__meta">Pagado</div>
+                  <div className="doc-summary__amount">{formatCurrency(detailQuery.data.paidAmount)}</div>
+                </div>
+                <div className="doc-summary__row">
+                  <div className="doc-summary__meta">Costo</div>
+                  <div className="doc-summary__amount">{formatCurrency(detailQuery.data.costTotal)}</div>
+                </div>
+                <div className="doc-summary__row">
+                  <div className="doc-summary__meta">Utilidad</div>
+                  <div className="doc-summary__amount">{formatCurrency(detailQuery.data.profit)}</div>
+                </div>
+              </div>
+              {detailQuery.data.notes && <p className="muted">{detailQuery.data.notes}</p>}
+              {detailQuery.data.cancelledReason && (
+                <p className="field-hint">Anulada: {detailQuery.data.cancelledReason}</p>
+              )}
+              <div className="stack">
+                {detailQuery.data.items.map((it) => (
+                  <div
+                    key={it.id}
+                    className="hstack"
+                    style={{ justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--color-border)' }}
+                  >
+                    <span style={{ display: 'grid' }}>
+                      <strong style={{ fontWeight: 500 }}>{it.description}</strong>
+                      <small style={{ color: 'var(--color-fg-subtle)' }}>
+                        {formatNumber(it.quantity)} × {formatCurrency(it.unitPrice)}
+                      </small>
+                    </span>
+                    <span className="tabular">{formatCurrency(it.lineTotal)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null)}
+      </Drawer>
     </PageContainer>
   );
 }

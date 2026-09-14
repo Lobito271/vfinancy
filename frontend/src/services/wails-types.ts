@@ -112,6 +112,7 @@ export interface ProductDTO {
 
 export interface SaveProductRequest {
   id?: string;
+  sku?: string;
   description: string;
   unitCode: string;
   costUsd: number;
@@ -309,6 +310,7 @@ export interface PurchaseItemRequest {
 }
 
 export interface CreatePurchaseRequest {
+  number?: string;
   orderType: 'general' | 'customer';
   customerId: string;
   creditCardId: string;
@@ -377,6 +379,27 @@ export interface ExchangeRateDTO {
   rate: number;
   source: string;
   isFallback: boolean;
+}
+
+export interface ShipmentDTO {
+  id: string;
+  code: string;
+  saleId: string;
+  customerId: string;
+  description: string;
+  notes: string;
+  status: 'pending' | 'shipped' | 'delivered';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SaveShipmentRequest {
+  id?: string;
+  saleId: string;
+  customerId: string;
+  description: string;
+  notes: string;
+  status: string;
 }
 
 export interface AppBindings {
@@ -455,4 +478,10 @@ export interface AppBindings {
   PayCreditCard(req: CardPaymentRequest): Promise<CreditCardDTO>;
   GetCardProjections(): Promise<CardProjectionDTO[]>;
   LatestExchangeRate(): Promise<ExchangeRateDTO>;
+
+  ListShipments(req: PaginationRequest, search: string, status: string): Promise<PageResult<ShipmentDTO>>;
+  GetShipment(id: string): Promise<ShipmentDTO>;
+  CreateShipment(req: SaveShipmentRequest): Promise<ShipmentDTO>;
+  UpdateShipment(req: SaveShipmentRequest): Promise<ShipmentDTO>;
+  DeleteShipment(id: string): Promise<void>;
 }

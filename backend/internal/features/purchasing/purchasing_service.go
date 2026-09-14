@@ -6,6 +6,7 @@ package purchasing
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -152,8 +153,11 @@ type CreateItemInput struct {
 }
 
 // CreateInput is the payload for Create. Every order is recorded in
-// USD and paid with the given credit card.
+// USD and paid with the given credit card. A non-empty Number sets the
+// order number (fixed, like every generated one, it is not editable
+// after creation); an empty Number auto-generates the next sequence.
 type CreateInput struct {
+	Number       string
 	OrderType    enums.OrderType
 	CustomerID   *uuid.UUID
 	CreditCardID *uuid.UUID
@@ -257,9 +261,13 @@ func (s *PurchasingService) Create(ctx context.Context, in CreateInput) (*Purcha
 			salePen = salePen.Add(li.SalePricePen)
 			items = append(items, li)
 		}
-		number, err := s.orders.NextNumber(ctx)
-		if err != nil {
-			return err
+		number := strings.TrimSpace(in.Number)
+		if number == "" {
+			var err error
+			number, err = s.orders.NextNumber(ctx)
+			if err != nil {
+				return err
+			}
 		}
 		now := time.Now().UTC()
 		po := &PurchaseOrder{

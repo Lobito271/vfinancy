@@ -13,6 +13,7 @@ import type {
   SaveCreditCardRequest,
   SaveCustomerRequest,
   SaveProductRequest,
+  SaveShipmentRequest,
   SalePaymentRequest,
   SetLocalPasswordRequest,
   SetupWorkspaceRequest,
@@ -314,5 +315,26 @@ export const wailsClient = {
   async latestExchangeRate() {
     const b = await resolveBindings();
     return b.LatestExchangeRate();
+  },
+
+  async listShipments(req: PaginationRequest, search: string, status: string) {
+    const b = await resolveBindings();
+    return b.ListShipments(req, search, status);
+  },
+  async getShipment(id: string) {
+    const b = await resolveBindings();
+    return b.GetShipment(id);
+  },
+  async createShipment(req: SaveShipmentRequest) {
+    const b = await resolveBindings();
+    return b.CreateShipment(req);
+  },
+  async updateShipment(req: SaveShipmentRequest) {
+    const b = await resolveBindings();
+    return b.UpdateShipment(req);
+  },
+  async deleteShipment(id: string) {
+    const b = await resolveBindings();
+    return b.DeleteShipment(id);
   },
 };

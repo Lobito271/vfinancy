@@ -45,6 +45,7 @@ function toItems(items: PurchaseLineInput[]): PurchaseItemRequest[] {
 }
 
 export interface PurchaseCreateInput {
+  number?: string;
   orderType?: 'general' | 'customer';
   customerId?: string;
   creditCardId: string;
@@ -79,6 +80,7 @@ export const purchasingService = {
 
   async create(input: PurchaseCreateInput): Promise<Purchase> {
     const req: CreatePurchaseRequest = {
+      number: input.number ?? '',
       orderType: input.orderType ?? 'general',
       customerId: input.customerId ?? '',
       creditCardId: input.creditCardId,

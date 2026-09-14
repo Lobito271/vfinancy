@@ -27,16 +27,19 @@ func NewService(repo ProductRepository, txm repositories.TransactionManager, log
 }
 
 // CreateInput is the payload for Create / GetOrCreate. Cost and price
-// default to zero when unset; an empty UnitCode keeps the default.
+// default to zero when unset; an empty UnitCode keeps the default and
+// an empty SKU keeps the auto-generated one.
 type CreateInput struct {
 	Description string
 	UnitCode    string
+	SKU         string
 	CostUSD     valueobjects.Money
 	SalePrice   valueobjects.Money
 }
 
 // Create persists a new product. All validation happens in the domain
-// constructor.
+// constructor. The SKU is only settable at creation time; it is never
+// changed by later updates.
 func (s *ProductService) Create(ctx context.Context, in CreateInput) (*Product, error) {
 	p, err := NewProduct(in.Description, in.CostUSD, in.SalePrice)
 	if err != nil {
@@ -44,6 +47,12 @@ func (s *ProductService) Create(ctx context.Context, in CreateInput) (*Product, 
 	}
 	if unit := strings.TrimSpace(in.UnitCode); unit != "" {
 		p.UnitCode = unit
+	}
+	if sku := strings.TrimSpace(in.SKU); sku != "" {
+		p.SKU, err = valueobjects.NewSKU(sku)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if err := p.Validate(); err != nil {
 		return nil, err

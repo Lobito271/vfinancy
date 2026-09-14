@@ -395,6 +395,32 @@ CREATE TABLE import_lot_purchase_orders (
 
 CREATE INDEX idx_import_lot_members_purchase ON import_lot_purchase_orders (purchase_order_id);
 
+CREATE TABLE shipments (
+    id          TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    code        VARCHAR(4)  NOT NULL,
+    sale_id     TEXT,
+    customer_id TEXT,
+    description TEXT,
+    notes       TEXT,
+    status      VARCHAR(20) NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'shipped', 'delivered')),
+
+    created_at  TIMESTAMP   NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
+    updated_at  TIMESTAMP   NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
+    deleted_at  TIMESTAMP,
+    created_by  TEXT,
+    updated_by  TEXT,
+
+    CONSTRAINT fk_shipments_sale
+        FOREIGN KEY (sale_id) REFERENCES sales(id) ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT fk_shipments_customer
+        FOREIGN KEY (customer_id) REFERENCES customers(id) ON UPDATE CASCADE ON DELETE SET NULL
+);
+
+CREATE UNIQUE INDEX uq_shipments_code ON shipments (code) WHERE deleted_at IS NULL;
+CREATE INDEX idx_shipments_customer ON shipments (customer_id, created_at) WHERE deleted_at IS NULL;
+CREATE INDEX idx_shipments_status ON shipments (status, created_at) WHERE deleted_at IS NULL;
+
 CREATE TRIGGER trg_application_settings_sync_delete AFTER DELETE ON application_settings BEGIN
     INSERT INTO sync_tombstones (table_name, record_id, updated_at)
     VALUES ('application_settings', OLD.id, OLD.updated_at);
@@ -468,4 +494,9 @@ END;
 CREATE TRIGGER trg_import_lot_purchase_orders_sync_delete AFTER DELETE ON import_lot_purchase_orders BEGIN
     INSERT INTO sync_tombstones (table_name, record_id, updated_at)
     VALUES ('import_lot_purchase_orders', OLD.import_lot_id || ':' || OLD.purchase_order_id, OLD.added_at);
+END;
+
+CREATE TRIGGER trg_shipments_sync_delete AFTER DELETE ON shipments BEGIN
+    INSERT INTO sync_tombstones (table_name, record_id, updated_at)
+    VALUES ('shipments', OLD.id, OLD.updated_at);
 END;

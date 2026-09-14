@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { z } from 'zod';
 import {
   Form,
@@ -9,6 +9,7 @@ import {
 } from '@/components/form';
 import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
+import { ProductFormDialog } from '@/features/products/components/ProductsDrawer';
 import { useReceiveStock } from '@/features/inventory/hooks/useInventory';
 import { useNotificationStore } from '@/stores/notification';
 
@@ -42,6 +43,8 @@ interface InventoryReceiveDialogProps {
 export function InventoryReceiveDialog({ open, onOpenChange, preset }: InventoryReceiveDialogProps) {
   const receive = useReceiveStock();
   const push = useNotificationStore((s) => s.push);
+  const [productCreateOpen, setProductCreateOpen] = useState(false);
+  const assignProduct = useRef<(id: string) => void>(() => {});
 
   const defaults = useMemo<ReceiveFormValues>(
     () => ({
@@ -81,7 +84,18 @@ export function InventoryReceiveDialog({ open, onOpenChange, preset }: Inventory
           {({ formState }) => (
             <>
               <DialogBody>
-                <ProductSelectField name="productId" label="Producto" required />
+                <ProductSelectField
+                  name="productId"
+                  label="Producto"
+                  required
+                  createOption={{
+                    label: 'Crear nuevo producto…',
+                    onSelect: (assign) => {
+                      assignProduct.current = assign;
+                      setProductCreateOpen(true);
+                    },
+                  }}
+                />
                 <div className="form-grid">
                   <DateField name="arrivalDate" label="Fecha de ingreso" required max={today()} />
                   <NumberField name="quantity" label="Cantidad" required min={1} step={1} description="Unidades ingresadas al almacén." />
@@ -99,6 +113,13 @@ export function InventoryReceiveDialog({ open, onOpenChange, preset }: Inventory
             </>
           )}
         </Form>
+
+        <ProductFormDialog
+          open={productCreateOpen}
+          onOpenChange={setProductCreateOpen}
+          product={null}
+          onCreated={(p) => assignProduct.current(p.id)}
+        />
       </DialogContent>
     </Dialog>
   );

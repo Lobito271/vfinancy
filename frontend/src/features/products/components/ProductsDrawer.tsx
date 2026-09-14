@@ -28,6 +28,7 @@ const unitCodes = [
 
 const productSchema = z.object({
   description: z.string().trim().min(1, 'Ingrese la descripción del producto.'),
+  sku: z.string().trim().optional(),
   unitCode: z.string().min(1, 'Seleccione la unidad de medida.'),
   costUsd: z.number().min(0, 'No puede ser negativo.'),
   salePrice: z.number().min(0, 'No puede ser negativo.'),
@@ -35,14 +36,16 @@ const productSchema = z.object({
 
 type ProductValues = z.infer<typeof productSchema>;
 
-function ProductFormDialog({
+export function ProductFormDialog({
   open,
   onOpenChange,
   product,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   product: ProductDTO | null;
+  onCreated?: (product: ProductDTO) => void;
 }) {
   const create = useCreateProduct();
   const update = useUpdateProduct();
@@ -51,6 +54,7 @@ function ProductFormDialog({
   const pending = create.isPending || update.isPending;
   const values: ProductValues = {
     description: product?.description ?? '',
+    sku: product?.sku ?? '',
     unitCode: product?.unitCode ?? 'Unidad',
     costUsd: product?.costUsd ?? 0,
     salePrice: product?.salePrice ?? 0,
@@ -62,8 +66,9 @@ function ProductFormDialog({
         await update.mutateAsync({ id: product.id, ...input });
         push({ title: 'Producto actualizado', variant: 'success' });
       } else {
-        await create.mutateAsync(input);
+        const created = await create.mutateAsync(input);
         push({ title: 'Producto creado', variant: 'success' });
+        onCreated?.(created);
       }
       onOpenChange(false);
     } catch (err) {
@@ -86,6 +91,13 @@ function ProductFormDialog({
             <>
               <DialogBody>
                 <TextField name="description" label="Descripción" required />
+                {!isEditing && (
+                  <TextField
+                    name="sku"
+                    label="SKU"
+                    description="Opcional: déjalo vacío para generarlo automáticamente. No se puede cambiar después."
+                  />
+                )}
                 <SelectField name="unitCode" label="Unidad de medida" required options={unitCodes} clearable={false} />
                 <MoneyField name="costUsd" label="Costo (USD)" currency="USD" description="Costo de adquisición en dólares." />
                 <MoneyField name="salePrice" label="Precio de venta (PEN)" currency="PEN" description="Precio sugerido al vender en soles." />

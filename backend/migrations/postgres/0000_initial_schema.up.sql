@@ -345,3 +345,29 @@ CREATE TABLE import_lot_purchase_orders (
 );
 
 CREATE INDEX idx_import_lot_members_purchase ON import_lot_purchase_orders (purchase_order_id);
+
+CREATE TABLE shipments (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code        VARCHAR(4) NOT NULL,
+    sale_id     UUID,
+    customer_id UUID,
+    description TEXT,
+    notes       TEXT,
+    status      VARCHAR(20) NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'shipped', 'delivered')),
+
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at  TIMESTAMPTZ,
+    created_by  TEXT,
+    updated_by  TEXT,
+
+    CONSTRAINT fk_shipments_sale
+        FOREIGN KEY (sale_id) REFERENCES sales(id) ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT fk_shipments_customer
+        FOREIGN KEY (customer_id) REFERENCES customers(id) ON UPDATE CASCADE ON DELETE SET NULL
+);
+
+CREATE UNIQUE INDEX uq_shipments_code ON shipments (code) WHERE deleted_at IS NULL;
+CREATE INDEX idx_shipments_customer ON shipments (customer_id, created_at) WHERE deleted_at IS NULL;
+CREATE INDEX idx_shipments_status ON shipments (status, created_at) WHERE deleted_at IS NULL;

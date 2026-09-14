@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, ShoppingCart, Package, Receipt, CreditCard, Settings,
+  LayoutDashboard, ShoppingCart, Package, Receipt, CreditCard, Settings, Truck,
 } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 import { Routes } from '@/constants/routes';
@@ -17,5 +17,6 @@ export const navItems: NavRoute[] = [
   { to: Routes.Inventory, label: 'Inventario', icon: Package },
   { to: Routes.Sales, label: 'Ventas', icon: Receipt },
   { to: Routes.Treasury, label: 'Tesorería', icon: CreditCard },
+  { to: Routes.Shipments, label: 'Envíos', icon: Truck },
   { to: Routes.Settings, label: 'Ajustes', icon: Settings },
 ];

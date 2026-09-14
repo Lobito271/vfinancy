@@ -26,13 +26,13 @@ func NewShipmentRepository(db *sql.DB) *shipmentRepository {
 
 const shipmentColumns = `
 	id, code, sale_id, customer_id, description, notes, status,
-	created_at, updated_at, deleted_at, created_by, updated_by
+	created_at, updated_at, deleted_at
 `
 
 const shipmentInsert = `INSERT INTO shipments (
 	id, code, sale_id, customer_id, description, notes, status,
-	created_at, updated_at, deleted_at, created_by, updated_by
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`
+	created_at, updated_at, deleted_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
 
 func (r *shipmentRepository) Create(ctx context.Context, s *shipment.Shipment) error {
 	_, err := persistence.Q(ctx, r.q).ExecContext(ctx, shipmentInsert,
@@ -40,7 +40,6 @@ func (r *shipmentRepository) Create(ctx context.Context, s *shipment.Shipment) e
 		persistence.NullIfEmptyUUID(s.SaleID), persistence.NullIfEmptyUUID(s.CustomerID),
 		persistence.NullIfEmpty(s.Description), persistence.NullIfEmpty(s.Notes), s.Status.String(),
 		s.CreatedAt, s.UpdatedAt, persistence.NullIfZeroTime(s.DeletedAt),
-		persistence.NullIfEmptyUUID(s.CreatedBy), persistence.NullIfEmptyUUID(s.UpdatedBy),
 	)
 	return persistence.Translate(err)
 }
@@ -48,12 +47,12 @@ func (r *shipmentRepository) Create(ctx context.Context, s *shipment.Shipment) e
 func (r *shipmentRepository) Update(ctx context.Context, s *shipment.Shipment) error {
 	const q = `UPDATE shipments SET
 		sale_id = $1, customer_id = $2, description = $3, notes = $4,
-		status = $5, updated_at = $6, updated_by = $7
-	 WHERE id = $8 AND deleted_at IS NULL`
+		status = $5, updated_at = $6
+	 WHERE id = $7 AND deleted_at IS NULL`
 	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
 		persistence.NullIfEmptyUUID(s.SaleID), persistence.NullIfEmptyUUID(s.CustomerID),
 		persistence.NullIfEmpty(s.Description), persistence.NullIfEmpty(s.Notes),
-		s.Status.String(), s.UpdatedAt, persistence.NullIfEmptyUUID(s.UpdatedBy),
+		s.Status.String(), s.UpdatedAt,
 		s.ID,
 	)
 	if err != nil {
@@ -144,41 +143,41 @@ func (r *shipmentRepository) List(ctx context.Context, filter shipment.ShipmentF
 func scanShipment(row *sql.Row) (*shipment.Shipment, error) {
 	s := &shipment.Shipment{}
 	var (
-		saleID, customerID, createdBy, updatedBy sql.NullString
-		description, notes                       sql.NullString
-		deletedAt                                sql.NullTime
-		status                                   string
+		saleID, customerID   sql.NullString
+		description, notes   sql.NullString
+		deletedAt            sql.NullTime
+		status               string
 	)
 	err := persistence.ScanRow(row,
 		&s.ID, &s.Code, &saleID, &customerID, &description, &notes, &status,
-		&s.CreatedAt, &s.UpdatedAt, &deletedAt, &createdBy, &updatedBy,
+		&s.CreatedAt, &s.UpdatedAt, &deletedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
-	decodeShipment(s, saleID, customerID, description, notes, status, createdBy, updatedBy, deletedAt)
+	decodeShipment(s, saleID, customerID, description, notes, status, deletedAt)
 	return s, nil
 }
 
 func scanShipmentFromRows(rows *sql.Rows) (*shipment.Shipment, error) {
 	s := &shipment.Shipment{}
 	var (
-		saleID, customerID, createdBy, updatedBy sql.NullString
-		description, notes                       sql.NullString
-		deletedAt                                sql.NullTime
-		status                                   string
+		saleID, customerID   sql.NullString
+		description, notes   sql.NullString
+		deletedAt            sql.NullTime
+		status               string
 	)
 	if err := rows.Scan(
 		&s.ID, &s.Code, &saleID, &customerID, &description, &notes, &status,
-		&s.CreatedAt, &s.UpdatedAt, &deletedAt, &createdBy, &updatedBy,
+		&s.CreatedAt, &s.UpdatedAt, &deletedAt,
 	); err != nil {
 		return nil, persistence.Translate(err)
 	}
-	decodeShipment(s, saleID, customerID, description, notes, status, createdBy, updatedBy, deletedAt)
+	decodeShipment(s, saleID, customerID, description, notes, status, deletedAt)
 	return s, nil
 }
 
-func decodeShipment(s *shipment.Shipment, saleID, customerID, description, notes sql.NullString, status string, createdBy, updatedBy sql.NullString, deletedAt sql.NullTime) {
+func decodeShipment(s *shipment.Shipment, saleID, customerID, description, notes sql.NullString, status string, deletedAt sql.NullTime) {
 	if saleID.Valid {
 		id := persistence.ParseUUID(saleID.String)
 		s.SaleID = &id
@@ -190,14 +189,6 @@ func decodeShipment(s *shipment.Shipment, saleID, customerID, description, notes
 	s.Description = description.String
 	s.Notes = notes.String
 	s.Status = enums.ShipmentStatus(status)
-	if createdBy.Valid {
-		id := persistence.ParseUUID(createdBy.String)
-		s.CreatedBy = &id
-	}
-	if updatedBy.Valid {
-		id := persistence.ParseUUID(updatedBy.String)
-		s.UpdatedBy = &id
-	}
 	if !deletedAt.Time.IsZero() {
 		t := deletedAt.Time
 		s.DeletedAt = &t

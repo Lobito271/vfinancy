@@ -25,8 +25,6 @@ type Shipment struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	DeletedAt   *time.Time
-	CreatedBy   *uuid.UUID
-	UpdatedBy   *uuid.UUID
 }
 
 // Validate checks the aggregate invariants. The code is assigned at

@@ -27,7 +27,7 @@ func NewSaleRepository(db *sql.DB) *saleRepository {
 const saleColumns = `
 	id, customer_id, number, sale_date, due_date, status, sale_type,
 	total, paid_amount, cost_total, profit, notes, cancelled_at, cancelled_reason,
-	created_at, updated_at, deleted_at, created_by, updated_by
+	created_at, updated_at, deleted_at
 `
 
 const saleItemColumns = `
@@ -39,8 +39,8 @@ func (r *saleRepository) Create(ctx context.Context, s *sales.Sale, items []*sal
 	const q = `INSERT INTO sales (
 		id, customer_id, number, sale_date, due_date, status, sale_type,
 		total, paid_amount, cost_total, profit, notes, cancelled_at, cancelled_reason,
-		created_at, updated_at, deleted_at, created_by, updated_by
-	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`
+		created_at, updated_at, deleted_at
+	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`
 	_, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
 		s.ID, s.CustomerID, s.Number, s.SaleDate,
 		persistence.NullIfZeroTime(s.DueDate), s.Status.String(), s.SaleType.String(),
@@ -48,7 +48,6 @@ func (r *saleRepository) Create(ctx context.Context, s *sales.Sale, items []*sal
 		persistence.NullIfEmpty(s.Notes),
 		persistence.NullIfZeroTime(s.CancelledAt), persistence.NullIfEmpty(s.CancelledReason),
 		s.CreatedAt, s.UpdatedAt, persistence.NullIfZeroTime(s.DeletedAt),
-		persistence.NullIfEmptyUUID(s.CreatedBy), persistence.NullIfEmptyUUID(s.UpdatedBy),
 	)
 	if err != nil {
 		return persistence.Translate(err)
@@ -82,14 +81,14 @@ func (r *saleRepository) Update(ctx context.Context, s *sales.Sale) error {
 	const q = `UPDATE sales SET
 		due_date = $1, status = $2, total = $3, paid_amount = $4, cost_total = $5,
 		profit = $6, notes = $7, cancelled_at = $8, cancelled_reason = $9,
-		updated_at = $10, updated_by = $11
-	 WHERE id = $12 AND deleted_at IS NULL`
+		updated_at = $10
+	 WHERE id = $11 AND deleted_at IS NULL`
 	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
 		persistence.NullIfZeroTime(s.DueDate), s.Status.String(),
 		s.Total.String(), s.PaidAmount.String(), s.CostTotal.String(), s.Profit.String(),
 		persistence.NullIfEmpty(s.Notes),
 		persistence.NullIfZeroTime(s.CancelledAt), persistence.NullIfEmpty(s.CancelledReason),
-		time.Now().UTC(), persistence.NullIfEmptyUUID(s.UpdatedBy), s.ID,
+		time.Now().UTC(), s.ID,
 	)
 	if err != nil {
 		return persistence.Translate(err)
@@ -232,44 +231,44 @@ func (r *saleRepository) List(ctx context.Context, filter sales.SaleFilter) (rep
 func scanSale(row *sql.Row) (*sales.Sale, error) {
 	s := &sales.Sale{}
 	var (
-		dueDate, cancelledAt, deletedAt     sql.NullTime
-		notes, reason, createdBy, updatedBy sql.NullString
-		saleDate                            time.Time
-		status, saleType                    string
-		total, paid, cost, profit           string
+		dueDate, cancelledAt, deletedAt sql.NullTime
+		notes, reason                   sql.NullString
+		saleDate                        time.Time
+		status, saleType                string
+		total, paid, cost, profit       string
 	)
 	if err := persistence.ScanRow(row,
 		&s.ID, &s.CustomerID, &s.Number, &saleDate, &dueDate, &status, &saleType,
 		&total, &paid, &cost, &profit, &notes, &cancelledAt, &reason,
-		&s.CreatedAt, &s.UpdatedAt, &deletedAt, &createdBy, &updatedBy,
+		&s.CreatedAt, &s.UpdatedAt, &deletedAt,
 	); err != nil {
 		return nil, err
 	}
 	s.SaleDate = saleDate
-	return s, decodeSale(s, dueDate, cancelledAt, deletedAt, notes, reason, createdBy, updatedBy, status, saleType, total, paid, cost, profit)
+	return s, decodeSale(s, dueDate, cancelledAt, deletedAt, notes, reason, status, saleType, total, paid, cost, profit)
 }
 
 func scanSaleFromRows(rows *sql.Rows) (*sales.Sale, error) {
 	s := &sales.Sale{}
 	var (
-		dueDate, cancelledAt, deletedAt     sql.NullTime
-		notes, reason, createdBy, updatedBy sql.NullString
-		saleDate                            time.Time
-		status, saleType                    string
-		total, paid, cost, profit           string
+		dueDate, cancelledAt, deletedAt sql.NullTime
+		notes, reason                   sql.NullString
+		saleDate                        time.Time
+		status, saleType                string
+		total, paid, cost, profit       string
 	)
 	if err := rows.Scan(
 		&s.ID, &s.CustomerID, &s.Number, &saleDate, &dueDate, &status, &saleType,
 		&total, &paid, &cost, &profit, &notes, &cancelledAt, &reason,
-		&s.CreatedAt, &s.UpdatedAt, &deletedAt, &createdBy, &updatedBy,
+		&s.CreatedAt, &s.UpdatedAt, &deletedAt,
 	); err != nil {
 		return nil, persistence.Translate(err)
 	}
 	s.SaleDate = saleDate
-	return s, decodeSale(s, dueDate, cancelledAt, deletedAt, notes, reason, createdBy, updatedBy, status, saleType, total, paid, cost, profit)
+	return s, decodeSale(s, dueDate, cancelledAt, deletedAt, notes, reason, status, saleType, total, paid, cost, profit)
 }
 
-func decodeSale(s *sales.Sale, dueDate, cancelledAt, deletedAt sql.NullTime, notes, reason, createdBy, updatedBy sql.NullString, status, saleType, total, paid, cost, profit string) error {
+func decodeSale(s *sales.Sale, dueDate, cancelledAt, deletedAt sql.NullTime, notes, reason sql.NullString, status, saleType, total, paid, cost, profit string) error {
 	if dueDate.Valid {
 		t := dueDate.Time
 		s.DueDate = &t
@@ -302,14 +301,6 @@ func decodeSale(s *sales.Sale, dueDate, cancelledAt, deletedAt sql.NullTime, not
 	if deletedAt.Valid {
 		t := deletedAt.Time
 		s.DeletedAt = &t
-	}
-	if createdBy.Valid {
-		id := persistence.ParseUUID(createdBy.String)
-		s.CreatedBy = &id
-	}
-	if updatedBy.Valid {
-		id := persistence.ParseUUID(updatedBy.String)
-		s.UpdatedBy = &id
 	}
 	return nil
 }

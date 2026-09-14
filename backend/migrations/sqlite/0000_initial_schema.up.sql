@@ -89,8 +89,6 @@ CREATE TABLE customers (
     created_at      TIMESTAMP    NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
     updated_at      TIMESTAMP    NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
     deleted_at      TIMESTAMP,
-    created_by      TEXT,
-    updated_by      TEXT,
 
     CONSTRAINT ck_customers_business_name_nonblank CHECK (length(trim(business_name)) > 0),
     CONSTRAINT ck_customers_doc_pair
@@ -123,8 +121,6 @@ CREATE TABLE products (
     created_at  TIMESTAMP    NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
     updated_at  TIMESTAMP    NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
     deleted_at  TIMESTAMP,
-    created_by  TEXT,
-    updated_by  TEXT,
 
     CONSTRAINT ck_products_description_nonblank CHECK (length(trim(description)) > 0)
 );
@@ -144,8 +140,6 @@ CREATE TABLE credit_cards (
     created_at       TIMESTAMP    NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
     updated_at       TIMESTAMP    NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
     deleted_at       TIMESTAMP,
-    created_by       TEXT,
-    updated_by       TEXT,
 
     CONSTRAINT ck_credit_cards_issuer_nonblank CHECK (length(trim(issuer)) > 0)
 );
@@ -178,8 +172,6 @@ CREATE TABLE purchase_orders (
     created_at     TIMESTAMP   NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
     updated_at     TIMESTAMP   NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
     deleted_at     TIMESTAMP,
-    created_by     TEXT,
-    updated_by     TEXT,
 
     CONSTRAINT fk_purchase_orders_customer
         FOREIGN KEY (customer_id) REFERENCES customers(id) ON UPDATE CASCADE ON DELETE RESTRICT,
@@ -232,8 +224,6 @@ CREATE TABLE inventory_batches (
 
     created_at             TIMESTAMP  NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
     updated_at             TIMESTAMP  NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-    created_by             TEXT,
-    updated_by             TEXT,
 
     CONSTRAINT fk_inventory_batches_product
         FOREIGN KEY (product_id) REFERENCES products(id) ON UPDATE CASCADE ON DELETE RESTRICT,
@@ -289,8 +279,6 @@ CREATE TABLE sales (
     created_at       TIMESTAMP   NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
     updated_at       TIMESTAMP   NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
     deleted_at       TIMESTAMP,
-    created_by       TEXT,
-    updated_by       TEXT,
 
     CONSTRAINT fk_sales_customer
         FOREIGN KEY (customer_id) REFERENCES customers(id) ON UPDATE CASCADE ON DELETE RESTRICT,
@@ -340,8 +328,6 @@ CREATE TABLE customer_payments (
     created_at     TIMESTAMP   NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
     updated_at     TIMESTAMP   NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
     deleted_at     TIMESTAMP,
-    created_by     TEXT,
-    updated_by     TEXT,
 
     CONSTRAINT fk_customer_payments_customer
         FOREIGN KEY (customer_id) REFERENCES customers(id) ON UPDATE CASCADE ON DELETE RESTRICT
@@ -374,9 +360,7 @@ CREATE TABLE import_lots (
 
     created_at  TIMESTAMP   NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
     updated_at  TIMESTAMP   NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-    deleted_at  TIMESTAMP,
-    created_by  TEXT,
-    updated_by  TEXT
+    deleted_at  TIMESTAMP
 );
 
 CREATE UNIQUE INDEX uq_import_lots_code ON import_lots (code) WHERE deleted_at IS NULL;
@@ -408,8 +392,6 @@ CREATE TABLE shipments (
     created_at  TIMESTAMP   NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
     updated_at  TIMESTAMP   NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
     deleted_at  TIMESTAMP,
-    created_by  TEXT,
-    updated_by  TEXT,
 
     CONSTRAINT fk_shipments_sale
         FOREIGN KEY (sale_id) REFERENCES sales(id) ON UPDATE CASCADE ON DELETE SET NULL,

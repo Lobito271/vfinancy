@@ -31,8 +31,6 @@ type CustomerPayment struct {
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 	DeletedAt     *time.Time
-	CreatedBy     *uuid.UUID
-	UpdatedBy     *uuid.UUID
 }
 
 // PaymentAllocation records how much of a payment was applied to a

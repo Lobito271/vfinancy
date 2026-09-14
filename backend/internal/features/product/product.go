@@ -28,8 +28,6 @@ type Product struct {
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	DeletedAt   *time.Time
-	CreatedBy   string
-	UpdatedBy   string
 }
 
 // NewProduct validates inputs and constructs a Product with an

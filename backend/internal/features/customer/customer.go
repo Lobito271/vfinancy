@@ -27,8 +27,6 @@ type Customer struct {
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	DeletedAt      *time.Time
-	CreatedBy      string
-	UpdatedBy      string
 }
 
 // NewCustomer validates inputs and constructs a Customer. The customer

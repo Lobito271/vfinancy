@@ -24,19 +24,18 @@ func NewImportLotRepository(db *sql.DB) *importLotRepository {
 
 const importLotColumns = `
 	id, code, description, status,
-	created_at, updated_at, deleted_at, created_by, updated_by
+	created_at, updated_at, deleted_at
 `
 
 // Create inserts a new lot.
 func (r *importLotRepository) Create(ctx context.Context, lot *purchasing.ImportLot) error {
 	const q = `INSERT INTO import_lots (
 		id, code, description, status,
-		created_at, updated_at, created_by, updated_by
-	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+		created_at, updated_at
+	) VALUES ($1, $2, $3, $4, $5, $6)`
 	_, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
 		lot.ID, lot.Code, persistence.NullIfEmpty(lot.Description), lot.Status,
 		lot.CreatedAt, lot.UpdatedAt,
-		persistence.NullIfEmptyUUID(lot.CreatedBy), persistence.NullIfEmptyUUID(lot.UpdatedBy),
 	)
 	return persistence.Translate(err)
 }
@@ -44,11 +43,11 @@ func (r *importLotRepository) Create(ctx context.Context, lot *purchasing.Import
 // Update persists the mutable lot fields.
 func (r *importLotRepository) Update(ctx context.Context, lot *purchasing.ImportLot) error {
 	const q = `UPDATE import_lots SET
-		code = $1, description = $2, status = $3, updated_at = $4, updated_by = $5
-		WHERE id = $6 AND deleted_at IS NULL`
+		code = $1, description = $2, status = $3, updated_at = $4
+		WHERE id = $5 AND deleted_at IS NULL`
 	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
 		lot.Code, persistence.NullIfEmpty(lot.Description), lot.Status,
-		time.Now().UTC(), persistence.NullIfEmptyUUID(lot.UpdatedBy), lot.ID,
+		time.Now().UTC(), lot.ID,
 	)
 	if err != nil {
 		return persistence.Translate(err)
@@ -234,16 +233,15 @@ func scanImportLot(row *sql.Row) (*purchasing.ImportLot, error) {
 	lot := &purchasing.ImportLot{}
 	var (
 		description sql.NullString
-	deletedAt            sql.NullTime
-		createdBy, updatedBy   sql.NullString
+		deletedAt   sql.NullTime
 	)
 	if err := persistence.ScanRow(row,
 		&lot.ID, &lot.Code, &description, &lot.Status,
-		&lot.CreatedAt, &lot.UpdatedAt, &deletedAt, &createdBy, &updatedBy,
+		&lot.CreatedAt, &lot.UpdatedAt, &deletedAt,
 	); err != nil {
 		return nil, err
 	}
-	decodeImportLot(lot, description.String, deletedAt, createdBy.String, updatedBy.String)
+	decodeImportLot(lot, description.String, deletedAt)
 	return lot, nil
 }
 
@@ -251,32 +249,23 @@ func scanImportLotFromRows(rows *sql.Rows) (*purchasing.ImportLot, error) {
 	lot := &purchasing.ImportLot{}
 	var (
 		description sql.NullString
-	deletedAt            sql.NullTime
-		createdBy, updatedBy   sql.NullString
+		deletedAt   sql.NullTime
 	)
 	if err := rows.Scan(
 		&lot.ID, &lot.Code, &description, &lot.Status,
-		&lot.CreatedAt, &lot.UpdatedAt, &deletedAt, &createdBy, &updatedBy,
+		&lot.CreatedAt, &lot.UpdatedAt, &deletedAt,
 	); err != nil {
 		return nil, persistence.Translate(err)
 	}
-	decodeImportLot(lot, description.String, deletedAt, createdBy.String, updatedBy.String)
+	decodeImportLot(lot, description.String, deletedAt)
 	return lot, nil
 }
 
-func decodeImportLot(lot *purchasing.ImportLot, description string, deletedAt sql.NullTime, createdBy, updatedBy string) {
+func decodeImportLot(lot *purchasing.ImportLot, description string, deletedAt sql.NullTime) {
 	lot.Description = description
 	if deletedAt.Valid {
 		t := deletedAt.Time
 		lot.DeletedAt = &t
-	}
-	if createdBy != "" {
-		id := persistence.ParseUUID(createdBy)
-		lot.CreatedBy = &id
-	}
-	if updatedBy != "" {
-		id := persistence.ParseUUID(updatedBy)
-		lot.UpdatedBy = &id
 	}
 }
 

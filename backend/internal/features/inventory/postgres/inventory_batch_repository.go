@@ -31,21 +31,21 @@ func NewInventoryBatchRepository(db *sql.DB) *inventoryBatchRepository {
 const batchColumns = `
 	id, product_id, purchase_order_item_id, arrival_date, quantity,
 	original_quantity, unit_cost, exchange_rate, status, is_clearance,
-	created_at, updated_at, created_by, updated_by
+	created_at, updated_at
 `
 
 func (r *inventoryBatchRepository) Create(ctx context.Context, b *inventory.InventoryBatch) error {
 	const q = `INSERT INTO inventory_batches (
 		id, product_id, purchase_order_item_id, arrival_date, quantity,
 		original_quantity, unit_cost, exchange_rate, status, is_clearance,
-		created_at, updated_at, created_by, updated_by
-	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`
+		created_at, updated_at
+	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`
 	_, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
 		b.ID, b.ProductID, persistence.NullIfEmptyUUID(b.PurchaseOrderItemID),
 		b.ArrivalDate, b.Quantity.String(), b.OriginalQuantity.String(),
 		b.UnitCost.String(), b.ExchangeRate.String(), b.Status.String(),
 		b.IsClearanceOn(inventory.ClearanceDays, time.Now().UTC()),
-		b.CreatedAt, b.UpdatedAt, persistence.NullIfEmpty(b.CreatedBy), persistence.NullIfEmpty(b.UpdatedBy),
+		b.CreatedAt, b.UpdatedAt,
 	)
 	return persistence.Translate(err)
 }
@@ -54,13 +54,13 @@ func (r *inventoryBatchRepository) Update(ctx context.Context, b *inventory.Inve
 	const q = `UPDATE inventory_batches SET
 		arrival_date = $1, quantity = $2, original_quantity = $3,
 		unit_cost = $4, exchange_rate = $5, status = $6, is_clearance = $7,
-		updated_at = $8, updated_by = $9
-	 WHERE id = $10`
+		updated_at = $8
+	 WHERE id = $9`
 	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
 		b.ArrivalDate, b.Quantity.String(), b.OriginalQuantity.String(),
 		b.UnitCost.String(), b.ExchangeRate.String(), b.Status.String(),
 		b.IsClearanceOn(inventory.ClearanceDays, time.Now().UTC()),
-		time.Now().UTC(), persistence.NullIfEmpty(b.UpdatedBy), b.ID,
+		time.Now().UTC(), b.ID,
 	)
 	if err != nil {
 		return persistence.Translate(err)
@@ -189,7 +189,7 @@ func scanBatchFromRows(rows *sql.Rows) (*inventory.InventoryBatch, error) {
 func scanBatchInto(scan func(dest ...any) error) (*inventory.InventoryBatch, error) {
 	b := &inventory.InventoryBatch{}
 	var (
-		purchaseLineID, createdBy, updatedBy sql.NullString
+		purchaseLineID                       sql.NullString
 		quantity, originalQuantity, unitCost string
 		exchangeRate, status                 string
 		isClearance                          bool
@@ -197,7 +197,7 @@ func scanBatchInto(scan func(dest ...any) error) (*inventory.InventoryBatch, err
 	if err := scan(
 		&b.ID, &b.ProductID, &purchaseLineID, &b.ArrivalDate,
 		&quantity, &originalQuantity, &unitCost, &exchangeRate,
-		&status, &isClearance, &b.CreatedAt, &b.UpdatedAt, &createdBy, &updatedBy,
+		&status, &isClearance, &b.CreatedAt, &b.UpdatedAt,
 	); err != nil {
 		return nil, persistence.Translate(err)
 	}
@@ -227,7 +227,5 @@ func scanBatchInto(scan func(dest ...any) error) (*inventory.InventoryBatch, err
 	}
 	b.Status = enums.BatchStatus(status)
 	b.IsClearance = isClearance
-	b.CreatedBy = createdBy.String
-	b.UpdatedBy = updatedBy.String
 	return b, nil
 }

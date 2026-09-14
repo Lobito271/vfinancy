@@ -26,7 +26,6 @@ import {
 } from '@/features/purchasing/hooks/usePurchases';
 import { PurchaseFormDialog } from '@/features/purchasing/components/PurchaseFormDialog';
 import { ImportLotsDialog } from '@/features/purchasing/components/ImportLotsDialog';
-import { ProductsDrawer } from '@/features/products/components/ProductsDrawer';
 import { MarkReceivedDialog } from '@/features/purchasing/components/MarkReceivedDialog';
 import { MarkFaultyDialog, type MarkFaultyInput } from '@/features/purchasing/components/MarkFaultyDialog';
 import { wailsClient } from '@/services/bindings';
@@ -96,7 +95,6 @@ export function PurchasesPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [lotsOpen, setLotsOpen] = useState(false);
-  const [productsOpen, setProductsOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Purchase | null>(null);
   const [receivedTarget, setReceivedTarget] = useState<Purchase | null>(null);
@@ -194,9 +192,6 @@ export function PurchasesPage() {
           <div className="hstack hstack--sm">
             <Button variant="outline" onClick={() => setFiltersOpen(true)}>
               <Filter /> Filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
-            </Button>
-            <Button variant="outline" onClick={() => setProductsOpen(true)}>
-              <Package /> Productos
             </Button>
             <Button variant="outline" onClick={() => setLotsOpen(true)}>
               <Boxes /> Lotes
@@ -331,7 +326,6 @@ export function PurchasesPage() {
 
       <PurchaseFormDialog open={formOpen} onOpenChange={setFormOpen} />
       <ImportLotsDialog open={lotsOpen} onOpenChange={setLotsOpen} />
-      <ProductsDrawer open={productsOpen} onOpenChange={setProductsOpen} />
 
       <MarkReceivedDialog
         open={!!receivedTarget}

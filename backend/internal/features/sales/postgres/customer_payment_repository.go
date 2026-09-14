@@ -25,25 +25,23 @@ func NewCustomerPaymentRepository(db *sql.DB) *customerPaymentRepository {
 
 const customerPaymentColumns = `
 	id, customer_id, number, payment_date, amount, payment_method,
-	reference, notes, status, created_at, updated_at, deleted_at, created_by, updated_by
+	reference, notes, status, created_at, updated_at, deleted_at
 `
 
 const customerPaymentColumnsPrefixed = `
 	cp.id, cp.customer_id, cp.number, cp.payment_date, cp.amount, cp.payment_method,
-	cp.reference, cp.notes, cp.status, cp.created_at, cp.updated_at, cp.deleted_at,
-	cp.created_by, cp.updated_by
+	cp.reference, cp.notes, cp.status, cp.created_at, cp.updated_at, cp.deleted_at
 `
 
 func (r *customerPaymentRepository) Create(ctx context.Context, p *sales.CustomerPayment, allocations []sales.PaymentAllocation) error {
 	const q = `INSERT INTO customer_payments (
 		id, customer_id, number, payment_date, amount, payment_method,
-		reference, notes, status, created_at, updated_at, deleted_at, created_by, updated_by
-	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`
+		reference, notes, status, created_at, updated_at, deleted_at
+	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`
 	_, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
 		p.ID, p.CustomerID, p.Number, p.PaymentDate, p.Amount.String(), p.PaymentMethod.String(),
 		persistence.NullIfEmpty(p.Reference), persistence.NullIfEmpty(p.Notes), p.Status,
 		p.CreatedAt, p.UpdatedAt, persistence.NullIfZeroTime(p.DeletedAt),
-		persistence.NullIfEmptyUUID(p.CreatedBy), persistence.NullIfEmptyUUID(p.UpdatedBy),
 	)
 	if err != nil {
 		return persistence.Translate(err)
@@ -200,42 +198,42 @@ func (r *customerPaymentRepository) ListCollections(ctx context.Context, from, t
 func scanCustomerPayment(row *sql.Row) (*sales.CustomerPayment, error) {
 	p := &sales.CustomerPayment{}
 	var (
-		reference, notes, createdBy, updatedBy sql.NullString
-		deletedAt                              sql.NullTime
-		paymentDate                            time.Time
-		amount, method, status                 string
+		reference, notes       sql.NullString
+		deletedAt              sql.NullTime
+		paymentDate            time.Time
+		amount, method, status string
 	)
 	if err := persistence.ScanRow(row,
 		&p.ID, &p.CustomerID, &p.Number, &paymentDate, &amount, &method,
 		&reference, &notes, &status,
-		&p.CreatedAt, &p.UpdatedAt, &deletedAt, &createdBy, &updatedBy,
+		&p.CreatedAt, &p.UpdatedAt, &deletedAt,
 	); err != nil {
 		return nil, err
 	}
 	p.PaymentDate = paymentDate
-	return p, decodeCustomerPayment(p, reference, notes, createdBy, updatedBy, deletedAt, amount, method, status)
+	return p, decodeCustomerPayment(p, reference, notes, deletedAt, amount, method, status)
 }
 
 func scanCustomerPaymentFromRows(rows *sql.Rows) (*sales.CustomerPayment, error) {
 	p := &sales.CustomerPayment{}
 	var (
-		reference, notes, createdBy, updatedBy sql.NullString
-		deletedAt                              sql.NullTime
-		paymentDate                            time.Time
-		amount, method, status                 string
+		reference, notes       sql.NullString
+		deletedAt              sql.NullTime
+		paymentDate            time.Time
+		amount, method, status string
 	)
 	if err := rows.Scan(
 		&p.ID, &p.CustomerID, &p.Number, &paymentDate, &amount, &method,
 		&reference, &notes, &status,
-		&p.CreatedAt, &p.UpdatedAt, &deletedAt, &createdBy, &updatedBy,
+		&p.CreatedAt, &p.UpdatedAt, &deletedAt,
 	); err != nil {
 		return nil, persistence.Translate(err)
 	}
 	p.PaymentDate = paymentDate
-	return p, decodeCustomerPayment(p, reference, notes, createdBy, updatedBy, deletedAt, amount, method, status)
+	return p, decodeCustomerPayment(p, reference, notes, deletedAt, amount, method, status)
 }
 
-func decodeCustomerPayment(p *sales.CustomerPayment, reference, notes, createdBy, updatedBy sql.NullString, deletedAt sql.NullTime, amount, method, status string) error {
+func decodeCustomerPayment(p *sales.CustomerPayment, reference, notes sql.NullString, deletedAt sql.NullTime, amount, method, status string) error {
 	if reference.Valid {
 		p.Reference = reference.String
 	}
@@ -252,14 +250,6 @@ func decodeCustomerPayment(p *sales.CustomerPayment, reference, notes, createdBy
 	}
 	p.PaymentMethod = persistence.ParsePaymentMethod(method)
 	p.Status = status
-	if createdBy.Valid {
-		id := persistence.ParseUUID(createdBy.String)
-		p.CreatedBy = &id
-	}
-	if updatedBy.Valid {
-		id := persistence.ParseUUID(updatedBy.String)
-		p.UpdatedBy = &id
-	}
 	return nil
 }
 

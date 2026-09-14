@@ -204,7 +204,7 @@ Cada carpeta tiene su `index.ts` barrel — importar de `@/components/<categorí
 
 - **Money types:** always `NUMERIC(18,2)` or `DECIMAL(18,2)`. **Never** `FLOAT`/`REAL` — this is the #1 cause of accounting rounding bugs.
 - **PKs:** surrogate UUIDs (use `github.com/google/uuid`).
-- **Audit columns** on every important entity: `id`, `created_at`, `updated_at`, `deleted_at` (soft delete), `created_by`, `updated_by`. Feature entities carry these fields directly (e.g. `customer.Customer`).
+- **Audit columns** on every important entity: `id`, `created_at`, `updated_at`, `deleted_at` (soft delete). This is a single-account local app, so actor columns (`created_by`/`updated_by`) were deliberately removed. Feature entities carry these fields directly (e.g. `customer.Customer`).
 - **3NF**, FK constraints, optimized indexes.
 
 ## Transactional Rules (non-negotiable)

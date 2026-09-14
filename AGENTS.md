@@ -11,7 +11,7 @@
 - **Frontend:** TypeScript + **React 19** + Vite 5
 - **State / data:** Zustand, TanStack Query, React Hook Form, Zod
 - **UI primitives:** **Base UI** (`@base-ui/react` v1) — the primary component system; all Radix packages removed
-- **Styling:** plain CSS3 in `src/index.css` (OKLCH design tokens + Base UI part styling via data-attributes) — **no Tailwind, no PostCSS**
+- **Styling:** plain CSS3 in `src/index.css` (industrial neo-brutalist hex design tokens from `DESIGN.md` + Base UI part styling via data-attributes) — **no Tailwind, no PostCSS**
 - **DB:** local **SQLite** (runtime DB + single source of truth, `modernc.org/sqlite`, pure Go); optional **PostgreSQL** cloud mirror replicated over a **direct pgx connection** (`github.com/jackc/pgx/v5/stdlib`) by the built-in sync engine.
 
 ## Key Commands
@@ -148,7 +148,7 @@ Un documento canónico:
 
 La librería de componentes es **Base UI** (`@base-ui/react`, unstyled + accesible). Los wrappers viven en `src/components/*` y exportan la API usada por las páginas; el estilo se aplica directamente sobre las partes de Base UI.
 
-Estilos: `src/index.css` es un sistema **plain CSS3** auto-suficiente (sin Tailwind/PostCSS). Define tokens **OKLCH full-color** (`--color-*`, con overrides `.dark`), tipografía **Geist Sans/Geist Mono**, y **clases semánticas por parte** (`.btn`, `.card`, `.dialog-content`, `.menu-content`, `.select-trigger`, `.sidebar`, `.datatable`, …) con variantes BEM-style (`--primary`, `--collapsed`, `__header`). Los estados de Base UI se estilan con sus data-attributes (`[data-pressed]`, `[data-open]`, `[data-starting-style]`/`[data-ending-style]`, `[data-highlighted]`, `[data-checked]`, `[data-active]`, `[data-popup-open]`, `aria-invalid`). Para composición puntual hay helpers mínimos (`.stack`, `.hstack`, `.grid-N`). Focus ring global vía `:focus-visible` con `--color-ring`. La unión condicional de clases se hace con `cx()` de `@/utils/cx`.
+Estilos: `src/index.css` es un sistema **plain CSS3** auto-suficiente (sin Tailwind/PostCSS) que implementa el lenguaje **industrial neo-brutalista** de `DESIGN.md` (basado en `sample.html`): tokens **hex** (`--primary-yellow`, `--border-color`, `--bg-panel`, `--shadow-flat`, …, con overrides en `[data-theme="dark"]` y `.dark`), tipografía **Montserrat** (headings/métricas) + **Figtree** (datos/labels, cargada offline vía *@fontsource* en `main.tsx`), `border-radius: 0` en todo el UI, bordes duros 1.5px/2px, sombras planas `0 2px 0 rgba(0,0,0,0.2)`, y **clases semánticas por parte** (`.btn`, `.card`, `.dialog-content`, `.menu-content`, `.select-trigger`, `.sidebar`, `.datatable`, …) con variantes BEM-style (`--primary`, `--collapsed`, `__header`). Los estados de Base UI se estilan con sus data-attributes (`[data-pressed]`, `[data-open]`, `[data-starting-style]`/`[data-ending-style]`, `[data-highlighted]`, `[data-checked]`, `[data-active]`, `[data-popup-open]`, `aria-invalid`). Los tokens `--color-*` que el TS usa inline (charts/recharts, bordes de listas, metadatos) son aliases de los tokens de `DESIGN.md` — nunca definir los dos por separado. Para composición puntual hay helpers mínimos (`.stack`, `.hstack`, `.grid-N`). Focus ring global vía `:focus-visible` con `--color-ring`. La unión condicional de clases se hace con `cx()` de `@/utils/cx`.
 
 Reglas operativas:
 
@@ -165,7 +165,7 @@ Reglas operativas:
 ### Theme (light / dark / system)
 
 - Stored in `useThemeStore` (Zustand + `persist` to `localStorage`).
-- Class strategy: `.dark` variants are defined in `src/index.css`. `themeStore` toggles the `dark` class on `<html>` before React hydrates.
+- Class strategy: dark overrides are defined in `src/index.css` under both `[data-theme="dark"]` (DESIGN.md/`sample.html` parity) and `.dark`; `themeStore` toggles the `dark` class on `<html>` before React hydrates.
 - `system` sigue `prefers-color-scheme`.
 
 ### Component organization

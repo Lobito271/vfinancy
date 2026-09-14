@@ -9,6 +9,7 @@ import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
 import { useDashboardData } from '../hooks/useDashboard';
 import { WidgetShell } from './WidgetShell';
+import { ListRow } from '@/components/misc';
 
 export function CollectedMonthWidget() {
   const { data } = useDashboardData();
@@ -41,6 +42,7 @@ export function MonthlyNetProfitChart() {
       description="Utilidad consolidada de los últimos 6 meses"
       loading={isLoading}
       error={isError ? (error as Error) : null}
+      actions={<Badge variant="primary">Últimos 6 meses</Badge>}
     >
       {points.some((p) => p.value !== 0) ? (
         <BarChart data={points} formatY={(v) => formatCurrency(v)} />
@@ -55,23 +57,16 @@ export function MonthlyNetProfitChart() {
 }
 
 export function MonthStatusBadgesWidget() {
-  const { data, isLoading, isError, error } = useDashboardData();
+  const { data } = useDashboardData();
   return (
-    <WidgetShell
-      title="Estado del mes"
-      loading={isLoading}
-      error={isError ? (error as Error) : null}
-    >
-      <div className="stack stack--sm">
-        <div className="hstack hstack--sm">
-          <Badge variant="success">Cobradas: {data?.monthPaidCount ?? 0}</Badge>
-          <Badge variant="warning">Pendientes: {data?.monthPendingCount ?? 0}</Badge>
-        </div>
-        <div className="hstack hstack--sm">
-          <Badge variant="muted">Anuladas: {data?.monthCancelledCount ?? 0}</Badge>
-        </div>
+    <div className="stat-card">
+      <p className="stat-card__label">Estado del mes</p>
+      <div className="stat-card__badges">
+        <Badge variant="success">Cobradas: {data?.monthPaidCount ?? 0}</Badge>
+        <Badge variant="warning">Pendientes: {data?.monthPendingCount ?? 0}</Badge>
+        <Badge variant="muted">Anuladas: {data?.monthCancelledCount ?? 0}</Badge>
       </div>
-    </WidgetShell>
+    </div>
   );
 }
 
@@ -102,17 +97,18 @@ export function ClearanceWidget() {
       ) : (
         <div className="stack stack--sm">
           {items.map((b) => (
-            <div key={b.id} className="hstack" style={{ justifyContent: 'space-between', gap: '0.75rem' }}>
-              <span className="fw-medium" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {b.productDescription}
-              </span>
-              <div className="hstack hstack--sm">
-                <span className="tabular">{formatNumber(b.quantity)}</span>
-                <Badge variant={b.daysLeft <= 0 ? 'destructive' : 'warning'}>
-                  {b.daysLeft <= 0 ? 'En remate' : `Vence en ${b.daysLeft} días`}
-                </Badge>
-              </div>
-            </div>
+            <ListRow
+              key={b.id}
+              title={b.productDescription}
+              trailing={
+                <>
+                  <span className="tabular">{formatNumber(b.quantity)}</span>
+                  <Badge variant={b.daysLeft <= 0 ? 'destructive' : 'warning'}>
+                    {b.daysLeft <= 0 ? 'En remate' : `Vence en ${b.daysLeft} días`}
+                  </Badge>
+                </>
+              }
+            />
           ))}
         </div>
       )}

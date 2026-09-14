@@ -1416,10 +1416,6 @@ pre {
   letter-spacing: -0.3px;
 }
 
-.card-title--sm {
-  font-size: 0.95rem;
-}
-
 .card-description {
   font-size: 0.8rem;
   color: var(--text-muted);
@@ -1477,6 +1473,12 @@ pre {
 .stat-card__hint {
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+.stat-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 /* badge */

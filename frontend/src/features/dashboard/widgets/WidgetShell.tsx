@@ -18,7 +18,7 @@ export function WidgetShell({ title, description, loading, error, actions, class
     <Card className={cx('fill-parent', className)}>
       <CardHeader className="card-header--row">
         <div className="stack stack--xs">
-          <CardTitle className="card-title--sm">{title}</CardTitle>
+          <CardTitle>{title}</CardTitle>
           {description && <CardDescription>{description}</CardDescription>}
         </div>
         {actions}

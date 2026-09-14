@@ -12,7 +12,6 @@ function toItem(dto: InventoryBatchDTO, skuById: Map<string, string>): Inventory
     productId: dto.productId,
     productSku: skuById.get(dto.productId) ?? '',
     productDescription: dto.productDescription,
-    warehouse: 'Almacén Principal',
     quantity: dto.quantity,
     unitCost: dto.unitCost,
     currencyCode: 'PEN',

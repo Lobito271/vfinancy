@@ -31,7 +31,6 @@ export interface InventoryItem {
   productId: string;
   productSku: string;
   productDescription: string;
-  warehouse: string;
   quantity: number;
   unitCost: number;
   currencyCode: string;

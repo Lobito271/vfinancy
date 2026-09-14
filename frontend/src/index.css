@@ -304,7 +304,7 @@ pre {
   margin-inline-start: auto;
 }
 
-.sidebar__toggle {
+.sidebar .sidebar__toggle {
   color: var(--sidebar-text);
 }
 
@@ -683,6 +683,11 @@ pre {
   flex-shrink: 0;
 }
 
+.btn:not(.btn--icon):not(.btn--icon-sm) svg {
+  width: 1em;
+  height: 1em;
+}
+
 /* inputs */
 .input,
 .textarea {
@@ -1044,25 +1049,6 @@ pre {
   font-size: 0.8rem;
   color: var(--text-muted);
   margin-top: 2px;
-}
-
-.dialog-close {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-
-.dialog-close:hover {
-  color: var(--text-primary);
-}
-
-.dialog-close svg {
-  width: 18px;
-  height: 18px;
 }
 
 .dialog-body {
@@ -1582,7 +1568,7 @@ pre {
 
 .datatable-table th {
   text-align: left;
-  padding: 12px 18px;
+  padding: 8px 18px;
   background-color: var(--bg-hover);
   color: var(--text-secondary);
   font-weight: 700;
@@ -1598,7 +1584,7 @@ pre {
 }
 
 .datatable-table td {
-  padding: 12px 18px;
+  padding: 8px 18px;
   border-block-end: 1px solid var(--border-light);
   color: var(--text-primary);
   vertical-align: middle;
@@ -1697,23 +1683,6 @@ pre {
   display: flex;
   align-items: center;
   gap: 16px;
-}
-
-.table-pagination__per-page {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
-.table-pagination__per-page-label {
-  font-size: 0.8rem;
-}
-
-.table-pagination__select {
-  width: 80px;
-  height: 30px;
 }
 
 .table-pagination__pages {

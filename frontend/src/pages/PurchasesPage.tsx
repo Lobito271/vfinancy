@@ -190,9 +190,6 @@ export function PurchasesPage() {
         subtitle="Órdenes de compra a proveedores"
         actions={
           <div className="hstack hstack--sm">
-            <Button variant="outline" onClick={() => setFiltersOpen(true)}>
-              <Filter /> Filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
-            </Button>
             <Button variant="outline" onClick={() => setLotsOpen(true)}>
               <Boxes /> Lotes
             </Button>
@@ -249,6 +246,11 @@ export function PurchasesPage() {
               </SelectContent>
             </Select>
           </>
+        }
+        toolbarRight={
+          <Button variant="outline" onClick={() => setFiltersOpen(true)}>
+            <Filter /> Filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+          </Button>
         }
         empty={
           <EmptyState

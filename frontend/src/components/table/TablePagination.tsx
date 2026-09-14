@@ -2,13 +2,6 @@ import { useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/button';
 import { cx } from '@/utils/cx';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/select';
 import { t } from '@/locales';
 
 interface TablePaginationProps {
@@ -16,8 +9,6 @@ interface TablePaginationProps {
   pageSize: number;
   total: number;
   onPageChange: (page: number) => void;
-  onPageSizeChange: (n: number) => void;
-  pageSizeOptions?: number[];
 }
 
 export function TablePagination({
@@ -25,8 +16,6 @@ export function TablePagination({
   pageSize,
   total,
   onPageChange,
-  onPageSizeChange,
-  pageSizeOptions = [10, 25, 50, 100],
 }: TablePaginationProps) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const start = total === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -57,25 +46,6 @@ export function TablePagination({
         <span>{t('common.rows')}</span>
       </div>
       <div className="table-pagination__controls">
-        <div className="table-pagination__per-page">
-          <span className="table-pagination__per-page-label">Por página</span>
-          <Select
-            items={pageSizeOptions.map((n) => ({ value: String(n), label: String(n) }))}
-            value={String(pageSize)}
-            onValueChange={(v) => onPageSizeChange(Number(v))}
-          >
-            <SelectTrigger className="table-pagination__select">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {pageSizeOptions.map((n) => (
-                <SelectItem key={n} value={String(n)}>
-                  {n}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
         <div className="table-pagination__pages">
           <Button
             variant="outline"

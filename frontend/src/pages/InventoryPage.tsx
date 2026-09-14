@@ -42,7 +42,6 @@ const columns: Column<InventoryItem>[] = [
     sortable: true,
     cell: (row) => row.productDescription,
   },
-  { id: 'warehouse', header: 'Almacén', cell: (row) => row.warehouse || '—' },
   {
     id: 'quantity',
     header: 'Cantidad',
@@ -333,7 +332,7 @@ export function InventoryPage() {
       />
 
       <StatBand>
-        <StatCard label="Lotes en almacén" value={String(live.length)} icon={Boxes} />
+        <StatCard label="Lotes activos" value={String(live.length)} icon={Boxes} />
         <StatCard label="Unidades en stock" value={formatNumber(totalUnits)} />
         <StatCard label="Valor de inventario" value={formatCurrency(inventoryValue)} />
         <StatCard label="En remate" value={String(clearance)} icon={AlertTriangle} />

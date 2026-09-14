@@ -30,7 +30,7 @@ export const SelectContent = React.forwardRef<
     align?: React.ComponentPropsWithoutRef<typeof SelectPrimitive.Positioner>['align'];
     sideOffset?: number;
   }
->(({ className, children, align = 'start', sideOffset = 6, ...props }, ref) => (
+>(({ className, children, align = 'start', sideOffset = 0, ...props }, ref) => (
   <SelectPrimitive.Portal>
     <SelectPrimitive.Positioner align={align} sideOffset={sideOffset} className="select-positioner">
       <SelectPrimitive.Popup ref={ref} className={cx('select-popup', className)} {...props}>

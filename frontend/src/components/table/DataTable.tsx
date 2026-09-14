@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, type ReactNode } from 'react';
+import { useState, useMemo, useCallback, useEffect, type ReactNode } from 'react';
 import {
   ChevronsUpDown,
   ChevronUp,
@@ -52,6 +52,14 @@ function compare(a: unknown, b: unknown): number {
   return String(a).localeCompare(String(b), 'es', { numeric: true, sensitivity: 'base' });
 }
 
+const ROW_HEIGHT = 36;
+const TABLE_CHROME_HEIGHT = 320;
+
+function estimatePageSize(): number {
+  if (typeof window === 'undefined') return 20;
+  return Math.max(8, Math.floor((window.innerHeight - TABLE_CHROME_HEIGHT) / ROW_HEIGHT));
+}
+
 export function DataTable<T>({
   columns,
   data,
@@ -77,7 +85,6 @@ export function DataTable<T>({
       filters: [],
       search: '',
       page: 1,
-      pageSize: defaultPreferences?.pageSize ?? DataTableDefaults.pageSize,
       ...externalState,
     };
     if (preferencesKey) {
@@ -85,7 +92,6 @@ export function DataTable<T>({
       if (saved) {
         base = {
           ...base,
-          pageSize: saved.pageSize ?? base.pageSize,
           sort: saved.sort ?? base.sort,
         };
       }
@@ -95,6 +101,16 @@ export function DataTable<T>({
   }, []);
 
   const [state, setStateInternal] = useState<DataTableState>(initial);
+  const [pageSize, setPageSize] = useState(estimatePageSize);
+
+  useEffect(() => {
+    const onResize = () => {
+      setPageSize(estimatePageSize());
+      setStateInternal((s) => ({ ...s, page: 1 }));
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const update = useCallback(
     (patch: Partial<DataTableState>) => {
@@ -137,8 +153,8 @@ export function DataTable<T>({
   }, [data, state.filters, state.sort, columnsById, columns]);
 
   const total = filteredData.length;
-  const pageStart = (state.page - 1) * state.pageSize;
-  const pageRows = useMemo(() => filteredData.slice(pageStart, pageStart + state.pageSize), [filteredData, pageStart, state.pageSize]);
+  const pageStart = (state.page - 1) * pageSize;
+  const pageRows = useMemo(() => filteredData.slice(pageStart, pageStart + pageSize), [filteredData, pageStart, pageSize]);
 
   const handleSort = useCallback(
     (id: string) => {
@@ -232,16 +248,9 @@ export function DataTable<T>({
       {total > 0 && (
         <TablePagination
           page={state.page}
-          pageSize={state.pageSize}
+          pageSize={pageSize}
           total={total}
           onPageChange={(p) => update({ page: p })}
-          onPageSizeChange={(n) => {
-            update({ pageSize: n, page: 1 });
-            if (preferencesKey) {
-              const saved = readJSON<DataTablePreferences>(`vfinancy.dt.${preferencesKey}`);
-              writeJSON(`vfinancy.dt.${preferencesKey}`, { ...saved, pageSize: n });
-            }
-          }}
         />
       )}
     </div>

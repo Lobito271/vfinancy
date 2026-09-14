@@ -1,31 +1,5 @@
 export type SaleStatus = 'paid' | 'pending' | 'partial' | 'cancelled';
 
-export type CustomerStatus = 'active' | 'inactive' | 'blocked';
-
-export type DocumentType = '' | 'DNI' | 'RUC';
-
-export interface Customer {
-  id: string;
-  documentType: DocumentType;
-  documentNumber: string;
-  businessName: string;
-  phone?: string;
-  email?: string;
-  address?: string;
-  currentDebt: number;
-  status: CustomerStatus;
-}
-
-export interface Product {
-  id: string;
-  sku: string;
-  description: string;
-  unitCode: string;
-  costUsd: number;
-  salePrice: number;
-  isActive: boolean;
-}
-
 export interface InventoryItem {
   id: string;
   productId: string;
@@ -75,15 +49,6 @@ export interface Purchase {
   faultyReason: string;
   arrivalDate: string;
   notes: string;
-}
-
-export interface ActivityItem {
-  id: string;
-  type: 'sale' | 'purchase' | 'payment' | 'customer' | 'product';
-  description: string;
-  amount?: number;
-  date: string;
-  user: string;
 }
 
 export interface ChartPoint {

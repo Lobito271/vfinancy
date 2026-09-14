@@ -60,37 +60,9 @@ export function formatNumber(value: number, decimals = 0): string {
   }).format(value);
 }
 
-export function formatPercent(value: number, decimals = 1): string {
-  return new Intl.NumberFormat(locale, {
-    style: 'percent',
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  }).format(value);
-}
-
-export function toFixed2(value: number | undefined): string {
-  return (value ?? 0).toFixed(2);
-}
-
 export function daysBetween(from: Date | string, to: Date | string): number {
   const a = toDate(from);
   const b = toDate(to);
   if (!a || !b) return 0;
   return Math.floor((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24));
-}
-
-export function formatRelative(value: string | Date | null | undefined): string {
-  const d = toDate(value);
-  if (!d) return '—';
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const sec = Math.floor(diffMs / 1000);
-  const min = Math.floor(sec / 60);
-  const hr = Math.floor(min / 60);
-  const day = Math.floor(hr / 24);
-  if (sec < 60) return 'hace un momento';
-  if (min < 60) return `hace ${min} min`;
-  if (hr < 24) return `hace ${hr} h`;
-  if (day < 7) return `hace ${day} d`;
-  return formatDate(d);
 }

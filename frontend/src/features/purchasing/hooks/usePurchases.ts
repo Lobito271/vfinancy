@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { purchasingService, type PurchaseCreateInput } from '@/services/purchasing';
 import { queryKeys } from '@/services/queryKeys';
 
-export interface PurchaseFilters {
+interface PurchaseFilters {
   search?: string;
   status?: string;
   orderType?: string;

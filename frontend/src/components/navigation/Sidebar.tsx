@@ -25,6 +25,21 @@ export function Sidebar({ mobile = false }: { mobile?: boolean }) {
             vfinancy
           </Link>
         )}
+        {!mobile && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggle}
+            aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
+            className="sidebar__toggle"
+          >
+            {collapsed ? (
+              <ChevronsRight strokeWidth={2.5} />
+            ) : (
+              <ChevronsLeft strokeWidth={2.5} />
+            )}
+          </Button>
+        )}
       </div>
 
       <nav className="sidebar__nav scrollbar-thin">
@@ -64,27 +79,6 @@ export function Sidebar({ mobile = false }: { mobile?: boolean }) {
           })}
         </ul>
       </nav>
-
-      {!mobile && (
-        <div className="sidebar__footer">
-          <Button
-            variant="ghost"
-            size={collapsed ? 'icon-sm' : 'sm'}
-            onClick={toggle}
-            aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'}
-            className={cx('sidebar__toggle', !collapsed && 'btn--justify-start')}
-          >
-            {collapsed ? (
-              <ChevronsRight strokeWidth={2.5} />
-            ) : (
-              <>
-                <ChevronsLeft strokeWidth={2.5} />
-                <span>Colapsar</span>
-              </>
-            )}
-          </Button>
-        </div>
-      )}
     </aside>
   );
 }

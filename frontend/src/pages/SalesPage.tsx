@@ -203,7 +203,7 @@ export function SalesPage() {
             />
             <Select
               items={[
-                { value: 'all', label: 'Estado: todos' },
+                { value: 'all', label: 'Todos' },
                 { value: 'pending', label: 'Pendientes' },
                 { value: 'partial', label: 'Parciales' },
                 { value: 'paid', label: 'Pagadas' },
@@ -213,10 +213,10 @@ export function SalesPage() {
               onValueChange={(v) => setStatusFilter(v ?? 'all')}
             >
               <SelectTrigger style={{ width: '11rem' }} aria-label="Filtrar por estado">
-                <SelectValue placeholder="Estado: todos" />
+                <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Estado: todos</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="pending">Pendientes</SelectItem>
                 <SelectItem value="partial">Parciales</SelectItem>
                 <SelectItem value="paid">Pagadas</SelectItem>

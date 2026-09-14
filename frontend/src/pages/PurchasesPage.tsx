@@ -230,7 +230,7 @@ export function PurchasesPage() {
             />
             <Select
               items={[
-                { value: 'all', label: 'Estado: todos' },
+                { value: 'all', label: 'Todos' },
                 { value: 'pending', label: 'Pendientes' },
                 { value: 'received', label: 'Recibidas' },
                 { value: 'cancelled', label: 'Anuladas' },
@@ -239,10 +239,10 @@ export function PurchasesPage() {
               onValueChange={(v) => setStatusFilter(v ?? 'all')}
             >
               <SelectTrigger style={{ width: '11rem' }} aria-label="Filtrar por estado">
-                <SelectValue placeholder="Estado: todos" />
+                <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Estado: todos</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="pending">Pendientes</SelectItem>
                 <SelectItem value="received">Recibidas</SelectItem>
                 <SelectItem value="cancelled">Anuladas</SelectItem>

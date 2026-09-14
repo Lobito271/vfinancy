@@ -34,8 +34,6 @@ type InventoryBatch struct {
 	IsClearance         bool
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
-	CreatedBy           string
-	UpdatedBy           string
 }
 
 // NewInventoryBatchOptions is the input to NewInventoryBatch.

@@ -30,15 +30,15 @@ func NewCustomerRepository(db *sql.DB) *customerRepository {
 const customerColumns = `
 	id, document_type, document_number, business_name,
 	email, phone, address, current_debt, status,
-	created_at, updated_at, deleted_at, created_by, updated_by
+	created_at, updated_at, deleted_at
 `
 
 func (r *customerRepository) Create(ctx context.Context, c *customer.Customer) error {
 	const q = `INSERT INTO customers (
 		id, document_type, document_number, business_name,
 		email, phone, address, current_debt, status,
-		created_at, updated_at, deleted_at, created_by, updated_by
-	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`
+		created_at, updated_at, deleted_at
+	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`
 	_, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
 		c.ID,
 		persistence.NullIfEmpty(c.DocumentType.String()),
@@ -51,8 +51,6 @@ func (r *customerRepository) Create(ctx context.Context, c *customer.Customer) e
 		string(c.Status),
 		c.CreatedAt, c.UpdatedAt,
 		persistence.NullIfZeroTime(c.DeletedAt),
-		persistence.NullIfEmpty(c.CreatedBy),
-		persistence.NullIfEmpty(c.UpdatedBy),
 	)
 	return persistence.Translate(err)
 }
@@ -61,8 +59,8 @@ func (r *customerRepository) Update(ctx context.Context, c *customer.Customer) e
 	const q = `UPDATE customers SET
 		document_type = $1, document_number = $2, business_name = $3,
 		email = $4, phone = $5, address = $6, current_debt = $7, status = $8,
-		updated_at = $9, updated_by = $10
-	 WHERE id = $11 AND deleted_at IS NULL`
+		updated_at = $9
+	 WHERE id = $10 AND deleted_at IS NULL`
 	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
 		persistence.NullIfEmpty(c.DocumentType.String()),
 		persistence.NullIfEmpty(c.DocumentNumber.Number()),
@@ -73,7 +71,6 @@ func (r *customerRepository) Update(ctx context.Context, c *customer.Customer) e
 		c.CurrentDebt.String(),
 		string(c.Status),
 		time.Now().UTC(),
-		persistence.NullIfEmpty(c.UpdatedBy),
 		c.ID,
 	)
 	if err != nil {
@@ -200,13 +197,12 @@ func (r *customerRepository) GetOutstandingBalance(ctx context.Context, id uuid.
 // customerRow is the raw scan target shared by the *sql.Row and
 // *sql.Rows variants.
 type customerRow struct {
-	docType, docNum      sql.NullString
-	businessName         string
-	email, phone, addr   sql.NullString
-	currentDebt          string
-	status               string
-	deletedAt            sql.NullTime
-	createdBy, updatedBy sql.NullString
+	docType, docNum    sql.NullString
+	businessName       string
+	email, phone, addr sql.NullString
+	currentDebt        string
+	status             string
+	deletedAt          sql.NullTime
 }
 
 // scanCustomer is the *sql.Row variant. NotFound rows are translated
@@ -217,7 +213,7 @@ func scanCustomer(row *sql.Row) (*customer.Customer, error) {
 	if err := persistence.ScanRow(row,
 		&c.ID, &cr.docType, &cr.docNum, &cr.businessName,
 		&cr.email, &cr.phone, &cr.addr, &cr.currentDebt, &cr.status,
-		&c.CreatedAt, &c.UpdatedAt, &cr.deletedAt, &cr.createdBy, &cr.updatedBy,
+		&c.CreatedAt, &c.UpdatedAt, &cr.deletedAt,
 	); err != nil {
 		return nil, err
 	}
@@ -231,7 +227,7 @@ func scanCustomerFromRows(rows *sql.Rows) (*customer.Customer, error) {
 	if err := rows.Scan(
 		&c.ID, &cr.docType, &cr.docNum, &cr.businessName,
 		&cr.email, &cr.phone, &cr.addr, &cr.currentDebt, &cr.status,
-		&c.CreatedAt, &c.UpdatedAt, &cr.deletedAt, &cr.createdBy, &cr.updatedBy,
+		&c.CreatedAt, &c.UpdatedAt, &cr.deletedAt,
 	); err != nil {
 		return nil, persistence.Translate(err)
 	}
@@ -264,12 +260,6 @@ func (cr *customerRow) fill(c *customer.Customer) (*customer.Customer, error) {
 	if cr.deletedAt.Valid {
 		t := cr.deletedAt.Time
 		c.DeletedAt = &t
-	}
-	if cr.createdBy.Valid {
-		c.CreatedBy = cr.createdBy.String
-	}
-	if cr.updatedBy.Valid {
-		c.UpdatedBy = cr.updatedBy.String
 	}
 	return c, nil
 }

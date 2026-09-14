@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import type { FieldPath, FieldValues } from 'react-hook-form';
-import { AsyncSelectField } from './SelectField';
+import { AsyncSelectField, type CreateSelectOption } from './SelectField';
 import { customersService } from '@/services/customers';
 import { productsService } from '@/services/products';
 
@@ -11,6 +11,7 @@ interface CustomerSelectFieldProps<T extends FieldValues> {
   required?: boolean;
   className?: string;
   placeholder?: string;
+  createOption?: CreateSelectOption;
 }
 
 export function CustomerSelectField<T extends FieldValues>(props: CustomerSelectFieldProps<T>) {
@@ -28,6 +29,7 @@ interface ProductSelectFieldProps<T extends FieldValues> {
   required?: boolean;
   className?: string;
   placeholder?: string;
+  createOption?: CreateSelectOption;
 }
 
 export function ProductSelectField<T extends FieldValues>(props: ProductSelectFieldProps<T>) {

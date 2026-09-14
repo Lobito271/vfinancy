@@ -7,7 +7,7 @@ export {
 export { MoneyField } from './MoneyFields';
 export { DateField } from './DateFields';
 export { EmailField, PasswordField } from './InputFields';
-export { SelectField, type SelectOption } from './SelectField';
+export { SelectField, AsyncSelectField, type SelectOption, type CreateSelectOption } from './SelectField';
 export {
   LineItemsEditor,
   type LineItemFormValues,

@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useFieldArray, useFormContext, useWatch } from 'react-hook-form';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
-import { ArrowLeft, ArrowRight, Plus, Trash2, UserPlus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Plus, Trash2 } from 'lucide-react';
 import {
   Form,
   DateField,
@@ -10,16 +10,17 @@ import {
   NumberField,
   SelectField,
   TextareaField,
-  TextField,
+  type CreateSelectOption,
   type SelectOption,
 } from '@/components/form';
 import type { FieldPath } from 'react-hook-form';
 import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { Input } from '@/components/input';
+import { CreateCustomerDialog } from '@/features/customers/components/CreateCustomerDialog';
+import { ProductFormDialog } from '@/features/products/components/ProductsDrawer';
 import { useCreateSale } from '@/features/sales/hooks/useSales';
 import { useProducts } from '@/features/products/hooks/useProducts';
-import { customersService } from '@/services/customers';
 import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
 import { PaymentMethodOptions } from '@/constants/paymentMethods';
@@ -110,9 +111,10 @@ function SegmentedChoice({ value, onChange, options, ariaLabel }: SegmentedChoic
 interface SaleLinesProps {
   productOptions: SelectOption[];
   priceById: Map<string, number>;
+  productCreateOption?: CreateSelectOption;
 }
 
-function SaleLines({ productOptions, priceById }: SaleLinesProps) {
+function SaleLines({ productOptions, priceById, productCreateOption }: SaleLinesProps) {
   const { control, watch, setValue } = useFormContext<SaleFormValues>();
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
   const rows = watch('items');
@@ -136,6 +138,7 @@ function SaleLines({ productOptions, priceById }: SaleLinesProps) {
                   required
                   options={productOptions}
                   clearable={false}
+                  createOption={productCreateOption}
                   onChange={(v) => {
                     const price = priceById.get(v);
                     if (price) {
@@ -193,7 +196,7 @@ function SaleLines({ productOptions, priceById }: SaleLinesProps) {
   );
 }
 
-function CartStep({ productOptions, priceById }: SaleLinesProps) {
+function CartStep({ productOptions, priceById, productCreateOption }: SaleLinesProps) {
   const { control, setValue } = useFormContext<SaleFormValues>();
   const saleType = useWatch({ control, name: 'saleType' });
   return (
@@ -215,7 +218,7 @@ function CartStep({ productOptions, priceById }: SaleLinesProps) {
           </p>
         )}
       </div>
-      <SaleLines productOptions={productOptions} priceById={priceById} />
+      <SaleLines productOptions={productOptions} priceById={priceById} productCreateOption={productCreateOption} />
     </div>
   );
 }
@@ -275,77 +278,6 @@ function PaymentStep() {
   );
 }
 
-const NewCustomerSchema = z.object({
-  businessName: z.string().min(1, 'Ingrese el nombre o razón social'),
-  phone: z.string().optional(),
-  email: z.string().optional(),
-});
-
-type NewCustomerValues = z.infer<typeof NewCustomerSchema>;
-
-interface NewCustomerDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onCreated: (customerId: string) => void;
-}
-
-function NewCustomerDialog({ open, onOpenChange, onCreated }: NewCustomerDialogProps) {
-  const push = useNotificationStore((s) => s.push);
-  const qc = useQueryClient();
-  const create = useMutation({
-    mutationFn: (values: NewCustomerValues) =>
-      customersService.create({
-        businessName: values.businessName,
-        documentType: '',
-        documentNumber: '',
-        email: values.email ?? '',
-        phone: values.phone ?? '',
-        address: '',
-      }),
-    onSuccess: (created) => {
-      void qc.invalidateQueries({ queryKey: queryKeys.customers.all });
-      onCreated(created.id);
-      push({ title: 'Cliente creado', variant: 'success' });
-      onOpenChange(false);
-    },
-    onError: (err: unknown) => {
-      push({
-        title: 'No se pudo crear el cliente',
-        description: err instanceof Error ? err.message : undefined,
-        variant: 'destructive',
-      });
-    },
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Nuevo cliente</DialogTitle>
-          <DialogDescription>
-            Se creará un cliente sin documento fiscal; podrás completarlo después.
-          </DialogDescription>
-        </DialogHeader>
-        <Form<NewCustomerValues> schema={NewCustomerSchema} defaultValues={{ businessName: '', phone: '', email: '' }} onSubmit={(values) => create.mutate(values)}>
-          <DialogBody>
-            <TextField name="businessName" label="Nombre / Razón social" required />
-            <TextField name="phone" label="Teléfono" />
-            <TextField name="email" label="Correo" type="email" />
-          </DialogBody>
-          <DialogFooter>
-            <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={create.isPending}>
-              Cancelar
-            </Button>
-            <Button type="submit" loading={create.isPending}>
-              Guardar
-            </Button>
-          </DialogFooter>
-        </Form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 interface SaleFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -387,6 +319,16 @@ export function SaleFormDialog({ open, onOpenChange }: SaleFormDialogProps) {
   const [step, setStep] = useState(0);
   const [stockError, setStockError] = useState<string | null>(null);
   const [newCustomerOpen, setNewCustomerOpen] = useState(false);
+  const assignCustomer = useRef<(id: string) => void>(() => {});
+  const [productCreateOpen, setProductCreateOpen] = useState(false);
+  const assignProduct = useRef<(id: string) => void>(() => {});
+  const productCreateOption: CreateSelectOption = {
+    label: 'Crear nuevo producto…',
+    onSelect: (assign) => {
+      assignProduct.current = assign;
+      setProductCreateOpen(true);
+    },
+  };
 
   const steps = [
     { title: 'Cliente', description: 'Identifica al comprador y la fecha.' },
@@ -486,17 +428,14 @@ export function SaleFormDialog({ open, onOpenChange }: SaleFormDialogProps) {
                       required
                       options={customerOptions}
                       loading={customersQuery.isLoading}
+                      createOption={{
+                        label: 'Crear nuevo cliente…',
+                        onSelect: (assign) => {
+                          assignCustomer.current = assign;
+                          setNewCustomerOpen(true);
+                        },
+                      }}
                     />
-                    <div className="field">
-                      <span className="label" aria-hidden="true">Cliente nuevo</span>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setNewCustomerOpen(true)}
-                      >
-                        <UserPlus /> Nuevo cliente
-                      </Button>
-                    </div>
                     <DateField name="date" label="Fecha de venta" required />
                     <div className="field">
                       <span className="label">Moneda</span>
@@ -504,7 +443,7 @@ export function SaleFormDialog({ open, onOpenChange }: SaleFormDialogProps) {
                     </div>
                   </div>
                 )}
-                {step === 1 && <CartStep productOptions={productOptions} priceById={priceById} />}
+                {step === 1 && <CartStep productOptions={productOptions} priceById={priceById} productCreateOption={productCreateOption} />}
                 {step === 2 && <PaymentStep />}
               </DialogBody>
               <DialogFooter>
@@ -534,10 +473,16 @@ export function SaleFormDialog({ open, onOpenChange }: SaleFormDialogProps) {
                 )}
               </DialogFooter>
 
-              <NewCustomerDialog
+              <CreateCustomerDialog
                 open={newCustomerOpen}
                 onOpenChange={setNewCustomerOpen}
-                onCreated={(id) => form.setValue('customerId', id, { shouldValidate: true })}
+                onCreated={(id) => assignCustomer.current(id)}
+              />
+              <ProductFormDialog
+                open={productCreateOpen}
+                onOpenChange={setProductCreateOpen}
+                product={null}
+                onCreated={(p) => assignProduct.current(p.id)}
               />
             </>
           )}

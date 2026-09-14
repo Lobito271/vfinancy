@@ -26,14 +26,14 @@ func NewCreditCardRepository(db *sql.DB) *creditCardRepository {
 const creditCardColumns = `
 	id, issuer, last_four, credit_limit, current_balance,
 	cut_off_day, payment_due_day, is_active,
-	created_at, updated_at, deleted_at, created_by, updated_by
+	created_at, updated_at, deleted_at
 `
 
 const creditCardInsert = `INSERT INTO credit_cards (
 	id, issuer, last_four, credit_limit, current_balance,
 	cut_off_day, payment_due_day, is_active,
-	created_at, updated_at, deleted_at, created_by, updated_by
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`
+	created_at, updated_at, deleted_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
 
 func (r *creditCardRepository) Create(ctx context.Context, c *treasury.CreditCard) error {
 	_, err := persistence.Q(ctx, r.q).ExecContext(ctx, creditCardInsert,
@@ -41,7 +41,6 @@ func (r *creditCardRepository) Create(ctx context.Context, c *treasury.CreditCar
 		c.CreditLimit.String(), c.CurrentBalance.String(),
 		c.CutOffDay, c.PaymentDueDay, c.IsActive,
 		c.CreatedAt, c.UpdatedAt, persistence.NullIfZeroTime(c.DeletedAt),
-		persistence.NullIfEmptyUUID(c.CreatedBy), persistence.NullIfEmptyUUID(c.UpdatedBy),
 	)
 	return persistence.Translate(err)
 }
@@ -50,12 +49,12 @@ func (r *creditCardRepository) Update(ctx context.Context, c *treasury.CreditCar
 	const q = `UPDATE credit_cards SET
 		issuer = $1, last_four = $2, credit_limit = $3,
 		current_balance = $4, cut_off_day = $5, payment_due_day = $6,
-		is_active = $7, updated_at = $8, updated_by = $9
-	 WHERE id = $10 AND deleted_at IS NULL`
+		is_active = $7, updated_at = $8
+	 WHERE id = $9 AND deleted_at IS NULL`
 	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
 		c.Issuer, c.LastFour, c.CreditLimit.String(),
 		c.CurrentBalance.String(), c.CutOffDay, c.PaymentDueDay,
-		c.IsActive, time.Now().UTC(), persistence.NullIfEmptyUUID(c.UpdatedBy),
+		c.IsActive, time.Now().UTC(),
 		c.ID,
 	)
 	if err != nil {
@@ -154,18 +153,17 @@ func scanCreditCard(row *sql.Row) (*treasury.CreditCard, error) {
 	c := &treasury.CreditCard{}
 	var (
 		creditLimit, currentBalance string
-		createdBy, updatedBy        sql.NullString
 		deletedAt                   sql.NullTime
 	)
 	err := persistence.ScanRow(row,
 		&c.ID, &c.Issuer, &c.LastFour, &creditLimit, &currentBalance,
 		&c.CutOffDay, &c.PaymentDueDay, &c.IsActive,
-		&c.CreatedAt, &c.UpdatedAt, &deletedAt, &createdBy, &updatedBy,
+		&c.CreatedAt, &c.UpdatedAt, &deletedAt,
 	)
 	if err != nil {
 		return nil, err
 	}
-	if err := decodeCreditCard(c, creditLimit, currentBalance, createdBy, updatedBy, deletedAt); err != nil {
+	if err := decodeCreditCard(c, creditLimit, currentBalance, deletedAt); err != nil {
 		return nil, err
 	}
 	return c, nil
@@ -175,23 +173,22 @@ func scanCreditCardFromRows(rows *sql.Rows) (*treasury.CreditCard, error) {
 	c := &treasury.CreditCard{}
 	var (
 		creditLimit, currentBalance string
-		createdBy, updatedBy        sql.NullString
 		deletedAt                   sql.NullTime
 	)
 	if err := rows.Scan(
 		&c.ID, &c.Issuer, &c.LastFour, &creditLimit, &currentBalance,
 		&c.CutOffDay, &c.PaymentDueDay, &c.IsActive,
-		&c.CreatedAt, &c.UpdatedAt, &deletedAt, &createdBy, &updatedBy,
+		&c.CreatedAt, &c.UpdatedAt, &deletedAt,
 	); err != nil {
 		return nil, persistence.Translate(err)
 	}
-	if err := decodeCreditCard(c, creditLimit, currentBalance, createdBy, updatedBy, deletedAt); err != nil {
+	if err := decodeCreditCard(c, creditLimit, currentBalance, deletedAt); err != nil {
 		return nil, err
 	}
 	return c, nil
 }
 
-func decodeCreditCard(c *treasury.CreditCard, creditLimit, currentBalance string, createdBy, updatedBy sql.NullString, deletedAt sql.NullTime) error {
+func decodeCreditCard(c *treasury.CreditCard, creditLimit, currentBalance string, deletedAt sql.NullTime) error {
 	lim, err := persistence.ParseMoney(creditLimit)
 	if err != nil {
 		return err
@@ -202,14 +199,6 @@ func decodeCreditCard(c *treasury.CreditCard, creditLimit, currentBalance string
 		return err
 	}
 	c.CurrentBalance = bal
-	if createdBy.Valid {
-		id := persistence.ParseUUID(createdBy.String)
-		c.CreatedBy = &id
-	}
-	if updatedBy.Valid {
-		id := persistence.ParseUUID(updatedBy.String)
-		c.UpdatedBy = &id
-	}
 	if !deletedAt.Time.IsZero() {
 		t := deletedAt.Time
 		c.DeletedAt = &t

@@ -33,6 +33,7 @@ var syncedTables = []TableMeta{
 	{Name: "customer_payment_allocations", PKs: []string{"id"}, TimeColumn: "created_at"},
 	{Name: "import_lots", PKs: []string{"id"}, TimeColumn: "updated_at"},
 	{Name: "import_lot_purchase_orders", PKs: []string{"import_lot_id", "purchase_order_id"}, TimeColumn: "added_at"},
+	{Name: "shipments", PKs: []string{"id"}, TimeColumn: "updated_at"},
 }
 
 // SyncedTables returns the replicated tables in FK-safe order:

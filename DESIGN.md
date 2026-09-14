@@ -1,171 +1,201 @@
-# vfinancy — Design Language
+# DESIGN.md — vfinancy Visual Design System & Standards
 
-This is the canonical visual/interaction spec for the vfinancy desktop UI. Implementation lives in `frontend/src/index.css` (plain CSS3, no Tailwind/PostCSS). The component layer is built on **Base UI** (`@base-ui/react`, unstyled, accessible parts) — we style Base UI parts directly with lean CSS classes and the library's `data-*` state attributes.
+## Document Overview
 
----
-
-## 1. Foundations
-
-### Color tokens (OKLCH)
-
-Full-color custom properties (no channel splitting). Alpha is derived with `color-mix(in oklch, …)` when needed.
-
-The palette is **monochrome/grayscale by design** — a terminal/skeuomorphic-square look. The only chromatic token is the destructive/error red; all other state colors (success/warning/info) are muted pairs never used decoratively.
-
-| Token | Light | Dark | Role |
-|---|---|---|---|
-| `--color-bg` | `oklch(97% 0 0)` | `oklch(22% 0 0)` | App background (charcoal grey) |
-| `--color-surface` | `oklch(100% 0 0)` white | `oklch(24% 0 0)` | Cards, popups, inputs — charcoal grey, elevated slightly above `--color-bg` |
-| `--color-muted` | `oklch(97% 0 0)` | `oklch(29% 0 0)` | Hover fills, table head, wells |
-| `--color-fg` | `oklch(14.5% 0 0)` | `oklch(94% 0 0)` | Primary text, borders, primary accent |
-| `--color-muted-fg` | `oklch(43.9% 0 0)` | `oklch(82% 0 0)` | Secondary text |
-| `--color-fg-subtle` | `oklch(55.6% 0 0)` | `oklch(68% 0 0)` | Hints, placeholders, disabled |
-| `--color-border` / `--color-border-strong` | `oklch(14.5% 0 0)` | `oklch(38% 0 0)` / `oklch(43% 0 0)` | Muted dark-grey hairline chrome — soft, never pure white |
-| `--color-primary` | `oklch(14.5% 0 0)` | `oklch(62% 0 0)` | **Single accent**: monochrome, collapses to fg in light; in dark a soft light-grey (not pure white) so active states sit comfortably against the charcoal surface |
-| `--color-primary-muted` / `-fg` | `oklch(97% 0 0)` / `oklch(14.5% 0 0)` | `oklch(30% 0 0)` / `oklch(90% 0 0)` | Active nav pill, selected rows, soft accents |
-| `--color-success/-warning/-destructive/-info` (+`-muted`, `-muted-fg`) | semantic pairs | lightened pairs | Status only — never decorative. `destructive` is the sole chromatic: `oklch(50.5% 0.213 27.518deg)` / `oklch(70.4% 0.191 22.216deg)` |
-| `--color-ring` | `oklch(14.5% 0 0)` | `oklch(60% 0 0)` | `:focus-visible` outline — softened in dark |
-| `--color-overlay` | `oklch(14.5% 0 0 / 0.3)` | `oklch(12% 0 0 / 0.7)` | Dialog/drawer backdrops |
-
-**Rules**
-- No hardcoded colors anywhere. Components consume tokens only. Every color has an OKLCH `0 0deg` chroma/hue or a muted semantic pair — there is no free-standing hue.
-- The accent is **monochrome**: primary, focus ring, borders, and links all resolve to `--color-fg` / its inversion. Blue/indigo is gone. In dark mode the accent softens to a light grey (`oklch(62% 0 0)`) rather than pure white.
-- `destructive` is the only chromatic token, and only red is allowed to carry chroma.
-- Status colors are rationed to meaning (badges, deltas, destructive confirmations).
-- Charts read the same tokens (passed as string props to recharts).
-
-### Typography
-
-- **Geist Sans** (`@fontsource/geist-sans` 400/500/600) for all UI. **Geist Mono** for document numbers and numeric cells (`.tabular`).
-- Scale (tokens `--text-*`): 12 / 13 / 14 / 16 / 18 / 22 / 28 px. Body and default control text: 14. Tables and dense UI: 13.
-- Headings: weight 600, slight negative tracking on page titles (`-0.015em`).
-- Money always renders through `formatCurrency(value, currency)`; dates through `formatDate`. Numbers in tables get `.tabular`.
-
-### Shape, depth, motion
-
-- Radii: `--radius-sm` / `--radius` / `--radius-lg` are **all `0`** (square corners — sharp, terminal-like edges); `--radius-full` (`999px`) is reserved for badges, dots, and circular avatars only.
-- Depth is **flat with hard-offset shadows** (no blur): `--shadow-sm` `0.0625rem 0.0625rem 0`, `--shadow-md` `0.125rem 0.125rem 0`, `--shadow-lg` `0.25rem 0.25rem 0` over `rgb(0 0 0 / 12–16%)`. Dark mode uses **no shadow** (`none`) — elevation is expressed through the charcoal surface layers and muted dark-grey borders instead of pure-white chrome.
-- **Layering:** one tokenized scale in `src/index.css` `:root` — `--z-affix` 40 (topbar) → `--z-drawer` 50 / `--z-drawer-content` 51 → `--z-dialog` 60 / `--z-dialog-content` 61 → `--z-popover` 70 (menu/select) → `--z-tooltip` 80 → `--z-toast` 100. Container sits **one above its backdrop**. Dialog/Drawer backdrops + containers are Base UI portals into `body` (no ancestor stacking traps), so they always stack above the affixed topbar and page content.
-- **Wide tables never escape their card:** `.datatable` / `.page-container` carry `min-width: 0`, so a wide table scrolls *inside* `.datatable-scroll` (`overflow-x: auto`, `scrollbar-gutter: stable`) instead of widening the document — the page-level (viewport) scrollbar, which browsers always paint above `position: fixed` overlays, can therefore never appear over a Dialog or Drawer.
-- Motion: ~160ms for hover/state, ~200ms for dialogs/toasts, 250ms for the drawer. Easing `--ease` (`cubic-bezier(0.25,0.8,0.35,1)`).
-- Enter/exit animations use Base UI's `data-starting-style` / `data-ending-style` attributes. All motion is disabled under `prefers-reduced-motion: reduce`.
-
-### Spacing & density
-
-- 8px grid; page gutters 24px (16px < 768px).
-- Control heights: `--control-h` **2rem (32px)** (default), `--control-h-sm` 1.875rem (sm), `--control-h-lg` 2.5rem (lg). Default control text is 0.875rem (14px) with 1.25rem line-height.
-- Buttons/inputs use `gap 0.5rem`, padding `0 0.75rem` (buttons) / `0 0.5rem` (inputs), matching the reference component sheet.
-- CRUD pages: `PageContainer` → `PageHeader` (title/subtitle + Create) → stat-card `Grid` → `DataTable`.
+This document defines the extracted design language, UI patterns, spatial metrics, typography rules, color palettes, and visual paradigms derived from `sample.html` for **vfinancy ERP (Import & Sales Enterprise Suite)**. It serves as the definitive visual and UX baseline to guide designers and developers building future enterprise modules (e.g., Inventory Management, Sales & Invoicing, Import Tracking, Customer CRM, and Reporting Views).
 
 ---
 
-## 2. Component system (Base UI)
+## 1. Design System Foundations & Layout Architecture
 
-Base UI parts are styled via `className` + data attributes. Every styled part lives in `index.css` under a numbered section. Never import from `@radix-ui/*` (removed).
+### 1.1 Visual Philosophy: Industrial Neo-Brutalist Utility
 
-| Area | Components (`@/components/…`) | Base UI part |
-|---|---|---|
-| Actions | `button` — variants: primary, secondary, outline, ghost, destructive; sizes: sm, md, lg, icon, icon-sm; `loading` spinner | `Button` (+ `render` prop for element composition) |
-| Inputs | `input` — `Input`, `Textarea`, `Label`, `SearchInput` | native, plain CSS |
-| Pickers | `select` — `Select`, `SelectValue`, `SelectTrigger`(`invalid`), `SelectContent`, `SelectItem` | `Select` (Portal → Positioner → Popup; `items` on Root enables labeled trigger values) |
-| Overlays | `dialog` — `Dialog`, `DialogContent`(`size` sm/md/lg/xl), `DialogBody` (Base UI `ScrollArea`, right-gutter + themed scrollbar), Header/Footer/Title/Description; `AlertDialog` (variants: success/warning/destructive/info/confirmation), `ConfirmDialog` (destructive confirm), `CancelDialog` | `Dialog` (Portal → Backdrop → Popup + Close); `RegisterPaymentDialog` lives in `features/treasury/` |
-| Menus | `misc` — `DropdownMenu*` (items support `onSelect`, `danger`, `inset`; radio groups for theme), `RowActions` (row `⋯` menu from `RowAction[]`), `Tooltip*` (`asChild` → `render` bridged), `Drawer` (controlled side panel w/ swipe) | `Menu`, `Tooltip`, `Drawer` |
-| Tabs | `tabs` — `Tabs`, `TabsList`, `TabsTrigger` (`data-active`), `TabsContent` | `Tabs` |
-| Feedback | `feedback` — `Spinner`, `EmptyState` (icon+title+description+action), `ErrorState`, `Toaster` (Base UI Toast; imperative API `useNotificationStore.getState().push({title, description?, variant, duration?})`) | `Toast` (Provider/Root/Title/Description/Close/Viewport) |
-| Data | `table` — `DataTable<T>` + `Column<T>`, `TablePagination` | plain table + our parts |
-| Layout | `layout` — `PageContainer`, `PageHeader`, `Section`, `Grid`; helpers `.stack`, `.hstack`, `.grid-N` | divs |
-| Display | `card` — `Card`, Header/Title/Description/Content, `StatCard`; `badge` — 8 variants + status badges | divs |
+The core aesthetic of the ERP application prioritizes **immediate data clarity**, **high-contrast visual hierarchy**, **zero visual distraction**, and **dense information scannability**.
 
-### Data attributes used for state styling
+- **Hard Geometry (Zero Border Radius):** The defining aesthetic rule across the system is an absolute `border-radius: 0px !important;` applied across every interface element—including buttons, cards, drop-down menus, inputs, badges, and avatars.
+- **High-Contrast Framing:** Container surfaces, form controls, buttons, and headers are distinctly defined using hard **1.5px** or **2px** solid dark borders.
+- **Flat Mechanical Elevation:** Depth is created through crisp offset shadows (`0 2px 0 rgba(0,0,0,0.2)`) rather than soft, ambient blur gradients or rounded elevation vectors.
 
-`[data-pressed]`, `[data-disabled]` (Button/Menu); `[data-open]`, `[data-closed]`, `[data-starting-style]`, `[data-ending-style]` (Dialog/Menu/Select popups, Toast, Drawer); `[data-highlighted]` (Menu.Item, Select.Item); `[data-selected]` (Select.Item); `[data-popup-open]` (Select.Trigger); `[data-active]` (Tabs.Tab); `aria-invalid` (inputs).
+### 1.2 Application Shell & Layout Grid
 
----
+The layout utilizes a persistent **two-axis application frame** structured for multi-window desktop and high-density workstation environments:
 
-## 3. App shell & navigation
+**Sidebar Navigation Shell (Left Vertical Axis):**
 
-- `AppLayout`: left `Sidebar` + main column (`Topbar`, `Outlet`) + mobile `Drawer` + `Toaster`.
-- **Sidebar**: flat list only (no nesting), icon + label, active state = `--color-primary-muted` pill; collapses to icon rail (persisted in `useSidebarStore`); tooltips (right) only when collapsed; collapse toggle in footer.
-- **Responsive**: < 1100px auto-collapses; < 768px the sidebar hides and a Topbar hamburger opens it inside a `Drawer` (`sidebar--mobile`).
-- **Topbar**: global search, theme menu (light/dark/system radio), notifications bell (unread count badge), lock button (only when a local password is configured).
-- Active route/`end` semantics come from `lib/nav.ts`; **Configuración is always the last item**.
+- **Width:** Fixed at **260px** on desktop layouts, collapsible to a high-density **70px** icon-only view on medium screens (<= 800px).
+- **Surface:** Deep solid dark background (`#000000` light theme / `#0a0a0a` dark theme) with a **2px solid** right boundary to anchor primary navigation separate from working canvases.
+- **Brand Anchor:** Features a prominent top logo block with a square **34x34px** accent yellow box (`#F5C518`) housing bold identity typography.
 
----
+**Header Bar Shell (Top Horizontal Axis):**
 
-## 4. Entry flows
+- **Position & Padding:** Fixed top bar with `16px 28px` padding, bounded by a **2px solid** bottom border.
+- **Actions Area:** Houses system-wide operational controls (e.g., light/dark theme toggles, tenant switcher, user profile badge).
 
-- **Not configured** → `/setup` wizard: 3 steps (Empresa → Regional → Acceso), step list + "paso N de 3" text indicator (never a progress bar or percentage), Back enabled from step 2, per-step zod validation, single `SetupWorkspace` submit.
-- **Configured + password set + locked** → `/welcome`: full-screen card with the "vfinancy" text logo and the password form (unlock). 
-- **Configured, no password (or unlocked)** → straight into the app.
-- Lock is available from the Topbar and from Settings → Seguridad ("Bloquear ahora").
+**Main Working Canvas:**
 
----
+- **Scroll & Viewport Constraints:** The application viewport is strictly capped at `100vh` height with `overflow: hidden` on the root container. Scrolling is isolated within the internal grid canvas (`max-height: calc(100vh - 73px)`).
+- **Grid Layout:** Single column vertical flow containing standard sections: KPI Summary Grid (top), Line/Bar Performance Canvas (middle), and Data Log Table (bottom).
 
-## 5. CRUD pages (standard)
+### 1.3 Spatial System & Padding Logic
 
-Every module page follows the same skeleton:
+Spatial relationships follow a strict **4px/8px incremental grid system** to maintain visual alignment across dense screens:
 
-1. `PageHeader` — title, subtitle, **Create** button.
-2. Optional stat-card `Grid`.
-3. `DataTable` toolbar — `SearchInput` + relevant `Select` filters (left), optional secondary actions (right).
-4. Table — column sorting (click header), pagination (page-size select + pages), sticky first column, loading skeleton, error state with retry.
-5. **Row actions** — `RowActions` menu (`⋯`): Edit / domain actions / destructive Delete last, in `--danger` styling.
-6. **Create & Edit share one dialog** per entity (feature-local `*FormDialog`) with RHF + zod validation, loading (submit spinner, disabled cancel), error (toast) and success (toast + close) states.
-7. **Delete** uses `ConfirmDialog` (destructive `AlertDialog`) that names the record and states irreversibility.
-8. **Empty states** carry a useful message and a Create CTA when the list is empty (`action` prop).
-
-Feature settings: only Inventory has feature-scoped settings → a **Drawer** ("Reglas": clearance days + warning days) with an explicit **Save** button. Everything else is app-wide and lives in Configuración.
+| Token | Value | Application |
+|-------|-------|-------------|
+| **Micro Spacing** | 3px – 8px | Internal badge padding, icon-to-text gaps (6px to 8px), trend indicator padding |
+| **Control & Cell Spacing** | 12px – 14px | Vertical table cell padding (12px), sidebar navigation vertical gaps (12px), button inner padding (4px 12px to 6px 12px) |
+| **Container Padding** | 16px – 20px | Internal card padding (18px), section header spacing, data table header gaps (16px 20px) |
+| **Canvas Outset Spacing** | 22px – 28px | Outer layout gaps between dashboard cards (22px), grid container outer margins (24px 28px) |
 
 ---
 
-## 6. General Settings (`/settings`)
+## 2. Color Palette & Semantic System
 
-Sections, each with an explicit **Save** (or explicit action buttons):
+### 2.1 Color Palette Architecture & Theme Modes
 
-1. **Empresa** — fiscal info (`updateBusinessInfo`).
-2. **Operaciones** — document number prefixes (sale / purchase / journal).
-3. **Apariencia y perfil** — theme (applies instantly, persisted on Save) + read-only profile info.
-4. **Seguridad** — create/update/remove the local password (Argon2id-backed) + "Bloquear ahora".
+The ERP architecture features a robust **dual-theme engine** (Light & Dark) controlled dynamically via root level CSS variables (`[data-theme="dark"]`).
 
----
+| Color Role | Light Theme Variable / Hex | Dark Theme Variable / Hex | Application & Context |
+|------------|---------------------------|---------------------------|----------------------|
+| Primary Accent | `--primary-yellow` (#F5C518) | `--primary-yellow` (#F5C518) | Active navigation links, primary action fills, key metric badges, avatar backgrounds |
+| Primary Accent Dark | `--primary-yellow-dark` (#D4A800) | `--primary-yellow-dark` (#C9A000) | Hover/active states for primary yellow elements |
+| App Canvas BG | `--bg-app` (#F5F5F5) | `--bg-app` (#121212) | Background behind floating working cards and grid panels |
+| Surface Panel BG | `--bg-panel` (#FFFFFF) | `--bg-panel` (#1E1E1E) | KPI cards, data tables, header bars, modal surfaces |
+| Hover Surface BG | `--bg-hover` (#F0F0F0) | `--bg-hover` (#2E2E2E) | Table header backgrounds, action button hovers, row highlights |
+| Input Surface BG | `--bg-input` (#FFFFFF) | `--bg-input` (#2A2A2A) | Text fields, drop-down containers, toggle buttons |
+| Primary Border | `--border-color` (#000000) | `--border-color` (#555555) | Main container outlines, table headers, heavy dividers |
+| Subtle Divider | `--border-light` (#D0D0D0) | `--border-light` (#444444) | Tabular row dividers, subtle input borders, inner card splits |
+| Text Primary | `--text-primary` (#000000) | `--text-primary` (#F5F5F5) | Primary numerical metrics, active titles, table cell body text |
+| Text Secondary | `--text-secondary` (#333333) | `--text-secondary` (#DDDDDD) | Table column headers, sub-headings, form label titles |
+| Text Muted | `--text-muted` (#555555) | `--text-muted` (#AAAAAA) | KPI category labels, secondary metadata, unit markers |
+| Sidebar Canvas | `--sidebar-bg` (#000000) | `--sidebar-bg` (#0A0A0A) | Navigation column background |
 
-## 7. States
+### 2.2 Semantic Feedback & Status Color Rules
 
-| State | Pattern |
-|---|---|
-| Loading (page) | `.page-loader` centered `Spinner` |
-| Loading (table) | 5 skeleton rows (`.skel-cell`) |
-| Loading (button) | `loading` prop: spinner + disabled |
-| Loading (form/dialog) | submit `loading`; cancel disabled |
-| Empty | `EmptyState` — icon, message, optional Create CTA |
-| Error (query) | `ErrorState` with retry (also DataTable `error` prop) |
-| Error (mutation) | destructive toast with backend message |
-| Success | success toast, dialog closes |
-| Danger confirm | `ConfirmDialog` — names the record, explains consequences, "Eliminar/Anular" in destructive button |
+Functional feedback relies on **high-saturation semantic swatches** to ensure instant operator recognition across multi-table displays:
 
----
+- **Success / Nominal** (`--success: #71C02B`): Indicates positive revenue trends, completed log synchronizations, active system connections, and stock availability. Pair with `#000000` text on fill.
+- **Warning / Action Required** (`--warning: #F5A623`): Indicates system alerts, pending audits, expiring security certificates, or high latency warnings. Pair with `#000000` text on fill.
+- **Danger / Critical** (`--danger: #CC3838`): Indicates transaction authentication failures, negative financial variance, system errors, or out-of-stock conditions. Pair with `#FFFFFF` text on fill.
 
-## 8. Accessibility
+### 2.3 Surface Layering & Structural Contrast
 
-- Focus: `:focus-visible` 2px `--color-ring` outline, 2px offset (inputs swap to border+shadow ring).
-- Dialogs/menus/selects/drawer: focus trap, ESC close, portal rendering, focus return — provided by Base UI.
-- Icon-only buttons require `aria-label`; destructive actions require explicit confirmation; toasts are polite live regions.
-- Contrast: body text ≥ 4.5:1 in both themes; muted text reserved for secondary info.
-- `prefers-reduced-motion` disables all transitions/animations.
-
----
-
-## 9. i18n & formatting
-
-- UI copy is Spanish (es-PE). `t()` from `@/locales` is used in shared components; page-level strings are inline Spanish today — migrate opportunistically, never block a redesign change on it.
-- All money via `formatCurrency(value, 'PEN' | 'USD')`, dates via `formatDate`, percentages via `formatPercent`, quantities via `formatNumber`. No `toFixed`, no ad-hoc `toLocaleString`.
+- **Base Surface (Layer 0):** Neutral app canvas (`--bg-app`).
+- **Content Surface (Layer 1):** Flat panel cards (`--bg-card`) bounded by a hard `1.5px solid var(--border-color)` line and a `0 2px 0 rgba(0,0,0,0.2)` flat shadow.
+- **Interactive Control Surface (Layer 2):** Input boxes and action buttons residing within cards, styled with sharp high-contrast strokes.
+- **Active Focus Surface (Layer 3):** Solid yellow fills (`#F5C518`) for active navigation items and primary call-to-action buttons.
 
 ---
 
-## 10.CSS architecture (`src/index.css`)
+## 3. Typography & Readability Standards
 
-Single self-contained stylesheet, numbered sections:
+### 3.1 Typeface Pairings & Roles
 
-1. Tokens (`:root` / `.dark`) — 2. Base/reset + utilities — 3. Button — 4. Input/Label/Field — 5. Card/StatCard — 6. Badge — 7. Dialog — 8. Menu — 9. Tooltip — 10. Select — 11. Tabs — 12. Drawer — 13. NumberField/LineItems — 14. Toast — 15. Spinner/Skeleton/Empty/Error — 16. App shell (sidebar/topbar) — 17. Page layout — 18. Forms — 19. DataTable — 20. Setup wizard — 21. Welcome — 22. Misc/crash screen — 23. Animations & accessibility — 24. Responsive shell.
+The design system implements a **two-font typography architecture** to optimize both header hierarchy and dense table legibility:
 
-Rules: semantic class names (BEM-ish `.block__element--modifier`), no utility frameworks, no per-component CSS files, one-off inline `style={{}}` allowed sparingly. Class join via `cx()` from `@/utils/cx`.
+- **Headings & Quantitative Figures (Montserrat):** A geometric, high-impact sans-serif utilized for all structural headers (h1–h6), numerical KPI metrics, brand marks, and display titles. Configured with tight tracking (`letter-spacing: -0.02em` to `-0.5px`) and bold weights (600, 700, 800).
+- **Body Text, Controls & Data Tables (Figtree):** A clean, highly legible grotesque sans-serif used for tabular data cells, navigation links, form labels, tooltips, and system copy.
+
+### 3.2 Typographic Scale & Formatting Standards
+
+| Typography Role | Font Family | Size (rem / pt) | Weight | Letter Spacing | Case | Visual Style / Rules |
+|----------------|-------------|-----------------|--------|----------------|------|---------------------|
+| KPI Metric Display | Montserrat | 1.9rem / ~23pt | 800 (Extra Bold) | -0.03em | Standard | High visual priority, line-height: 1.1, bold numerical focus |
+| Section Title (H2) | Montserrat | 1.15rem–1.2rem / ~14pt | 700 (Bold) | -0.3px | Title Case | Used for panel titles, section headers, card tops |
+| Nav Item Label | Figtree | 0.95rem / ~11.5pt | 500 / 700 (Active) | Normal | Title Case | 500 weight inactive, 700 weight active |
+| Table Column Header | Figtree | 0.65rem / ~8pt | 700 (Bold) | +0.6px | UPPERCASE | High scannability, muted secondary text color |
+| KPI Meta Label | Figtree | 0.75rem / ~9pt | 600 (Semi Bold) | +0.8px | UPPERCASE | Accompanied by functional status icons |
+| Table Body Cell | Figtree | 0.85rem / ~10pt | 400 (Regular) | Normal | Standard | Clean tabular baseline, 1.4 line height |
+| Code / Identifier | Figtree / Mono | 0.85rem / ~10pt | 700 (Bold) | Normal | UPPERCASE | Used for transaction IDs (e.g., #TXN-4092) |
+| Status Badge Text | Figtree | 0.65rem / ~8pt | 700 (Bold) | +0.3px | UPPERCASE | Compact, inline pill/tag format |
+
+---
+
+## 4. Scalable Component UI Patterns
+
+### 4.1 Data Presentation Components
+
+**KPI Summary Cards:**
+
+- **Structure:** Vertical layout consisting of three internal rows: (1) Muted uppercase category title paired with an icon on the right, (2) Large 1.9rem Montserrat metric display, and (3) Trend indicator pill.
+- **Trend Pill Styling:** Compact box featuring a 4px left border accent corresponding to status: Green (`border-left-color: var(--success)`) for growth, Amber for warnings, Red for negative shifts.
+
+**Data Tables:**
+
+- **Header Row:** Fixed top row with dark tint (`var(--bg-hover)`), 1.5px solid black bottom border, and uppercase bold labels.
+- **Row Dividers:** Standard 1px solid horizontal lines (`var(--border-light)`) separating body rows, removed on the final row.
+- **Action Cell:** Houses compact rectangular action buttons (`.action-btn`) aligned to the right or centered.
+
+**Data Visualization (Charts):**
+
+- **Grid Lines & Axes:** Rendered with light borders (`--border-light`) and tight tick padding.
+- **Line Formatting:** Sharp mitered line joins (`borderJoinStyle: 'miter'`), zero curve smoothing (`tension: 0.1`), thick strokes (2px to 3px), and custom point markers with 1.5px dark borders.
+
+### 4.2 Controls & Inputs
+
+**Primary Action Buttons:**
+
+- Background fill in solid primary yellow (`#F5C518`), black text, 1.5px solid black border, bold font weight. Hover state transitions to dark yellow (`#D4A800`).
+
+**Secondary & Table Action Buttons (`.action-btn`):**
+
+- Transparent background, 1.5px solid border (`var(--border-color)`), compact padding (`4px 12px`), 0.7rem bold font size.
+- Hover state fills container with primary yellow (`#F5C518`), turning text and borders solid black.
+
+**Theme Toggle Switch:**
+
+- Rectangular control button framed in 1.5px border, combining Font Awesome icon (`fa-moon` / `fa-sun`) with explicit text label.
+
+**Form Inputs (Future Specification):**
+
+- Standardized height (36px–40px), 1.5px solid black border, background white (`--bg-input`), zero border-radius, direct 2px solid black focus indicator on selection.
+
+### 4.3 Navigation & Feedback Patterns
+
+**Sidebar Item States:**
+
+| State | Background | Text | Icon | Left Border |
+|-------|-----------|------|------|-------------|
+| **Default** | Transparent | #CCCCCC | #F5C518 (yellow) | Transparent 4px |
+| **Hover** | rgba(245, 197, 24, 0.15) | #FFFFFF | Yellow | Solid yellow 4px |
+| **Active** | #F5C518 (full yellow) | #000000 | Black | Bold white 4px |
+
+**Status Badges (`.status-badge`):**
+
+- Inline rectangular tags with `padding: 3px 10px`, bold 0.65rem uppercase text, and explicit semantic fill colors.
+
+---
+
+## 5. Enterprise UI/UX Guidelines for Future ERP Modules
+
+### 5.1 Information Density & Canvas Management
+
+- **Vertical Workspace Isolation:** Keep page-level scrolling constrained inside dedicated content containers so table headers and page navigation remain persistently visible.
+- **Modular Grid Split:** Standardize page layouts into a 4-card top metric summary row, followed by split view panels (e.g., 60% tabular list + 40% master-detail view or graphic breakdown).
+- **Progressive Control Density:** Primary action buttons must reside in top section headers. Secondary bulk actions (Export, Filter, Sort) must be consolidated inside tabular toolbar bars directly above column headers.
+
+### 5.2 Form Design & Complex Data Entry
+
+- **Multi-Column Form Grids:** Structured forms (e.g., Invoice Creation, Customs Filing) must use 2-column or 3-column inline field layouts bounded inside framed white cards.
+- **Explicit Field Boundaries:** Inputs must never rely on bottom-only underlines or soft grey fills; every input field must feature a full 1.5px solid border.
+- **Inline Validation Messages:** Validation feedback must appear directly beneath input containers using `.status-danger` red text and 0.75rem Figtree semi-bold typography.
+
+### 5.3 Accessibility Baselines
+
+- **Color Contrast Ratios:** Text-to-background contrast must maintain a minimum of **7:1** for body copy and **4.5:1** for large metrics, fulfilling WCAG AAA standards.
+- **Explicit Focused States:** All interactive controls (buttons, links, form inputs) must feature a high-contrast 2px solid black focus outline when tabbed via keyboard.
+- **Non-Color Dependent Indicators:** Status badges and trend indicators must pair color fills with explicit textual labels (e.g., "ÉXITO", "ADVERTENCIA", "CRÍTICO") and icon symbols.
+
+---
+
+## 6. Style Consistency Checklist for Expansion
+
+| Component / Visual Area | Mandatory Pattern (DO) | Banned Anti-Pattern (DON'T) |
+|------------------------|------------------------|----------------------------|
+| **Border Radius** | Enforce `border-radius: 0px !important;` on all UI elements | Never use rounded corners (e.g., 4px, 8px, 50%, pill) |
+| **Borders & Framing** | Apply hard 1.5px or 2px solid dark borders (`--border-color`) | Do not leave containers borderless or defined solely by soft shadows |
+| **Shadows & Depth** | Use flat mechanical offset shadows: `0 2px 0 rgba(0,0,0,0.2)` | Avoid soft, multi-layered ambient drop shadows or heavy blur effects |
+| **Color Palettes** | Restrict accent fills to Primary Yellow (#F5C518) and semantic swatches | Do not introduce unsanctioned pastels, neon gradients, or primary blues |
+| **Typography Hierarchy** | Pair Montserrat (Headings/Metrics) with Figtree (Data/Labels) | Avoid mixing mono fonts for standard text or using generic system fonts |
+| **Table Formatting** | Use uppercase bold TH headers, monospace bold IDs, and explicit badges | Do not use sentence case table headers or unstyled text status columns |
+| **Active Nav Items** | Apply full yellow background fill (#F5C518) with a 4px solid #fff left bar | Do not rely solely on subtle text color changes for selected routes |

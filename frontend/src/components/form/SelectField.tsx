@@ -17,6 +17,13 @@ export interface SelectOption {
   description?: string;
 }
 
+export interface CreateSelectOption {
+  label: string;
+  onSelect: (assignCreated: (value: string) => void) => void;
+}
+
+const CREATE_VALUE = '__create_new__';
+
 interface SelectFieldProps<T extends FieldValues> {
   name: FieldPath<T>;
   label?: string;
@@ -28,6 +35,7 @@ interface SelectFieldProps<T extends FieldValues> {
   options: SelectOption[];
   loading?: boolean;
   clearable?: boolean;
+  createOption?: CreateSelectOption;
   onChange?: (value: string) => void;
 }
 
@@ -42,6 +50,7 @@ export function SelectField<T extends FieldValues>({
   options,
   loading,
   clearable = true,
+  createOption,
   onChange,
 }: SelectFieldProps<T>) {
   const { control, formState } = useFormContext<T>();
@@ -54,9 +63,16 @@ export function SelectField<T extends FieldValues>({
         render={({ field }) => (
           <div className="select-wrap">
             <Select
-              items={options.map((opt) => ({ value: opt.value, label: opt.label }))}
+              items={[
+                ...(createOption ? [{ value: CREATE_VALUE, label: createOption.label }] : []),
+                ...options.map((opt) => ({ value: opt.value, label: opt.label })),
+              ]}
               value={field.value || null}
               onValueChange={(v) => {
+                if (v === CREATE_VALUE) {
+                  createOption?.onSelect((id) => field.onChange(id));
+                  return;
+                }
                 const next = v ?? '';
                 field.onChange(next);
                 onChange?.(next);
@@ -67,12 +83,17 @@ export function SelectField<T extends FieldValues>({
                 <SelectValue placeholder={loading ? 'Cargando…' : placeholder} />
               </SelectTrigger>
               <SelectContent>
+                {createOption && (
+                  <SelectItem value={CREATE_VALUE} className="select-item--create">
+                    + {createOption.label}
+                  </SelectItem>
+                )}
                 {options.map((opt) => (
                   <SelectItem key={opt.value} value={opt.value} disabled={opt.disabled}>
                     {opt.label}
                   </SelectItem>
                 ))}
-                {options.length === 0 && !loading && (
+                {!createOption && options.length === 0 && !loading && (
                   <div className="select-empty">Sin opciones</div>
                 )}
               </SelectContent>

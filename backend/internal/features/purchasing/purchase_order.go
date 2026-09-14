@@ -41,8 +41,6 @@ type PurchaseOrder struct {
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 	DeletedAt          *time.Time
-	CreatedBy          *uuid.UUID
-	UpdatedBy          *uuid.UUID
 
 	// Items are the order lines. Loaded by the repository / service.
 	Items []*PurchaseOrderItem

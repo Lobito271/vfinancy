@@ -24,8 +24,6 @@ type CreditCard struct {
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	DeletedAt      *time.Time
-	CreatedBy      *uuid.UUID
-	UpdatedBy      *uuid.UUID
 }
 
 // NewCreditCardOptions is the input to NewCreditCard.

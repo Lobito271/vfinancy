@@ -67,6 +67,7 @@ func (a *App) GetProduct(id string) (ProductDTO, error) {
 
 type SaveProductRequest struct {
 	ID          string  `json:"id"`
+	SKU         string  `json:"sku"`
 	Description string  `json:"description"`
 	UnitCode    string  `json:"unitCode"`
 	CostUSD     float64 `json:"costUsd"`
@@ -74,7 +75,9 @@ type SaveProductRequest struct {
 }
 
 // CreateProduct registers a catalog item (the reception of a purchase
-// also creates items implicitly by description).
+// also creates items implicitly by description). The SKU is optional:
+// an empty value keeps the generated one, and it is immutable after
+// the row is inserted.
 func (a *App) CreateProduct(req SaveProductRequest) (ProductDTO, error) {
 	cost, err := moneyFromFloat(req.CostUSD)
 	if err != nil {
@@ -84,7 +87,7 @@ func (a *App) CreateProduct(req SaveProductRequest) (ProductDTO, error) {
 	if err != nil {
 		return ProductDTO{}, err
 	}
-	p, err := a.productsSvc.Create(a.Context(), product.CreateInput{Description: req.Description, UnitCode: req.UnitCode, CostUSD: cost, SalePrice: price})
+	p, err := a.productsSvc.Create(a.Context(), product.CreateInput{Description: req.Description, UnitCode: req.UnitCode, SKU: req.SKU, CostUSD: cost, SalePrice: price})
 	if err != nil {
 		return ProductDTO{}, err
 	}

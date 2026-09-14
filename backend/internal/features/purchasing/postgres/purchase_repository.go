@@ -30,7 +30,7 @@ const purchaseColumns = `
 	customer_id, credit_card_id,
 	cost_usd, sale_price_pen, real_cost_pen, refund_amount,
 	faulty, faulty_reason, cancelled_at, cancelled_reason,
-	created_at, updated_at, deleted_at, created_by, updated_by
+	created_at, updated_at, deleted_at
 `
 
 const purchaseItemColumns = `
@@ -47,8 +47,8 @@ func (r *purchaseRepository) Create(ctx context.Context, po *purchasing.Purchase
 		customer_id, credit_card_id,
 		cost_usd, sale_price_pen, real_cost_pen, refund_amount,
 		faulty, faulty_reason, cancelled_at, cancelled_reason,
-		created_at, updated_at, created_by, updated_by
-	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)`
+		created_at, updated_at
+	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)`
 	_, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
 		po.ID, po.Number, po.OrderDate,
 		persistence.NullIfZeroTime(po.ExpectedDate), persistence.NullIfZeroTime(po.ReceivedDate),
@@ -60,7 +60,6 @@ func (r *purchaseRepository) Create(ctx context.Context, po *purchasing.Purchase
 		po.Faulty, persistence.NullIfEmpty(po.FaultyReason),
 		persistence.NullIfZeroTime(po.CancelledAt), persistence.NullIfEmpty(po.CancelledReason),
 		po.CreatedAt, po.UpdatedAt,
-		persistence.NullIfEmptyUUID(po.CreatedBy), persistence.NullIfEmptyUUID(po.UpdatedBy),
 	)
 	if err != nil {
 		return persistence.Translate(err)
@@ -101,8 +100,8 @@ func (r *purchaseRepository) Update(ctx context.Context, po *purchasing.Purchase
 		cost_usd = $8, sale_price_pen = $9, real_cost_pen = $10,
 		refund_amount = $11,
 		faulty = $12, faulty_reason = $13, cancelled_at = $14, cancelled_reason = $15,
-		updated_at = $16, updated_by = $17
-	 WHERE id = $18 AND deleted_at IS NULL`
+		updated_at = $16
+	 WHERE id = $17 AND deleted_at IS NULL`
 	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
 		persistence.NullIfZeroTime(po.ExpectedDate), persistence.NullIfZeroTime(po.ReceivedDate),
 		persistence.NullIfZeroTime(po.ArrivalDate), po.Status.String(),
@@ -111,7 +110,7 @@ func (r *purchaseRepository) Update(ctx context.Context, po *purchasing.Purchase
 		po.CostUSD.String(), po.SalePricePen.String(), po.RealCostPen.String(), po.RefundAmount.String(),
 		po.Faulty, persistence.NullIfEmpty(po.FaultyReason),
 		persistence.NullIfZeroTime(po.CancelledAt), persistence.NullIfEmpty(po.CancelledReason),
-		time.Now().UTC(), persistence.NullIfEmptyUUID(po.UpdatedBy), po.ID,
+		time.Now().UTC(), po.ID,
 	)
 	if err != nil {
 		return persistence.Translate(err)
@@ -265,12 +264,12 @@ func (r *purchaseRepository) List(ctx context.Context, filter purchasing.Purchas
 }
 
 type purchaseScan struct {
-	notes, faultyReason, cancelledReason, createdBy, updatedBy           sql.NullString
-	expectedDate, receivedDate, arrivalDate, cancelledAt, deletedAt      sql.NullTime
-	customerID, creditCardID                                             sql.NullString
-	status, orderType, currencyCode, exchangeRate                        string
-	costUSD, salePricePen, realCostPen, refundAmount string
-	faulty                                                               bool
+	notes, faultyReason, cancelledReason                            sql.NullString
+	expectedDate, receivedDate, arrivalDate, cancelledAt, deletedAt sql.NullTime
+	customerID, creditCardID                                        sql.NullString
+	status, orderType, currencyCode, exchangeRate                   string
+	costUSD, salePricePen, realCostPen, refundAmount                string
+	faulty                                                          bool
 }
 
 func scanPurchaseOrder(row *sql.Row) (*purchasing.PurchaseOrder, error) {
@@ -283,7 +282,7 @@ func scanPurchaseOrder(row *sql.Row) (*purchasing.PurchaseOrder, error) {
 		&s.customerID, &s.creditCardID,
 		&s.costUSD, &s.salePricePen, &s.realCostPen, &s.refundAmount,
 		&s.faulty, &s.faultyReason, &s.cancelledAt, &s.cancelledReason,
-		&p.CreatedAt, &p.UpdatedAt, &s.deletedAt, &s.createdBy, &s.updatedBy,
+		&p.CreatedAt, &p.UpdatedAt, &s.deletedAt,
 	); err != nil {
 		return nil, err
 	}
@@ -303,7 +302,7 @@ func scanPurchaseOrderFromRows(rows *sql.Rows) (*purchasing.PurchaseOrder, error
 		&s.customerID, &s.creditCardID,
 		&s.costUSD, &s.salePricePen, &s.realCostPen, &s.refundAmount,
 		&s.faulty, &s.faultyReason, &s.cancelledAt, &s.cancelledReason,
-		&p.CreatedAt, &p.UpdatedAt, &s.deletedAt, &s.createdBy, &s.updatedBy,
+		&p.CreatedAt, &p.UpdatedAt, &s.deletedAt,
 	); err != nil {
 		return nil, persistence.Translate(err)
 	}
@@ -350,14 +349,6 @@ func decodePurchaseOrder(p *purchasing.PurchaseOrder, s *purchaseScan) error {
 	}
 	if s.cancelledReason.Valid {
 		p.CancelledReason = s.cancelledReason.String
-	}
-	if s.createdBy.Valid {
-		id := persistence.ParseUUID(s.createdBy.String)
-		p.CreatedBy = &id
-	}
-	if s.updatedBy.Valid {
-		id := persistence.ParseUUID(s.updatedBy.String)
-		p.UpdatedBy = &id
 	}
 	p.Status = persistence.ParsePurchaseStatus(s.status)
 	p.OrderType = enums.OrderType(s.orderType)

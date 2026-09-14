@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Boxes, Pencil, Ban, Plus, Settings2, AlertTriangle, Download, History } from 'lucide-react';
+import { Package, Boxes, Pencil, Ban, Plus, Settings2, AlertTriangle, Download, History } from 'lucide-react';
 import { z } from 'zod';
 import { PageContainer, PageHeader, Grid } from '@/components/layout';
 import { StatCard } from '@/components/card';
@@ -21,6 +21,7 @@ import {
 import { useInventory, useVoidStock } from '@/features/inventory/hooks/useInventory';
 import { InventoryReceiveDialog } from '@/features/inventory/components/InventoryReceiveDialog';
 import { InventoryAdjustDialog } from '@/features/inventory/components/InventoryAdjustDialog';
+import { ProductsDrawer } from '@/features/products/components/ProductsDrawer';
 import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
 import type { InventoryItem } from '@/types/domain';
@@ -246,6 +247,7 @@ export function InventoryPage() {
   const [receiveOpen, setReceiveOpen] = useState(false);
   const [receiveTarget, setReceiveTarget] = useState<InventoryItem | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [productsOpen, setProductsOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
   const [adjustTarget, setAdjustTarget] = useState<InventoryItem | null>(null);
   const [voidTarget, setVoidTarget] = useState<InventoryItem | null>(null);
@@ -318,6 +320,9 @@ export function InventoryPage() {
         subtitle="Lotes, existencias y control de remate"
         actions={
           <>
+            <Button variant="outline" onClick={() => setProductsOpen(true)}>
+              <Package /> Productos
+            </Button>
             <Button variant="outline" onClick={() => setSettingsOpen(true)}>
               <Settings2 /> Reglas
             </Button>
@@ -391,6 +396,7 @@ export function InventoryPage() {
       <InventoryReceiveDialog key={receiveTarget?.id ?? 'receive'} open={receiveOpen} onOpenChange={setReceiveOpen} preset={receiveTarget} />
       <InventoryAdjustDialog open={!!adjustTarget} onOpenChange={(o) => { if (!o) setAdjustTarget(null); }} batch={adjustTarget} />
       <InventorySettingsDrawer open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <ProductsDrawer open={productsOpen} onOpenChange={setProductsOpen} />
       <InventoryMovementsDrawer
         open={!!movementsTarget}
         onOpenChange={(o) => { if (!o) setMovementsTarget(null); }}

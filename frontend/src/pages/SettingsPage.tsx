@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
-import { Briefcase, ShieldCheck, HardDriveDownload, Cloud, Palette, Building2 } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import { PageContainer, PageHeader } from '@/components/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card';
 import { Form, NumberField, TextField, EmailField } from '@/components/form';
@@ -15,17 +15,6 @@ import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
 import { useNotificationStore } from '@/stores/notification';
 import { useThemeStore, type Theme } from '@/stores/theme';
-
-const tabs = [
-  { id: 'business', label: 'Negocio', icon: Briefcase },
-  { id: 'company', label: 'Empresa', icon: Building2 },
-  { id: 'auth', label: 'Autenticación', icon: ShieldCheck },
-  { id: 'backup', label: 'Respaldos', icon: HardDriveDownload },
-  { id: 'sync', label: 'Sincronización', icon: Cloud },
-  { id: 'appearance', label: 'Apariencia', icon: Palette },
-] as const;
-
-type TabId = (typeof tabs)[number]['id'];
 
 const businessSchema = z.object({
   clearanceDays: z.number().int().min(1, 'Entre 1 y 365').max(365),
@@ -269,39 +258,16 @@ function AppearanceTab() {
 }
 
 export function SettingsPage() {
-  const [tab, setTab] = useState<TabId>('business');
-  const active = tabs.find((t) => t.id === tab) ?? tabs[0];
-
   return (
     <PageContainer>
       <PageHeader title="Configuración" subtitle="Administra las preferencias de tu operación." />
-      <div className="settings-layout">
-        <nav className="settings-nav" aria-label="Secciones de configuración">
-          {tabs.map((t) => {
-            const Icon = t.icon;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                className="settings-nav__item"
-                data-active={t.id === tab || undefined}
-                onClick={() => setTab(t.id)}
-              >
-                <Icon />
-                <span>{t.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-        <section className="stack" style={{ flex: 1 }}>
-          <h2 className="sr-only">{active.label}</h2>
-          {tab === 'business' && <BusinessTab />}
-          {tab === 'company' && <CompanyTab />}
-          {tab === 'auth' && <AuthTab />}
-          {tab === 'backup' && <BackupSection />}
-          {tab === 'sync' && <CloudSyncSection />}
-          {tab === 'appearance' && <AppearanceTab />}
-        </section>
+      <div className="stack" style={{ maxWidth: '52rem' }}>
+        <BusinessTab />
+        <CompanyTab />
+        <AuthTab />
+        <BackupSection />
+        <CloudSyncSection />
+        <AppearanceTab />
       </div>
     </PageContainer>
   );

@@ -163,6 +163,7 @@ type PurchaseItemRequest struct {
 }
 
 type CreatePurchaseRequest struct {
+	Number       string                `json:"number"`
 	OrderType    string                `json:"orderType"`
 	CustomerID   string                `json:"customerId"`
 	CreditCardID string                `json:"creditCardId"`
@@ -239,6 +240,7 @@ func (a *App) purchaseInput(req CreatePurchaseRequest) (purchasing.CreateInput, 
 		})
 	}
 	return purchasing.CreateInput{
+		Number:       req.Number,
 		OrderType:    enums.OrderType(req.OrderType),
 		CustomerID:   customerID,
 		CreditCardID: cardID,

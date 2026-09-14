@@ -30,15 +30,15 @@ func NewProductRepository(db *sql.DB) *productRepository {
 const productColumns = `
 	id, sku, description, unit_code,
 	cost_usd, sale_price, is_active,
-	created_at, updated_at, deleted_at, created_by, updated_by
+	created_at, updated_at, deleted_at
 `
 
 func (r *productRepository) Create(ctx context.Context, p *product.Product) error {
 	const q = `INSERT INTO products (
 		id, sku, description, unit_code,
 		cost_usd, sale_price, is_active,
-		created_at, updated_at, deleted_at, created_by, updated_by
-	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`
+		created_at, updated_at, deleted_at
+	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
 	_, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
 		p.ID,
 		p.SKU.String(),
@@ -49,8 +49,6 @@ func (r *productRepository) Create(ctx context.Context, p *product.Product) erro
 		p.IsActive,
 		p.CreatedAt, p.UpdatedAt,
 		persistence.NullIfZeroTime(p.DeletedAt),
-		persistence.NullIfEmpty(p.CreatedBy),
-		persistence.NullIfEmpty(p.UpdatedBy),
 	)
 	return persistence.Translate(err)
 }
@@ -59,8 +57,8 @@ func (r *productRepository) Update(ctx context.Context, p *product.Product) erro
 	const q = `UPDATE products SET
 		sku = $1, description = $2, unit_code = $3,
 		cost_usd = $4, sale_price = $5, is_active = $6,
-		updated_at = $7, updated_by = $8
-	 WHERE id = $9 AND deleted_at IS NULL`
+		updated_at = $7
+	 WHERE id = $8 AND deleted_at IS NULL`
 	res, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
 		p.SKU.String(),
 		p.Description,
@@ -69,7 +67,6 @@ func (r *productRepository) Update(ctx context.Context, p *product.Product) erro
 		p.SalePrice.String(),
 		p.IsActive,
 		time.Now().UTC(),
-		persistence.NullIfEmpty(p.UpdatedBy),
 		p.ID,
 	)
 	if err != nil {
@@ -176,13 +173,12 @@ func (r *productRepository) List(ctx context.Context, filter product.ProductFilt
 // productRow is the raw scan target shared by the *sql.Row and
 // *sql.Rows variants.
 type productRow struct {
-	sku                  string
-	description          string
-	unitCode             string
-	costUSD, salePrice   string
-	isActive             bool
-	deletedAt            sql.NullTime
-	createdBy, updatedBy sql.NullString
+	sku                string
+	description        string
+	unitCode           string
+	costUSD, salePrice string
+	isActive           bool
+	deletedAt          sql.NullTime
 }
 
 // scanProduct is the *sql.Row variant. NotFound rows are translated
@@ -193,7 +189,7 @@ func scanProduct(row *sql.Row) (*product.Product, error) {
 	if err := persistence.ScanRow(row,
 		&p.ID, &pr.sku, &pr.description, &pr.unitCode,
 		&pr.costUSD, &pr.salePrice, &pr.isActive,
-		&p.CreatedAt, &p.UpdatedAt, &pr.deletedAt, &pr.createdBy, &pr.updatedBy,
+		&p.CreatedAt, &p.UpdatedAt, &pr.deletedAt,
 	); err != nil {
 		return nil, err
 	}
@@ -207,7 +203,7 @@ func scanProductFromRows(rows *sql.Rows) (*product.Product, error) {
 	if err := rows.Scan(
 		&p.ID, &pr.sku, &pr.description, &pr.unitCode,
 		&pr.costUSD, &pr.salePrice, &pr.isActive,
-		&p.CreatedAt, &p.UpdatedAt, &pr.deletedAt, &pr.createdBy, &pr.updatedBy,
+		&p.CreatedAt, &p.UpdatedAt, &pr.deletedAt,
 	); err != nil {
 		return nil, persistence.Translate(err)
 	}
@@ -238,12 +234,6 @@ func (pr *productRow) fill(p *product.Product) (*product.Product, error) {
 	if pr.deletedAt.Valid {
 		t := pr.deletedAt.Time
 		p.DeletedAt = &t
-	}
-	if pr.createdBy.Valid {
-		p.CreatedBy = pr.createdBy.String
-	}
-	if pr.updatedBy.Valid {
-		p.UpdatedBy = pr.updatedBy.String
 	}
 	return p, nil
 }

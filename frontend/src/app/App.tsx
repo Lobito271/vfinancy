@@ -20,6 +20,7 @@ const InventoryPage = lazy(() => import('@/pages/InventoryPage').then((m) => ({ 
 const PurchasesPage = lazy(() => import('@/pages/PurchasesPage').then((m) => ({ default: m.PurchasesPage })));
 const SalesPage = lazy(() => import('@/pages/SalesPage').then((m) => ({ default: m.SalesPage })));
 const TreasuryPage = lazy(() => import('@/pages/TreasuryPage').then((m) => ({ default: m.TreasuryPage })));
+const ShipmentsPage = lazy(() => import('@/pages/ShipmentsPage').then((m) => ({ default: m.ShipmentsPage })));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 const SetupWizardPage = lazy(() => import('@/pages/SetupWizardPage').then((m) => ({ default: m.SetupWizardPage })));
 const WelcomePage = lazy(() => import('@/pages/WelcomePage').then((m) => ({ default: m.WelcomePage })));
@@ -74,6 +75,7 @@ export function App() {
             <Route path={rel(Routes.Purchases)} element={<PurchasesPage />} />
             <Route path={rel(Routes.Sales)} element={<SalesPage />} />
             <Route path={rel(Routes.Treasury)} element={<TreasuryPage />} />
+            <Route path={rel(Routes.Shipments)} element={<ShipmentsPage />} />
             <Route path={rel(Routes.Settings)} element={<SettingsPage />} />
             <Route path="*" element={<Navigate to={Routes.Dashboard} replace />} />
           </Route>

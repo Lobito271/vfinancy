@@ -26,6 +26,8 @@ import (
 	purchasingpostgres "vfinancy/backend/internal/features/purchasing/postgres"
 	"vfinancy/backend/internal/features/sales"
 	salespostgres "vfinancy/backend/internal/features/sales/postgres"
+	"vfinancy/backend/internal/features/shipment"
+	shipmentpostgres "vfinancy/backend/internal/features/shipment/postgres"
 	"vfinancy/backend/internal/features/sync"
 	syncpostgres "vfinancy/backend/internal/features/sync/postgres"
 	"vfinancy/backend/internal/features/treasury"
@@ -54,6 +56,7 @@ type App struct {
 	customersSvc  *customer.CustomerService
 	productsSvc   *product.ProductService
 	syncSvc       *sync.Service
+	shipmentSvc   *shipment.ShipmentService
 
 	clearanceCancel context.CancelFunc
 	syncCancel      context.CancelFunc
@@ -179,6 +182,8 @@ func (a *App) initializeServices(ctx context.Context) error {
 	a.purchasingSvc.SetCustomsLimit(a.customsLimit)
 	a.salesSvc = sales.New(ordersRepo, paymentsRepo, a.customersSvc, a.productsSvc, a.inventorySvc, a.purchasingSvc, txm, a.log)
 	a.salesSvc.SetClientOrderRateProvider(a.clientOrderRate)
+
+	a.shipmentSvc = shipment.New(shipmentpostgres.NewShipmentRepository(db.DB), txm, a.log)
 
 	return nil
 }

@@ -44,6 +44,11 @@ export const queryKeys = {
     cardProjections: ['treasury', 'cardProjections'] as const,
     exchangeRate: (from: string, to: string) => ['treasury', 'exchange', from, to] as const,
   },
+  shipments: {
+    all: ['shipments'] as const,
+    list: (q: unknown) => ['shipments', 'list', q] as const,
+    detail: (id: string) => ['shipments', 'detail', id] as const,
+  },
   settings: {
     preferences: ['settings', 'preferences'] as const,
     sync: ['settings', 'sync'] as const,

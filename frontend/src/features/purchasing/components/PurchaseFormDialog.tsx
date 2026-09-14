@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFieldArray, useFormContext, useWatch, type Path } from 'react-hook-form';import { useQuery } from '@tanstack/react-query';
 import { Trash2, Plus } from 'lucide-react';
 import { z } from 'zod';
@@ -9,6 +9,7 @@ import {
   SelectField,
   NumberField,
   TextField,
+  type CreateSelectOption,
   type SelectOption,
 } from '@/components/form';
 import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
@@ -24,6 +25,8 @@ import {
 } from '@/components/select';
 import { useCreatePurchase } from '@/features/purchasing/hooks/usePurchases';
 import { useCreditCards } from '@/features/treasury/hooks/useTreasury';
+import { CreditCardFormDialog } from '@/features/treasury/components/CreditCardFormDialog';
+import { CreateCustomerDialog } from '@/features/customers/components/CreateCustomerDialog';
 import { useProducts } from '@/features/products/hooks/useProducts';
 import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
@@ -47,6 +50,7 @@ const lineSchema = z
 
 const PurchaseFormSchema = z
   .object({
+    number: z.string().trim().optional(),
     orderType: z.enum(['general', 'customer']),
     customerId: z.string(),
     creditCardId: z.string().min(1, 'Seleccione la tarjeta de crédito'),
@@ -123,7 +127,7 @@ function OrderTypePicker() {
   );
 }
 
-function CustomerField({ customers }: { customers: SelectOption[] }) {
+function CustomerField({ customers, createCustomer }: { customers: SelectOption[]; createCustomer?: CreateSelectOption }) {
   const orderType = useWatch<PurchaseFormValues, 'orderType'>({ name: 'orderType' });
   if (orderType !== 'customer') return null;
   return (
@@ -132,6 +136,7 @@ function CustomerField({ customers }: { customers: SelectOption[] }) {
       label="Cliente"
       required
       options={customers}
+      createOption={createCustomer}
       placeholder="Seleccione el cliente…"
     />
   );
@@ -227,6 +232,24 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
   const create = useCreatePurchase();
   const push = useNotificationStore((s) => s.push);
   const [lotId, setLotId] = useState('');
+  const [cardCreateOpen, setCardCreateOpen] = useState(false);
+  const assignCard = useRef<(id: string) => void>(() => {});
+  const [customerCreateOpen, setCustomerCreateOpen] = useState(false);
+  const assignCustomer = useRef<(id: string) => void>(() => {});
+  const cardCreateOption: CreateSelectOption = {
+    label: 'Crear nueva tarjeta…',
+    onSelect: (assign) => {
+      assignCard.current = assign;
+      setCardCreateOpen(true);
+    },
+  };
+  const customerCreateOption: CreateSelectOption = {
+    label: 'Crear nuevo cliente…',
+    onSelect: (assign) => {
+      assignCustomer.current = assign;
+      setCustomerCreateOpen(true);
+    },
+  };
   const productsQuery = useProducts();
   const cardsQuery = useCreditCards();
   const customersQuery = useQuery({
@@ -262,6 +285,7 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
 
   const defaults = useMemo<PurchaseFormValues>(
     () => ({
+      number: '',
       orderType: 'general',
       customerId: '',
       creditCardId: '',
@@ -281,6 +305,7 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
   const handleSubmit = (values: PurchaseFormValues) => {
     create.mutate(
       {
+        number: values.number,
         orderType: values.orderType,
         customerId: values.customerId,
         creditCardId: values.creditCardId,
@@ -345,7 +370,7 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
               <DialogBody>
                 <ExchangeRateSeed rate={rateQuery.data?.rate} />
                 <OrderTypePicker />
-                <CustomerField customers={customerOptions} />
+                <CustomerField customers={customerOptions} createCustomer={customerCreateOption} />
                 <div className="form-grid">
                   <SelectField
                     name="creditCardId"
@@ -355,12 +380,18 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
                     placeholder={cardsQuery.isLoading ? 'Cargando tarjetas…' : 'Seleccione la tarjeta…'}
                     options={cardOptions}
                     loading={cardsQuery.isLoading}
+                    createOption={cardCreateOption}
                   />
                 </div>
                 {cardOptions.length === 0 && !cardsQuery.isLoading && (
                   <p className="field__error" role="alert">Cree una tarjeta en Tesorería</p>
                 )}
                 <div className="form-grid">
+                  <TextField
+                    name="number"
+                    label="Número de orden"
+                    description="Opcional: déjalo vacío para generarlo automáticamente. No se puede cambiar después."
+                  />
                   <DateField name="orderDate" label="Fecha de pedido" required />
                   <DateField name="expectedDate" label="Fecha estimada" description="Opcional" />
                 </div>
@@ -420,6 +451,18 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
             </>
           )}
         </Form>
+
+        <CreditCardFormDialog
+          open={cardCreateOpen}
+          onOpenChange={setCardCreateOpen}
+          editCard={null}
+          onCreated={(card) => assignCard.current(card.id)}
+        />
+        <CreateCustomerDialog
+          open={customerCreateOpen}
+          onOpenChange={setCustomerCreateOpen}
+          onCreated={(id) => assignCustomer.current(id)}
+        />
       </DialogContent>
     </Dialog>
   );

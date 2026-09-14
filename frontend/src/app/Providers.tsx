@@ -1,11 +1,15 @@
 import { useEffect } from 'react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { HashRouter } from 'react-router-dom';
 import { TooltipProvider } from '@/components/misc';
 import { useThemeStore } from '@/stores/theme';
 import { ErrorBoundary } from './ErrorBoundary';
 
 const queryClient = new QueryClient({
+  // ponytail: single-user desktop app — refetch everything after any
+  // write so cross-feature pages (e.g. Inventario after a purchase is
+  // received) always reflect the latest state without per-hook wiring.
+  mutationCache: new MutationCache({ onSuccess: () => void queryClient.invalidateQueries() }),
   defaultOptions: {
     queries: {
       staleTime: 30_000,

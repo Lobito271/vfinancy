@@ -28,9 +28,10 @@ interface CreditCardFormDialogProps {
     paymentDueDay: number;
     isActive: boolean;
   } | null;
+  onCreated?: (card: { id: string }) => void;
 }
 
-export function CreditCardFormDialog({ open, onOpenChange, editCard }: CreditCardFormDialogProps) {
+export function CreditCardFormDialog({ open, onOpenChange, editCard, onCreated }: CreditCardFormDialogProps) {
   const create = useCreateCreditCard();
   const update = useUpdateCreditCard();
   const push = useNotificationStore((s) => s.push);
@@ -58,8 +59,9 @@ export function CreditCardFormDialog({ open, onOpenChange, editCard }: CreditCar
         });
         push({ title: 'Tarjeta actualizada', variant: 'success' });
       } else {
-        await create.mutateAsync(values);
+        const created = await create.mutateAsync(values);
         push({ title: 'Tarjeta creada', variant: 'success' });
+        onCreated?.(created);
       }
       onOpenChange(false);
     } catch (err: unknown) {

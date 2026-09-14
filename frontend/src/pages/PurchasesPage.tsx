@@ -9,7 +9,7 @@ import { EmptyState, Spinner } from '@/components/feedback';
 import { Button } from '@/components/button';
 import { Input, Label, SearchInput } from '@/components/input';
 import { CancelDialog } from '@/components/dialog';
-import { Drawer, ListRow, RowActions } from '@/components/misc';
+import { Drawer, ListRow, RowActions, type RowAction } from '@/components/misc';
 import { useDebounce } from '@/hooks/useDebounce';
 import {
   Select,
@@ -138,6 +138,37 @@ export function PurchasesPage() {
 
   const openCreate = () => setFormOpen(true);
 
+  const buildActions = (row: Purchase): RowAction[] => {
+    const open = row.status !== 'cancelled';
+    const receivable = !row.arrivalDate && !row.faulty && row.status !== 'cancelled';
+    const actions: RowAction[] = [
+      { label: 'Ver detalle', icon: Eye, onSelect: () => setDetailTarget(row) },
+    ];
+    if (receivable) {
+      actions.push({
+        label: 'Marcar como recibido',
+        icon: Download,
+        onSelect: () => setReceivedTarget(row),
+      });
+    }
+    if (open && !row.faulty) {
+      actions.push({
+        label: 'Mal estado',
+        icon: AlertTriangle,
+        onSelect: () => setFaultyTarget(row),
+      });
+    }
+    if (open) {
+      actions.push({
+        label: 'Anular',
+        icon: Ban,
+        danger: true,
+        onSelect: () => setCancelTarget(row),
+      });
+    }
+    return actions;
+  };
+
   const tableColumns = useMemo<Column<Purchase>[]>(() => {
     return [
       ...columns,
@@ -145,40 +176,11 @@ export function PurchasesPage() {
         id: 'actions',
         header: '',
         width: 72,
-        cell: (row) => {
-          const open = row.status !== 'cancelled';
-          const receivable = !row.arrivalDate && !row.faulty && row.status !== 'cancelled';
-          const actions = [];
-          actions.push({
-            label: 'Ver detalle',
-            icon: Eye,
-            onSelect: () => setDetailTarget(row),
-          });
-          if (receivable) {
-            actions.push({
-              label: 'Marcar como recibido',
-              icon: Download,
-              onSelect: () => setReceivedTarget(row),
-            });
-          }
-          if (open && !row.faulty) {
-            actions.push({
-              label: 'Mal estado',
-              icon: AlertTriangle,
-              onSelect: () => setFaultyTarget(row),
-            });
-          }
-          if (open) {
-            actions.push({
-              label: 'Anular',
-              icon: Ban,
-              danger: true,
-              onSelect: () => setCancelTarget(row),
-            });
-          }
-          if (actions.length === 0) return null;
-          return <RowActions actions={actions} label={`Acciones de ${row.number}`} />;
-        },
+        cell: (row) => (
+          <div onClick={(e) => e.stopPropagation()}>
+            <RowActions actions={buildActions(row)} label={`Acciones de ${row.number}`} />
+          </div>
+        ),
       },
     ];
   }, []);
@@ -214,6 +216,8 @@ export function PurchasesPage() {
         loading={isLoading}
         error={isError ? (error as Error) : null}
         onRetry={() => refetch()}
+        onRowClick={(row) => setDetailTarget(row)}
+        rowActions={buildActions}
         preferencesKey="purchases"
         toolbarLeft={
           <>

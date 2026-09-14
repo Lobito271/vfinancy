@@ -10,7 +10,7 @@ import { EmptyState, Spinner } from '@/components/feedback';
 import { Button } from '@/components/button';
 import { CancelDialog } from '@/components/dialog';
 import { RegisterPaymentDialog, type RegisterPaymentInput } from '@/features/treasury/components/RegisterPaymentDialog';
-import { ListRow, RowActions, Drawer } from '@/components/misc';
+import { ListRow, RowActions, type RowAction, Drawer } from '@/components/misc';
 import {
   Select,
   SelectContent,
@@ -116,6 +116,22 @@ export function SalesPage() {
 
   const openCreate = () => setFormOpen(true);
 
+  const buildActions = (row: Sale): RowAction[] => {
+    const collectable = row.status === 'pending' || row.status === 'partial';
+    const cancellable = row.status !== 'cancelled';
+    const actions: RowAction[] = [
+      { label: 'Ver detalle', icon: Eye, onSelect: () => setDetailTarget(row) },
+      { label: 'Cobros', icon: ReceiptText, onSelect: () => setHistoryTarget(row) },
+    ];
+    if (collectable) {
+      actions.push({ label: 'Cobrar', icon: CreditCard, onSelect: () => setCollectTarget(row) });
+    }
+    if (cancellable) {
+      actions.push({ label: 'Anular', icon: Ban, danger: true, onSelect: () => setCancelTarget(row) });
+    }
+    return actions;
+  };
+
   const tableColumns = useMemo<Column<Sale>[]>(() => {
     return [
       ...columns,
@@ -123,38 +139,11 @@ export function SalesPage() {
         id: 'actions',
         header: '',
         width: 72,
-        cell: (row) => {
-          const collectable = row.status === 'pending' || row.status === 'partial';
-          const cancellable = row.status !== 'cancelled';
-          const actions = [];
-          actions.push({
-            label: 'Ver detalle',
-            icon: Eye,
-            onSelect: () => setDetailTarget(row),
-          });
-          actions.push({
-            label: 'Cobros',
-            icon: ReceiptText,
-            onSelect: () => setHistoryTarget(row),
-          });
-          if (collectable) {
-            actions.push({
-              label: 'Cobrar',
-              icon: CreditCard,
-              onSelect: () => setCollectTarget(row),
-            });
-          }
-          if (cancellable) {
-            actions.push({
-              label: 'Anular',
-              icon: Ban,
-              danger: true,
-              onSelect: () => setCancelTarget(row),
-            });
-          }
-          if (actions.length === 0) return null;
-          return <RowActions actions={actions} label={`Acciones de ${row.number}`} />;
-        },
+        cell: (row) => (
+          <div onClick={(e) => e.stopPropagation()}>
+            <RowActions actions={buildActions(row)} label={`Acciones de ${row.number}`} />
+          </div>
+        ),
       },
     ];
   }, []);
@@ -190,6 +179,8 @@ export function SalesPage() {
         loading={isLoading}
         error={isError ? (error as Error) : null}
         onRetry={() => refetch()}
+        onRowClick={(row) => setDetailTarget(row)}
+        rowActions={buildActions}
         preferencesKey="sales"
         toolbarLeft={
           <>

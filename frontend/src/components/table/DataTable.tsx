@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect, type ReactNode } from 'react';
+import { Fragment, useState, useMemo, useCallback, useEffect, type ReactNode } from 'react';
 import {
   ChevronsUpDown,
   ChevronUp,
@@ -8,6 +8,13 @@ import { EmptyState, ErrorState } from '@/components/feedback';
 import { TablePagination } from './TablePagination';
 import { cx } from '@/utils/cx';
 import { writeJSON, readJSON } from '@/utils/storage';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+  type RowAction,
+} from '@/components/misc';
 import {
   type Column,
   type SortState,
@@ -27,6 +34,7 @@ interface DataTableProps<T> {
   empty?: ReactNode;
   onRetry?: () => void;
   onRowClick?: (row: T) => void;
+  rowActions?: (row: T) => RowAction[] | null;
   rowClassName?: (row: T) => string | undefined;
   state?: Partial<DataTableState>;
   preferencesKey?: string;
@@ -69,6 +77,7 @@ export function DataTable<T>({
   empty,
   onRetry,
   onRowClick,
+  rowActions,
   rowClassName,
   state: externalState,
   preferencesKey,
@@ -238,6 +247,7 @@ export function DataTable<T>({
               columns={visibleHeaders(columns, stickyFirstColumn)}
               keyField={keyField}
               onRowClick={onRowClick}
+              rowActions={rowActions}
               rowClassName={rowClassName}
               empty={empty}
             />
@@ -275,6 +285,7 @@ function DataTableBody<T>({
   columns,
   keyField,
   onRowClick,
+  rowActions,
   rowClassName,
   empty,
 }: {
@@ -283,6 +294,7 @@ function DataTableBody<T>({
   columns: ResolvedColumn<T>[];
   keyField: keyof T;
   onRowClick?: (row: T) => void;
+  rowActions?: (row: T) => RowAction[] | null;
   rowClassName?: (row: T) => string | undefined;
   empty?: ReactNode;
 }) {
@@ -314,9 +326,8 @@ function DataTableBody<T>({
     <>
       {pageRows.map((row, rowIndex) => {
         const id = String(row[keyField]);
-        return (
+        const rowEl = (
           <tr
-            key={id}
             onClick={onRowClick ? () => onRowClick(row) : undefined}
             onKeyDown={onRowClick ? (e) => {
               if (e.key === 'Enter' || e.key === ' ') {
@@ -335,7 +346,7 @@ function DataTableBody<T>({
               return (
                 <td
                   key={col.id}
-                  style={sticky ? { position: 'sticky', left: 0, zIndex: 1, background: 'inherit' } : undefined}
+                  style={sticky ? { position: 'sticky', left: 0, zIndex: 1 } : undefined}
                   className={cx(
                     getCellAlign(col.align),
                     sticky && 'sticky-cell',
@@ -347,6 +358,28 @@ function DataTableBody<T>({
               );
             })}
           </tr>
+        );
+        const actions = rowActions?.(row);
+        if (!actions || actions.length === 0) {
+          return <Fragment key={id}>{rowEl}</Fragment>;
+        }
+        return (
+          <ContextMenu key={`cm-${id}`}>
+            <ContextMenuTrigger render={rowEl} />
+            <ContextMenuContent>
+              {actions.map((action) => (
+                <ContextMenuItem
+                  key={action.label}
+                  danger={action.danger}
+                  disabled={action.disabled}
+                  onSelect={action.onSelect}
+                >
+                  {action.icon && <action.icon className="menu-item-icon" />}
+                  {action.label}
+                </ContextMenuItem>
+              ))}
+            </ContextMenuContent>
+          </ContextMenu>
         );
       })}
     </>

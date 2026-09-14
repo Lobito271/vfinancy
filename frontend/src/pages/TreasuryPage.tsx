@@ -6,7 +6,7 @@ import { EmptyState, Spinner } from '@/components/feedback';
 import { ConfirmDialog } from '@/components/dialog';
 import { Badge } from '@/components/badge';
 import { DataTable, type Column } from '@/components/table';
-import { RowActions } from '@/components/misc';
+import { RowActions, type RowAction } from '@/components/misc';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select';
 import { SearchInput } from '@/components/input';
 import type { CreditCardDTO, CardProjectionDTO } from '@/services/wails-types';
@@ -68,6 +68,35 @@ export function TreasuryPage() {
     setFormOpen(true);
   }
 
+  const buildActions = (row: CreditCardDTO): RowAction[] => [
+    {
+      label: 'Registrar pago',
+      icon: CreditCard,
+      disabled: row.currentBalance <= 0,
+      onSelect: () => setPayTarget(row),
+    },
+    {
+      label: 'Editar',
+      icon: Pencil,
+      onSelect: () => openEdit(row),
+    },
+    {
+      label: 'Eliminar',
+      icon: Trash2,
+      danger: true,
+      onSelect: () =>
+        setDeleteTarget({
+          id: row.id,
+          issuer: row.issuer,
+          lastFour: row.lastFour,
+          creditLimit: row.creditLimit,
+          cutOffDay: row.cutOffDay,
+          paymentDueDay: row.paymentDueDay,
+          isActive: row.isActive,
+        }),
+    },
+  ];
+
   const cardColumns = useMemo<Column<CreditCardDTO>[]>(
     () => [
       {
@@ -99,37 +128,9 @@ export function TreasuryPage() {
         header: '',
         width: 72,
         cell: (row) => (
-          <RowActions
-            label={`Acciones de ${row.issuer} •••• ${row.lastFour}`}
-            actions={[
-              {
-                label: 'Registrar pago',
-                icon: CreditCard,
-                disabled: row.currentBalance <= 0,
-                onSelect: () => setPayTarget(row),
-              },
-              {
-                label: 'Editar',
-                icon: Pencil,
-                onSelect: () => openEdit(row),
-              },
-              {
-                label: 'Eliminar',
-                icon: Trash2,
-                danger: true,
-                onSelect: () =>
-                  setDeleteTarget({
-                    id: row.id,
-                    issuer: row.issuer,
-                    lastFour: row.lastFour,
-                    creditLimit: row.creditLimit,
-                    cutOffDay: row.cutOffDay,
-                    paymentDueDay: row.paymentDueDay,
-                    isActive: row.isActive,
-                  }),
-              },
-            ]}
-          />
+          <div onClick={(e) => e.stopPropagation()}>
+            <RowActions label={`Acciones de ${row.issuer} •••• ${row.lastFour}`} actions={buildActions(row)} />
+          </div>
         ),
       },
     ],
@@ -223,7 +224,7 @@ export function TreasuryPage() {
             action={{ label: 'Nueva tarjeta', onClick: openCreate }}
           />
         ) : (
-          <DataTable columns={cardColumns} data={creditCards} keyField="id" />
+          <DataTable columns={cardColumns} data={creditCards} keyField="id" rowActions={buildActions} />
         )}
       </Section>
 

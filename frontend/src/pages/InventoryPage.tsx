@@ -9,7 +9,7 @@ import { Badge } from '@/components/badge';
 import { EmptyState, Spinner } from '@/components/feedback';
 import { Button } from '@/components/button';
 import { ConfirmDialog } from '@/components/dialog';
-import { Drawer, ListRow, RowActions } from '@/components/misc';
+import { Drawer, ListRow, RowActions, type RowAction } from '@/components/misc';
 import { Form, NumberField } from '@/components/form';
 import {
   Select,
@@ -270,44 +270,38 @@ export function InventoryPage() {
     setReceiveOpen(true);
   };
 
+  const buildActions = (row: InventoryItem): RowAction[] | null => {
+    if (row.status === 'voided') return null;
+    return [
+      { label: 'Ver movimientos', icon: History, onSelect: () => setMovementsTarget(row) },
+      {
+        label: 'Recibir',
+        icon: Download,
+        onSelect: () => {
+          setReceiveTarget(row);
+          setReceiveOpen(true);
+        },
+      },
+      { label: 'Ajustar stock', icon: Pencil, onSelect: () => setAdjustTarget(row) },
+      { label: 'Anular lote', icon: Ban, danger: true, onSelect: () => setVoidTarget(row) },
+    ];
+  };
+
   const tableColumns = useMemo<Column<InventoryItem>[]>(() => [
     ...columns,
     {
       id: 'actions',
       header: '',
       width: 72,
-      cell: (row) =>
-        row.status !== 'voided' ? (
-          <RowActions
-            actions={[
-              {
-                label: 'Ver movimientos',
-                icon: History,
-                onSelect: () => setMovementsTarget(row),
-              },
-              {
-                label: 'Recibir',
-                icon: Download,
-                onSelect: () => {
-                  setReceiveTarget(row);
-                  setReceiveOpen(true);
-                },
-              },
-              {
-                label: 'Ajustar stock',
-                icon: Pencil,
-                onSelect: () => setAdjustTarget(row),
-              },
-              {
-                label: 'Anular lote',
-                icon: Ban,
-                danger: true,
-                onSelect: () => setVoidTarget(row),
-              },
-            ]}
-            label={`Acciones de ${row.productDescription}`}
-          />
-        ) : null,
+      cell: (row) => {
+        const actions = buildActions(row);
+        if (!actions || actions.length === 0) return null;
+        return (
+          <div onClick={(e) => e.stopPropagation()}>
+            <RowActions actions={actions} label={`Acciones de ${row.productDescription}`} />
+          </div>
+        );
+      },
     },
   ], []);
 
@@ -339,19 +333,6 @@ export function InventoryPage() {
         <StatCard label="Por vencer (5 días)" value={String(expiringSoon)} />
       </StatBand>
 
-      {clearance > 0 && (
-        <div className="hstack" style={{ gap: '0.75rem', marginBottom: '1rem' }}>
-          <Button
-            variant={statusFilter === 'clearance' ? 'primary' : 'outline'}
-            size="sm"
-            onClick={() => setStatusFilter(statusFilter === 'clearance' ? 'all' : 'clearance')}
-          >
-            <AlertTriangle />
-            {statusFilter === 'clearance' ? 'Mostrando productos en remate' : `Ver productos en remate (${clearance})`}
-          </Button>
-        </div>
-      )}
-
       <DataTable
         columns={tableColumns}
         data={filteredItems}
@@ -359,6 +340,8 @@ export function InventoryPage() {
         loading={isLoading}
         error={isError ? (error as Error) : null}
         onRetry={() => refetch()}
+        onRowClick={(row) => setMovementsTarget(row)}
+        rowActions={buildActions}
         preferencesKey="inventory"
         toolbarLeft={
           <Select

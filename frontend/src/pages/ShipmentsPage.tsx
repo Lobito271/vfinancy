@@ -6,7 +6,7 @@ import { EmptyState, Spinner } from '@/components/feedback';
 import { ConfirmDialog } from '@/components/dialog';
 import { Badge } from '@/components/badge';
 import { DataTable, type Column } from '@/components/table';
-import { RowActions } from '@/components/misc';
+import { RowActions, type RowAction } from '@/components/misc';
 import { SearchInput } from '@/components/input';
 import type { ShipmentDTO } from '@/services/wails-types';
 import { useShipments, useDeleteShipment } from '@/features/shipments/hooks/useShipments';
@@ -48,6 +48,11 @@ export function ShipmentsPage() {
   const push = useNotificationStore((s) => s.push);
 
   const nameById = useMemo(() => new Map(customers.map((c) => [c.id, c.businessName])), [customers]);
+
+  const buildActions = (row: ShipmentDTO): RowAction[] => [
+    { label: 'Editar', icon: Pencil, onSelect: () => { setEditTarget(row); setFormOpen(true); } },
+    { label: 'Eliminar', icon: Trash2, danger: true, onSelect: () => setDeleteTarget(row) },
+  ];
 
   const columns = useMemo<Column<ShipmentDTO>[]>(
     () => [
@@ -99,13 +104,9 @@ export function ShipmentsPage() {
         header: '',
         width: 72,
         cell: (row) => (
-          <RowActions
-            label={`Acciones de envío #${row.code}`}
-            actions={[
-              { label: 'Editar', icon: Pencil, onSelect: () => { setEditTarget(row); setFormOpen(true); } },
-              { label: 'Eliminar', icon: Trash2, danger: true, onSelect: () => setDeleteTarget(row) },
-            ]}
-          />
+          <div onClick={(e) => e.stopPropagation()}>
+            <RowActions label={`Acciones de envío #${row.code}`} actions={buildActions(row)} />
+          </div>
         ),
       },
     ],
@@ -145,6 +146,11 @@ export function ShipmentsPage() {
             columns={columns}
             data={shipments}
             keyField="id"
+            onRowClick={(row) => {
+              setEditTarget(row);
+              setFormOpen(true);
+            }}
+            rowActions={buildActions}
             toolbarLeft={
               <SearchInput
                 value={search}

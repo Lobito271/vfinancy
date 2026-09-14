@@ -19,7 +19,7 @@ const sizeClass: Record<WidgetSize, string> = {
   md: 'widget--md',
   lg: 'widget--lg',
   xl: 'widget--xl',
-  full: '',
+  full: 'widget--full',
 };
 
 export function DashboardGrid({ items, className }: DashboardGridProps) {

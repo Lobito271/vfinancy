@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Package, AlertTriangle, Ban, Plus, Download, Boxes, Filter, Eye } from 'lucide-react';
-import { PageContainer, PageHeader, Grid } from '@/components/layout';
+import { PageContainer, PageHeader, StatBand } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
 import { Badge } from '@/components/badge';
@@ -9,7 +9,7 @@ import { EmptyState, Spinner } from '@/components/feedback';
 import { Button } from '@/components/button';
 import { Input, Label, SearchInput } from '@/components/input';
 import { CancelDialog } from '@/components/dialog';
-import { Drawer, RowActions } from '@/components/misc';
+import { Drawer, ListRow, RowActions } from '@/components/misc';
 import { useDebounce } from '@/hooks/useDebounce';
 import {
   Select,
@@ -203,12 +203,12 @@ export function PurchasesPage() {
         }
       />
 
-      <Grid cols={4}>
+      <StatBand>
         <StatCard label="Órdenes de compra" value={String(purchases.length)} icon={Package} />
         <StatCard label="Monto total" value={formatCurrency(totalAmount)} />
         <StatCard label="Por Pagar" value={String(pending)} />
         <StatCard label="Anuladas" value={String(cancelled)} />
-      </Grid>
+      </StatBand>
 
       <DataTable
         columns={tableColumns}
@@ -478,20 +478,17 @@ export function PurchasesPage() {
               )}
               <div className="stack">
                 {detailQuery.data.items.map((it) => (
-                  <div
+                  <ListRow
                     key={it.id}
-                    className="hstack"
-                    style={{ justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--color-border)' }}
-                  >
-                    <span style={{ display: 'grid' }}>
-                      <strong style={{ fontWeight: 500 }}>{it.description}</strong>
-                      <small style={{ color: 'var(--color-fg-subtle)' }}>
+                    title={it.description}
+                    meta={
+                      <>
                         {formatNumber(it.quantity)} × {formatCurrency(it.unitCostUsd, 'USD')}
                         {it.salePricePen > 0 ? ` · Venta ${formatCurrency(it.salePricePen)}` : ''}
-                      </small>
-                    </span>
-                    <span className="tabular">{formatCurrency(it.lineTotalUsd, 'USD')}</span>
-                  </div>
+                      </>
+                    }
+                    trailing={<span className="tabular">{formatCurrency(it.lineTotalUsd, 'USD')}</span>}
+                  />
                 ))}
               </div>
             </div>

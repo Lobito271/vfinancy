@@ -75,3 +75,7 @@ export function Grid({
     />
   );
 }
+
+export function StatBand({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cx('stat-band', className)} {...props} />;
+}

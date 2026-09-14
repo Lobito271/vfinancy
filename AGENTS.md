@@ -144,16 +144,17 @@ All UI text is in Spanish (es-PE). Source code (variable names, comments if any)
 
 Un documento canónico:
 
-- **`DESIGN.md`** — reglas de diseño (paleta, tipografía, spacing, componentes, accesibilidad).
+- **`DESIGN.md`** — reglas de diseño (paleta, tipografía, spacing, componentes, accesibilidad). Es la fuente de verdad visual; nunca inventar valores fuera de él.
+- **`sample.html`** — referencia estática de `DESIGN.md` (layout del dashboard de muestra). **No modificar.** Cualquier variación estructural se documenta como CSS modular + snippet HTML en AGENTS.md.
 
 La librería de componentes es **Base UI** (`@base-ui/react`, unstyled + accesible). Los wrappers viven en `src/components/*` y exportan la API usada por las páginas; el estilo se aplica directamente sobre las partes de Base UI.
 
-Estilos: `src/index.css` es un sistema **plain CSS3** auto-suficiente (sin Tailwind/PostCSS) que implementa el lenguaje **industrial neo-brutalista** de `DESIGN.md` (basado en `sample.html`): tokens **hex** (`--primary-yellow`, `--border-color`, `--bg-panel`, `--shadow-flat`, …, con overrides en `[data-theme="dark"]` y `.dark`), tipografía **Montserrat** (headings/métricas) + **Figtree** (datos/labels, cargada offline vía *@fontsource* en `main.tsx`), `border-radius: 0` en todo el UI, bordes duros 1.5px/2px, sombras planas `0 2px 0 rgba(0,0,0,0.2)`, y **clases semánticas por parte** (`.btn`, `.card`, `.dialog-content`, `.menu-content`, `.select-trigger`, `.sidebar`, `.datatable`, …) con variantes BEM-style (`--primary`, `--collapsed`, `__header`). Los estados de Base UI se estilan con sus data-attributes (`[data-pressed]`, `[data-open]`, `[data-starting-style]`/`[data-ending-style]`, `[data-highlighted]`, `[data-checked]`, `[data-active]`, `[data-popup-open]`, `aria-invalid`). Los tokens `--color-*` que el TS usa inline (charts/recharts, bordes de listas, metadatos) son aliases de los tokens de `DESIGN.md` — nunca definir los dos por separado. Para composición puntual hay helpers mínimos (`.stack`, `.hstack`, `.grid-N`). Focus ring global vía `:focus-visible` con `--color-ring`. La unión condicional de clases se hace con `cx()` de `@/utils/cx`.
+Estilos: `src/index.css` es un sistema **plain CSS3** auto-suficiente (sin Tailwind/PostCSS) que implementa el lenguaje **industrial neo-brutalista** de `DESIGN.md`: tokens **hex** (`--primary-yellow`, `--border-color`, `--bg-panel`, `--shadow-flat`, … con overrides en `[data-theme="dark"]` y `.dark`), tipografía **Montserrat** (headings/métricas) + **Figtree** (datos/labels, cargada offline vía *@fontsource* en `main.tsx`), `border-radius: 0` en todo el UI, bordes duros 1.5px/2px, sombras planas `0 2px 0 rgba(0,0,0,0.2)`, y **clases semánticas por parte** (`.btn`, `.card`, `.dialog-content`, `.menu-content`, `.select-trigger`, `.sidebar`, `.datatable`, …) con variantes BEM-style (`--primary`, `--collapsed`, `__header`). Los estados de Base UI se estilan con sus data-attributes (`[data-pressed]`, `[data-open]`, `[data-starting-style]`/`[data-ending-style]`, `[data-highlighted]`, `[data-checked]`, `[data-active]`, `[data-popup-open]`, `aria-invalid`). Los tokens `--color-*` que el TS usa inline (charts/recharts, bordes de listas, metadatos) son **aliases** de los tokens de `DESIGN.md` — nunca definir los dos por separado. Focus ring global vía `:focus-visible` con `--color-ring`. La unión condicional de clases se hace con `cx()` de `@/utils/cx`. El CSS se organiza en secciones con **headers lowercase cortos** (`/* design tokens */`, `/* app grid */`, `/* layout primitives */`, …); no se escriben clases de utilidad ad-hoc.
 
 Reglas operativas:
 
 - **No hardcoded colors.** Usa tokens CSS (`var(--color-primary)`, `var(--color-muted-fg)`, `var(--color-destructive)`, …) — definidos en `src/index.css`.
-- **No utility classes** (`bg-*`, `text-sm`, `p-4`, `flex items-center gap-2`, …). Usa la clase semántica del componente o los helpers de layout (`.stack`, `.hstack`, `.grid-N`); casos únicos van con `style={{...}}`.
+- **No utility classes** (`bg-*`, `text-sm`, `p-4`, `flex items-center gap-2`, …). Usa la clase semántica del componente o los helpers de layout (`.stack`, `.hstack`, `.grid-N`, `.stat-band`, `.card-grid`, `.split-panel`, `.list-row`); casos únicos van con `style={{...}}`.
 - **Money usa `formatCurrency(value, 'PEN')`**, nunca `toFixed`.
 - **Dates usa `formatDate(value)`**, nunca `toLocaleString` ad-hoc.
 - **No emojis en la UI** salvo que el usuario lo pida.
@@ -161,6 +162,37 @@ Reglas operativas:
 - **Formularios** usan `<Form>` + zod + componentes de `@/components/form`.
 - **Tablas** usan `<DataTable>` (no `<table>` a mano).
 - **Iconos**: `lucide-react` se importa directamente (convención actual del repo).
+
+### Layout archetypes (patrón por tipo de pantalla)
+
+Cada página elige el arquetipo según la tarea dominante. La consistencia visual vive en los tokens; la densidad y estructura viven en el arquetipo:
+
+| Arquetipo | Cuándo | Primitive + estructura |
+|-----------|--------|------------------------|
+| **Canvas dashboard** | Analytics / KPIs | `<PageContainer>` → `<PageHeader>` → `<DashboardGrid>` (widget-grid, `widget--sm/md/lg/xl/full`) |
+| **Lista densa** | Catálogos / registros | `<PageContainer>` → `<PageHeader>` → `<StatBand>` (KPI row) → `<DataTable>` (sticky thead + toolbar) |
+| **Secciones apiladas** | Módulos con 2+ listas (Tesorería, Envíos) | `<PageContainer>` → `<PageHeader>` → varias `<Section>` (cada una con su `<DataTable>`) |
+| **Form-card** | Settings / preferencias | `<PageContainer>` → `<PageHeader>` → `<Card>` apiladas con `<Form>` (`max-width` cap) |
+| **CRUD por tarjetas** | Items/assets | `<div className="card-grid">` de `<AssetCard>` |
+| **Split panel** | Master-detail 60/40 | `<div className="split-panel">` (col izq lista, col der detalle) |
+| **Standalone** | Welcome / Setup | `welcome__*` / `setup-*` screens fuera del shell |
+
+Primitives de layout en `src/components/layout`: `AppLayout`, `PageContainer`, `PageHeader` (title/subtitle/actions/eyebrow), `Section` (title/description/actions/withTick), `Grid` (cols 1–6), `StatBand`. Helpers CSS: `.stack/.hstack` (+ `--xs/--sm/--tight`), `.grid-N`, `.stat-band`, `.card-grid`, `.split-panel`, `.list-row` (+ `__main/__title/__meta/__trailing`).
+
+**Reglas de estructura por página:**
+
+- **Cabecera de página**: acciones primarias (crear, exportar) viven en `<PageHeader actions>`; acciones secundarias (filtros, búsqueda) van en la toolbar del `<DataTable>` (`toolbarLeft`/`toolbarRight`).
+- **Fila de lista repetible**: en drawers/paneles de detalle usar el componente `<ListRow>` (de `@/components/misc`), nunca divs con estilos inline (`borderBottom`, `justifyContent: 'space-between'`).
+- **Detalle monetario**: bloque `doc-summary` (`.doc-summary__row/meta/amount/doc-number`) es la convención para resúmenes de dinero en drawers y dialogs de pago.
+- **Densidad**: tablas con header sticky (`thead` sticky + primera columna sticky), celdas 12px vertical, th uppercase 0.65rem.
+- **Contenedores**: cards y secciones con borde duro 1.5px + `--shadow-flat`; separadores entre filas con `--border-light`.
+
+### Accessibility baselines (WCAG AAA)
+
+- **Contraste:** mínimo **7:1** para body copy, **4.5:1** para métricas grandes (KPI 1.9rem). Los tokens de `DESIGN.md` (`--text-primary/secondary/muted` sobre `--bg-app/--bg-panel`) cumplen por construcción; no oscurecer tonos ni componer texto sobre fills de color sin el par explícito (texto negro sobre `--success`/`--warning`, blanco sobre `--danger`).
+- **Focus:** todo control interactivo (botones, links, inputs, filas clickables de tabla) debe mostrar el ring global `:focus-visible { outline: 2px solid var(--color-ring) }`. No quitarlo con `outline: none`.
+- **Indicadores no-cromáticos:** los badges de estado (`SaleStatusBadge`, `CustomerStatusBadge`) y los trends llevan **etiqueta textual** además del color (nunca color como único canal). Iconos decorativos con `aria-hidden="true"`.
+- **Semántica:** `th scope` por columna, filas clickables con `role="button"` + `tabIndex=0` + manejo Enter/Espacio (ya implementado en `DataTable`), forms con `<label>` + `aria-invalid`/`role="alert"` en errores.
 
 ### Theme (light / dark / system)
 
@@ -174,21 +206,22 @@ Reglas operativas:
 
 ```
 button/      # Button (Base UI) — 5 variants, 5 sizes, loading, render prop
-input/       # Input, Textarea, Label, SearchInput
+input/       # Input, Textarea, Label, SearchInput, PasswordInput
 select/      # Select (Base UI) + SelectValue/Trigger/Content/Item
 table/       # DataTable (search/filters/sort/pagination/row-actions), TablePagination
 dialog/      # Dialog + Content/Header/Body/Footer/Title/Description, AlertDialog (5 variants), ConfirmDialog, CancelDialog
-card/        # Card, CardHeader/Title/Description/Content, StatCard
+card/        # Card, CardHeader/Title/Description/Content, StatCard, AssetCard
 badge/       # Badge (8 variants), SaleStatusBadge, CustomerStatusBadge
-navigation/  # Sidebar (flat, collapsible, mobile drawer), Topbar, Breadcrumbs
+navigation/  # Sidebar (flat, collapsible, mobile drawer), Topbar, nav config (nav.ts)
 feedback/    # Spinner, EmptyState, ErrorState, Toaster (Base UI Toast)
 charts/      # LineChart, BarChart (recharts wrappers, token colors)
-layout/      # AppLayout + PageContainer, PageHeader, Section, Grid
+layout/      # AppLayout, PageContainer, PageHeader, Section, Grid, StatBand
 form/        # Form (RHF + zod) + fields (TextField, NumberField, MoneyField, PercentageField, SelectField, domain selects, LineItemsEditor)
-misc/        # DropdownMenu (Base UI Menu), Tooltip, Drawer (Base UI), RowActions
+misc/        # DropdownMenu (Base UI Menu), Tooltip, Drawer (Base UI), RowActions, ListRow
+tabs/        # Tabs (Base UI)
 ```
 
-Cada carpeta tiene su `index.ts` barrel — importar de `@/components/<categoría>`, nunca del archivo individual.
+Cada carpeta tiene su `index.ts` barrel — importar de `@/components/<categoría>`, nunca del archivo individual. No existe componente `Breadcrumbs`; no inventarlo.
 
 ### State management (3 capas)
 

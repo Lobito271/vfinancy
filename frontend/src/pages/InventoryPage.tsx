@@ -2,14 +2,14 @@ import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Package, Boxes, Pencil, Ban, Plus, Settings2, AlertTriangle, Download, History } from 'lucide-react';
 import { z } from 'zod';
-import { PageContainer, PageHeader, Grid } from '@/components/layout';
+import { PageContainer, PageHeader, StatBand } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
 import { Badge } from '@/components/badge';
 import { EmptyState, Spinner } from '@/components/feedback';
 import { Button } from '@/components/button';
 import { ConfirmDialog } from '@/components/dialog';
-import { Drawer, RowActions } from '@/components/misc';
+import { Drawer, ListRow, RowActions } from '@/components/misc';
 import { Form, NumberField } from '@/components/form';
 import {
   Select,
@@ -127,27 +127,26 @@ function InventoryMovementsDrawer({ open, onOpenChange, batch }: { open: boolean
       ) : (
         <div className="stack">
           {(movements.data?.items ?? []).map((m) => (
-            <div
+            <ListRow
               key={m.id}
-              className="hstack"
-              style={{ justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--color-border)' }}
-            >
-              <span style={{ display: 'grid' }}>
-                <strong style={{ fontWeight: 500 }}>{movementTypeLabels[m.type] ?? m.type}</strong>
-                <small style={{ color: 'var(--color-fg-subtle)' }}>
+              title={movementTypeLabels[m.type] ?? m.type}
+              meta={
+                <>
                   {formatDate(m.movementDate)}
                   {m.notes ? ` · ${m.notes}` : ''}
-                </small>
-              </span>
-              <span className="tabular" style={{ textAlign: 'right' }}>
-                <span className={m.quantity >= 0 ? undefined : 'text-destructive'}>
-                  {m.quantity > 0 ? '+' : ''}
-                  {formatNumber(m.quantity)}
+                </>
+              }
+              trailing={
+                <span className="tabular" style={{ textAlign: 'right' }}>
+                  <span className={m.quantity >= 0 ? undefined : 'text-destructive'}>
+                    {m.quantity > 0 ? '+' : ''}
+                    {formatNumber(m.quantity)}
+                  </span>
+                  <br />
+                  <small className="muted">Saldo {formatNumber(m.balanceAfter)}</small>
                 </span>
-                <br />
-                <small className="muted">Saldo {formatNumber(m.balanceAfter)}</small>
-              </span>
-            </div>
+              }
+            />
           ))}
         </div>
       )}
@@ -333,13 +332,13 @@ export function InventoryPage() {
         }
       />
 
-      <Grid cols={5}>
+      <StatBand>
         <StatCard label="Lotes en almacén" value={String(live.length)} icon={Boxes} />
         <StatCard label="Unidades en stock" value={formatNumber(totalUnits)} />
         <StatCard label="Valor de inventario" value={formatCurrency(inventoryValue)} />
         <StatCard label="En remate" value={String(clearance)} icon={AlertTriangle} />
         <StatCard label="Por vencer (5 días)" value={String(expiringSoon)} />
-      </Grid>
+      </StatBand>
 
       {clearance > 0 && (
         <div className="hstack" style={{ gap: '0.75rem', marginBottom: '1rem' }}>

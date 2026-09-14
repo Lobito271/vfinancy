@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ShoppingCart, CreditCard, Ban, Plus, ReceiptText, Eye, Users } from 'lucide-react';
-import { PageContainer, PageHeader, Grid } from '@/components/layout';
+import { PageContainer, PageHeader, StatBand } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
 import { SaleStatusBadge } from '@/components/badge';
@@ -10,7 +10,7 @@ import { EmptyState, Spinner } from '@/components/feedback';
 import { Button } from '@/components/button';
 import { CancelDialog } from '@/components/dialog';
 import { RegisterPaymentDialog, type RegisterPaymentInput } from '@/features/treasury/components/RegisterPaymentDialog';
-import { RowActions, Drawer } from '@/components/misc';
+import { ListRow, RowActions, Drawer } from '@/components/misc';
 import {
   Select,
   SelectContent,
@@ -176,12 +176,12 @@ export function SalesPage() {
         }
       />
 
-      <Grid cols={4}>
+      <StatBand>
         <StatCard label="Ventas registradas" value={String(sales.length)} icon={ShoppingCart} />
         <StatCard label="Monto total" value={formatCurrency(totalAmount)} />
         <StatCard label="Utilidad" value={formatCurrency(totalProfit)} />
         <StatCard label="Por Cobrar" value={String(pending)} />
-      </Grid>
+      </StatBand>
 
       <DataTable
         columns={tableColumns}
@@ -371,26 +371,21 @@ export function SalesPage() {
             ) : paymentsQuery.data && paymentsQuery.data.items.length > 0 ? (
               <div className="stack">
                 {paymentsQuery.data.items.map((p) => (
-                  <div
+                  <ListRow
                     key={p.id}
-                    className="hstack"
-                    style={{
-                      justifyContent: 'space-between',
-                      padding: '0.5rem 0',
-                      borderBottom: '1px solid var(--color-border)',
-                    }}
-                  >
-                    <span style={{ display: 'grid' }}>
-                      <strong style={{ fontWeight: 500 }}>
+                    title={
+                      <>
                         {p.number} · {methodLabel(p.paymentMethod)}
-                      </strong>
-                      <small style={{ color: 'var(--color-fg-subtle)' }}>
+                      </>
+                    }
+                    meta={
+                      <>
                         {formatDate(p.paymentDate)}
                         {p.reference ? ` · ${p.reference}` : ''}
-                      </small>
-                    </span>
-                    <span>{formatCurrency(Number(p.amount))}</span>
-                  </div>
+                      </>
+                    }
+                    trailing={<span>{formatCurrency(Number(p.amount))}</span>}
+                  />
                 ))}
               </div>
             ) : (
@@ -455,19 +450,16 @@ export function SalesPage() {
               )}
               <div className="stack">
                 {detailQuery.data.items.map((it) => (
-                  <div
+                  <ListRow
                     key={it.id}
-                    className="hstack"
-                    style={{ justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--color-border)' }}
-                  >
-                    <span style={{ display: 'grid' }}>
-                      <strong style={{ fontWeight: 500 }}>{it.description}</strong>
-                      <small style={{ color: 'var(--color-fg-subtle)' }}>
+                    title={it.description}
+                    meta={
+                      <>
                         {formatNumber(it.quantity)} × {formatCurrency(it.unitPrice)}
-                      </small>
-                    </span>
-                    <span className="tabular">{formatCurrency(it.lineTotal)}</span>
-                  </div>
+                      </>
+                    }
+                    trailing={<span className="tabular">{formatCurrency(it.lineTotal)}</span>}
+                  />
                 ))}
               </div>
             </div>

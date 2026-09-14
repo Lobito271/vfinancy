@@ -13,6 +13,7 @@ import {
 import { AlertDialog } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { Badge } from '@/components/badge';
+import { ListRow } from '@/components/misc';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select';
 import { Input, Label } from '@/components/input';
 import { Spinner, EmptyState } from '@/components/feedback';
@@ -183,8 +184,7 @@ export function ImportLotsDialog({ open, onOpenChange }: ImportLotsDialogProps) 
                       {selectable.map((p) => (
                         <label
                           key={p.id}
-                          className="hstack hstack--sm"
-                          style={{ padding: '0.4rem 0', borderBottom: '1px solid var(--color-border)' }}
+                          className="list-row"
                         >
                           <input
                             type="checkbox"
@@ -249,24 +249,25 @@ export function ImportLotsDialog({ open, onOpenChange }: ImportLotsDialogProps) 
                     ) : (
                       <div className="stack">
                         {(membersQuery.data ?? []).map((m) => (
-                          <div
+                          <ListRow
                             key={m.id}
-                            className="hstack hstack--sm"
-                            style={{ justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: '1px solid var(--color-border)' }}
-                          >
-                            <span style={{ flex: 1 }}>{m.number}</span>
-                            <span className="tabular muted">{formatCurrency(m.costUsd, 'USD')}</span>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label={`Quitar ${m.number} del lote`}
-                              onClick={() => removeMember.mutate(m.id)}
-                              disabled={removeMember.isPending}
-                            >
-                              <Trash2 />
-                            </Button>
-                          </div>
+                            title={m.number}
+                            trailing={
+                              <>
+                                <span className="tabular muted">{formatCurrency(m.costUsd, 'USD')}</span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  aria-label={`Quitar ${m.number} del lote`}
+                                  onClick={() => removeMember.mutate(m.id)}
+                                  disabled={removeMember.isPending}
+                                >
+                                  <Trash2 />
+                                </Button>
+                              </>
+                            }
+                          />
                         ))}
                       </div>
                     )}

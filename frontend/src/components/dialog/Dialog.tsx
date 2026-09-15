@@ -1,6 +1,5 @@
 import * as React from 'react';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
-import { ScrollArea } from '@base-ui/react/scroll-area';
 import { cx } from '@/utils/cx';
 
 export const Dialog = DialogPrimitive.Root;
@@ -39,14 +38,9 @@ DialogContent.displayName = 'DialogContent';
 
 export const DialogBody = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, children, ...props }, ref) => (
-    <ScrollArea.Root ref={ref} className={cx('dialog-body', className)} {...props}>
-      <ScrollArea.Viewport className="dialog-body__viewport">
-        <div className="dialog-body__content">{children}</div>
-      </ScrollArea.Viewport>
-      <ScrollArea.Scrollbar orientation="vertical" className="dialog-body__scrollbar">
-        <ScrollArea.Thumb className="dialog-body__thumb" />
-      </ScrollArea.Scrollbar>
-    </ScrollArea.Root>
+    <div ref={ref} className={cx('dialog-body', className)} {...props}>
+      {children}
+    </div>
   ),
 );
 DialogBody.displayName = 'DialogBody';

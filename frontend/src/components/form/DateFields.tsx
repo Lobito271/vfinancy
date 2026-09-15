@@ -34,6 +34,7 @@ export function DateField<T extends FieldValues>({
         invalid={!!error}
         min={min}
         max={max}
+        value={value ?? ''}
         {...register(name)}
       />
       {showFormatted && value && <p className="field-hint">{formatDate(value)}</p>}

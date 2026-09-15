@@ -25,7 +25,7 @@ export function WelcomePage() {
 
   const state = useQuery({ queryKey: queryKeys.setup, queryFn: () => wailsClient.getLocalAuthState() });
   const question = useQuery({
-    queryKey: queryKeys.setup,
+    queryKey: queryKeys.auth.securityQuestion,
     queryFn: () => wailsClient.getSecurityQuestion(),
     enabled: state.data?.configured && state.data.passwordEnabled && !state.data.unlocked,
   });

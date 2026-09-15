@@ -2,6 +2,7 @@ export const queryKeys = {
   setup: ['setup'] as const,
   auth: {
     state: ['auth', 'state'] as const,
+    securityQuestion: ['auth', 'securityQuestion'] as const,
   },
   customers: {
     all: ['customers'] as const,

@@ -2,27 +2,57 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { KeyRound, Lock, ShieldCheck } from 'lucide-react';
+import { z } from 'zod';
 import { Section } from '@/components/layout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card';
 import { Button } from '@/components/button';
 import { PasswordInput, Label } from '@/components/input';
+import { Form } from '@/components/form';
+import { SecurityQuestionFields } from '@/features/settings/components/SecurityQuestionFields';
+import { SECURITY_QUESTION_CUSTOM, securityQuestionLabel } from '@/constants/securityQuestions';
 import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
 import { useNotificationStore } from '@/stores/notification';
 import { Routes } from '@/constants/routes';
+
+const questionSchema = z
+  .object({
+    securityQuestion: z.string().min(1, 'Selecciona una pregunta.'),
+    customQuestion: z.string().trim().optional().or(z.literal('')),
+    securityAnswer: z.string().trim().min(3, 'Usa al menos 3 caracteres.'),
+  })
+  .superRefine((data, ctx) => {
+    if (data.securityQuestion === SECURITY_QUESTION_CUSTOM && !data.customQuestion) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['customQuestion'],
+        message: 'Escribe tu propia pregunta.',
+      });
+    }
+  });
+
+type QuestionValues = z.infer<typeof questionSchema>;
+
+function resolveQuestion(values: QuestionValues): string {
+  return values.securityQuestion === SECURITY_QUESTION_CUSTOM
+    ? (values.customQuestion ?? '').trim()
+    : securityQuestionLabel(values.securityQuestion);
+}
 
 export function SecuritySection() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const push = useNotificationStore((s) => s.push);
   const auth = useQuery({ queryKey: queryKeys.setup, queryFn: () => wailsClient.getLocalAuthState() });
+  const profile = useQuery({ queryKey: queryKeys.settings.profile, queryFn: () => wailsClient.getLocalProfile() });
 
   const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [busy, setBusy] = useState(false);
-  const [recoveryBusy, setRecoveryBusy] = useState(false);
-  const [recoveryToken, setRecoveryToken] = useState('');
   const passwordEnabled = auth.data?.passwordEnabled ?? false;
+  const storedQuestion = passwordEnabled && !!profile.data?.securityQuestion
+    ? profile.data?.securityQuestion
+    : '';
 
   const valid = next === '' || next.length >= 8;
 
@@ -60,30 +90,32 @@ export function SecuritySection() {
       navigate(Routes.Welcome, { replace: true });
     }, 'Aplicación bloqueada');
 
-  const generateRecovery = async () => {
-    setRecoveryBusy(true);
+  const saveQuestion = async (values: QuestionValues) => {
     try {
-      const token = await wailsClient.getRecoveryToken();
-      setRecoveryToken(token);
+      await wailsClient.setSecurityQuestion({ question: resolveQuestion(values), answer: values.securityAnswer });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.settings.profile });
+      push({ title: 'Pregunta de seguridad guardada', variant: 'success' });
     } catch (cause) {
       push({
-        title: 'No se pudo generar la clave',
+        title: 'No se pudo guardar la pregunta',
         description: cause instanceof Error ? cause.message : undefined,
         variant: 'destructive',
       });
-    } finally {
-      setRecoveryBusy(false);
     }
   };
 
-  const downloadRecovery = () => {
-    const content = `Clave de recuperación de vfinancy\n\n${recoveryToken}\n\nGuárdala en un lugar seguro. Si pierdes la contraseña,\nesta clave te permite recuperar el acceso a este equipo.\n`;
-    const url = URL.createObjectURL(new Blob([content], { type: 'text/plain' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'vfinancy-recovery-key.txt';
-    a.click();
-    URL.revokeObjectURL(url);
+  const clearQuestion = async () => {
+    try {
+      await wailsClient.clearSecurityQuestion();
+      await queryClient.invalidateQueries({ queryKey: queryKeys.settings.profile });
+      push({ title: 'Pregunta de seguridad eliminada', variant: 'success' });
+    } catch (cause) {
+      push({
+        title: 'No se pudo eliminar la pregunta',
+        description: cause instanceof Error ? cause.message : undefined,
+        variant: 'destructive',
+      });
+    }
   };
 
   return (
@@ -142,31 +174,51 @@ export function SecuritySection() {
                 </Button>
               )}
             </div>
-
-            {!recoveryToken && (
-              <div className="hstack hstack--sm">
-                <Button variant="outline" onClick={generateRecovery} loading={recoveryBusy}>
-                  <ShieldCheck /> Generar clave de recuperación
-                </Button>
-              </div>
-            )}
-            {recoveryToken && (
-              <div className="dialog-note">
-                <p className="fw-medium">Guarda esta clave en un lugar seguro.</p>
-                <code className="recovery-token">{recoveryToken}</code>
-                <div className="hstack hstack--sm" style={{ marginTop: '0.5rem' }}>
-                  <Button size="sm" onClick={downloadRecovery}>
-                    Descargar clave
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setRecoveryToken('')}>
-                    Entendido
-                  </Button>
-                </div>
-              </div>
-            )}
           </div>
         </CardContent>
       </Card>
+
+      {passwordEnabled && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Pregunta de seguridad</CardTitle>
+            <CardDescription>
+              Si olvidas tu contraseña, esta pregunta permite restaurar el acceso en la pantalla de bloqueo.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="stack" style={{ maxWidth: '24rem' }}>
+              {storedQuestion && (
+                <div className="dialog-note">
+                  <p className="fw-medium">Pregunta actual</p>
+                  <p className="muted">{storedQuestion}</p>
+                  <div className="hstack hstack--sm">
+                    <Button size="sm" variant="outline" onClick={clearQuestion}>
+                      Eliminar pregunta
+                    </Button>
+                  </div>
+                </div>
+              )}
+              <Form<QuestionValues>
+                defaultValues={{ securityQuestion: '', customQuestion: '', securityAnswer: '' }}
+                schema={questionSchema}
+                onSubmit={saveQuestion}
+              >
+                {({ formState }) => (
+                  <div className="stack">
+                    <SecurityQuestionFields required />
+                    <div>
+                      <Button type="submit" loading={formState.isSubmitting}>
+                        <ShieldCheck /> {storedQuestion ? 'Cambiar pregunta' : 'Configurar pregunta'}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </Form>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </Section>
   );
 }

@@ -7,7 +7,7 @@ import { DataTable, type Column } from '@/components/table';
 import { Badge } from '@/components/badge';
 import { EmptyState, Spinner } from '@/components/feedback';
 import { Button } from '@/components/button';
-import { Input, Label, SearchInput } from '@/components/input';
+import { DateInput, Label, SearchInput } from '@/components/input';
 import { CancelDialog } from '@/components/dialog';
 import { Drawer, ListRow, RowActions, type RowAction } from '@/components/misc';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -303,8 +303,8 @@ export function PurchasesPage() {
           <div className="field">
             <Label>Rango de fechas</Label>
             <div className="hstack hstack--sm">
-              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Desde" />
-              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Hasta" />
+              <DateInput value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Desde" placeholder="DD/MM/AAAA" />
+              <DateInput value={to} onChange={(e) => setTo(e.target.value)} aria-label="Hasta" placeholder="DD/MM/AAAA" />
             </div>
           </div>
           <div className="field">

@@ -51,6 +51,7 @@ export const queryKeys = {
   },
   settings: {
     preferences: ['settings', 'preferences'] as const,
+    profile: ['settings', 'profile'] as const,
     sync: ['settings', 'sync'] as const,
     backup: ['settings', 'backup'] as const,
   },

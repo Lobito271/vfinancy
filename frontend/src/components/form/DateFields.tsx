@@ -1,6 +1,6 @@
 import { useFormContext, type FieldPath, type FieldValues } from 'react-hook-form';
 import { Field } from './Field';
-import { Input } from '@/components/input';
+import { DateInput } from '@/components/input';
 import { formatDate } from '@/utils/format';
 
 interface DateFieldProps<T extends FieldValues> {
@@ -29,10 +29,8 @@ export function DateField<T extends FieldValues>({
   const value = watch(name) as string | undefined;
   return (
     <Field label={label} required={required} description={description} error={error} className={className} htmlFor={String(name)}>
-      <Input
+      <DateInput
         id={String(name)}
-        type="date"
-        lang="es-PE"
         invalid={!!error}
         min={min}
         max={max}

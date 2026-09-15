@@ -3,9 +3,14 @@ import {
   ChevronsUpDown,
   ChevronUp,
   ChevronDown,
+  Filter,
 } from 'lucide-react';
 import { EmptyState, ErrorState } from '@/components/feedback';
 import { TablePagination } from './TablePagination';
+import { Button } from '@/components/button';
+import { Drawer } from '@/components/misc';
+import { SearchInput } from '@/components/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select';
 import { cx } from '@/utils/cx';
 import { writeJSON, readJSON } from '@/utils/storage';
 import {
@@ -17,7 +22,9 @@ import {
 } from '@/components/misc';
 import {
   type Column,
+  type ColumnFilter,
   type SortState,
+  type FilterState,
   type DataTableState,
   type DataTablePreferences,
   DataTableDefaults,
@@ -41,6 +48,7 @@ interface DataTableProps<T> {
   defaultPreferences?: DataTablePreferences;
   toolbarLeft?: ReactNode;
   toolbarRight?: ReactNode;
+  columnFilters?: ColumnFilter<T>[];
   stickyFirstColumn?: boolean;
   className?: string;
   ariaLabel?: string;
@@ -85,6 +93,7 @@ export function DataTable<T>({
   toolbarLeft,
   toolbarRight,
   stickyFirstColumn = DataTableDefaults.stickyFirstColumn,
+  columnFilters,
   className,
   ariaLabel,
 }: DataTableProps<T>) {
@@ -137,6 +146,10 @@ export function DataTable<T>({
   const filteredData = useMemo(() => {
     let rows = data;
     for (const f of state.filters) {
+      if (f.match) {
+        rows = rows.filter((row) => f.match!(row, f.value));
+        continue;
+      }
       const col = columnsById.get(f.id);
       if (!col) continue;
       rows = rows.filter((row) => {
@@ -181,18 +194,111 @@ export function DataTable<T>({
     [state.sort, update, preferencesKey],
   );
 
+  const hasColumnFilters = (columnFilters ?? []).length > 0;
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filterDraft, setFilterDraft] = useState<Record<string, unknown>>({});
+
+  const activeFilterCount = useMemo(
+    () => (columnFilters ?? []).filter((f) => {
+      const v = filterDraft[f.columnId];
+      return v !== undefined && v !== '' && (!(Array.isArray(v)) || v.length > 0);
+    }).length,
+    [columnFilters, filterDraft],
+  );
+
+  const applyFilters = () => {
+    const filters: FilterState[] = (columnFilters ?? [])
+      .map((cf) => ({
+        id: cf.columnId,
+        value: filterDraft[cf.columnId] ?? '',
+        match: cf.match
+          ? (_row: unknown, value: unknown) => cf.match!(_row as T, value)
+          : undefined,
+      }))
+      .filter((f) => f.value !== '' && !(Array.isArray(f.value) && f.value.length === 0));
+    update({ filters, page: 1 });
+    setFiltersOpen(false);
+  };
+
+  const clearFilters = () => {
+    setFilterDraft({});
+    update({ filters: [], page: 1 });
+    setFiltersOpen(false);
+  };
+
   if (error) {
     return <ErrorState title="Error al cargar" description={error.message} onRetry={onRetry} />;
   }
 
   return (
     <div className={cx('datatable', className)} aria-label={ariaLabel}>
-      {(toolbarLeft || toolbarRight) && (
+      {(toolbarLeft || toolbarRight || hasColumnFilters) && (
         <div className="datatable-toolbar">
           <div className="datatable-toolbar__left">{toolbarLeft}</div>
-          <div className="datatable-toolbar__right">{toolbarRight}</div>
+          <div className="datatable-toolbar__right">
+            {toolbarRight}
+            {hasColumnFilters && (
+              <Button variant="outline" onClick={() => { setFilterDraft(
+                Object.fromEntries((columnFilters ?? []).map((cf) => {
+                  const current = state.filters.find((f) => f.id === cf.columnId);
+                  return [cf.columnId, current?.value ?? ''];
+                })),
+              ); setFiltersOpen(true); }}
+              >
+                <Filter /> Filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+              </Button>
+            )}
+          </div>
         </div>
       )}
+
+      <Drawer
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+        title="Filtros"
+        description="Filtra los resultados por columna."
+        footer={
+          <div className="hstack hstack--sm">
+            <Button variant="outline" onClick={clearFilters} disabled={activeFilterCount === 0}>
+              Limpiar
+            </Button>
+            <Button onClick={applyFilters}>Aplicar</Button>
+          </div>
+        }
+      >
+        <div className="stack">
+          {(columnFilters ?? []).map((cf) => (
+            <div className="field" key={cf.columnId}>
+              <label className="label">{cf.label}</label>
+              {cf.type === 'select' ? (
+                <Select
+                  items={cf.options ?? []}
+                  value={(filterDraft[cf.columnId] as string) ?? ''}
+                  onValueChange={(v) => setFilterDraft((d) => ({ ...d, [cf.columnId]: v ?? '' }))}
+                >
+                  <SelectTrigger aria-label={cf.label}>
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todos</SelectItem>
+                    {(cf.options ?? []).map((o) => (
+                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <SearchInput
+                  value={(filterDraft[cf.columnId] as string) ?? ''}
+                  onChange={(e) => setFilterDraft((d) => ({ ...d, [cf.columnId]: e.target.value }))}
+                  onClear={() => setFilterDraft((d) => ({ ...d, [cf.columnId]: '' }))}
+                  placeholder={`Buscar ${cf.label.toLowerCase()}…`}
+                  aria-label={`Filtrar por ${cf.label}`}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      </Drawer>
 
       <div className="datatable-scroll">
         <table className="datatable-table">

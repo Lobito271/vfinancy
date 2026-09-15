@@ -17,41 +17,43 @@ function ToastViewport() {
   if (typeof document === 'undefined') return null;
 
   return createPortal(
-    <Toast.Viewport
-      style={{
-        position: 'fixed',
-        bottom: '20px',
-        right: '20px',
-        zIndex: 99999,
-        margin: 0,
-        maxHeight: '100vh',
-        display: 'flex',
-        flexDirection: 'column-reverse',
-        gap: '8px',
-        padding: '16px',
-        width: '100%',
-        maxWidth: '420px',
-        pointerEvents: 'none',
-      }}
-    >
-      {manager.toasts.map((toast) => {
-        const variant = (toast.type ?? 'info') as ToastVariant;
-        const Icon = iconMap[variant] ?? Info;
-        return (
-          <Toast.Root
-            key={toast.id}
-            toast={toast}
-            className={cx('toast', `toast--${variant}`)}
-            style={{
-              flexShrink: 0,
-              flexGrow: 0,
-              alignSelf: 'flex-end',
-              width: '100%',
-              maxHeight: '100px',
-              height: 'auto',
-            }}
-            swipeDirection={['down', 'right']}
-          >
+<Toast.Viewport
+        style={{
+          position: 'fixed',
+          bottom: '20px',
+          right: '20px',
+          zIndex: 99999,
+          margin: 0,
+          maxHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column-reverse',
+          gap: '8px',
+          padding: '16px',
+          width: 'max-content',
+          maxWidth: '420px',
+          pointerEvents: 'none',
+        }}
+      >
+        {manager.toasts.map((toast) => {
+          const variant = (toast.type ?? 'info') as ToastVariant;
+          const Icon = iconMap[variant] ?? Info;
+          return (
+            <Toast.Root
+              key={toast.id}
+              toast={toast}
+              className={cx('toast', `toast--${variant}`)}
+              style={{
+                flexShrink: 0,
+                flexGrow: 0,
+                alignSelf: 'flex-end',
+                width: 'max-content',
+                maxWidth: 'calc(100vw - 32px)',
+                maxHeight: '40vh',
+                height: 'auto',
+                overflowY: 'auto',
+              }}
+              swipeDirection={['down', 'right']}
+            >
             <span className="toast__icon" aria-hidden="true">
               <Icon strokeWidth={2.5} />
             </span>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useFieldArray, useFormContext, useWatch, type Path } from 'react-hook-form';import { useQuery } from '@tanstack/react-query';
-import { Trash2, Plus } from 'lucide-react';
+import { useFieldArray, useFormContext, useWatch, type Path } from 'react-hook-form';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowLeft, ArrowRight, Trash2, Plus } from 'lucide-react';
 import { z } from 'zod';
 import {
   Form,
@@ -146,7 +147,90 @@ interface ProductCostOption extends SelectOption {
   unitCost: number;
   salePrice: number;
 }
-function PurchaseLines({ products }: { products: ProductCostOption[] }) {
+
+function OrderDataStep({ cardOptions, customerOptions, cardsQuery, rateQuery, lotsQuery, cardCreateOption, customerCreateOption }: {
+  cardOptions: SelectOption[];
+  customerOptions: SelectOption[];
+  cardsQuery: { isLoading: boolean };
+  rateQuery: { data?: { rate?: number; isFallback?: boolean }; isLoading: boolean };
+  lotsQuery: { data?: { items: { id: string; status: string; code: string; description: string }[] } };
+  cardCreateOption: CreateSelectOption;
+  customerCreateOption: CreateSelectOption;
+}) {
+  return (
+    <div className="stack">
+      <ExchangeRateSeed rate={rateQuery.data?.rate} />
+      <OrderTypePicker />
+      <CustomerField customers={customerOptions} createCustomer={customerCreateOption} />
+      <div className="form-grid">
+        <SelectField
+          name="creditCardId"
+          label="Tarjeta de crédito (pago en USD)"
+          required
+          description="Pago obligatorio con tarjeta"
+          placeholder={cardsQuery.isLoading ? 'Cargando tarjetas…' : 'Seleccione la tarjeta…'}
+          options={cardOptions}
+          loading={cardsQuery.isLoading}
+          createOption={cardCreateOption}
+        />
+      </div>
+      {cardOptions.length === 0 && !cardsQuery.isLoading && (
+        <p className="field__error" role="alert">Cree una tarjeta en Tesorería</p>
+      )}
+      <div className="form-grid">
+        <TextField
+          name="number"
+          label="Número de orden"
+          description="Opcional: déjalo vacío para generarlo automáticamente. No se puede cambiar después."
+        />
+        <DateField name="orderDate" label="Fecha de pedido" required />
+        <DateField name="expectedDate" label="Fecha estimada" description="Opcional" />
+      </div>
+      <div className="form-grid">
+        <div className="field">
+          <Label htmlFor="purchase-unit-code">Unidad de medida</Label>
+          <Input id="purchase-unit-code" value="Unidad" disabled readOnly aria-label="Unidad de medida" />
+        </div>
+        <div className="field">
+          <Label htmlFor="purchase-lot">Lote de importación</Label>
+          <Select
+            items={[
+              { value: '', label: 'Sin lote' },
+              ...(lotsQuery.data?.items ?? [])
+                .filter((l) => l.status === 'active')
+                .map((l) => ({ value: l.id, label: `${l.code} · ${l.description || 'sin descripción'}` })),
+            ]}
+          >
+            <SelectTrigger id="purchase-lot" aria-label="Lote de importación">
+              <SelectValue placeholder="Sin lote" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Sin lote</SelectItem>
+              {(lotsQuery.data?.items ?? [])
+                .filter((l) => l.status === 'active')
+                .map((l) => (
+                  <SelectItem key={l.id} value={l.id}>
+                    {l.code} · {l.description || 'sin descripción'}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      <div className="form-grid form-grid--wide">
+        <div className="stack stack--tight">
+          <div className="hstack hstack--sm">
+            <label className="input-label">Tipo de cambio (USD→PEN)</label>
+            {rateQuery.data?.isFallback && <Badge variant="warning">Modo contingencia</Badge>}
+          </div>
+          <NumberField name="exchangeRate" min={0.01} step={0.01} description={rateQuery.isLoading ? 'Cargando tipo de cambio…' : 'T.C. de referencia editable'} required />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ItemsStep({ products }: { products: ProductCostOption[] }) {
   const { control, setValue } = useFormContext<PurchaseFormValues>();
   const { fields, append, remove } = useFieldArray<PurchaseFormValues, 'items'>({ control, name: 'items' });
   const rows = useWatch<PurchaseFormValues, 'items'>({ control, name: 'items' });
@@ -162,52 +246,49 @@ function PurchaseLines({ products }: { products: ProductCostOption[] }) {
 
   return (
     <div className="stack">
-      <div className="field">
-        <label className="label">Ítems</label>
-        <div className="stack">
-          {fields.map((field, index) => (
-            <div key={field.id} className="card" style={{ padding: '0.75rem' }}>
-              <div className="hstack hstack--sm" style={{ justifyContent: 'space-between' }}>
-                <strong>Ítem {index + 1}</strong>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Quitar ítem ${index + 1}`}
-                  onClick={() => remove(index)}
-                >
-                  <Trash2 />
-                </Button>
-              </div>
-              <div className="form-grid">
-                <SelectField
-                  name={`items.${index}.productId` as Path<PurchaseFormValues>}
-                  label="Producto"
-                  options={products}
-                  placeholder="Nuevo (por descripción)…"
-                  clearable
-                  onChange={(v) => handleProduct(index, v)}
-                />
-                <TextField
-                  name={`items.${index}.description` as Path<PurchaseFormValues>}
-                  label="Descripción"
-                  description="Si no eliges producto, se creará con esta descripción."
-                />
-              </div>
-              <div className="form-grid">
-                <NumberField name={`items.${index}.quantity` as Path<PurchaseFormValues>} label="Cantidad" required min={1} step={1} />
-                <NumberField name={`items.${index}.unitPrice` as Path<PurchaseFormValues>} label="Costo (USD)" required min={0} step={0.01} />
-                <NumberField
-                  name={`items.${index}.salePricePen` as Path<PurchaseFormValues>}
-                  label="Precio de venta (PEN)"
-                  description="Precio sugerido al vender en soles."
-                  min={0}
-                  step={0.01}
-                />
-              </div>
+      <div className="stack">
+        {fields.map((field, index) => (
+          <div key={field.id} className="card" style={{ padding: '0.75rem' }}>
+            <div className="hstack hstack--sm" style={{ justifyContent: 'space-between' }}>
+              <strong>Ítem {index + 1}</strong>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Quitar ítem ${index + 1}`}
+                onClick={() => remove(index)}
+              >
+                <Trash2 />
+              </Button>
             </div>
-          ))}
-        </div>
+            <div className="form-grid">
+              <SelectField
+                name={`items.${index}.productId` as Path<PurchaseFormValues>}
+                label="Producto"
+                options={products}
+                placeholder="Nuevo (por descripción)…"
+                clearable
+                onChange={(v) => handleProduct(index, v)}
+              />
+              <TextField
+                name={`items.${index}.description` as Path<PurchaseFormValues>}
+                label="Descripción"
+                description="Si no eliges producto, se creará con esta descripción."
+              />
+            </div>
+            <div className="form-grid">
+              <NumberField name={`items.${index}.quantity` as Path<PurchaseFormValues>} label="Cantidad" required min={1} step={1} />
+              <NumberField name={`items.${index}.unitPrice` as Path<PurchaseFormValues>} label="Costo (USD)" required min={0} step={0.01} />
+              <NumberField
+                name={`items.${index}.salePricePen` as Path<PurchaseFormValues>}
+                label="Precio de venta (PEN)"
+                description="Precio sugerido al vender en soles."
+                min={0}
+                step={0.01}
+              />
+            </div>
+          </div>
+        ))}
       </div>
       <Button type="button" variant="outline" size="sm" onClick={() => append(emptyLine())}>
         <Plus /> Agregar ítem
@@ -220,6 +301,14 @@ function PurchaseLines({ products }: { products: ProductCostOption[] }) {
           </span>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ReviewStep() {
+  return (
+    <div className="stack">
+      <TextareaField name="notes" label="Notas" rows={2} />
     </div>
   );
 }
@@ -302,6 +391,14 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
     if (!open) setLotId('');
   }, [open]);
 
+  const steps = [
+    { title: 'Orden', description: 'Datos generales de la compra.' },
+    { title: 'Ítems', description: 'Productos, cantidades y precios.' },
+    { title: 'Revisar', description: 'Notas y confirmación.' },
+  ];
+
+  const [step, setStep] = useState(0);
+
   const handleSubmit = (values: PurchaseFormValues) => {
     create.mutate(
       {
@@ -360,93 +457,55 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="xl">
         <DialogHeader>
-          <DialogTitle>Nueva orden de compra</DialogTitle>
-          <DialogDescription>Registra una orden de compra para un proveedor.</DialogDescription>
+          <DialogTitle>{steps[step].title}</DialogTitle>
+          <DialogDescription>{steps[step].description}</DialogDescription>
         </DialogHeader>
 
         <Form schema={PurchaseFormSchema} defaultValues={defaults} onSubmit={handleSubmit}>
-          {({ formState }) => (
+          {(form) => (
             <>
               <DialogBody>
-                <ExchangeRateSeed rate={rateQuery.data?.rate} />
-                <OrderTypePicker />
-                <CustomerField customers={customerOptions} createCustomer={customerCreateOption} />
-                <div className="form-grid">
-                  <SelectField
-                    name="creditCardId"
-                    label="Tarjeta de crédito (pago en USD)"
-                    required
-                    description="Pago obligatorio con tarjeta"
-                    placeholder={cardsQuery.isLoading ? 'Cargando tarjetas…' : 'Seleccione la tarjeta…'}
-                    options={cardOptions}
-                    loading={cardsQuery.isLoading}
-                    createOption={cardCreateOption}
+                {step === 0 && (
+                  <OrderDataStep
+                    cardOptions={cardOptions}
+                    customerOptions={customerOptions}
+                    cardsQuery={cardsQuery}
+                    rateQuery={rateQuery}
+                    lotsQuery={lotsQuery}
+                    cardCreateOption={cardCreateOption}
+                    customerCreateOption={customerCreateOption}
                   />
-                </div>
-                {cardOptions.length === 0 && !cardsQuery.isLoading && (
-                  <p className="field__error" role="alert">Cree una tarjeta en Tesorería</p>
                 )}
-                <div className="form-grid">
-                  <TextField
-                    name="number"
-                    label="Número de orden"
-                    description="Opcional: déjalo vacío para generarlo automáticamente. No se puede cambiar después."
-                  />
-                  <DateField name="orderDate" label="Fecha de pedido" required />
-                  <DateField name="expectedDate" label="Fecha estimada" description="Opcional" />
-                </div>
-                <div className="form-grid">
-                  <div className="field">
-                    <Label htmlFor="purchase-unit-code">Unidad de medida</Label>
-                    <Input id="purchase-unit-code" value="Unidad" disabled readOnly aria-label="Unidad de medida" />
-                  </div>
-                  <div className="field">
-                    <Label htmlFor="purchase-lot">Lote de importación</Label>
-                    <Select
-                      items={[
-                        { value: '', label: 'Sin lote' },
-                        ...(lotsQuery.data?.items ?? [])
-                          .filter((l) => l.status === 'active')
-                          .map((l) => ({ value: l.id, label: `${l.code} · ${l.description || 'sin descripción'}` })),
-                      ]}
-                      value={lotId}
-                      onValueChange={(v) => setLotId(v ?? '')}
-                    >
-                      <SelectTrigger id="purchase-lot" aria-label="Lote de importación">
-                        <SelectValue placeholder="Sin lote" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="">Sin lote</SelectItem>
-                        {(lotsQuery.data?.items ?? [])
-                          .filter((l) => l.status === 'active')
-                          .map((l) => (
-                            <SelectItem key={l.id} value={l.id}>
-                              {l.code} · {l.description || 'sin descripción'}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="form-grid form-grid--wide">
-                  <div className="stack stack--tight">
-                    <div className="hstack hstack--sm">
-                      <label className="input-label">Tipo de cambio (USD→PEN)</label>
-                      {rateQuery.data?.isFallback && <Badge variant="warning">Modo contingencia</Badge>}
-                    </div>
-                    <NumberField name="exchangeRate" min={0.01} step={0.01} description={rateQuery.isLoading ? 'Cargando tipo de cambio…' : 'T.C. de referencia editable'} required />
-                  </div>
-                </div>
-                <PurchaseLines products={productOptions} />
-                <TextareaField name="notes" label="Notas" rows={2} />
+                {step === 1 && <ItemsStep products={productOptions} />}
+                {step === 2 && <ReviewStep />}
               </DialogBody>
               <DialogFooter>
-                <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={create.isPending}>
+                <Button variant="ghost" type="button" onClick={() => onOpenChange(false)} disabled={create.isPending}>
                   Cancelar
                 </Button>
-                <Button type="submit" loading={create.isPending} disabled={!formState.isValid}>
-                  Guardar
-                </Button>
+                {step > 0 && (
+                  <Button variant="outline" type="button" onClick={() => setStep((s) => s - 1)} disabled={create.isPending}>
+                    <ArrowLeft /> Atrás
+                  </Button>
+                )}
+                {step < steps.length - 1 ? (
+                  <Button
+                    type="button"
+                    onClick={async () => {
+                      const fields: Array<Path<PurchaseFormValues>> =
+                        step === 0
+                          ? ['creditCardId', 'orderType', 'customerId', 'orderDate', 'exchangeRate']
+                          : ['items'];
+                      if (await form.trigger(fields)) setStep((s) => s + 1);
+                    }}
+                  >
+                    Continuar <ArrowRight />
+                  </Button>
+                ) : (
+                  <Button type="submit" loading={create.isPending} disabled={!form.formState.isValid}>
+                    Guardar
+                  </Button>
+                )}
               </DialogFooter>
             </>
           )}

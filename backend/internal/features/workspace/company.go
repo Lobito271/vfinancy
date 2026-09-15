@@ -15,18 +15,22 @@ import (
 // oriented) and the optional password state used to lock and unlock
 // the desktop app.
 type LocalProfile struct {
-	ID                uuid.UUID
-	Name              string
-	TaxID             string
-	Email             string
-	FiscalAddress     string
-	PasswordHash      string
-	RecoveryTokenHash string
-	PasswordEnabled   bool
-	FailedAttempts    int
-	LockedUntil       *time.Time
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	ID                 uuid.UUID
+	Name               string
+	CommercialName     string
+	TaxID              string
+	Email              string
+	FiscalAddress      string
+	Phone              string
+	Website            string
+	PasswordHash       string
+	SecurityQuestion   string
+	SecurityAnswerHash string
+	PasswordEnabled    bool
+	FailedAttempts     int
+	LockedUntil        *time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 // NewLocalProfile builds a profile with a fresh ID and UTC timestamps.
@@ -47,18 +51,24 @@ func NewLocalProfile(name string) (*LocalProfile, error) {
 // CompanyInput carries the corporate identity fields of the workspace
 // owner (SUNAT oriented: razón social, RUC, correo y dirección fiscal).
 type CompanyInput struct {
-	Name          string
-	TaxID         string
-	Email         string
-	FiscalAddress string
+	Name           string
+	CommercialName string
+	TaxID          string
+	Email          string
+	FiscalAddress  string
+	Phone          string
+	Website        string
 }
 
 // SetCompany copies the corporate identity fields onto the profile.
 func (p *LocalProfile) SetCompany(in CompanyInput) {
 	p.Name = strings.TrimSpace(in.Name)
+	p.CommercialName = strings.TrimSpace(in.CommercialName)
 	p.TaxID = strings.TrimSpace(in.TaxID)
 	p.Email = strings.TrimSpace(in.Email)
 	p.FiscalAddress = strings.TrimSpace(in.FiscalAddress)
+	p.Phone = strings.TrimSpace(in.Phone)
+	p.Website = strings.TrimSpace(in.Website)
 }
 
 // Touch stamps UpdatedAt with the current UTC time.
@@ -85,5 +95,8 @@ func (p *LocalProfile) Validate() error {
 		p.Email = email.String()
 	}
 	p.FiscalAddress = strings.TrimSpace(p.FiscalAddress)
+	p.CommercialName = strings.TrimSpace(p.CommercialName)
+	p.Phone = strings.TrimSpace(p.Phone)
+	p.Website = strings.TrimSpace(p.Website)
 	return nil
 }

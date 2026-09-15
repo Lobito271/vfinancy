@@ -198,31 +198,56 @@ func TestSetPasswordWithoutCurrentPassword(t *testing.T) {
 	}
 }
 
-func TestRecoveryTokenIssuedOnce(t *testing.T) {
-	service, _ := setupService(t, "Correct-horse-1")
+func TestSetSecurityQuestionStoresQuestion(t *testing.T) {
+	service, repo := setupService(t, "Correct-horse-1")
 
-	if _, err := service.GenerateRecoveryToken(context.Background()); err != nil {
+	if err := service.SetSecurityQuestion(context.Background(), "¿Nombre de tu primera mascota?", "Rex"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.GenerateRecoveryToken(context.Background()); !errors.Is(err, ErrRecoveryIssued) {
-		t.Fatalf("err = %v, want ErrRecoveryIssued", err)
+	if got := service.SecurityQuestion(); got != "¿Nombre de tu primera mascota?" {
+		t.Fatalf("SecurityQuestion() = %q", got)
+	}
+	if repo.profile.SecurityAnswerHash == "" {
+		t.Fatal("answer should be stored hashed")
+	}
+	if ok, err := VerifyPassword("Rex", repo.profile.SecurityAnswerHash); err != nil || !ok {
+		t.Fatalf("stored hash should verify the answer: %v", err)
+	}
+	if service.SetSecurityQuestion(context.Background(), "  ", "Rex") == nil {
+		t.Fatal("blank question should be rejected")
+	}
+	if err := service.SetSecurityQuestion(context.Background(), "¿Ciudad?", "ab"); !errors.Is(err, ErrSecurityAnswerTooShort) {
+		t.Fatalf("err = %v, want ErrSecurityAnswerTooShort", err)
 	}
 }
 
-func TestRecoveryTokenResetsPassword(t *testing.T) {
+func TestClearSecurityQuestion(t *testing.T) {
 	service, repo := setupService(t, "Correct-horse-1")
-
-	token, err := service.GenerateRecoveryToken(context.Background())
-	if err != nil {
+	if err := service.SetSecurityQuestion(context.Background(), "¿Ciudad?", "Lima"); err != nil {
 		t.Fatal(err)
 	}
-	if err := service.UnlockWithRecoveryToken(context.Background(), "bad-token", "Another-Pass-1"); !errors.Is(err, ErrRecoveryTokenInvalid) {
-		t.Fatalf("err = %v, want ErrRecoveryTokenInvalid", err)
+	if err := service.ClearSecurityQuestion(context.Background()); err != nil {
+		t.Fatal(err)
 	}
-	if err := service.UnlockWithRecoveryToken(context.Background(), token, "weak"); err == nil {
+	if service.SecurityQuestion() != "" || repo.profile.SecurityAnswerHash != "" {
+		t.Fatal("question should be cleared")
+	}
+}
+
+func TestUnlockWithAnswerResetsPassword(t *testing.T) {
+	service, repo := setupService(t, "Correct-horse-1")
+	if err := service.SetSecurityQuestion(context.Background(), "¿Ciudad?", "Lima"); err != nil {
+		t.Fatal(err)
+	}
+	service.Lock()
+
+	if err := service.UnlockWithAnswer(context.Background(), "wrong", "Another-Pass-1"); !errors.Is(err, ErrSecurityAnswerInvalid) {
+		t.Fatalf("err = %v, want ErrSecurityAnswerInvalid", err)
+	}
+	if err := service.UnlockWithAnswer(context.Background(), "Lima", "weak"); err == nil {
 		t.Fatal("expected weak new password to be rejected")
 	}
-	if err := service.UnlockWithRecoveryToken(context.Background(), token, "Another-Pass-1"); err != nil {
+	if err := service.UnlockWithAnswer(context.Background(), "Lima", "Another-Pass-1"); err != nil {
 		t.Fatal(err)
 	}
 	if !service.IsUnlocked() {
@@ -231,24 +256,43 @@ func TestRecoveryTokenResetsPassword(t *testing.T) {
 	if ok, err := VerifyPassword("Another-Pass-1", repo.profile.PasswordHash); err != nil || !ok {
 		t.Fatalf("password should be reset: %v", err)
 	}
-	if repo.profile.RecoveryTokenHash != "" {
-		t.Fatal("recovery token should be cleared after use")
+	if repo.profile.SecurityQuestion != "" || repo.profile.SecurityAnswerHash != "" {
+		t.Fatal("question should be cleared after use")
 	}
 	if repo.profile.FailedAttempts != 0 || repo.profile.LockedUntil != nil {
 		t.Fatal("recovery should reset the lockout state")
 	}
-	if err := service.UnlockWithRecoveryToken(context.Background(), token, "Third-Pass-1"); !errors.Is(err, ErrRecoveryTokenInvalid) {
-		t.Fatal("recovery token should not be reusable")
+}
+
+func TestUnlockWithAnswerRequiresQuestion(t *testing.T) {
+	service, _ := setupService(t, "Correct-horse-1")
+	service.Lock()
+
+	if err := service.UnlockWithAnswer(context.Background(), "whatever", "Another-Pass-1"); !errors.Is(err, ErrSecurityQuestionRequired) {
+		t.Fatalf("err = %v, want ErrSecurityQuestionRequired", err)
 	}
 }
 
-func TestUnlockWithRecoveryTokenWithoutPasswordIsNoop(t *testing.T) {
+func TestUnlockWithAnswerWithoutPasswordIsNoop(t *testing.T) {
 	service, repo := setupService(t, "")
 
-	if err := service.UnlockWithRecoveryToken(context.Background(), "any", "Another-Pass-1"); err != nil {
+	if err := service.UnlockWithAnswer(context.Background(), "any", "Another-Pass-1"); err != nil {
 		t.Fatal(err)
 	}
 	if repo.profile.PasswordEnabled {
 		t.Fatal("password should stay disabled")
+	}
+}
+
+func TestRemovePasswordClearsQuestion(t *testing.T) {
+	service, repo := setupService(t, "Correct-horse-1")
+	if err := service.SetSecurityQuestion(context.Background(), "¿Ciudad?", "Lima"); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.RemovePassword(context.Background(), "Correct-horse-1"); err != nil {
+		t.Fatal(err)
+	}
+	if repo.profile.SecurityQuestion != "" || repo.profile.SecurityAnswerHash != "" {
+		t.Fatal("removing the password should clear the question")
 	}
 }

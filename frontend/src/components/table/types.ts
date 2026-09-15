@@ -21,9 +21,10 @@ export interface SortState {
   direction: SortDirection;
 }
 
-interface FilterState {
+export interface FilterState {
   id: string;
   value: unknown;
+  match?: (row: unknown, value: unknown) => boolean;
 }
 
 export interface DataTableState {
@@ -31,6 +32,15 @@ export interface DataTableState {
   filters: FilterState[];
   search: string;
   page: number;
+}
+
+export interface ColumnFilter<T> {
+  columnId: string;
+  label: string;
+  type: 'text' | 'select';
+  options?: { value: string; label: string }[];
+  get?: (row: T) => unknown;
+  match?: (row: T, value: unknown) => boolean;
 }
 
 export interface DataTablePreferences {

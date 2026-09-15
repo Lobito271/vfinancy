@@ -19,30 +19,45 @@ export type LocalAuthState = {
 export type LocalProfile = {
   id: string;
   name: string;
+  commercialName: string;
   taxId: string;
   email: string;
   fiscalAddress: string;
+  phone: string;
+  website: string;
+  securityQuestion: string;
   passwordEnabled: boolean;
 };
 
 export interface SetupWorkspaceRequest {
   id?: string;
   name: string;
+  commercialName?: string;
   taxId?: string;
   email?: string;
   fiscalAddress?: string;
+  phone?: string;
+  website?: string;
   password: string;
 }
 
 export interface UpdateLocalProfileRequest {
   name: string;
+  commercialName?: string;
   taxId?: string;
   email?: string;
   fiscalAddress?: string;
+  phone?: string;
+  website?: string;
 }
 
-export interface RecoverWithTokenRequest {
-  token: string;
+export interface SetSecurityQuestionRequest {
+  question: string;
+  answer: string;
+}
+
+export interface RecoverWithAnswerRequest {
+  answer: string;
   newPassword: string;
 }
 
@@ -403,10 +418,12 @@ export interface AppBindings {
   UpdateLocalProfile(req: UpdateLocalProfileRequest): Promise<LocalProfile>;
   SetupWorkspace(req: SetupWorkspaceRequest): Promise<LocalProfile>;
   UnlockLocalProfile(password: string): Promise<LocalProfile>;
-  RecoverWithToken(req: RecoverWithTokenRequest): Promise<LocalProfile>;
+  GetSecurityQuestion(): Promise<string>;
+  SetSecurityQuestion(req: SetSecurityQuestionRequest): Promise<void>;
+  ClearSecurityQuestion(): Promise<void>;
+  RecoverWithAnswer(req: RecoverWithAnswerRequest): Promise<LocalProfile>;
   SetLocalPassword(req: SetLocalPasswordRequest): Promise<void>;
   RemoveLocalPassword(current: string): Promise<void>;
-  GetRecoveryToken(): Promise<string>;
   LockLocalProfile(): Promise<void>;
 
   GetPreferences(): Promise<Preferences>;

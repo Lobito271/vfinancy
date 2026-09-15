@@ -23,13 +23,13 @@ Administra el alta de catálogo y agrupaciones aduaneras de obligaciones en dól
 
 * **Funcionalidades Core:**
   * Registro de pedidos generales (stock) o de cliente (a pedido).
-  * Agrupación en Lotes de Importación y monitoreo del tope aduanero de $220 USD.
+  * Agrupación en Lotes de Importación y monitoreo del tope aduanero de $200 USD.
   * Uso de Tipo de Cambio de Respaldo ante desconexión o fallo de API.
   * Anulación de productos fallados con emisión de reintegros sin alterar liquidaciones pasadas.
 
 * **Componentes UI Principales:**
   * **Drawer:** Filtros avanzados por Lote, Rango de fechas o Tarjeta de crédito.
-  * **Dialogs:** Modal de Nuevo Pedido y Modal de Agrupación de Lotes. Alerta crítica (Toast/Dialog) si el lote alcanza los $220.01 USD.
+  * **Dialogs:** Modal de Nuevo Pedido y Modal de Agrupación de Lotes. Alerta crítica (Toast/Dialog) si el lote alcanza los $200.01 USD.
   * **Otros:** Data Table con paginación, indicador de estado de conexión para modo contingencia.
 
 | Campo / Nombre | Componente UI | Clasificación / Validación |
@@ -39,9 +39,9 @@ Administra el alta de catálogo y agrupaciones aduaneras de obligaciones en dól
 | Costo (USD) | Input Number | Obligatorio para registro y cálculo de costo real. |
 | Tipo de Pedido | Radio Button | Obligatorio (General o Cliente). |
 | Tarjeta de Pago | Select | Obligatorio para trazabilidad de pasivos. |
-| Lote de Importación | Autocomplete | Opcional individualmente, necesario para control de $220 USD. |
+| Lote de Importación | Autocomplete | Opcional individualmente, necesario para control de $200 USD. |
 
-* **Flujo E2E:** Click en "Nuevo Pedido" → Apertura de Dialog → Ingreso de datos y selección de Tipo de Cambio (aplica *fallback* de 3.75 PEN si falla la API) → Si el lote supera $220 USD, el sistema advierte pero permite guardar con confirmación explícita → Cierre de Dialog y Toast de éxito.
+* **Flujo E2E:** Click en "Nuevo Pedido" → Apertura de Dialog → Ingreso de datos y selección de Tipo de Cambio (aplica *fallback* de 3.75 PEN si falla la API) → Si el lote supera $200 USD, el sistema advierte pero permite guardar con confirmación explícita → Cierre de Dialog y Toast de éxito.
 
 ---
 
@@ -155,7 +155,7 @@ flowchart TD
     B --> C{Conexión API Tipo Cambio?}
     C -- Sí --> D[Obtiene TC Real]
     C -- No --> E[Aplica TC Fallback 3.75 PEN]
-    D --> F{Monto Lote > 220 USD?}
+    D --> F{Monto Lote > 200 USD?}
     E --> F
     F -- Sí --> G[Muestra Advertencia No Bloqueante en UI]
     F -- No --> H[Procesa y Guarda en SQLite]

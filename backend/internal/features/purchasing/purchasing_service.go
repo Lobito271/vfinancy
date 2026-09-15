@@ -28,7 +28,7 @@ const defaultImportFactor = 0.07
 
 // defaultCustomsLimitUSD is the simplified customs limit per import
 // lot when no provider is configured.
-const defaultCustomsLimitUSD = 220
+const defaultCustomsLimitUSD = 200
 
 // cardCharger is the narrow treasury contract consumed by the purchase
 // slice. It is satisfied by *treasury.TreasuryService.

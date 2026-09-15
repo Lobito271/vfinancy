@@ -262,7 +262,7 @@ func (a *App) importFactor(ctx context.Context) float64 {
 func (a *App) customsLimit(ctx context.Context) float64 {
 	prefs, err := a.settingsSvc.GetPreferences(ctx)
 	if err != nil {
-		return 220
+		return 200
 	}
 	return prefs.CustomsLimitUSD
 }

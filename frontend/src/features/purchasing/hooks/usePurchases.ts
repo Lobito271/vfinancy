@@ -5,7 +5,6 @@ import { queryKeys } from '@/services/queryKeys';
 interface PurchaseFilters {
   search?: string;
   status?: string;
-  orderType?: string;
   creditCardId?: string;
   importLotId?: string;
   from?: string;

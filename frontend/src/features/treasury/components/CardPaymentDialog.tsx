@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { Form, MoneyField } from '@/components/form';
-import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
+import { DialogBody, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { formatCurrency } from '@/utils/format';
 
@@ -24,9 +24,6 @@ export function CardPaymentDialog({ card, open, onOpenChange, loading, onConfirm
       <DialogContent size="md">
         <DialogHeader>
           <DialogTitle>Registrar pago</DialogTitle>
-          <DialogDescription>
-            El pago liquida el ciclo activo de la tarjeta {card?.issuer} •••• {card?.lastFour}.
-          </DialogDescription>
         </DialogHeader>
         <div className="doc-summary">
           <div className="doc-summary__row">

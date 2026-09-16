@@ -2,6 +2,7 @@ export const queryKeys = {
   setup: ['setup'] as const,
   auth: {
     state: ['auth', 'state'] as const,
+    securityQuestion: ['auth', 'securityQuestion'] as const,
   },
   customers: {
     all: ['customers'] as const,
@@ -51,6 +52,7 @@ export const queryKeys = {
   },
   settings: {
     preferences: ['settings', 'preferences'] as const,
+    profile: ['settings', 'profile'] as const,
     sync: ['settings', 'sync'] as const,
     backup: ['settings', 'backup'] as const,
   },

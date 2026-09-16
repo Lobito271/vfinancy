@@ -8,6 +8,7 @@ import { Badge } from '@/components/badge';
 import { DataTable, type Column } from '@/components/table';
 import { RowActions, type RowAction } from '@/components/misc';
 import { SearchInput } from '@/components/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select';
 import type { ShipmentDTO } from '@/services/wails-types';
 import { useShipments, useDeleteShipment } from '@/features/shipments/hooks/useShipments';
 import { ShipmentFormDialog } from '@/features/shipments/components/ShipmentFormDialog';
@@ -37,6 +38,7 @@ async function copyText(text: string): Promise<void> {
 
 export function ShipmentsPage() {
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | ShipmentDTO['status']>('all');
   const [formOpen, setFormOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<ShipmentDTO | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ShipmentDTO | null>(null);
@@ -46,6 +48,11 @@ export function ShipmentsPage() {
   const customers = customersPage?.items ?? [];
   const deleteMutation = useDeleteShipment();
   const push = useNotificationStore((s) => s.push);
+
+  const visibleShipments = useMemo(
+    () => (statusFilter === 'all' ? shipments : shipments.filter((s) => s.status === statusFilter)),
+    [shipments, statusFilter],
+  );
 
   const nameById = useMemo(() => new Map(customers.map((c) => [c.id, c.businessName])), [customers]);
 
@@ -144,7 +151,7 @@ export function ShipmentsPage() {
         ) : (
           <DataTable
             columns={columns}
-            data={shipments}
+            data={visibleShipments}
             keyField="id"
             onRowClick={(row) => {
               setEditTarget(row);
@@ -161,6 +168,25 @@ export function ShipmentsPage() {
                 aria-label="Buscar envío"
               />
             }
+            toolbarRight={
+              <Select
+                items={[{ value: 'all', label: 'Todos' }, ...SHIPMENT_STATUSES.map((s) => ({ value: s.value, label: s.label }))]}
+                value={statusFilter}
+                onValueChange={(v) => setStatusFilter((v ?? 'all') as 'all' | ShipmentDTO['status'])}
+              >
+                <SelectTrigger style={{ width: '11rem' }} aria-label="Filtrar por estado">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  {SHIPMENT_STATUSES.map((s) => (
+                    <SelectItem key={s.value} value={s.value}>
+                      {s.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            }
           />
         )}
       </Section>
@@ -173,7 +199,6 @@ export function ShipmentsPage() {
           if (!open) setDeleteTarget(null);
         }}
         title="Eliminar envío"
-        description={deleteTarget ? `¿Eliminar el envío #${deleteTarget.code}? El registro desaparecerá de la lista.` : undefined}
         confirmLabel="Eliminar"
         loading={deleteMutation.isPending}
         onConfirm={() => {

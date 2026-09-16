@@ -7,8 +7,12 @@ CREATE TABLE local_profiles (
     tax_id              VARCHAR(11)  NOT NULL DEFAULT '' CHECK (tax_id = '' OR (length(tax_id) = 11 AND (substr(tax_id,1,2) IN ('10','20')))),
     email               VARCHAR(200) NOT NULL DEFAULT '',
     fiscal_address      VARCHAR(300) NOT NULL DEFAULT '',
+    commercial_name     VARCHAR(200) NOT NULL DEFAULT '',
+    phone               VARCHAR(30)  NOT NULL DEFAULT '',
+    website             VARCHAR(300) NOT NULL DEFAULT '',
     password_hash       TEXT,
-    recovery_token_hash TEXT,
+    security_question   TEXT NOT NULL DEFAULT '',
+    security_answer_hash TEXT,
     password_enabled    BOOLEAN NOT NULL DEFAULT FALSE,
     failed_attempts     INTEGER NOT NULL DEFAULT 0 CHECK (failed_attempts >= 0),
     locked_until        TIMESTAMP,
@@ -156,7 +160,6 @@ CREATE TABLE purchase_orders (
     currency_code  VARCHAR(3)  NOT NULL DEFAULT 'USD',
     exchange_rate  TEXT        NOT NULL DEFAULT '1.000000' CHECK (CAST(exchange_rate AS REAL) > 0),
     notes          TEXT,
-    order_type     VARCHAR(20) NOT NULL DEFAULT 'general' CHECK (order_type IN ('general', 'customer')),
     customer_id    TEXT,
     credit_card_id TEXT,
     arrival_date   TIMESTAMP,
@@ -182,7 +185,6 @@ CREATE TABLE purchase_orders (
 
 CREATE UNIQUE INDEX uq_purchase_orders_number ON purchase_orders (number) WHERE deleted_at IS NULL;
 CREATE INDEX idx_purchase_orders_status ON purchase_orders (status, order_date) WHERE deleted_at IS NULL;
-CREATE INDEX idx_purchase_orders_type ON purchase_orders (order_type, status, order_date) WHERE deleted_at IS NULL;
 CREATE INDEX idx_purchase_orders_card ON purchase_orders (credit_card_id, order_date) WHERE deleted_at IS NULL;
 
 CREATE TABLE purchase_order_items (

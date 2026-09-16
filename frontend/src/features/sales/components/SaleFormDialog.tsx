@@ -14,7 +14,7 @@ import {
   type SelectOption,
 } from '@/components/form';
 import type { FieldPath } from 'react-hook-form';
-import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
+import { DialogBody, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { Input } from '@/components/input';
 import { CreateCustomerDialog } from '@/features/customers/components/CreateCustomerDialog';
@@ -26,7 +26,6 @@ import { queryKeys } from '@/services/queryKeys';
 import { PaymentMethodOptions } from '@/constants/paymentMethods';
 import { useNotificationStore } from '@/stores/notification';
 import { formatCurrency } from '@/utils/format';
-import { cx } from '@/utils/cx';
 
 const SaleFormSchema = z
   .object({
@@ -381,17 +380,8 @@ export function SaleFormDialog({ open, onOpenChange }: SaleFormDialogProps) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="xl">
         <DialogHeader>
-          <DialogTitle>Nueva venta</DialogTitle>
-          <DialogDescription>Registra un documento de venta en PEN.</DialogDescription>
+          <DialogTitle>{steps[step].title}</DialogTitle>
         </DialogHeader>
-        <ol className="setup-steps stepper--sale" aria-label="Pasos de la venta">
-          {steps.map((item, i) => (
-            <li key={item.title} className={cx('setup-step', i === step && 'setup-step--active')}>
-              <span className="setup-step__number">{i + 1}</span>
-              <span><strong>{item.title}</strong><small>{item.description}</small></span>
-            </li>
-          ))}
-        </ol>
 
         <Form
           key={String(open)}

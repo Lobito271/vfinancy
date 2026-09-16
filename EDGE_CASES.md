@@ -8,8 +8,8 @@ Como parte de la estrategia de aseguramiento de la calidad (QA) y estabilidad de
   * *Escenario:* El usuario intenta registrar un pedido en USD sin conexión a internet o cuando la API SBS/SUNAT no responde.
   * *Comportamiento esperado:* El sistema debe aplicar de forma transparente el valor de **Tipo de Cambio de Respaldo (*Fallback*)** configurado (predeterminado 3.75 PEN) indicando visualmente una alerta de "Modo Contingencia / Sin Conexión".
 
-* **Superación del Límite Aduanero Simplificado ($220 USD):**
-  * *Escenario:* La suma de los costos USD de los pedidos asignados a un mismo Lote de Importación excede el parámetro de $220 USD ($220.01 USD o más).
+* **Superación del Límite Aduanero Simplificado ($200 USD):**
+  * *Escenario:* La suma de los costos USD de los pedidos asignados a un mismo Lote de Importación excede el parámetro de $200 USD ($200.01 USD o más).
   * *Comportamiento esperado:* El sistema no debe bloquear la transacción (para no paralizar la operación), pero emitirá una advertencia crítica indicando que el lote supera el tope aduanero y requerirá la confirmación explícita del usuario para continuar.
 
 * **Anulación de Pedido con Pasivo Liquidado:**

@@ -3,7 +3,6 @@ import { cx } from '@/utils/cx';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -33,7 +32,6 @@ interface AlertDialogProps {
   onOpenChange: (open: boolean) => void;
   variant?: Variant;
   title: string;
-  description?: string;
   confirmLabel?: string;
   cancelLabel?: string;
   onConfirm?: () => void;
@@ -46,7 +44,6 @@ export function AlertDialog({
   onOpenChange,
   variant = 'info',
   title,
-  description,
   confirmLabel = 'Aceptar',
   cancelLabel = 'Cancelar',
   onConfirm,
@@ -66,7 +63,6 @@ export function AlertDialog({
             </div>
             <div className="alert-header__body">
               <DialogTitle>{title}</DialogTitle>
-              {description && <DialogDescription>{description}</DialogDescription>}
             </div>
           </div>
         </DialogHeader>
@@ -93,7 +89,6 @@ interface ConfirmDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title?: string;
-  description?: string;
   onConfirm: () => void;
   loading?: boolean;
   confirmLabel?: string;
@@ -103,7 +98,6 @@ export function ConfirmDialog({
   open,
   onOpenChange,
   title = '¿Confirmar acción?',
-  description = '¿Está seguro que desea continuar?',
   onConfirm,
   loading,
   confirmLabel = 'Confirmar',
@@ -114,7 +108,6 @@ export function ConfirmDialog({
       onOpenChange={onOpenChange}
       variant="confirmation"
       title={title}
-      description={description}
       confirmLabel={confirmLabel}
       onConfirm={onConfirm}
       loading={loading}

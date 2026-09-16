@@ -14,7 +14,6 @@ import (
 type PurchaseFilter struct {
 	Search         string
 	Status         string
-	OrderType      string
 	CreditCardID   *uuid.UUID
 	ImportLotID    *uuid.UUID
 	From           *time.Time

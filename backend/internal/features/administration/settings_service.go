@@ -57,7 +57,7 @@ func (s *SettingsService) GetPreferences(ctx context.Context) (*SystemPreference
 		ClearanceWarningDays: 3,
 		ImportCostFactor:     0.07,
 		FallbackExchangeRate: 3.75,
-		CustomsLimitUSD:      220,
+		CustomsLimitUSD:      200,
 		BackupFrequency:      "off",
 	}
 	settings, err := s.settings.List(ctx)

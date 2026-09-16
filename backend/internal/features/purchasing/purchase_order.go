@@ -27,7 +27,6 @@ type PurchaseOrder struct {
 	CurrencyCode       string
 	ExchangeRate       valueobjects.ExchangeRate
 	Notes              string
-	OrderType          enums.OrderType
 	CustomerID         *uuid.UUID
 	CreditCardID       *uuid.UUID
 	CostUSD            valueobjects.Money
@@ -57,15 +56,6 @@ func (p *PurchaseOrder) Validate() error {
 	}
 	if p.OrderDate.IsZero() {
 		return derrors.Wrap(derrors.ErrRequired, errField("order date is required"))
-	}
-	if !p.OrderType.Valid() {
-		return derrors.Wrap(derrors.ErrInvalidEnum, errField("order type is invalid"))
-	}
-	if p.OrderType == enums.OrderTypeCustomer && p.CustomerID == nil {
-		return derrors.Wrap(derrors.ErrRequired, errField("customer id is required for customer orders"))
-	}
-	if p.OrderType == enums.OrderTypeGeneral && p.CustomerID != nil {
-		return derrors.Wrap(derrors.ErrInvalidEnum, errField("customer id is only allowed for customer orders"))
 	}
 	if !p.ExchangeRate.Decimal().IsPositive() {
 		return derrors.Wrap(derrors.ErrOutOfRange, errField("exchange rate must be positive"))

@@ -41,6 +41,7 @@ export function TreasuryPage() {
   const [deleteTarget, setDeleteTarget] = useState<CardTarget | null>(null);
   const [cycleFilter, setCycleFilter] = useState<'all' | 'open' | 'settled'>('all');
   const [search, setSearch] = useState('');
+  const [cardSearch, setCardSearch] = useState('');
 
   const { data: creditCards = [], isLoading: cardsLoading } = useCreditCards();
   const { data: projections = [], isLoading: projectionsLoading } = useCardProjections();
@@ -137,6 +138,14 @@ export function TreasuryPage() {
     [],
   );
 
+  const filteredCards = useMemo(() => {
+    const q = cardSearch.trim().toLowerCase();
+    if (!q) return creditCards;
+    return creditCards.filter(
+      (c) => c.issuer.toLowerCase().includes(q) || c.lastFour.includes(q),
+    );
+  }, [creditCards, cardSearch]);
+
   const filteredProjections = useMemo(() => {
     let rows = projections;
     if (cycleFilter !== 'all') rows = rows.filter((p) => p.status === cycleFilter);
@@ -224,7 +233,22 @@ export function TreasuryPage() {
             action={{ label: 'Nueva tarjeta', onClick: openCreate }}
           />
         ) : (
-          <DataTable columns={cardColumns} data={creditCards} keyField="id" rowActions={buildActions} />
+          <DataTable
+            columns={cardColumns}
+            data={filteredCards}
+            keyField="id"
+            rowActions={buildActions}
+            toolbarLeft={
+              <SearchInput
+                value={cardSearch}
+                onChange={(e) => setCardSearch(e.target.value)}
+                onClear={() => setCardSearch('')}
+                placeholder="Buscar tarjeta…"
+                className="datatable-search"
+                aria-label="Buscar tarjeta"
+              />
+            }
+          />
         )}
       </Section>
 
@@ -313,11 +337,6 @@ export function TreasuryPage() {
           if (!open) setDeleteTarget(null);
         }}
         title="Eliminar tarjeta"
-        description={
-          deleteTarget
-            ? `¿Eliminar la tarjeta ${deleteTarget.issuer} •••• ${deleteTarget.lastFour}? La tarjeta se desactivará (borrado lógico) y ya no estará disponible para nuevas compras.`
-            : undefined
-        }
         confirmLabel="Eliminar"
         loading={deleteCardMutation.isPending}
         onConfirm={() => {

@@ -2,9 +2,8 @@ package workspace
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
@@ -215,7 +214,7 @@ func (s *Service) SetPassword(ctx context.Context, current, next string) error {
 }
 
 // RemovePassword verifies the current password and disables the lock
-// screen, clearing any pending recovery token and lockout state.
+// screen, clearing any pending security question and lockout state.
 func (s *Service) RemovePassword(ctx context.Context, current string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -230,7 +229,7 @@ func (s *Service) RemovePassword(ctx context.Context, current string) error {
 	}
 	s.profile.PasswordHash = ""
 	s.profile.PasswordEnabled = false
-	s.profile.RecoveryTokenHash = ""
+	s.profile.clearSecurityQuestion()
 	s.profile.FailedAttempts = 0
 	s.profile.LockedUntil = nil
 	s.profile.Touch()
@@ -241,41 +240,60 @@ func (s *Service) RemovePassword(ctx context.Context, current string) error {
 	return nil
 }
 
-// GenerateRecoveryToken creates a one-time recovery secret, stores only
-// its hash, and returns the plaintext value. It can only be issued
-// once per profile; subsequent calls return ErrRecoveryIssued. The
-// token must be shown to the user at activation time and never
-// recovered again from the stored hash.
-func (s *Service) GenerateRecoveryToken(ctx context.Context) (string, error) {
+// SecurityQuestion returns the stored question text, or an empty string
+// when none is configured.
+func (s *Service) SecurityQuestion() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.profile == nil {
+		return ""
+	}
+	return s.profile.SecurityQuestion
+}
+
+// SetSecurityQuestion stores the question text together with an
+// Argon2id hash of its answer. The answer is never stored in plaintext.
+func (s *Service) SetSecurityQuestion(ctx context.Context, question, answer string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.profile == nil {
-		return "", ErrProfileNotFound
+		return ErrProfileNotFound
 	}
-	if s.profile.RecoveryTokenHash != "" {
-		return "", ErrRecoveryIssued
+	question = strings.TrimSpace(question)
+	if question == "" {
+		return ErrInvalidProfile
 	}
-	raw := make([]byte, 16)
-	if _, err := rand.Read(raw); err != nil {
-		return "", err
+	answer = strings.TrimSpace(answer)
+	if len(answer) < 3 {
+		return ErrSecurityAnswerTooShort
 	}
-	token := hex.EncodeToString(raw)
-	hash, err := HashPassword(token, nil)
+	hash, err := HashPassword(answer, nil)
 	if err != nil {
-		return "", err
+		return err
 	}
-	s.profile.RecoveryTokenHash = hash
+	s.profile.SecurityQuestion = question
+	s.profile.SecurityAnswerHash = hash
 	s.profile.Touch()
-	if err := s.repo.UpdateProfile(ctx, s.profile); err != nil {
-		return "", err
-	}
-	return token, nil
+	return s.repo.UpdateProfile(ctx, s.profile)
 }
 
-// UnlockWithRecoveryToken resets a forgotten password using the
-// one-time recovery token, clears the lockout state, and unlocks the
-// workspace. It works even while the profile is locked.
-func (s *Service) UnlockWithRecoveryToken(ctx context.Context, token, newPassword string) error {
+// ClearSecurityQuestion removes the configured question and its answer
+// hash. The workspace still locks behind the password gate.
+func (s *Service) ClearSecurityQuestion(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.profile == nil {
+		return ErrProfileNotFound
+	}
+	s.profile.clearSecurityQuestion()
+	s.profile.Touch()
+	return s.repo.UpdateProfile(ctx, s.profile)
+}
+
+// UnlockWithAnswer resets a forgotten password when the stored security
+// answer matches, clears the lockout state, and unlocks the workspace.
+// It works even while the profile is locked.
+func (s *Service) UnlockWithAnswer(ctx context.Context, answer, newPassword string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.profile == nil {
@@ -284,9 +302,12 @@ func (s *Service) UnlockWithRecoveryToken(ctx context.Context, token, newPasswor
 	if !s.profile.PasswordEnabled {
 		return nil
 	}
-	match, err := VerifyPassword(token, s.profile.RecoveryTokenHash)
+	if s.profile.SecurityAnswerHash == "" {
+		return ErrSecurityQuestionRequired
+	}
+	match, err := VerifyPassword(strings.TrimSpace(answer), s.profile.SecurityAnswerHash)
 	if err != nil || !match {
-		return ErrRecoveryTokenInvalid
+		return ErrSecurityAnswerInvalid
 	}
 	if err := ValidatePasswordStrength(newPassword); err != nil {
 		return err
@@ -296,7 +317,7 @@ func (s *Service) UnlockWithRecoveryToken(ctx context.Context, token, newPasswor
 		return err
 	}
 	s.profile.PasswordHash = hash
-	s.profile.RecoveryTokenHash = ""
+	s.profile.clearSecurityQuestion()
 	s.profile.FailedAttempts = 0
 	s.profile.LockedUntil = nil
 	s.profile.Touch()
@@ -305,6 +326,11 @@ func (s *Service) UnlockWithRecoveryToken(ctx context.Context, token, newPasswor
 	}
 	s.unlocked = true
 	return nil
+}
+
+func (p *LocalProfile) clearSecurityQuestion() {
+	p.SecurityQuestion = ""
+	p.SecurityAnswerHash = ""
 }
 
 func cloneProfile(p *LocalProfile) *LocalProfile {

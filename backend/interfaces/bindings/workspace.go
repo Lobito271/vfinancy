@@ -1,18 +1,18 @@
 package bindings
 
-import (
-	"fmt"
-
-	"vfinancy/backend/internal/features/workspace"
-)
+import "vfinancy/backend/internal/features/workspace"
 
 type LocalProfileDTO struct {
-	ID            string `json:"id"`
-	Name          string `json:"name"`
-	TaxID         string `json:"taxId"`
-	Email         string `json:"email"`
-	FiscalAddress string `json:"fiscalAddress"`
-	PasswordEnabled bool `json:"passwordEnabled"`
+	ID                 string `json:"id"`
+	Name               string `json:"name"`
+	CommercialName     string `json:"commercialName"`
+	TaxID              string `json:"taxId"`
+	Email              string `json:"email"`
+	FiscalAddress      string `json:"fiscalAddress"`
+	Phone              string `json:"phone"`
+	Website            string `json:"website"`
+	SecurityQuestion   string `json:"securityQuestion"`
+	PasswordEnabled    bool   `json:"passwordEnabled"`
 }
 
 type LocalAuthStateDTO struct {
@@ -22,8 +22,9 @@ type LocalAuthStateDTO struct {
 }
 
 func profileDTO(p *workspace.LocalProfile) LocalProfileDTO {
-	return LocalProfileDTO{ID: p.ID.String(), Name: p.Name, TaxID: p.TaxID, Email: p.Email,
-		FiscalAddress: p.FiscalAddress, PasswordEnabled: p.PasswordEnabled}
+	return LocalProfileDTO{ID: p.ID.String(), Name: p.Name, CommercialName: p.CommercialName, TaxID: p.TaxID,
+		Email: p.Email, FiscalAddress: p.FiscalAddress, Phone: p.Phone, Website: p.Website,
+		SecurityQuestion: p.SecurityQuestion, PasswordEnabled: p.PasswordEnabled}
 }
 
 // GetLocalAuthState reports the profile state so the UI can route
@@ -53,7 +54,8 @@ func (a *App) GetLocalProfile() (LocalProfileDTO, error) {
 // UpdateLocalProfile replaces the corporate identity of the profile.
 func (a *App) UpdateLocalProfile(req SetupWorkspaceRequest) (LocalProfileDTO, error) {
 	p, err := a.workspaceSvc.SetCompany(a.Context(), workspace.CompanyInput{
-		Name: req.Name, TaxID: req.TaxID, Email: req.Email, FiscalAddress: req.FiscalAddress,
+		Name: req.Name, CommercialName: req.CommercialName, TaxID: req.TaxID, Email: req.Email,
+		FiscalAddress: req.FiscalAddress, Phone: req.Phone, Website: req.Website,
 	})
 	if err != nil {
 		return LocalProfileDTO{}, err
@@ -64,19 +66,23 @@ func (a *App) UpdateLocalProfile(req SetupWorkspaceRequest) (LocalProfileDTO, er
 // SetupWorkspaceRequest is the reduced first-run wizard payload: the
 // company identity and an optional password.
 type SetupWorkspaceRequest struct {
-	ID            string `json:"id"`
-	Name          string `json:"name"`
-	TaxID         string `json:"taxId"`
-	Email         string `json:"email"`
-	FiscalAddress string `json:"fiscalAddress"`
-	Password      string `json:"password"`
+	ID             string `json:"id"`
+	Name           string `json:"name"`
+	CommercialName string `json:"commercialName"`
+	TaxID          string `json:"taxId"`
+	Email          string `json:"email"`
+	FiscalAddress  string `json:"fiscalAddress"`
+	Phone          string `json:"phone"`
+	Website        string `json:"website"`
+	Password       string `json:"password"`
 }
 
 // SetupWorkspace creates the single local profile. It runs before any
 // lock can exist, so it uses the raw runtime context.
 func (a *App) SetupWorkspace(req SetupWorkspaceRequest) (LocalProfileDTO, error) {
 	p, err := a.workspaceSvc.Setup(a.rawContext(), workspace.CompanyInput{
-		Name: req.Name, TaxID: req.TaxID, Email: req.Email, FiscalAddress: req.FiscalAddress,
+		Name: req.Name, CommercialName: req.CommercialName, TaxID: req.TaxID, Email: req.Email,
+		FiscalAddress: req.FiscalAddress, Phone: req.Phone, Website: req.Website,
 	}, req.Password)
 	if err != nil {
 		return LocalProfileDTO{}, err
@@ -96,17 +102,39 @@ func (a *App) UnlockLocalProfile(password string) (LocalProfileDTO, error) {
 	return profileDTO(p), nil
 }
 
-// RecoverWithTokenRequest unlocks the profile with the one-time
-// recovery token and sets a new password.
-type RecoverWithTokenRequest struct {
-	Token       string `json:"token"`
+// SetSecurityQuestionRequest stores a question text and its answer.
+type SetSecurityQuestionRequest struct {
+	Question string `json:"question"`
+	Answer   string `json:"answer"`
+}
+
+// RecoverWithAnswerRequest unlocks the profile with the stored security
+// answer and sets a new password.
+type RecoverWithAnswerRequest struct {
+	Answer      string `json:"answer"`
 	NewPassword string `json:"newPassword"`
 }
 
-// RecoverWithToken implements the lost-password flow (edge case: the
+// GetSecurityQuestion returns the stored security question so the lock
+// screen can prompt for its answer. It runs while the profile is locked.
+func (a *App) GetSecurityQuestion() (string, error) {
+	return a.workspaceSvc.SecurityQuestion(), nil
+}
+
+// SetSecurityQuestion stores the question and hashed answer.
+func (a *App) SetSecurityQuestion(req SetSecurityQuestionRequest) error {
+	return a.workspaceSvc.SetSecurityQuestion(a.rawContext(), req.Question, req.Answer)
+}
+
+// ClearSecurityQuestion removes the stored question and answer.
+func (a *App) ClearSecurityQuestion() error {
+	return a.workspaceSvc.ClearSecurityQuestion(a.rawContext())
+}
+
+// RecoverWithAnswer implements the lost-password flow (edge case: the
 // offline single account has no reset channel).
-func (a *App) RecoverWithToken(req RecoverWithTokenRequest) (LocalProfileDTO, error) {
-	if err := a.workspaceSvc.UnlockWithRecoveryToken(a.rawContext(), req.Token, req.NewPassword); err != nil {
+func (a *App) RecoverWithAnswer(req RecoverWithAnswerRequest) (LocalProfileDTO, error) {
+	if err := a.workspaceSvc.UnlockWithAnswer(a.rawContext(), req.Answer, req.NewPassword); err != nil {
 		return LocalProfileDTO{}, err
 	}
 	p, err := a.workspaceSvc.Profile()
@@ -129,16 +157,6 @@ func (a *App) SetLocalPassword(req ChangePasswordRequest) error {
 // RemoveLocalPassword disables the password gate.
 func (a *App) RemoveLocalPassword(current string) error {
 	return a.workspaceSvc.RemovePassword(a.Context(), current)
-}
-
-// GetRecoveryToken returns the one-time recovery token. It can only be
-// issued once per profile.
-func (a *App) GetRecoveryToken() (string, error) {
-	token, err := a.workspaceSvc.GenerateRecoveryToken(a.Context())
-	if err != nil {
-		return "", fmt.Errorf("recovery token: %w", err)
-	}
-	return token, nil
 }
 
 // LockLocalProfile engages the password gate immediately.

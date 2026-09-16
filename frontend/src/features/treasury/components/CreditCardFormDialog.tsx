@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { z } from 'zod';
-import { DialogBody, Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/dialog';
+import { DialogBody, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/dialog';
 import { Form, TextField, NumberField } from '@/components/form';
 import { Button } from '@/components/button';
 import { useCreateCreditCard, useUpdateCreditCard } from '../hooks/useTreasury';
@@ -78,9 +78,6 @@ export function CreditCardFormDialog({ open, onOpenChange, editCard, onCreated }
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Editar tarjeta' : 'Nueva tarjeta de crédito'}</DialogTitle>
-          <DialogDescription>
-            {isEditing ? 'Actualiza los datos de la tarjeta.' : 'Registra una nueva tarjeta para compras y proyecciones.'}
-          </DialogDescription>
         </DialogHeader>
         <Form<FormValues> schema={schema} defaultValues={defaultValues} onSubmit={handleSubmit}>
           <DialogBody>

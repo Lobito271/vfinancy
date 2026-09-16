@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { z } from 'zod';
 import { Form, DateField, SelectField, TextareaField, MoneyField } from '@/components/form';
 import type { SelectOption } from '@/components/form';
-import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
+import { DialogBody, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { PaymentMethodOptions } from '@/constants/paymentMethods';
 import { formatCurrency } from '@/utils/format';
@@ -30,7 +30,6 @@ interface RegisterPaymentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
-  description: string;
   documentNumber: string;
   amount: number;
   amountLabel: string;
@@ -52,7 +51,6 @@ export function RegisterPaymentDialog({
   open,
   onOpenChange,
   title,
-  description,
   documentNumber,
   amount,
   amountLabel,
@@ -92,7 +90,6 @@ export function RegisterPaymentDialog({
       <DialogContent size="md">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <div className="doc-summary">

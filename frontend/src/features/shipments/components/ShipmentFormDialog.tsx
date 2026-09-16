@@ -6,7 +6,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
 } from '@/components/dialog';
 import {
@@ -112,11 +111,6 @@ export function ShipmentFormDialog({ open, onOpenChange, edit, customerCreateOpt
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{isEditing ? `Editar envío #${edit.code}` : 'Nuevo envío'}</DialogTitle>
-          <DialogDescription>
-            {isEditing
-              ? 'El código de envío no se puede cambiar.'
-              : 'Se generará un código de 4 dígitos para compartir con el transportista.'}
-          </DialogDescription>
         </DialogHeader>
         <Form<FormValues> schema={schema} defaultValues={defaultValues} onSubmit={handleSubmit}>
           <DialogBody>

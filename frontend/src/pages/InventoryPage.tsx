@@ -11,6 +11,7 @@ import { Button } from '@/components/button';
 import { ConfirmDialog } from '@/components/dialog';
 import { Drawer, ListRow, RowActions, type RowAction } from '@/components/misc';
 import { Form, NumberField } from '@/components/form';
+import { SearchInput } from '@/components/input';
 import {
   Select,
   SelectContent,
@@ -247,6 +248,7 @@ export function InventoryPage() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [productsOpen, setProductsOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [search, setSearch] = useState('');
   const [adjustTarget, setAdjustTarget] = useState<InventoryItem | null>(null);
   const [voidTarget, setVoidTarget] = useState<InventoryItem | null>(null);
   const [movementsTarget, setMovementsTarget] = useState<InventoryItem | null>(null);
@@ -259,11 +261,18 @@ export function InventoryPage() {
   const expiringSoon = live.filter((i) => i.daysRemaining >= 0 && i.daysRemaining < 5).length;
 
   const filteredItems = useMemo(() => {
-    if (statusFilter === 'clearance') return items.filter((i) => i.isClearance && i.status !== 'voided');
-    if (statusFilter === 'expiring') return live.filter((i) => i.daysRemaining >= 0 && i.daysRemaining < 5);
-    if (statusFilter === 'voided') return items.filter((i) => i.status === 'voided');
-    return items;
-  }, [items, live, statusFilter]);
+    let rows = items;
+    if (statusFilter === 'clearance') rows = items.filter((i) => i.isClearance && i.status !== 'voided');
+    else if (statusFilter === 'expiring') rows = live.filter((i) => i.daysRemaining >= 0 && i.daysRemaining < 5);
+    else if (statusFilter === 'voided') rows = items.filter((i) => i.status === 'voided');
+    const q = search.trim().toLowerCase();
+    if (q) {
+      rows = rows.filter(
+        (i) => i.productDescription.toLowerCase().includes(q) || i.productSku.toLowerCase().includes(q),
+      );
+    }
+    return rows;
+  }, [items, live, statusFilter, search]);
 
   const openCreate = () => {
     setReceiveTarget(null);
@@ -344,7 +353,16 @@ export function InventoryPage() {
         rowActions={buildActions}
         preferencesKey="inventory"
         toolbarLeft={
-          <Select
+          <>
+            <SearchInput
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onClear={() => setSearch('')}
+              placeholder="Buscar producto o SKU…"
+              className="datatable-search"
+              aria-label="Buscar producto"
+            />
+            <Select
             items={[
               { value: 'all', label: 'Todos los lotes' },
               { value: 'clearance', label: 'En remate' },
@@ -364,6 +382,7 @@ export function InventoryPage() {
               <SelectItem value="voided">Anulados</SelectItem>
             </SelectContent>
           </Select>
+          </>
         }
         empty={
           <EmptyState
@@ -390,11 +409,6 @@ export function InventoryPage() {
           if (!open) setVoidTarget(null);
         }}
         title="Anular lote"
-        description={
-          voidTarget
-            ? `Se anulará el ingreso de ${formatNumber(voidTarget.quantity)} unidades de ${voidTarget.productDescription}. El lote quedará marcado como anulado y no se podrá editar ni vender. Esta acción no se puede deshacer.`
-            : undefined
-        }
         confirmLabel="Anular"
         loading={voidStock.isPending}
         onConfirm={() => {

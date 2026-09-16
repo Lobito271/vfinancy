@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Package, AlertTriangle, Ban, Plus, Download, Boxes, Filter, Eye } from 'lucide-react';
+import { Package, Ban, Plus, Download, Boxes, Filter, Eye } from 'lucide-react';
 import { PageContainer, PageHeader, StatBand } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
 import { Badge } from '@/components/badge';
 import { EmptyState, Spinner } from '@/components/feedback';
 import { Button } from '@/components/button';
-import { Input, Label, SearchInput } from '@/components/input';
+import { DateInput, Label, SearchInput } from '@/components/input';
 import { CancelDialog } from '@/components/dialog';
 import { Drawer, ListRow, RowActions, type RowAction } from '@/components/misc';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -27,7 +27,6 @@ import {
 import { PurchaseFormDialog } from '@/features/purchasing/components/PurchaseFormDialog';
 import { ImportLotsDialog } from '@/features/purchasing/components/ImportLotsDialog';
 import { MarkReceivedDialog } from '@/features/purchasing/components/MarkReceivedDialog';
-import { MarkFaultyDialog, type MarkFaultyInput } from '@/features/purchasing/components/MarkFaultyDialog';
 import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
 import type { CreditCardDTO, ImportLotDTO } from '@/services/wails-types';
@@ -40,6 +39,8 @@ const statusMap: Record<string, { variant: 'success' | 'warning' | 'info' | 'des
   received: { variant: 'info', label: 'Recibida' },
   cancelled: { variant: 'destructive', label: 'Anulada' },
 };
+
+const CANCEL_REASONS = ['Mal estado', 'Error en el ingreso', 'Pedido duplicado', 'Cancelado por el proveedor'];
 
 const columns: Column<Purchase>[] = [
   {
@@ -65,6 +66,7 @@ const columns: Column<Purchase>[] = [
       return (
         <div className="hstack hstack--sm">
           <Badge variant={cfg.variant}>{cfg.label}</Badge>
+          {row.customerId && <Badge variant="info">Cliente</Badge>}
           {row.faulty && <Badge variant="destructive">Defectuoso</Badge>}
         </div>
       );
@@ -98,7 +100,6 @@ export function PurchasesPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Purchase | null>(null);
   const [receivedTarget, setReceivedTarget] = useState<Purchase | null>(null);
-  const [faultyTarget, setFaultyTarget] = useState<Purchase | null>(null);
   const [detailTarget, setDetailTarget] = useState<Purchase | null>(null);
 
   const detailQuery = useQuery({
@@ -149,13 +150,6 @@ export function PurchasesPage() {
         label: 'Marcar como recibido',
         icon: Download,
         onSelect: () => setReceivedTarget(row),
-      });
-    }
-    if (open && !row.faulty) {
-      actions.push({
-        label: 'Mal estado',
-        icon: AlertTriangle,
-        onSelect: () => setFaultyTarget(row),
       });
     }
     if (open) {
@@ -303,8 +297,8 @@ export function PurchasesPage() {
           <div className="field">
             <Label>Rango de fechas</Label>
             <div className="hstack hstack--sm">
-              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Desde" />
-              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Hasta" />
+              <DateInput value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Desde" placeholder="DD/MM/AAAA" />
+              <DateInput value={to} onChange={(e) => setTo(e.target.value)} aria-label="Hasta" placeholder="DD/MM/AAAA" />
             </div>
           </div>
           <div className="field">
@@ -361,34 +355,6 @@ export function PurchasesPage() {
         }}
       />
 
-      <MarkFaultyDialog
-        open={!!faultyTarget}
-        onOpenChange={(open) => {
-          if (!open) setFaultyTarget(null);
-        }}
-        documentNumber={faultyTarget?.number ?? ''}
-        loading={markFaulty.isPending}
-        onConfirm={(input: MarkFaultyInput) => {
-          if (!faultyTarget) return;
-          markFaulty.mutate(
-            { id: faultyTarget.id, reason: input.reason },
-            {
-              onSuccess: () => {
-                push({ title: 'Pedido marcado como defectuoso', variant: 'success' });
-                setFaultyTarget(null);
-              },
-              onError: (err: unknown) => {
-                push({
-                  title: 'No se pudo marcar el pedido',
-                  description: err instanceof Error ? err.message : undefined,
-                  variant: 'destructive',
-                });
-              },
-            },
-          );
-        }}
-      />
-
       <CancelDialog
         key={cancelTarget?.id ?? 'cancel'}
         open={!!cancelTarget}
@@ -396,27 +362,28 @@ export function PurchasesPage() {
           if (!open) setCancelTarget(null);
         }}
         title="Anular orden de compra"
-        description={`Se anulará la orden ${cancelTarget?.number ?? ''}. Esta acción no se puede deshacer.`}
-        loading={cancel.isPending}
-        onConfirm={(reason) => {
+        confirmLabel="Anular"
+        reasons={CANCEL_REASONS}
+        loading={cancel.isPending || markFaulty.isPending}
+        onConfirm={(reason, preset) => {
           if (!cancelTarget) return;
-          cancel.mutate(
-            { id: cancelTarget.id, reason },
-            {
-              onSuccess: () => {
-                push({ title: 'Orden de compra anulada', variant: 'success' });
-                setCancelTarget(null);
-              },
-              onError: (err: unknown) => {
-                push({
-                  title: 'No se pudo anular la orden',
-                  description: err instanceof Error ? err.message : undefined,
-                  variant: 'destructive',
-                });
-                setCancelTarget(null);
-              },
-            },
-          );
+          const onSuccess = () => {
+            push({ title: 'Orden de compra anulada', variant: 'success' });
+            setCancelTarget(null);
+          };
+          const onError = (err: unknown) => {
+            push({
+              title: 'No se pudo anular la orden',
+              description: err instanceof Error ? err.message : undefined,
+              variant: 'destructive',
+            });
+            setCancelTarget(null);
+          };
+          if (preset === 'Mal estado') {
+            markFaulty.mutate({ id: cancelTarget.id, reason }, { onSuccess, onError });
+          } else {
+            cancel.mutate({ id: cancelTarget.id, reason }, { onSuccess, onError });
+          }
         }}
       />
 
@@ -439,7 +406,7 @@ export function PurchasesPage() {
                 <div className="doc-summary__row">
                   <div className="doc-summary__meta">Tipo</div>
                   <div className="doc-summary__amount">
-                    {detailQuery.data.orderType === 'customer' ? 'Cliente a pedido' : 'General (stock)'}
+                    {detailQuery.data.customerId ? 'Cliente a pedido' : 'General (stock)'}
                   </div>
                 </div>
                 <div className="doc-summary__row">

@@ -108,9 +108,12 @@ function BusinessTab() {
 
 const companySchema = z.object({
   name: z.string().trim().min(2, 'Ingresa la razón social.'),
+  commercialName: z.string().trim().optional().or(z.literal('')),
   taxId: z.string().regex(/^(10|20)\d{9}$/, 'RUC debe tener 11 dígitos e iniciar con 10 o 20.').optional().or(z.literal('')),
   email: z.string().email('Correo inválido.').optional().or(z.literal('')),
   fiscalAddress: z.string().trim().optional().or(z.literal('')),
+  phone: z.string().trim().optional().or(z.literal('')),
+  website: z.string().trim().optional().or(z.literal('')),
 });
 
 type CompanyValues = z.infer<typeof companySchema>;
@@ -118,12 +121,12 @@ type CompanyValues = z.infer<typeof companySchema>;
 function CompanyTab() {
   const queryClient = useQueryClient();
   const push = useNotificationStore((s) => s.push);
-  const profile = useQuery({ queryKey: ['settings', 'profile'], queryFn: () => wailsClient.getLocalProfile() });
+  const profile = useQuery({ queryKey: queryKeys.settings.profile, queryFn: () => wailsClient.getLocalProfile() });
 
   const save = async (values: CompanyValues) => {
     try {
       await wailsClient.updateLocalProfile(values);
-      await queryClient.invalidateQueries({ queryKey: ['settings', 'profile'] });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.settings.profile });
       push({ title: 'Datos de la empresa guardados', variant: 'success' });
     } catch (cause) {
       push({
@@ -138,9 +141,12 @@ function CompanyTab() {
 
   const defaults = {
     name: profile.data?.name ?? '',
+    commercialName: profile.data?.commercialName ?? '',
     taxId: profile.data?.taxId ?? '',
     email: profile.data?.email ?? '',
     fiscalAddress: profile.data?.fiscalAddress ?? '',
+    phone: profile.data?.phone ?? '',
+    website: profile.data?.website ?? '',
   };
 
   return (
@@ -152,6 +158,7 @@ function CompanyTab() {
         {({ formState }) => (
           <div className="stack" style={{ maxWidth: '26rem' }}>
             <TextField name="name" label="Razón social" required />
+            <TextField name="commercialName" label="Nombre comercial" />
             <TextField
               name="taxId"
               label="RUC"
@@ -159,6 +166,8 @@ function CompanyTab() {
             />
             <EmailField name="email" label="Correo electrónico" />
             <TextField name="fiscalAddress" label="Dirección fiscal" />
+            <TextField name="phone" label="Teléfono" />
+            <TextField name="website" label="Web" />
             <div>
               <Button type="submit" loading={formState.isSubmitting}>
                 Guardar

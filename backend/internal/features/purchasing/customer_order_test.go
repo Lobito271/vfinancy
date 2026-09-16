@@ -147,22 +147,6 @@ func TestCreateRequiresCreditCard(t *testing.T) {
 	}
 }
 
-func TestCreateCustomerOrderRequiresCustomer(t *testing.T) {
-	cardID := uuid.New()
-	svc := newService(&fakeOrders{}, &fakeTreasury{}, &fakeStock{})
-	_, err := svc.Create(context.Background(), purchasing.CreateInput{
-		OrderType:    enums.OrderTypeCustomer,
-		CreditCardID: &cardID,
-		ExchangeRate: valueobjects.One(),
-		Items: []purchasing.CreateItemInput{{
-			Description: "Cosa", Quantity: valueobjects.QuantityFromInt64(1), UnitCostUSD: money("10.00"),
-		}},
-	})
-	if !errors.Is(err, apperrors.ErrValidation) {
-		t.Fatalf("want validation error, got %v", err)
-	}
-}
-
 func TestCreateChargesCardWithOrderCost(t *testing.T) {
 	rate, _ := valueobjects.ExchangeRateFromDecimal(decimal.NewFromInt(3))
 	cardID := uuid.New()

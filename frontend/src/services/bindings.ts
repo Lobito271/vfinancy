@@ -16,9 +16,10 @@ import type {
   SaveShipmentRequest,
   SalePaymentRequest,
   SetLocalPasswordRequest,
+  SetSecurityQuestionRequest,
   SetupWorkspaceRequest,
   SyncConfig,
-  RecoverWithTokenRequest,
+  RecoverWithAnswerRequest,
   UpdateLocalProfileRequest,
   VoidStockRequest,
 } from './wails-types';
@@ -63,9 +64,21 @@ export const wailsClient = {
     const b = await resolveBindings();
     return b.UnlockLocalProfile(password);
   },
-  async recoverWithToken(req: RecoverWithTokenRequest) {
+  async getSecurityQuestion() {
     const b = await resolveBindings();
-    return b.RecoverWithToken(req);
+    return b.GetSecurityQuestion();
+  },
+  async setSecurityQuestion(req: SetSecurityQuestionRequest) {
+    const b = await resolveBindings();
+    return b.SetSecurityQuestion(req);
+  },
+  async clearSecurityQuestion() {
+    const b = await resolveBindings();
+    return b.ClearSecurityQuestion();
+  },
+  async recoverWithAnswer(req: RecoverWithAnswerRequest) {
+    const b = await resolveBindings();
+    return b.RecoverWithAnswer(req);
   },
   async setLocalPassword(req: SetLocalPasswordRequest) {
     const b = await resolveBindings();
@@ -74,10 +87,6 @@ export const wailsClient = {
   async removeLocalPassword(current: string) {
     const b = await resolveBindings();
     return b.RemoveLocalPassword(current);
-  },
-  async getRecoveryToken() {
-    const b = await resolveBindings();
-    return b.GetRecoveryToken();
   },
   async lockLocalProfile() {
     const b = await resolveBindings();

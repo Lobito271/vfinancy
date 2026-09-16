@@ -238,11 +238,6 @@ export function CustomersDrawer({ open, onOpenChange }: { open: boolean; onOpenC
           if (!o) setDeleteTarget(null);
         }}
         title="Eliminar cliente"
-        description={
-          deleteTarget
-            ? `¿Eliminar a ${deleteTarget.businessName}? Se conservarán sus ventas y cobros históricos${deleteTarget.currentDebt > 0 ? `, pero tiene una deuda de ${formatCurrency(deleteTarget.currentDebt)}` : ''}.`
-            : undefined
-        }
         confirmLabel="Eliminar"
         loading={remove.isPending}
         onConfirm={() => {

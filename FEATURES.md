@@ -35,7 +35,7 @@
   * Selección entre tipo de pedido: "General" (stock) o "Cliente" (a pedido).
   * Obtención del Tipo de Cambio mediante API en tiempo real o uso de valor de respaldo/fallback (configurable).
   * Agrupación flexible de pedidos en Lotes de Importación.
-  * Ajuste personalizable del tope aduanero (predeterminado en $220 USD).
+  * Ajuste personalizable del tope aduanero (predeterminado en 200 USD).
   * Ajuste personalizable del costo de importación (factor de ganancia/flete/aduanas, predeterminado en +0.07 USD por compra).
 
 * **Campos Obligatorios:**
@@ -47,7 +47,7 @@
   * **Tipo de Cambio (USD/PEN):** Obligatorio por la SUNAT (Art. 5 del Reglamento del IGV / Código Tributario) para la conversión de transacciones en moneda extranjera a moneda nacional con fines tributarios.
 
 * **Campos Opcionales y Personalizables:**
-  * **Lote de Importación:** Opcional al crear el pedido individual, necesario únicamente al agrupar para el control del tope aduanero ($220 USD).
+  * **Lote de Importación:** Opcional al crear el pedido individual, necesario únicamente al agrupar para el control del tope aduanero ($200 USD).
   * **Límite / Tope Aduanero Personalizado:** Parámetro de configuración del sistema editable por el usuario.
   * **Tipo de Cambio de Respaldo (Fallback):** Campo de configuración (predeterminado en 3.75 Soles).
 

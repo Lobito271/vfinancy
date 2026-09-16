@@ -234,7 +234,6 @@ export function SalesPage() {
           if (!open) setCollectTarget(null);
         }}
         title="Cobrar venta"
-        description="Registra el cobro total de la venta."
         documentNumber={collectTarget?.number ?? ''}
         amount={collectTarget?.balance ?? 0}
         amountLabel="Saldo pendiente"
@@ -279,7 +278,6 @@ export function SalesPage() {
           if (!open) setCancelTarget(null);
         }}
         title="Anular venta"
-        description={`Se anulará la venta ${cancelTarget?.number ?? ''} y se revertirá el stock y la deuda asociada.`}
         loading={cancel.isPending}
         onConfirm={(reason) => {
           if (!cancelTarget) return;

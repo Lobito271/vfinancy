@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { z } from 'zod';
 import { Form, NumberField, TextField } from '@/components/form';
-import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
+import { DialogBody, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { useAdjustStock } from '@/features/inventory/hooks/useInventory';
 import { useNotificationStore } from '@/stores/notification';
@@ -51,11 +51,6 @@ export function InventoryAdjustDialog({ open, onOpenChange, batch }: InventoryAd
       <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle>Ajustar lote</DialogTitle>
-          <DialogDescription>
-            {batch
-              ? `${batch.productSku} — ${batch.productDescription} · Existencia actual: ${batch.quantity}`
-              : 'Corrige la existencia de un lote.'}
-          </DialogDescription>
         </DialogHeader>
 
         <Form schema={AdjustSchema} defaultValues={defaults} onSubmit={handleSubmit}>

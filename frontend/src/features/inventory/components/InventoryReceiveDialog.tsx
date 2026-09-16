@@ -7,7 +7,7 @@ import {
   NumberField,
   MoneyField,
 } from '@/components/form';
-import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
+import { DialogBody, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { ProductFormDialog } from '@/features/products/components/ProductsDrawer';
 import { useReceiveStock } from '@/features/inventory/hooks/useInventory';
@@ -77,7 +77,6 @@ export function InventoryReceiveDialog({ open, onOpenChange, preset }: Inventory
       <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>Ingreso de stock</DialogTitle>
-          <DialogDescription>Registra un nuevo lote de mercadería en el inventario.</DialogDescription>
         </DialogHeader>
 
         <Form key={defaults.productId} schema={ReceiveSchema} defaultValues={defaults} onSubmit={handleSubmit}>

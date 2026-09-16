@@ -13,7 +13,7 @@ import {
   type CreateSelectOption,
   type SelectOption,
 } from '@/components/form';
-import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
+import { DialogBody, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { Badge } from '@/components/badge';
 import { Input, Label } from '@/components/input';
@@ -458,7 +458,6 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
       <DialogContent size="xl">
         <DialogHeader>
           <DialogTitle>{steps[step].title}</DialogTitle>
-          <DialogDescription>{steps[step].description}</DialogDescription>
         </DialogHeader>
 
         <Form schema={PurchaseFormSchema} defaultValues={defaults} onSubmit={handleSubmit}>

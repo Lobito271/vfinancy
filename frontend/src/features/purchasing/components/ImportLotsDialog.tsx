@@ -5,7 +5,6 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -137,9 +136,6 @@ export function ImportLotsDialog({ open, onOpenChange }: ImportLotsDialogProps) 
             <DialogTitle>
               <Boxes /> Lotes de importación
             </DialogTitle>
-            <DialogDescription>
-              Agrupa órdenes de compra para monitorear el tope aduanero simplificado.
-            </DialogDescription>
           </DialogHeader>
           <DialogBody>
             <div className="grid-2" style={{ alignItems: 'start' }}>
@@ -306,11 +302,6 @@ export function ImportLotsDialog({ open, onOpenChange }: ImportLotsDialogProps) 
           }
         }}
         title="El lote supera el tope aduanero"
-        description={
-          warning
-            ? `El lote supera el tope aduanero de ${formatCurrency(warning.lot.customsLimitUsd, 'USD')}. Continuar requiere su confirmación explícita.`
-            : ''
-        }
         confirmLabel="Confirmar y agrupar"
         onConfirm={() => setWarning(null)}
       />

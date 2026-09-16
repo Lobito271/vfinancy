@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
-import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
+import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { Form, TextField } from '@/components/form';
 import { customersService } from '@/services/customers';
@@ -54,9 +54,6 @@ export function CreateCustomerDialog({ open, onOpenChange, onCreated }: CreateCu
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Nuevo cliente</DialogTitle>
-          <DialogDescription>
-            Se creará un cliente sin documento fiscal; podrás completarlo después.
-          </DialogDescription>
         </DialogHeader>
         <Form<FormValues> schema={schema} defaultValues={{ businessName: '', phone: '', email: '' }} onSubmit={(values) => create.mutate(values)}>
           <DialogBody>

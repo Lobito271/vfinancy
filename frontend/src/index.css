@@ -1018,6 +1018,7 @@ pre {
   display: flex;
   flex-direction: column;
   max-height: calc(100vh - 64px);
+  overflow: hidden;
   transition: translate 100ms ease-out, scale 100ms ease-out, opacity 100ms ease-out;
 }
 
@@ -1051,6 +1052,7 @@ pre {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  flex-shrink: 0;
   gap: 12px;
   padding: 18px 20px 12px;
   border-block-end: 1px solid var(--border-light);
@@ -1061,12 +1063,6 @@ pre {
   font-size: 1.1rem;
   font-weight: 700;
   letter-spacing: -0.3px;
-}
-
-.dialog-description {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  margin-top: 2px;
 }
 
 .dialog-body {
@@ -1084,6 +1080,7 @@ pre {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex-shrink: 0;
   gap: 10px;
   padding: 12px 20px 18px;
   border-block-start: 1px solid var(--border-light);

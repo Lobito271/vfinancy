@@ -230,11 +230,6 @@ export function ProductsDrawer({ open, onOpenChange }: { open: boolean; onOpenCh
           if (!o) setDeleteTarget(null);
         }}
         title="Eliminar producto"
-        description={
-          deleteTarget
-            ? `¿Eliminar ${deleteTarget.description}? Se conservarán las ventas y compras históricas.`
-            : undefined
-        }
         confirmLabel="Eliminar"
         loading={remove.isPending}
         onConfirm={() => {

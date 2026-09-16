@@ -14,7 +14,7 @@ import {
   type SelectOption,
 } from '@/components/form';
 import type { FieldPath } from 'react-hook-form';
-import { DialogBody, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
+import { DialogBody, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/dialog';
 import { Button } from '@/components/button';
 import { Input } from '@/components/input';
 import { CreateCustomerDialog } from '@/features/customers/components/CreateCustomerDialog';
@@ -381,7 +381,6 @@ export function SaleFormDialog({ open, onOpenChange }: SaleFormDialogProps) {
       <DialogContent size="xl">
         <DialogHeader>
           <DialogTitle>{steps[step].title}</DialogTitle>
-          <DialogDescription>{steps[step].description}</DialogDescription>
         </DialogHeader>
 
         <Form

@@ -62,11 +62,3 @@ export const DialogTitle = React.forwardRef<
   <DialogPrimitive.Title ref={ref} className={cx('dialog-title', className)} {...props} />
 ));
 DialogTitle.displayName = 'DialogTitle';
-
-export const DialogDescription = React.forwardRef<
-  React.ComponentRef<typeof DialogPrimitive.Description>,
-  Omit<React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>, 'className'> & { className?: string }
->(({ className, ...props }, ref) => (
-  <DialogPrimitive.Description ref={ref} className={cx('dialog-description', className)} {...props} />
-));
-DialogDescription.displayName = 'DialogDescription';

@@ -7,14 +7,6 @@ import { Button } from '@/components/button';
 import { queryKeys } from '@/services/queryKeys';
 import { wailsClient } from '@/services/bindings';
 import { Routes } from '@/constants/routes';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from '@/components/misc';
 
 const themeIcons: Record<Theme, typeof Sun> = {
   light: Sun,
@@ -22,9 +14,15 @@ const themeIcons: Record<Theme, typeof Sun> = {
   system: Monitor,
 };
 
+const themeLabels: Record<Theme, string> = {
+  light: 'Claro',
+  dark: 'Oscuro',
+  system: 'Sistema',
+};
+
 export function Topbar() {
   const theme = useThemeStore((s) => s.theme);
-  const setTheme = useThemeStore((s) => s.setTheme);
+  const toggleTheme = useThemeStore((s) => s.toggle);
   const setMobileOpen = useSidebarStore((s) => s.setMobileOpen);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -58,30 +56,14 @@ export function Topbar() {
       </Button>
 
       <div className="topbar__actions">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Cambiar tema">
-              <ThemeIcon strokeWidth={2.5} />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" style={{ width: '10rem' }}>
-            <DropdownMenuLabel>Tema</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={theme}
-              onValueChange={(v) => setTheme(v as Theme)}
-            >
-              <DropdownMenuRadioItem value="light">
-                <Sun className="menu-item-icon" /> Claro
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="dark">
-                <Moon className="menu-item-icon" /> Oscuro
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="system">
-                <Monitor className="menu-item-icon" /> Sistema
-              </DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={toggleTheme}
+          aria-label={`Cambiar tema (actual: ${themeLabels[theme]})`}
+        >
+          <ThemeIcon strokeWidth={2.5} />
+        </Button>
 
         {authState.data?.passwordEnabled && (
           <>

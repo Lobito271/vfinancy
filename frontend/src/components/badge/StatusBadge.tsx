@@ -13,14 +13,3 @@ export function SaleStatusBadge({ status }: { status: SaleStatus }) {
   const cfg = statusMap[status];
   return <Badge variant={cfg.variant}>{cfg.label}</Badge>;
 }
-
-const customerStatusMap = {
-  active: { variant: 'success' as const, label: t('status.active') },
-  inactive: { variant: 'muted' as const, label: t('status.inactive') },
-  blocked: { variant: 'destructive' as const, label: t('status.blocked') },
-};
-
-export function CustomerStatusBadge({ status }: { status: 'active' | 'inactive' | 'blocked' }) {
-  const cfg = customerStatusMap[status];
-  return <Badge variant={cfg.variant}>{cfg.label}</Badge>;
-}

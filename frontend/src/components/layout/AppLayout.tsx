@@ -1,6 +1,5 @@
 import { Outlet } from 'react-router-dom';
-import { Sidebar } from '@/components/navigation/Sidebar';
-import { Topbar } from '@/components/navigation/Topbar';
+import { Sidebar, Topbar } from '@/components/navigation';
 import { Drawer } from '@/components/misc';
 import { useSidebarStore } from '@/stores/sidebar';
 import { ErrorBoundary } from '@/app/ErrorBoundary';

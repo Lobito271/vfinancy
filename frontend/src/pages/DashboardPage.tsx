@@ -12,7 +12,7 @@ const defaultLayout: DashboardGridItem[] = [
   { id: 'monthCollected', size: 'sm', content: <CollectedMonthWidget /> },
   { id: 'monthProfit', size: 'sm', content: <NetProfitWidget /> },
   { id: 'monthStatus', size: 'sm', content: <MonthStatusBadgesWidget /> },
-  { id: 'profitChart', size: 'lg', content: <MonthlyNetProfitChart /> },
+  { id: 'profitChart', size: 'full', content: <MonthlyNetProfitChart /> },
   { id: 'clearance', size: 'full', content: <ClearanceWidget /> },
 ];
 

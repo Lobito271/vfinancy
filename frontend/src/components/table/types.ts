@@ -31,17 +31,13 @@ export interface DataTableState {
   filters: FilterState[];
   search: string;
   page: number;
-  pageSize: number;
 }
 
 export interface DataTablePreferences {
-  pageSize?: number;
   sort?: SortState | null;
 }
 
 export const DataTableDefaults = {
-  pageSize: 25,
-  pageSizeOptions: [10, 25, 50, 100] as const,
   stickyFirstColumn: true,
 };
 

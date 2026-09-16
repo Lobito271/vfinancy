@@ -63,15 +63,6 @@ export function Section({
   );
 }
 
-export function Grid({
-  cols = 3,
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement> & { cols?: 1 | 2 | 3 | 4 | 5 | 6 }) {
-  return (
-    <div
-      className={cx(`grid-${cols}`, className)}
-      {...props}
-    />
-  );
+export function StatBand({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cx('stat-band', className)} {...props} />;
 }

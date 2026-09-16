@@ -25,7 +25,7 @@ export interface SaleCreateInput {
   items: SaleLineInput[];
 }
 
-export interface SaleQuery {
+interface SaleQuery {
   search?: string;
   status?: string;
   saleType?: string;

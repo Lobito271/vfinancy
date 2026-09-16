@@ -2,19 +2,15 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { ShieldCheck } from 'lucide-react';
-import { PageContainer, PageHeader } from '@/components/layout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/card';
+import { PageContainer, PageHeader, Section } from '@/components/layout';
 import { Form, NumberField, TextField, EmailField } from '@/components/form';
 import { Button } from '@/components/button';
-import { Label } from '@/components/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/select';
 import { Drawer } from '@/components/misc';
 import { SecuritySection } from '@/features/settings/components/SecuritySection';
 import { BackupSection, CloudSyncSection } from '@/features/settings/components/SyncAndBackupSection';
 import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
 import { useNotificationStore } from '@/stores/notification';
-import { useThemeStore, type Theme } from '@/stores/theme';
 
 const businessSchema = z.object({
   clearanceDays: z.number().int().min(1, 'Entre 1 y 365').max(365),
@@ -57,59 +53,56 @@ function BusinessTab() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Parámetros de negocio</CardTitle>
-        <CardDescription>Controlan el remate, el costo de importación y el tope aduanero.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Form<BusinessValues> key={JSON.stringify(defaults)} schema={businessSchema} defaultValues={defaults} onSubmit={save}>
-          {({ formState }) => (
-            <div className="stack" style={{ maxWidth: '26rem' }}>
-              <NumberField
-                name="clearanceDays"
-                label="Días para remate"
-                description="Un lote pasa a remate tras estos días desde su ingreso."
-                min={1}
-                max={365}
-                required
-              />
-              <NumberField
-                name="importCostFactor"
-                label="Costo de importación USD"
-                description="Factor aplicado sobre el costo en dólares (ej. 0.07 = 7%)."
-                min={0}
-                step={0.01}
-                required
-              />
-              <NumberField
-                name="fallbackExchangeRate"
-                label="TC de respaldo"
-                description="Tipo de cambio de contingencia cuando no hay conexión."
-                min={0.01}
-                max={100}
-                step={0.01}
-                required
-              />
-              <NumberField
-                name="customsLimitUsd"
-                label="Tope aduanero USD"
-                description="Monto máximo por lote antes de la advertencia."
-                min={0}
-                max={1_000_000}
-                step={1}
-                required
-              />
-              <div>
-                <Button type="submit" loading={formState.isSubmitting}>
-                  Guardar
-                </Button>
-              </div>
+    <Section
+      title="Parámetros de negocio"
+      description="Controlan el remate, el costo de importación y el tope aduanero."
+    >
+      <Form<BusinessValues> key={JSON.stringify(defaults)} schema={businessSchema} defaultValues={defaults} onSubmit={save}>
+        {({ formState }) => (
+          <div className="stack" style={{ maxWidth: '26rem' }}>
+            <NumberField
+              name="clearanceDays"
+              label="Días para remate"
+              description="Un lote pasa a remate tras estos días desde su ingreso."
+              min={1}
+              max={365}
+              required
+            />
+            <NumberField
+              name="importCostFactor"
+              label="Costo de importación USD"
+              description="Factor aplicado sobre el costo en dólares (ej. 0.07 = 7%)."
+              min={0}
+              step={0.01}
+              required
+            />
+            <NumberField
+              name="fallbackExchangeRate"
+              label="TC de respaldo"
+              description="Tipo de cambio de contingencia cuando no hay conexión."
+              min={0.01}
+              max={100}
+              step={0.01}
+              required
+            />
+            <NumberField
+              name="customsLimitUsd"
+              label="Tope aduanero USD"
+              description="Monto máximo por lote antes de la advertencia."
+              min={0}
+              max={1_000_000}
+              step={1}
+              required
+            />
+            <div>
+              <Button type="submit" loading={formState.isSubmitting}>
+                Guardar
+              </Button>
             </div>
-          )}
-        </Form>
-      </CardContent>
-    </Card>
+          </div>
+        )}
+      </Form>
+    </Section>
   );
 }
 
@@ -151,33 +144,30 @@ function CompanyTab() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Datos de la empresa</CardTitle>
-        <CardDescription>Identidad corporativa usada en comprobantes y documentación.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Form<CompanyValues> key={JSON.stringify(defaults)} schema={companySchema} defaultValues={defaults} onSubmit={save}>
-          {({ formState }) => (
-            <div className="stack" style={{ maxWidth: '26rem' }}>
-              <TextField name="name" label="Razón social" required />
-              <TextField
-                name="taxId"
-                label="RUC"
-                description="11 dígitos, iniciando con 10 o 20."
-              />
-              <EmailField name="email" label="Correo electrónico" />
-              <TextField name="fiscalAddress" label="Dirección fiscal" />
-              <div>
-                <Button type="submit" loading={formState.isSubmitting}>
-                  Guardar
-                </Button>
-              </div>
+    <Section
+      title="Datos de la empresa"
+      description="Identidad corporativa usada en comprobantes y documentación."
+    >
+      <Form<CompanyValues> key={JSON.stringify(defaults)} schema={companySchema} defaultValues={defaults} onSubmit={save}>
+        {({ formState }) => (
+          <div className="stack" style={{ maxWidth: '26rem' }}>
+            <TextField name="name" label="Razón social" required />
+            <TextField
+              name="taxId"
+              label="RUC"
+              description="11 dígitos, iniciando con 10 o 20."
+            />
+            <EmailField name="email" label="Correo electrónico" />
+            <TextField name="fiscalAddress" label="Dirección fiscal" />
+            <div>
+              <Button type="submit" loading={formState.isSubmitting}>
+                Guardar
+              </Button>
             </div>
-          )}
-        </Form>
-      </CardContent>
-    </Card>
+          </div>
+        )}
+      </Form>
+    </Section>
   );
 }
 
@@ -186,17 +176,14 @@ function AuthTab() {
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle>Seguridad</CardTitle>
-          <CardDescription>Contraseña local y clave de recuperación del dispositivo.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button onClick={() => setAuthOpen(true)}>
-            <ShieldCheck /> Administrar autenticación
-          </Button>
-        </CardContent>
-      </Card>
+      <Section
+        title="Seguridad"
+        description="Contraseña local y clave de recuperación del dispositivo."
+      >
+        <Button onClick={() => setAuthOpen(true)}>
+          <ShieldCheck /> Administrar autenticación
+        </Button>
+      </Section>
       <Drawer
         open={authOpen}
         onOpenChange={setAuthOpen}
@@ -206,54 +193,6 @@ function AuthTab() {
         <SecuritySection />
       </Drawer>
     </>
-  );
-}
-
-function AppearanceTab() {
-  const theme = useThemeStore((state) => state.theme);
-  const setTheme = useThemeStore((state) => state.setTheme);
-  const push = useNotificationStore((s) => s.push);
-  const profile = useQuery({ queryKey: ['settings', 'profile'], queryFn: () => wailsClient.getLocalProfile() });
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Apariencia</CardTitle>
-        <CardDescription>El tema se aplica al instante en este dispositivo.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="stack" style={{ maxWidth: '24rem' }}>
-          <div className="field">
-            <Label htmlFor="settings-theme">Tema</Label>
-            <Select
-              items={[
-                { value: 'light', label: 'Claro' },
-                { value: 'dark', label: 'Oscuro' },
-                { value: 'system', label: 'Sistema' },
-              ]}
-              value={theme}
-              onValueChange={(value) => {
-                setTheme((value ?? 'system') as Theme);
-                push({ title: 'Tema actualizado', variant: 'success' });
-              }}
-            >
-              <SelectTrigger id="settings-theme">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="light">Claro</SelectItem>
-                <SelectItem value="dark">Oscuro</SelectItem>
-                <SelectItem value="system">Sistema</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="settings-row">
-            <span className="settings-row__label">Empresa</span>
-            <strong>{profile.data?.name}</strong>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 
@@ -267,7 +206,6 @@ export function SettingsPage() {
         <AuthTab />
         <BackupSection />
         <CloudSyncSection />
-        <AppearanceTab />
       </div>
     </PageContainer>
   );

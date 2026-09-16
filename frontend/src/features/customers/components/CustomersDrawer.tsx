@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { z } from 'zod';
 import { Pencil, Trash2, UserPlus } from 'lucide-react';
-import { Drawer, RowActions } from '@/components/misc';
+import { Drawer, ListRow, RowActions } from '@/components/misc';
 import { Button } from '@/components/button';
 import { Badge } from '@/components/badge';
 import { SearchInput } from '@/components/input';
@@ -192,41 +192,39 @@ export function CustomersDrawer({ open, onOpenChange }: { open: boolean; onOpenC
             />
           ) : (
             customers.map((c) => (
-              <div
+              <ListRow
                 key={c.id}
-                className="hstack"
-                style={{ justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--color-border)' }}
-              >
-                <span style={{ display: 'grid', gap: '0.15rem' }}>
-                  <strong style={{ fontWeight: 500 }}>{c.businessName}</strong>
-                  <small style={{ color: 'var(--color-fg-subtle)' }}>
-                    {c.documentNumber ? `${c.documentType} ${c.documentNumber}` : 'Sin documento'}
-                    {c.currentDebt > 0 ? ` · Deuda ${formatCurrency(c.currentDebt)}` : ''}
-                  </small>
-                </span>
-                <div className="hstack hstack--sm">
-                  {c.status !== 'active' && <Badge variant="muted">Inactivo</Badge>}
-                  <RowActions
-                    label={`Acciones de ${c.businessName}`}
-                    actions={[
-                      {
-                        label: 'Editar',
-                        icon: Pencil,
-                        onSelect: () => {
-                          setEditTarget(c);
-                          setFormOpen(true);
+                title={c.businessName}
+                meta={
+                  c.documentNumber
+                    ? `${c.documentType} ${c.documentNumber}${c.currentDebt > 0 ? ` · Deuda ${formatCurrency(c.currentDebt)}` : ''}`
+                    : `Sin documento${c.currentDebt > 0 ? ` · Deuda ${formatCurrency(c.currentDebt)}` : ''}`
+                }
+                trailing={
+                  <div className="hstack hstack--sm">
+                    {c.status !== 'active' && <Badge variant="muted">Inactivo</Badge>}
+                    <RowActions
+                      label={`Acciones de ${c.businessName}`}
+                      actions={[
+                        {
+                          label: 'Editar',
+                          icon: Pencil,
+                          onSelect: () => {
+                            setEditTarget(c);
+                            setFormOpen(true);
+                          },
                         },
-                      },
-                      {
-                        label: 'Eliminar',
-                        icon: Trash2,
-                        danger: true,
-                        onSelect: () => setDeleteTarget(c),
-                      },
-                    ]}
-                  />
-                </div>
-              </div>
+                        {
+                          label: 'Eliminar',
+                          icon: Trash2,
+                          danger: true,
+                          onSelect: () => setDeleteTarget(c),
+                        },
+                      ]}
+                    />
+                  </div>
+                }
+              />
             ))
           )}
         </div>

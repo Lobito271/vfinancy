@@ -242,11 +242,6 @@ export interface CustomerPaymentDTO {
   status: string;
 }
 
-export interface ListSalePaymentsRequest extends PaginationRequest {
-  customerId: string;
-  saleId: string;
-}
-
 export interface SaleCollectionDTO {
   saleId: string;
   paymentDate: string;

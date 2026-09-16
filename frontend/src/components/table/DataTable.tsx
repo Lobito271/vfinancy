@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, type ReactNode } from 'react';
+import { Fragment, useState, useMemo, useCallback, useEffect, type ReactNode } from 'react';
 import {
   ChevronsUpDown,
   ChevronUp,
@@ -8,6 +8,13 @@ import { EmptyState, ErrorState } from '@/components/feedback';
 import { TablePagination } from './TablePagination';
 import { cx } from '@/utils/cx';
 import { writeJSON, readJSON } from '@/utils/storage';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+  type RowAction,
+} from '@/components/misc';
 import {
   type Column,
   type SortState,
@@ -27,6 +34,7 @@ interface DataTableProps<T> {
   empty?: ReactNode;
   onRetry?: () => void;
   onRowClick?: (row: T) => void;
+  rowActions?: (row: T) => RowAction[] | null;
   rowClassName?: (row: T) => string | undefined;
   state?: Partial<DataTableState>;
   preferencesKey?: string;
@@ -52,6 +60,14 @@ function compare(a: unknown, b: unknown): number {
   return String(a).localeCompare(String(b), 'es', { numeric: true, sensitivity: 'base' });
 }
 
+const ROW_HEIGHT = 36;
+const TABLE_CHROME_HEIGHT = 320;
+
+function estimatePageSize(): number {
+  if (typeof window === 'undefined') return 20;
+  return Math.max(8, Math.floor((window.innerHeight - TABLE_CHROME_HEIGHT) / ROW_HEIGHT));
+}
+
 export function DataTable<T>({
   columns,
   data,
@@ -61,6 +77,7 @@ export function DataTable<T>({
   empty,
   onRetry,
   onRowClick,
+  rowActions,
   rowClassName,
   state: externalState,
   preferencesKey,
@@ -77,7 +94,6 @@ export function DataTable<T>({
       filters: [],
       search: '',
       page: 1,
-      pageSize: defaultPreferences?.pageSize ?? DataTableDefaults.pageSize,
       ...externalState,
     };
     if (preferencesKey) {
@@ -85,7 +101,6 @@ export function DataTable<T>({
       if (saved) {
         base = {
           ...base,
-          pageSize: saved.pageSize ?? base.pageSize,
           sort: saved.sort ?? base.sort,
         };
       }
@@ -95,6 +110,16 @@ export function DataTable<T>({
   }, []);
 
   const [state, setStateInternal] = useState<DataTableState>(initial);
+  const [pageSize, setPageSize] = useState(estimatePageSize);
+
+  useEffect(() => {
+    const onResize = () => {
+      setPageSize(estimatePageSize());
+      setStateInternal((s) => ({ ...s, page: 1 }));
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const update = useCallback(
     (patch: Partial<DataTableState>) => {
@@ -137,8 +162,8 @@ export function DataTable<T>({
   }, [data, state.filters, state.sort, columnsById, columns]);
 
   const total = filteredData.length;
-  const pageStart = (state.page - 1) * state.pageSize;
-  const pageRows = useMemo(() => filteredData.slice(pageStart, pageStart + state.pageSize), [filteredData, pageStart, state.pageSize]);
+  const pageStart = (state.page - 1) * pageSize;
+  const pageRows = useMemo(() => filteredData.slice(pageStart, pageStart + pageSize), [filteredData, pageStart, pageSize]);
 
   const handleSort = useCallback(
     (id: string) => {
@@ -222,6 +247,7 @@ export function DataTable<T>({
               columns={visibleHeaders(columns, stickyFirstColumn)}
               keyField={keyField}
               onRowClick={onRowClick}
+              rowActions={rowActions}
               rowClassName={rowClassName}
               empty={empty}
             />
@@ -232,16 +258,9 @@ export function DataTable<T>({
       {total > 0 && (
         <TablePagination
           page={state.page}
-          pageSize={state.pageSize}
+          pageSize={pageSize}
           total={total}
           onPageChange={(p) => update({ page: p })}
-          onPageSizeChange={(n) => {
-            update({ pageSize: n, page: 1 });
-            if (preferencesKey) {
-              const saved = readJSON<DataTablePreferences>(`vfinancy.dt.${preferencesKey}`);
-              writeJSON(`vfinancy.dt.${preferencesKey}`, { ...saved, pageSize: n });
-            }
-          }}
         />
       )}
     </div>
@@ -266,6 +285,7 @@ function DataTableBody<T>({
   columns,
   keyField,
   onRowClick,
+  rowActions,
   rowClassName,
   empty,
 }: {
@@ -274,6 +294,7 @@ function DataTableBody<T>({
   columns: ResolvedColumn<T>[];
   keyField: keyof T;
   onRowClick?: (row: T) => void;
+  rowActions?: (row: T) => RowAction[] | null;
   rowClassName?: (row: T) => string | undefined;
   empty?: ReactNode;
 }) {
@@ -305,9 +326,8 @@ function DataTableBody<T>({
     <>
       {pageRows.map((row, rowIndex) => {
         const id = String(row[keyField]);
-        return (
+        const rowEl = (
           <tr
-            key={id}
             onClick={onRowClick ? () => onRowClick(row) : undefined}
             onKeyDown={onRowClick ? (e) => {
               if (e.key === 'Enter' || e.key === ' ') {
@@ -326,7 +346,7 @@ function DataTableBody<T>({
               return (
                 <td
                   key={col.id}
-                  style={sticky ? { position: 'sticky', left: 0, zIndex: 1, background: 'inherit' } : undefined}
+                  style={sticky ? { position: 'sticky', left: 0, zIndex: 1 } : undefined}
                   className={cx(
                     getCellAlign(col.align),
                     sticky && 'sticky-cell',
@@ -338,6 +358,28 @@ function DataTableBody<T>({
               );
             })}
           </tr>
+        );
+        const actions = rowActions?.(row);
+        if (!actions || actions.length === 0) {
+          return <Fragment key={id}>{rowEl}</Fragment>;
+        }
+        return (
+          <ContextMenu key={`cm-${id}`}>
+            <ContextMenuTrigger render={rowEl} />
+            <ContextMenuContent>
+              {actions.map((action) => (
+                <ContextMenuItem
+                  key={action.label}
+                  danger={action.danger}
+                  disabled={action.disabled}
+                  onSelect={action.onSelect}
+                >
+                  {action.icon && <action.icon className="menu-item-icon" />}
+                  {action.label}
+                </ContextMenuItem>
+              ))}
+            </ContextMenuContent>
+          </ContextMenu>
         );
       })}
     </>

@@ -4,7 +4,7 @@ import { fetchAllPages } from '@/services/paginate';
 import { queryKeys } from '@/services/queryKeys';
 import type { ChartPoint } from '@/types/domain';
 
-export interface DashboardData {
+interface DashboardData {
   monthCollected: number;
   monthProfit: number;
   profitSeries: ChartPoint[];

@@ -4,7 +4,7 @@ import {
 import type { LucideProps } from 'lucide-react';
 import { Routes } from '@/constants/routes';
 
-export interface NavRoute {
+interface NavRoute {
   to: string;
   label: string;
   icon: React.ComponentType<LucideProps>;

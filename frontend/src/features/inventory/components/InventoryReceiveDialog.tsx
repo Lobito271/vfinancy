@@ -77,7 +77,7 @@ export function InventoryReceiveDialog({ open, onOpenChange, preset }: Inventory
       <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>Ingreso de stock</DialogTitle>
-          <DialogDescription>Registra un nuevo lote de mercadería en el almacén principal.</DialogDescription>
+          <DialogDescription>Registra un nuevo lote de mercadería en el inventario.</DialogDescription>
         </DialogHeader>
 
         <Form key={defaults.productId} schema={ReceiveSchema} defaultValues={defaults} onSubmit={handleSubmit}>
@@ -98,7 +98,7 @@ export function InventoryReceiveDialog({ open, onOpenChange, preset }: Inventory
                 />
                 <div className="form-grid">
                   <DateField name="arrivalDate" label="Fecha de ingreso" required max={today()} />
-                  <NumberField name="quantity" label="Cantidad" required min={1} step={1} description="Unidades ingresadas al almacén." />
+                  <NumberField name="quantity" label="Cantidad" required min={1} step={1} description="Unidades ingresadas." />
                 </div>
                 <MoneyField name="unitCost" label="Costo unitario" description="Costo de adquisición por unidad (PEN)." />
               </DialogBody>

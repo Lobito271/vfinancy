@@ -1,7 +1,6 @@
 import * as React from 'react';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { ScrollArea } from '@base-ui/react/scroll-area';
-import { X } from 'lucide-react';
 import { cx } from '@/utils/cx';
 
 export const Dialog = DialogPrimitive.Root;
@@ -33,9 +32,6 @@ export const DialogContent = React.forwardRef<
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="dialog-close" aria-label="Cerrar">
-        <X strokeWidth={2.5} />
-      </DialogPrimitive.Close>
     </DialogPrimitive.Popup>
   </DialogPrimitive.Portal>
 ));

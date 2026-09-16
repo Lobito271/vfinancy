@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { z } from 'zod';
 import { Pencil, Power, Trash2, PackagePlus } from 'lucide-react';
-import { Drawer, RowActions } from '@/components/misc';
+import { Drawer, ListRow, RowActions } from '@/components/misc';
 import { Button } from '@/components/button';
 import { Badge } from '@/components/badge';
 import { SearchInput } from '@/components/input';
@@ -170,58 +170,53 @@ export function ProductsDrawer({ open, onOpenChange }: { open: boolean; onOpenCh
             />
           ) : (
             products.map((p) => (
-              <div
+              <ListRow
                 key={p.id}
-                className="hstack"
-                style={{ justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--color-border)' }}
-              >
-                <span style={{ display: 'grid', gap: '0.15rem' }}>
-                  <strong style={{ fontWeight: 500 }}>{p.description}</strong>
-                  <small style={{ color: 'var(--color-fg-subtle)' }}>
-                    {p.sku} · Costo {formatCurrency(p.costUsd, 'USD')} · Venta {formatCurrency(p.salePrice)}
-                  </small>
-                </span>
-                <div className="hstack hstack--sm">
-                  {!p.isActive && <Badge variant="muted">Inactivo</Badge>}
-                  <RowActions
-                    label={`Acciones de ${p.description}`}
-                    actions={[
-                      {
-                        label: p.isActive ? 'Desactivar' : 'Activar',
-                        icon: Power,
-                        onSelect: () =>
-                          setActive.mutate(
-                            { id: p.id, active: !p.isActive },
-                            {
-                              onSuccess: () =>
-                                push({ title: p.isActive ? 'Producto desactivado' : 'Producto activado', variant: 'success' }),
-                              onError: (err) =>
-                                push({
-                                  title: 'No se pudo actualizar',
-                                  description: err instanceof Error ? err.message : undefined,
-                                  variant: 'destructive',
-                                }),
-                            },
-                          ),
-                      },
-                      {
-                        label: 'Editar',
-                        icon: Pencil,
-                        onSelect: () => {
-                          setEditTarget(p);
-                          setFormOpen(true);
+                title={p.description}
+                meta={`${p.sku} · Costo ${formatCurrency(p.costUsd, 'USD')} · Venta ${formatCurrency(p.salePrice)}`}
+                trailing={
+                  <div className="hstack hstack--sm">
+                    {!p.isActive && <Badge variant="muted">Inactivo</Badge>}
+                    <RowActions
+                      label={`Acciones de ${p.description}`}
+                      actions={[
+                        {
+                          label: p.isActive ? 'Desactivar' : 'Activar',
+                          icon: Power,
+                          onSelect: () =>
+                            setActive.mutate(
+                              { id: p.id, active: !p.isActive },
+                              {
+                                onSuccess: () =>
+                                  push({ title: p.isActive ? 'Producto desactivado' : 'Producto activado', variant: 'success' }),
+                                onError: (err) =>
+                                  push({
+                                    title: 'No se pudo actualizar',
+                                    description: err instanceof Error ? err.message : undefined,
+                                    variant: 'destructive',
+                                  }),
+                              },
+                            ),
                         },
-                      },
-                      {
-                        label: 'Eliminar',
-                        icon: Trash2,
-                        danger: true,
-                        onSelect: () => setDeleteTarget(p),
-                      },
-                    ]}
-                  />
-                </div>
-              </div>
+                        {
+                          label: 'Editar',
+                          icon: Pencil,
+                          onSelect: () => {
+                            setEditTarget(p);
+                            setFormOpen(true);
+                          },
+                        },
+                        {
+                          label: 'Eliminar',
+                          icon: Trash2,
+                          danger: true,
+                          onSelect: () => setDeleteTarget(p),
+                        },
+                      ]}
+                    />
+                  </div>
+                }
+              />
             ))
           )}
         </div>

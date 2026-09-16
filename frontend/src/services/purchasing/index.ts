@@ -14,7 +14,7 @@ export interface PurchaseLineInput {
   description: string;
 }
 
-export interface PurchaseQuery {
+interface PurchaseQuery {
   search?: string;
   status?: string;
   orderType?: string;
@@ -26,7 +26,7 @@ export interface PurchaseQuery {
   pageSize?: number;
 }
 
-export interface Purchase extends PurchaseOrderDTO {
+interface Purchase extends PurchaseOrderDTO {
   date: string;
 }
 

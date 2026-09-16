@@ -5,14 +5,14 @@ React + TypeScript desktop UI. Built with Vite, styled with a hand-rolled plain 
 ## Stack
 
 - **React 19** + **TypeScript 5**, **Vite 8**
-- **Plain CSS3** design system in `src/index.css` — OKLCH tokens + semantic component classes (no Tailwind/PostCSS)
+- **Plain CSS3** design system in `src/index.css` — hex design tokens from `DESIGN.md` + semantic component classes (no Tailwind/PostCSS)
 - **Base UI** (`@base-ui/react`) — unstyled, accessible primitives wrapped in `src/components/`
 - **React Router 7** for client routing (hash)
 - **TanStack Query 5** for server-state caching
 - **Zustand 5** for local UI / session state (with `persist` middleware)
 - **React Hook Form 7** + **Zod 4** for forms / validation
 - **lucide-react** for icons, **recharts** for charts
-- **@fontsource/geist-sans** / **@fontsource/geist-mono** for self-hosted Geist fonts
+- **@fontsource/figtree** + **@fontsource/montserrat** for self-hosted fonts
 
 ## Folder Structure
 
@@ -28,11 +28,11 @@ src/
     form/            # Form (RHF + zod) + field components
     table/           # DataTable, TablePagination
     dialog/          # Dialog + Body/Header/Footer, AlertDialog, ConfirmDialog, CancelDialog
-    card/            # Card, StatCard
+    card/            # Card, StatCard, AssetCard
     badge/           # Badge + status-specific variants
-    navigation/      # Sidebar, Topbar, Breadcrumbs, nav config (nav.ts)
-    layout/          # AppLayout, PageContainer, PageHeader, Section, Grid
-    misc/            # DropdownMenu, Tooltip, Drawer, RowActions
+    navigation/      # Sidebar, Topbar, nav config (nav.ts)
+    layout/          # AppLayout, PageContainer, PageHeader, Section, Grid, StatBand
+    misc/            # DropdownMenu, Tooltip, Drawer, RowActions, ListRow
     feedback/        # Spinner, EmptyState, ErrorState, Toaster
     charts/          # LineChart, BarChart (recharts wrappers, token colors)
     tabs/            # Tabs (Base UI)
@@ -70,7 +70,8 @@ wails build         # produce desktop binary in build/bin/
 - All UI text is in **Spanish (es-PE)**. Route slugs are English (see `@/constants/routes`).
 - All numbers / dates / currency use `Intl.*` helpers in `@/utils/format`. **Never** use `toFixed` for money or `toLocaleString` ad-hoc.
 - Path alias `@/*` resolves to `src/*`.
-- All style tokens (CSS variables) and semantic component classes live in `src/index.css`. Use the component classes (`.btn`, `.card`, `.input`, …) — never hardcode colors. This is the only stylesheet.
+- All style tokens (CSS variables) and semantic component classes live in `src/index.css` — the only stylesheet. Use the component classes (`.btn`, `.card`, `.input`, …) and the layout helpers (`.stack`, `.hstack`, `.grid-N`, `.stat-band`, `.card-grid`, `.split-panel`, `.list-row`) — never hardcode colors or write utility classes.
 - Use `cx()` from `@/utils/cx` for conditional class composition. Don't write raw string concatenation.
 - Destructive actions go through `<AlertDialog variant="destructive">` or `<ConfirmDialog>`.
 - Forms use `react-hook-form` + `zod`.
+- Design rules and layout archetypes live in `DESIGN.md` (visual source of truth) and `AGENTS.md` (layout/component guidelines).

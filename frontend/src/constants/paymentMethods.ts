@@ -1,4 +1,4 @@
-export type PaymentMethodCode = 'cash' | 'transfer' | 'other';
+type PaymentMethodCode = 'cash' | 'transfer' | 'other';
 
 const PaymentMethods: Record<PaymentMethodCode, string> = {
   cash: 'Efectivo',

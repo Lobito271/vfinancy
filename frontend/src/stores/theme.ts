@@ -37,9 +37,11 @@ export const useThemeStore = create<ThemeState>()(
         set({ theme: t, resolved: r });
       },
       toggle: () => {
-        const next = get().resolved === 'dark' ? 'light' : 'dark';
-        applyClass(next);
-        set({ theme: next, resolved: next });
+        const order: Theme[] = ['light', 'dark', 'system'];
+        const next = order[(order.indexOf(get().theme) + 1) % order.length];
+        const r = resolve(next);
+        applyClass(r);
+        set({ theme: next, resolved: r });
       },
       applyToDocument: () => {
         applyClass(get().resolved);

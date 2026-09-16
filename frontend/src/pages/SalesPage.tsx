@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ShoppingCart, CreditCard, Ban, Plus, ReceiptText, Eye, Users } from 'lucide-react';
-import { PageContainer, PageHeader, Grid } from '@/components/layout';
+import { PageContainer, PageHeader, StatBand } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
 import { SaleStatusBadge } from '@/components/badge';
@@ -10,7 +10,7 @@ import { EmptyState, Spinner } from '@/components/feedback';
 import { Button } from '@/components/button';
 import { CancelDialog } from '@/components/dialog';
 import { RegisterPaymentDialog, type RegisterPaymentInput } from '@/features/treasury/components/RegisterPaymentDialog';
-import { RowActions, Drawer } from '@/components/misc';
+import { ListRow, RowActions, type RowAction, Drawer } from '@/components/misc';
 import {
   Select,
   SelectContent,
@@ -116,6 +116,22 @@ export function SalesPage() {
 
   const openCreate = () => setFormOpen(true);
 
+  const buildActions = (row: Sale): RowAction[] => {
+    const collectable = row.status === 'pending' || row.status === 'partial';
+    const cancellable = row.status !== 'cancelled';
+    const actions: RowAction[] = [
+      { label: 'Ver detalle', icon: Eye, onSelect: () => setDetailTarget(row) },
+      { label: 'Cobros', icon: ReceiptText, onSelect: () => setHistoryTarget(row) },
+    ];
+    if (collectable) {
+      actions.push({ label: 'Cobrar', icon: CreditCard, onSelect: () => setCollectTarget(row) });
+    }
+    if (cancellable) {
+      actions.push({ label: 'Anular', icon: Ban, danger: true, onSelect: () => setCancelTarget(row) });
+    }
+    return actions;
+  };
+
   const tableColumns = useMemo<Column<Sale>[]>(() => {
     return [
       ...columns,
@@ -123,38 +139,11 @@ export function SalesPage() {
         id: 'actions',
         header: '',
         width: 72,
-        cell: (row) => {
-          const collectable = row.status === 'pending' || row.status === 'partial';
-          const cancellable = row.status !== 'cancelled';
-          const actions = [];
-          actions.push({
-            label: 'Ver detalle',
-            icon: Eye,
-            onSelect: () => setDetailTarget(row),
-          });
-          actions.push({
-            label: 'Cobros',
-            icon: ReceiptText,
-            onSelect: () => setHistoryTarget(row),
-          });
-          if (collectable) {
-            actions.push({
-              label: 'Cobrar',
-              icon: CreditCard,
-              onSelect: () => setCollectTarget(row),
-            });
-          }
-          if (cancellable) {
-            actions.push({
-              label: 'Anular',
-              icon: Ban,
-              danger: true,
-              onSelect: () => setCancelTarget(row),
-            });
-          }
-          if (actions.length === 0) return null;
-          return <RowActions actions={actions} label={`Acciones de ${row.number}`} />;
-        },
+        cell: (row) => (
+          <div onClick={(e) => e.stopPropagation()}>
+            <RowActions actions={buildActions(row)} label={`Acciones de ${row.number}`} />
+          </div>
+        ),
       },
     ];
   }, []);
@@ -176,12 +165,12 @@ export function SalesPage() {
         }
       />
 
-      <Grid cols={4}>
+      <StatBand>
         <StatCard label="Ventas registradas" value={String(sales.length)} icon={ShoppingCart} />
         <StatCard label="Monto total" value={formatCurrency(totalAmount)} />
         <StatCard label="Utilidad" value={formatCurrency(totalProfit)} />
         <StatCard label="Por Cobrar" value={String(pending)} />
-      </Grid>
+      </StatBand>
 
       <DataTable
         columns={tableColumns}
@@ -190,6 +179,8 @@ export function SalesPage() {
         loading={isLoading}
         error={isError ? (error as Error) : null}
         onRetry={() => refetch()}
+        onRowClick={(row) => setDetailTarget(row)}
+        rowActions={buildActions}
         preferencesKey="sales"
         toolbarLeft={
           <>
@@ -203,7 +194,7 @@ export function SalesPage() {
             />
             <Select
               items={[
-                { value: 'all', label: 'Estado: todos' },
+                { value: 'all', label: 'Todos' },
                 { value: 'pending', label: 'Pendientes' },
                 { value: 'partial', label: 'Parciales' },
                 { value: 'paid', label: 'Pagadas' },
@@ -213,10 +204,10 @@ export function SalesPage() {
               onValueChange={(v) => setStatusFilter(v ?? 'all')}
             >
               <SelectTrigger style={{ width: '11rem' }} aria-label="Filtrar por estado">
-                <SelectValue placeholder="Estado: todos" />
+                <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Estado: todos</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="pending">Pendientes</SelectItem>
                 <SelectItem value="partial">Parciales</SelectItem>
                 <SelectItem value="paid">Pagadas</SelectItem>
@@ -371,26 +362,21 @@ export function SalesPage() {
             ) : paymentsQuery.data && paymentsQuery.data.items.length > 0 ? (
               <div className="stack">
                 {paymentsQuery.data.items.map((p) => (
-                  <div
+                  <ListRow
                     key={p.id}
-                    className="hstack"
-                    style={{
-                      justifyContent: 'space-between',
-                      padding: '0.5rem 0',
-                      borderBottom: '1px solid var(--color-border)',
-                    }}
-                  >
-                    <span style={{ display: 'grid' }}>
-                      <strong style={{ fontWeight: 500 }}>
+                    title={
+                      <>
                         {p.number} · {methodLabel(p.paymentMethod)}
-                      </strong>
-                      <small style={{ color: 'var(--color-fg-subtle)' }}>
+                      </>
+                    }
+                    meta={
+                      <>
                         {formatDate(p.paymentDate)}
                         {p.reference ? ` · ${p.reference}` : ''}
-                      </small>
-                    </span>
-                    <span>{formatCurrency(Number(p.amount))}</span>
-                  </div>
+                      </>
+                    }
+                    trailing={<span>{formatCurrency(Number(p.amount))}</span>}
+                  />
                 ))}
               </div>
             ) : (
@@ -455,19 +441,16 @@ export function SalesPage() {
               )}
               <div className="stack">
                 {detailQuery.data.items.map((it) => (
-                  <div
+                  <ListRow
                     key={it.id}
-                    className="hstack"
-                    style={{ justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--color-border)' }}
-                  >
-                    <span style={{ display: 'grid' }}>
-                      <strong style={{ fontWeight: 500 }}>{it.description}</strong>
-                      <small style={{ color: 'var(--color-fg-subtle)' }}>
+                    title={it.description}
+                    meta={
+                      <>
                         {formatNumber(it.quantity)} × {formatCurrency(it.unitPrice)}
-                      </small>
-                    </span>
-                    <span className="tabular">{formatCurrency(it.lineTotal)}</span>
-                  </div>
+                      </>
+                    }
+                    trailing={<span className="tabular">{formatCurrency(it.lineTotal)}</span>}
+                  />
                 ))}
               </div>
             </div>

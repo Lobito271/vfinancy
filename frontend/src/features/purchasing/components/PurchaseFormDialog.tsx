@@ -91,7 +91,7 @@ function OrderTypePicker() {
   const { watch, setValue } = useFormContext<PurchaseFormValues>();
   const value = watch('orderType');
   const options: { value: OrderType; label: string; hint: string }[] = [
-    { value: 'general', label: 'General (stock)', hint: 'Para vender en el almacén' },
+    { value: 'general', label: 'General (stock)', hint: 'Para venta directa' },
     { value: 'customer', label: 'Cliente a pedido', hint: 'La mercadería va a un cliente' },
   ];
   const pick = (next: OrderType) => {

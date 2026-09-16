@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Package, AlertTriangle, Ban, Plus, Download, Boxes, Filter, Eye } from 'lucide-react';
-import { PageContainer, PageHeader, Grid } from '@/components/layout';
+import { PageContainer, PageHeader, StatBand } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
 import { Badge } from '@/components/badge';
@@ -9,7 +9,7 @@ import { EmptyState, Spinner } from '@/components/feedback';
 import { Button } from '@/components/button';
 import { Input, Label, SearchInput } from '@/components/input';
 import { CancelDialog } from '@/components/dialog';
-import { Drawer, RowActions } from '@/components/misc';
+import { Drawer, ListRow, RowActions, type RowAction } from '@/components/misc';
 import { useDebounce } from '@/hooks/useDebounce';
 import {
   Select,
@@ -138,6 +138,37 @@ export function PurchasesPage() {
 
   const openCreate = () => setFormOpen(true);
 
+  const buildActions = (row: Purchase): RowAction[] => {
+    const open = row.status !== 'cancelled';
+    const receivable = !row.arrivalDate && !row.faulty && row.status !== 'cancelled';
+    const actions: RowAction[] = [
+      { label: 'Ver detalle', icon: Eye, onSelect: () => setDetailTarget(row) },
+    ];
+    if (receivable) {
+      actions.push({
+        label: 'Marcar como recibido',
+        icon: Download,
+        onSelect: () => setReceivedTarget(row),
+      });
+    }
+    if (open && !row.faulty) {
+      actions.push({
+        label: 'Mal estado',
+        icon: AlertTriangle,
+        onSelect: () => setFaultyTarget(row),
+      });
+    }
+    if (open) {
+      actions.push({
+        label: 'Anular',
+        icon: Ban,
+        danger: true,
+        onSelect: () => setCancelTarget(row),
+      });
+    }
+    return actions;
+  };
+
   const tableColumns = useMemo<Column<Purchase>[]>(() => {
     return [
       ...columns,
@@ -145,40 +176,11 @@ export function PurchasesPage() {
         id: 'actions',
         header: '',
         width: 72,
-        cell: (row) => {
-          const open = row.status !== 'cancelled';
-          const receivable = !row.arrivalDate && !row.faulty && row.status !== 'cancelled';
-          const actions = [];
-          actions.push({
-            label: 'Ver detalle',
-            icon: Eye,
-            onSelect: () => setDetailTarget(row),
-          });
-          if (receivable) {
-            actions.push({
-              label: 'Marcar como recibido',
-              icon: Download,
-              onSelect: () => setReceivedTarget(row),
-            });
-          }
-          if (open && !row.faulty) {
-            actions.push({
-              label: 'Mal estado',
-              icon: AlertTriangle,
-              onSelect: () => setFaultyTarget(row),
-            });
-          }
-          if (open) {
-            actions.push({
-              label: 'Anular',
-              icon: Ban,
-              danger: true,
-              onSelect: () => setCancelTarget(row),
-            });
-          }
-          if (actions.length === 0) return null;
-          return <RowActions actions={actions} label={`Acciones de ${row.number}`} />;
-        },
+        cell: (row) => (
+          <div onClick={(e) => e.stopPropagation()}>
+            <RowActions actions={buildActions(row)} label={`Acciones de ${row.number}`} />
+          </div>
+        ),
       },
     ];
   }, []);
@@ -190,9 +192,6 @@ export function PurchasesPage() {
         subtitle="Órdenes de compra a proveedores"
         actions={
           <div className="hstack hstack--sm">
-            <Button variant="outline" onClick={() => setFiltersOpen(true)}>
-              <Filter /> Filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
-            </Button>
             <Button variant="outline" onClick={() => setLotsOpen(true)}>
               <Boxes /> Lotes
             </Button>
@@ -203,12 +202,12 @@ export function PurchasesPage() {
         }
       />
 
-      <Grid cols={4}>
+      <StatBand>
         <StatCard label="Órdenes de compra" value={String(purchases.length)} icon={Package} />
         <StatCard label="Monto total" value={formatCurrency(totalAmount)} />
         <StatCard label="Por Pagar" value={String(pending)} />
         <StatCard label="Anuladas" value={String(cancelled)} />
-      </Grid>
+      </StatBand>
 
       <DataTable
         columns={tableColumns}
@@ -217,6 +216,8 @@ export function PurchasesPage() {
         loading={isLoading}
         error={isError ? (error as Error) : null}
         onRetry={() => refetch()}
+        onRowClick={(row) => setDetailTarget(row)}
+        rowActions={buildActions}
         preferencesKey="purchases"
         toolbarLeft={
           <>
@@ -230,7 +231,7 @@ export function PurchasesPage() {
             />
             <Select
               items={[
-                { value: 'all', label: 'Estado: todos' },
+                { value: 'all', label: 'Todos' },
                 { value: 'pending', label: 'Pendientes' },
                 { value: 'received', label: 'Recibidas' },
                 { value: 'cancelled', label: 'Anuladas' },
@@ -239,16 +240,21 @@ export function PurchasesPage() {
               onValueChange={(v) => setStatusFilter(v ?? 'all')}
             >
               <SelectTrigger style={{ width: '11rem' }} aria-label="Filtrar por estado">
-                <SelectValue placeholder="Estado: todos" />
+                <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Estado: todos</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="pending">Pendientes</SelectItem>
                 <SelectItem value="received">Recibidas</SelectItem>
                 <SelectItem value="cancelled">Anuladas</SelectItem>
               </SelectContent>
             </Select>
           </>
+        }
+        toolbarRight={
+          <Button variant="outline" onClick={() => setFiltersOpen(true)}>
+            <Filter /> Filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ''}
+          </Button>
         }
         empty={
           <EmptyState
@@ -478,20 +484,17 @@ export function PurchasesPage() {
               )}
               <div className="stack">
                 {detailQuery.data.items.map((it) => (
-                  <div
+                  <ListRow
                     key={it.id}
-                    className="hstack"
-                    style={{ justifyContent: 'space-between', padding: '0.5rem 0', borderBottom: '1px solid var(--color-border)' }}
-                  >
-                    <span style={{ display: 'grid' }}>
-                      <strong style={{ fontWeight: 500 }}>{it.description}</strong>
-                      <small style={{ color: 'var(--color-fg-subtle)' }}>
+                    title={it.description}
+                    meta={
+                      <>
                         {formatNumber(it.quantity)} × {formatCurrency(it.unitCostUsd, 'USD')}
                         {it.salePricePen > 0 ? ` · Venta ${formatCurrency(it.salePricePen)}` : ''}
-                      </small>
-                    </span>
-                    <span className="tabular">{formatCurrency(it.lineTotalUsd, 'USD')}</span>
-                  </div>
+                      </>
+                    }
+                    trailing={<span className="tabular">{formatCurrency(it.lineTotalUsd, 'USD')}</span>}
+                  />
                 ))}
               </div>
             </div>

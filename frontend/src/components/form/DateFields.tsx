@@ -24,7 +24,7 @@ export function DateField<T extends FieldValues>({
   max,
   showFormatted = false,
 }: DateFieldProps<T>) {
-  const { register, formState, watch } = useFormContext<T>();
+  const { register, formState, watch, setValue } = useFormContext<T>();
   const error = formState.errors[name]?.message as string | undefined;
   const value = watch(name) as string | undefined;
   return (
@@ -35,6 +35,11 @@ export function DateField<T extends FieldValues>({
         min={min}
         max={max}
         value={value ?? ''}
+        onClear={
+          !required
+            ? () => (setValue as (n: FieldPath<T>, v: string) => void)(name, '')
+            : undefined
+        }
         {...register(name)}
       />
       {showFormatted && value && <p className="field-hint">{formatDate(value)}</p>}

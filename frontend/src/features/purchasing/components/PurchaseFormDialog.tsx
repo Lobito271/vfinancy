@@ -34,8 +34,6 @@ import { queryKeys } from '@/services/queryKeys';
 import { formatCurrency } from '@/utils/format';
 import { useNotificationStore } from '@/stores/notification';
 
-type OrderType = 'general' | 'customer';
-
 const lineSchema = z
   .object({
     productId: z.string(),
@@ -52,7 +50,6 @@ const lineSchema = z
 const PurchaseFormSchema = z
   .object({
     number: z.string().trim().optional(),
-    orderType: z.enum(['general', 'customer']),
     customerId: z.string(),
     creditCardId: z.string().min(1, 'Seleccione la tarjeta de crédito'),
     exchangeRate: z.number().min(0.01, 'Tipo de cambio inválido'),
@@ -60,10 +57,6 @@ const PurchaseFormSchema = z
     expectedDate: z.string(),
     notes: z.string().optional(),
     items: z.array(lineSchema).min(1, 'Agregue al menos una línea'),
-  })
-  .refine((v) => v.orderType !== 'customer' || v.customerId !== '', {
-    message: 'Seleccione el cliente',
-    path: ['customerId'],
   });
 
 type PurchaseFormValues = z.infer<typeof PurchaseFormSchema>;
@@ -88,57 +81,16 @@ function ExchangeRateSeed({ rate }: { rate: number | undefined }) {
   return null;
 }
 
-function OrderTypePicker() {
-  const { watch, setValue } = useFormContext<PurchaseFormValues>();
-  const value = watch('orderType');
-  const options: { value: OrderType; label: string; hint: string }[] = [
-    { value: 'general', label: 'General (stock)', hint: 'Para venta directa' },
-    { value: 'customer', label: 'Cliente a pedido', hint: 'La mercadería va a un cliente' },
-  ];
-  const pick = (next: OrderType) => {
-    if (next === value) return;
-    if (next === 'general') {
-      setValue('orderType', next);
-      setValue('customerId', '', { shouldValidate: true });
-    } else {
-      setValue('orderType', next);
-    }
-  };
-  return (
-    <div className="field">
-      <label className="label">Tipo de pedido</label>
-      <div className="hstack hstack--sm" role="radiogroup" aria-label="Tipo de pedido">
-        {options.map((o) => (
-          <button
-            key={o.value}
-            type="button"
-            role="radio"
-            aria-checked={value === o.value}
-            data-checked={value === o.value || undefined}
-            className="segment-option"
-            onClick={() => pick(o.value)}
-            style={{ flex: 1 }}
-          >
-            <strong>{o.label}</strong>
-            <small>{o.hint}</small>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function CustomerField({ customers, createCustomer }: { customers: SelectOption[]; createCustomer?: CreateSelectOption }) {
-  const orderType = useWatch<PurchaseFormValues, 'orderType'>({ name: 'orderType' });
-  if (orderType !== 'customer') return null;
   return (
     <SelectField
       name="customerId"
       label="Cliente"
-      required
+      description="Opcional: pedido para un cliente."
+      clearable
       options={customers}
       createOption={createCustomer}
-      placeholder="Seleccione el cliente…"
+      placeholder="Sin cliente…"
     />
   );
 }
@@ -160,7 +112,6 @@ function OrderDataStep({ cardOptions, customerOptions, cardsQuery, rateQuery, lo
   return (
     <div className="stack">
       <ExchangeRateSeed rate={rateQuery.data?.rate} />
-      <OrderTypePicker />
       <CustomerField customers={customerOptions} createCustomer={customerCreateOption} />
       <div className="form-grid">
         <SelectField
@@ -375,12 +326,11 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
   const defaults = useMemo<PurchaseFormValues>(
     () => ({
       number: '',
-      orderType: 'general',
       customerId: '',
       creditCardId: '',
       exchangeRate: 0,
       orderDate: today(),
-      expectedDate: '',
+      expectedDate: today(),
       notes: '',
       items: [emptyLine()],
     }),
@@ -403,7 +353,6 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
     create.mutate(
       {
         number: values.number,
-        orderType: values.orderType,
         customerId: values.customerId,
         creditCardId: values.creditCardId,
         orderDate: values.orderDate,
@@ -493,7 +442,7 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
                     onClick={async () => {
                       const fields: Array<Path<PurchaseFormValues>> =
                         step === 0
-                          ? ['creditCardId', 'orderType', 'customerId', 'orderDate', 'exchangeRate']
+                          ? ['creditCardId', 'customerId', 'orderDate', 'exchangeRate']
                           : ['items'];
                       if (await form.trigger(fields)) setStep((s) => s + 1);
                     }}

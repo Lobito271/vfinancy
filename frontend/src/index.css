@@ -2230,6 +2230,33 @@ pre {
   outline: 2px solid var(--color-ring);
 }
 
+.date-input:has(.date-input__clear) .date-input__display {
+  padding-inline-end: 34px;
+}
+
+.date-input__clear {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  translate: 0 -50%;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 0;
+  background-color: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.date-input__clear:hover {
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
 .welcome__recovery {
   display: flex;
   flex-direction: column;

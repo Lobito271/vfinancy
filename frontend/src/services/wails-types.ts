@@ -287,7 +287,6 @@ export interface PurchaseOrderDTO {
   currencyCode: string;
   exchangeRate: number;
   notes: string;
-  orderType: 'general' | 'customer';
   customerId: string;
   creditCardId: string;
   costUsd: number;
@@ -304,7 +303,6 @@ export interface PurchaseOrderDTO {
 export interface PurchaseFilterRequest extends PaginationRequest {
   search: string;
   status: string;
-  orderType: string;
   creditCardId: string;
   importLotId: string;
   from: string;
@@ -321,7 +319,6 @@ export interface PurchaseItemRequest {
 
 export interface CreatePurchaseRequest {
   number?: string;
-  orderType: 'general' | 'customer';
   customerId: string;
   creditCardId: string;
   exchangeRate: number;

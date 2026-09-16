@@ -66,6 +66,7 @@ const columns: Column<Purchase>[] = [
       return (
         <div className="hstack hstack--sm">
           <Badge variant={cfg.variant}>{cfg.label}</Badge>
+          {row.customerId && <Badge variant="info">Cliente</Badge>}
           {row.faulty && <Badge variant="destructive">Defectuoso</Badge>}
         </div>
       );
@@ -405,7 +406,7 @@ export function PurchasesPage() {
                 <div className="doc-summary__row">
                   <div className="doc-summary__meta">Tipo</div>
                   <div className="doc-summary__amount">
-                    {detailQuery.data.orderType === 'customer' ? 'Cliente a pedido' : 'General (stock)'}
+                    {detailQuery.data.customerId ? 'Cliente a pedido' : 'General (stock)'}
                   </div>
                 </div>
                 <div className="doc-summary__row">

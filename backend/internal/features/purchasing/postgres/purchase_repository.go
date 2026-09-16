@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 
 	"vfinancy/backend/infrastructure/persistence"
-	"vfinancy/backend/internal/domain/enums"
 	"vfinancy/backend/internal/domain/repositories"
 	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/features/purchasing"
@@ -26,7 +25,7 @@ func NewPurchaseRepository(db *sql.DB) *purchaseRepository {
 
 const purchaseColumns = `
 	id, number, order_date, expected_date, received_date, arrival_date,
-	status, currency_code, exchange_rate, notes, order_type,
+	status, currency_code, exchange_rate, notes,
 	customer_id, credit_card_id,
 	cost_usd, sale_price_pen, real_cost_pen, refund_amount,
 	faulty, faulty_reason, cancelled_at, cancelled_reason,
@@ -43,18 +42,18 @@ const purchaseItemColumns = `
 func (r *purchaseRepository) Create(ctx context.Context, po *purchasing.PurchaseOrder, items []*purchasing.PurchaseOrderItem) error {
 	const q = `INSERT INTO purchase_orders (
 		id, number, order_date, expected_date, received_date, arrival_date,
-		status, currency_code, exchange_rate, notes, order_type,
+		status, currency_code, exchange_rate, notes,
 		customer_id, credit_card_id,
 		cost_usd, sale_price_pen, real_cost_pen, refund_amount,
 		faulty, faulty_reason, cancelled_at, cancelled_reason,
 		created_at, updated_at
-	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)`
+	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)`
 	_, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
 		po.ID, po.Number, po.OrderDate,
 		persistence.NullIfZeroTime(po.ExpectedDate), persistence.NullIfZeroTime(po.ReceivedDate),
 		persistence.NullIfZeroTime(po.ArrivalDate),
 		po.Status.String(), po.CurrencyCode, po.ExchangeRate.String(),
-		persistence.NullIfEmpty(po.Notes), po.OrderType.String(),
+		persistence.NullIfEmpty(po.Notes),
 		persistence.NullIfEmptyUUID(po.CustomerID), persistence.NullIfEmptyUUID(po.CreditCardID),
 		po.CostUSD.String(), po.SalePricePen.String(), po.RealCostPen.String(), po.RefundAmount.String(),
 		po.Faulty, persistence.NullIfEmpty(po.FaultyReason),
@@ -205,10 +204,6 @@ func (r *purchaseRepository) List(ctx context.Context, filter purchasing.Purchas
 		clauses = append(clauses, fmt.Sprintf("status = $%d", len(args)+1))
 		args = append(args, filter.Status)
 	}
-	if filter.OrderType != "" {
-		clauses = append(clauses, fmt.Sprintf("order_type = $%d", len(args)+1))
-		args = append(args, filter.OrderType)
-	}
 	if filter.CreditCardID != nil {
 		clauses = append(clauses, fmt.Sprintf("credit_card_id = $%d", len(args)+1))
 		args = append(args, *filter.CreditCardID)
@@ -267,7 +262,7 @@ type purchaseScan struct {
 	notes, faultyReason, cancelledReason                            sql.NullString
 	expectedDate, receivedDate, arrivalDate, cancelledAt, deletedAt sql.NullTime
 	customerID, creditCardID                                        sql.NullString
-	status, orderType, currencyCode, exchangeRate                   string
+	status, currencyCode, exchangeRate                      string
 	costUSD, salePricePen, realCostPen, refundAmount                string
 	faulty                                                          bool
 }
@@ -278,7 +273,7 @@ func scanPurchaseOrder(row *sql.Row) (*purchasing.PurchaseOrder, error) {
 	if err := persistence.ScanRow(row,
 		&p.ID, &p.Number, &p.OrderDate,
 		&s.expectedDate, &s.receivedDate, &s.arrivalDate,
-		&s.status, &s.currencyCode, &s.exchangeRate, &s.notes, &s.orderType,
+		&s.status, &s.currencyCode, &s.exchangeRate, &s.notes,
 		&s.customerID, &s.creditCardID,
 		&s.costUSD, &s.salePricePen, &s.realCostPen, &s.refundAmount,
 		&s.faulty, &s.faultyReason, &s.cancelledAt, &s.cancelledReason,
@@ -298,7 +293,7 @@ func scanPurchaseOrderFromRows(rows *sql.Rows) (*purchasing.PurchaseOrder, error
 	if err := rows.Scan(
 		&p.ID, &p.Number, &p.OrderDate,
 		&s.expectedDate, &s.receivedDate, &s.arrivalDate,
-		&s.status, &s.currencyCode, &s.exchangeRate, &s.notes, &s.orderType,
+		&s.status, &s.currencyCode, &s.exchangeRate, &s.notes,
 		&s.customerID, &s.creditCardID,
 		&s.costUSD, &s.salePricePen, &s.realCostPen, &s.refundAmount,
 		&s.faulty, &s.faultyReason, &s.cancelledAt, &s.cancelledReason,
@@ -351,7 +346,6 @@ func decodePurchaseOrder(p *purchasing.PurchaseOrder, s *purchaseScan) error {
 		p.CancelledReason = s.cancelledReason.String
 	}
 	p.Status = persistence.ParsePurchaseStatus(s.status)
-	p.OrderType = enums.OrderType(s.orderType)
 	p.Faulty = s.faulty
 	p.CurrencyCode = s.currencyCode
 	var err error

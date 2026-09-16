@@ -158,7 +158,6 @@ type CreateItemInput struct {
 // after creation); an empty Number auto-generates the next sequence.
 type CreateInput struct {
 	Number       string
-	OrderType    enums.OrderType
 	CustomerID   *uuid.UUID
 	CreditCardID *uuid.UUID
 	ExchangeRate valueobjects.ExchangeRate
@@ -178,16 +177,6 @@ func (s *PurchasingService) Create(ctx context.Context, in CreateInput) (*Purcha
 	}
 	if in.CreditCardID == nil || *in.CreditCardID == uuid.Nil {
 		return nil, apperrors.Errorf(apperrors.ErrValidation, "credit card is required")
-	}
-	orderType := in.OrderType
-	if orderType == "" {
-		orderType = enums.OrderTypeGeneral
-	}
-	if !orderType.Valid() {
-		return nil, apperrors.Errorf(apperrors.ErrValidation, "order type is invalid")
-	}
-	if orderType == enums.OrderTypeCustomer && in.CustomerID == nil {
-		return nil, apperrors.Errorf(apperrors.ErrValidation, "customer is required for customer orders")
 	}
 	if in.CustomerID != nil && *in.CustomerID == uuid.Nil {
 		return nil, apperrors.Errorf(apperrors.ErrValidation, "customer id is invalid")
@@ -279,7 +268,6 @@ func (s *PurchasingService) Create(ctx context.Context, in CreateInput) (*Purcha
 			CurrencyCode: USD,
 			ExchangeRate: in.ExchangeRate,
 			Notes:        in.Notes,
-			OrderType:    orderType,
 			CustomerID:   in.CustomerID,
 			CreditCardID: in.CreditCardID,
 			CostUSD:      costUSD,
@@ -309,7 +297,6 @@ func (s *PurchasingService) Create(ctx context.Context, in CreateInput) (*Purcha
 	s.log.Info("purchase order created",
 		"po_id", out.ID,
 		"number", out.Number,
-		"order_type", out.OrderType.String(),
 		"cost_usd", out.CostUSD.String(),
 	)
 	return out, nil
@@ -486,7 +473,7 @@ type ClientOrderLine struct {
 }
 
 // CreateClientOrder creates the internal purchase order behind a sale:
-// order_type=customer, no credit card (the sale flow assigns cost and
+// linked to the customer, no credit card (the sale flow assigns cost and
 // rate later), per-line cost taken from the product's USD cost, and
 // the USD->PEN rate snapshotted by the caller. It runs in the caller's
 // transaction (the sales service).
@@ -519,7 +506,6 @@ func (s *PurchasingService) CreateClientOrder(ctx context.Context, customerID, s
 			Status:       enums.PurchaseStatusPending,
 			CurrencyCode: USD,
 			ExchangeRate: rate,
-			OrderType:    enums.OrderTypeCustomer,
 			CustomerID:   &customerID,
 			Notes:        "pedido de cliente (venta " + saleID.String() + ")",
 			Items:        []*PurchaseOrderItem{},

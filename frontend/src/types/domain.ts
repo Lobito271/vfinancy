@@ -38,7 +38,6 @@ export interface Purchase {
   date: string;
   status: string;
   currencyCode: string;
-  orderType: string;
   customerId: string;
   creditCardId: string;
   costUsd: number;

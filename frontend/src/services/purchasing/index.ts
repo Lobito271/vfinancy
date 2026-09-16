@@ -17,7 +17,6 @@ export interface PurchaseLineInput {
 interface PurchaseQuery {
   search?: string;
   status?: string;
-  orderType?: string;
   creditCardId?: string;
   importLotId?: string;
   from?: string;
@@ -46,7 +45,6 @@ function toItems(items: PurchaseLineInput[]): PurchaseItemRequest[] {
 
 export interface PurchaseCreateInput {
   number?: string;
-  orderType?: 'general' | 'customer';
   customerId?: string;
   creditCardId: string;
   orderDate: string;
@@ -64,7 +62,6 @@ export const purchasingService = {
         pageSize,
         search: q.search ?? '',
         status: q.status ?? '',
-        orderType: q.orderType ?? '',
         creditCardId: q.creditCardId ?? '',
         importLotId: q.importLotId ?? '',
         from: q.from ?? '',
@@ -81,7 +78,6 @@ export const purchasingService = {
   async create(input: PurchaseCreateInput): Promise<Purchase> {
     const req: CreatePurchaseRequest = {
       number: input.number ?? '',
-      orderType: input.orderType ?? 'general',
       customerId: input.customerId ?? '',
       creditCardId: input.creditCardId,
       exchangeRate: input.exchangeRate ?? 1,

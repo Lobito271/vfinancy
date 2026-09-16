@@ -6,7 +6,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
-	"vfinancy/backend/internal/domain/enums"
 	"vfinancy/backend/internal/domain/valueobjects"
 	"vfinancy/backend/internal/features/purchasing"
 )
@@ -35,7 +34,6 @@ type PurchaseOrderDTO struct {
 	CurrencyCode       string             `json:"currencyCode"`
 	ExchangeRate       float64            `json:"exchangeRate"`
 	Notes              string             `json:"notes"`
-	OrderType          string             `json:"orderType"`
 	CustomerID         string             `json:"customerId"`
 	CreditCardID       string             `json:"creditCardId"`
 	CostUSD            float64            `json:"costUsd"`
@@ -76,7 +74,6 @@ func purchaseDTO(po *purchasing.PurchaseOrder) PurchaseOrderDTO {
 		CurrencyCode:       po.CurrencyCode,
 		ExchangeRate:       po.ExchangeRate.Decimal().InexactFloat64(),
 		Notes:              po.Notes,
-		OrderType:          string(po.OrderType),
 		CustomerID:         uuidPtrString(po.CustomerID),
 		CreditCardID:       uuidPtrString(po.CreditCardID),
 		CostUSD:            moneyFloat(po.CostUSD),
@@ -95,7 +92,6 @@ type PurchaseFilterRequest struct {
 	PaginationRequest
 	Search       string `json:"search"`
 	Status       string `json:"status"`
-	OrderType    string `json:"orderType"`
 	CreditCardID string `json:"creditCardId"`
 	ImportLotID  string `json:"importLotId"`
 	From         string `json:"from"`
@@ -124,7 +120,6 @@ func (a *App) ListPurchaseOrders(req PurchaseFilterRequest) (PageResult, error) 
 	page, err := a.purchasingSvc.List(a.Context(), purchasing.PurchaseFilter{
 		Search:       req.Search,
 		Status:       req.Status,
-		OrderType:    req.OrderType,
 		CreditCardID: cardID,
 		ImportLotID:  lotID,
 		From:         from,
@@ -164,7 +159,6 @@ type PurchaseItemRequest struct {
 
 type CreatePurchaseRequest struct {
 	Number       string                `json:"number"`
-	OrderType    string                `json:"orderType"`
 	CustomerID   string                `json:"customerId"`
 	CreditCardID string                `json:"creditCardId"`
 	ExchangeRate float64               `json:"exchangeRate"`
@@ -174,8 +168,8 @@ type CreatePurchaseRequest struct {
 	Items        []PurchaseItemRequest `json:"items"`
 }
 
-// CreatePurchase registers a USD order (general or client) tied to a
-// credit card, applying the TC and the import cost factor.
+// CreatePurchase registers a USD order (general or for a client) tied
+// to a credit card, applying the TC and the import cost factor.
 func (a *App) CreatePurchase(req CreatePurchaseRequest) (PurchaseOrderDTO, error) {
 	in, err := a.purchaseInput(req)
 	if err != nil {
@@ -241,7 +235,6 @@ func (a *App) purchaseInput(req CreatePurchaseRequest) (purchasing.CreateInput, 
 	}
 	return purchasing.CreateInput{
 		Number:       req.Number,
-		OrderType:    enums.OrderType(req.OrderType),
 		CustomerID:   customerID,
 		CreditCardID: cardID,
 		ExchangeRate: rate,

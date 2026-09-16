@@ -1730,6 +1730,7 @@ pre {
   flex-direction: column;
   gap: 14px;
   flex: 1;
+  min-height: 0;
 }
 
 .form-grid {

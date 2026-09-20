@@ -159,6 +159,12 @@ export function TreasuryPage() {
   const projectionColumns = useMemo<Column<CardProjectionDTO>[]>(
     () => [
       {
+        id: 'paymentDue',
+        header: 'Fecha de pago',
+        sortable: true,
+        cell: (row) => <span className="tabular muted">{formatDate(row.paymentDue)}</span>,
+      },
+      {
         id: 'card',
         header: 'Tarjeta',
         sortable: true,
@@ -176,11 +182,6 @@ export function TreasuryPage() {
             {formatDate(row.cycleStart)} – {formatDate(row.cycleEnd)}
           </span>
         ),
-      },
-      {
-        id: 'paymentDue',
-        header: 'Fecha de pago',
-        cell: (row) => <span className="tabular">{formatDate(row.paymentDue)}</span>,
       },
       {
         id: 'totalUsd',
@@ -210,7 +211,6 @@ export function TreasuryPage() {
     <PageContainer>
       <PageHeader
         title="Tesorería"
-        subtitle="Tarjetas de crédito, ciclos de facturación y proyección de pagos"
         actions={
           <Button onClick={openCreate}>
             <Plus /> Nueva tarjeta
@@ -218,10 +218,7 @@ export function TreasuryPage() {
         }
       />
 
-      <Section
-        title="Tarjetas de Crédito"
-        description="Deuda vigente por tarjeta en USD. La deuda proyectada del ciclo activo se detalla en la sección de ciclos."
-      >
+      <Section title="Tarjetas de Crédito" flat>
         {loading ? (
           <div className="page-loader">
             <Spinner />
@@ -252,10 +249,7 @@ export function TreasuryPage() {
         )}
       </Section>
 
-      <Section
-        title="Ciclos de facturación"
-        description="Proyección del ciclo activo: el monto a separar para cancelar al banco en la fecha de pago sin generar intereses."
-      >
+      <Section title="Ciclos de facturación" flat>
         {projections.length === 0 && !projectionsLoading ? (
           <EmptyState
             title="Sin proyecciones"
@@ -266,6 +260,7 @@ export function TreasuryPage() {
             columns={projectionColumns}
             data={filteredProjections}
             keyField="cardId"
+            defaultPreferences={{ sort: { id: 'paymentDue', direction: 'asc' } }}
             toolbarLeft={
               <SearchInput
                 value={search}

@@ -441,6 +441,14 @@ pre {
   gap: 2px;
 }
 
+/* section--flat: section header over a single bounding surface (e.g. DataTable) */
+.section--flat {
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
 .section-title {
   font-size: 1.15rem;
   font-weight: 700;
@@ -1095,6 +1103,12 @@ pre {
   gap: 8px;
 }
 
+.dialog-subheader {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-muted-fg);
+}
+
 /* alert dialog */
 .alert-header {
   display: flex;
@@ -1447,11 +1461,6 @@ pre {
   color: var(--text-primary);
 }
 
-.stat-card__hint {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
 .stat-card__badges {
   display: flex;
   flex-wrap: wrap;
@@ -1602,6 +1611,10 @@ pre {
 
 .datatable-table tr.clickable {
   cursor: pointer;
+}
+
+.datatable-table tr.row-dimmed td {
+  opacity: 0.55;
 }
 
 .datatable-table tr.clickable:focus-visible {
@@ -2210,6 +2223,10 @@ pre {
 
 .date-input__display:empty::before {
   content: attr(data-placeholder);
+  color: var(--text-muted);
+}
+
+.date-input__display--placeholder {
   color: var(--text-muted);
 }
 

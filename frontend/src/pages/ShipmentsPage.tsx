@@ -64,6 +64,12 @@ export function ShipmentsPage() {
   const columns = useMemo<Column<ShipmentDTO>[]>(
     () => [
       {
+        id: 'createdAt',
+        header: 'Fecha',
+        sortable: true,
+        cell: (row) => <span className="tabular muted">{formatDate(row.createdAt)}</span>,
+      },
+      {
         id: 'code',
         header: 'Código',
         sortable: true,
@@ -102,11 +108,6 @@ export function ShipmentsPage() {
         ),
       },
       {
-        id: 'createdAt',
-        header: 'Fecha',
-        cell: (row) => <span className="tabular">{formatDate(row.createdAt)}</span>,
-      },
-      {
         id: 'actions',
         header: '',
         width: 72,
@@ -129,7 +130,6 @@ export function ShipmentsPage() {
     <PageContainer>
       <PageHeader
         title="Envíos"
-        subtitle="Despachos a clientes con código de seguimiento"
         actions={
           <Button onClick={openCreate}>
             <Plus /> Nuevo envío
@@ -137,7 +137,7 @@ export function ShipmentsPage() {
         }
       />
 
-      <Section title="Envíos" description="Lista de envíos registrados, su estado y código para compartir.">
+      <Section title="Envíos" flat>
         {isLoading ? (
           <div className="page-loader">
             <Spinner />
@@ -158,6 +158,7 @@ export function ShipmentsPage() {
               setFormOpen(true);
             }}
             rowActions={buildActions}
+            defaultPreferences={{ sort: { id: 'createdAt', direction: 'desc' } }}
             toolbarLeft={
               <SearchInput
                 value={search}

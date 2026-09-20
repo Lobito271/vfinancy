@@ -31,10 +31,15 @@ import { useNotificationStore } from '@/stores/notification';
 
 const columns: Column<InventoryItem>[] = [
   {
+    id: 'arrivalDate',
+    header: 'Fecha de ingreso',
+    sortable: true,
+    cell: (row) => <span className="tabular muted">{row.arrivalDate ? formatDate(row.arrivalDate) : '—'}</span>,
+  },
+  {
     id: 'productSku',
     header: 'SKU',
     sortable: true,
-    sticky: true,
     cell: (row) => <span className="fw-medium tabular">{row.productSku}</span>,
   },
   {
@@ -64,11 +69,6 @@ const columns: Column<InventoryItem>[] = [
     sortable: true,
     accessor: (row) => row.quantity * row.unitCost,
     cell: (row) => <span className="tabular">{formatCurrency(row.quantity * row.unitCost, row.currencyCode)}</span>,
-  },
-  {
-    id: 'arrivalDate',
-    header: 'Ingreso',
-    cell: (row) => <span className="muted">{row.arrivalDate ? formatDate(row.arrivalDate) : '—'}</span>,
   },
   {
     id: 'maxSaleDate',
@@ -202,7 +202,6 @@ function InventorySettingsDrawer({ open, onOpenChange }: { open: boolean; onOpen
       open={open}
       onOpenChange={onOpenChange}
       title="Reglas de inventario"
-      description="Controla cuándo un lote pasa a remate y con cuánta anticipación se avisa."
       footer={
         <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={saving}>
           Cancelar
@@ -239,7 +238,16 @@ function InventorySettingsDrawer({ open, onOpenChange }: { open: boolean; onOpen
 }
 
 export function InventoryPage() {
-  const { data, isLoading, isError, error, refetch } = useInventory();
+  const [statusFilter, setStatusFilter] = useState('all');
+  const storeQuery = useInventory();
+  const voidedQuery = useInventory({ status: 'voided' });
+  const isLoading = storeQuery.isLoading || voidedQuery.isLoading;
+  const isError = storeQuery.isError || voidedQuery.isError;
+  const error = storeQuery.error ?? voidedQuery.error;
+  const refetch = () => {
+    void storeQuery.refetch();
+    void voidedQuery.refetch();
+  };
   const voidStock = useVoidStock();
   const push = useNotificationStore((s) => s.push);
 
@@ -247,13 +255,12 @@ export function InventoryPage() {
   const [receiveTarget, setReceiveTarget] = useState<InventoryItem | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [productsOpen, setProductsOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [adjustTarget, setAdjustTarget] = useState<InventoryItem | null>(null);
   const [voidTarget, setVoidTarget] = useState<InventoryItem | null>(null);
   const [movementsTarget, setMovementsTarget] = useState<InventoryItem | null>(null);
 
-  const items = data ?? [];
+  const items = [...(storeQuery.data ?? []), ...(voidedQuery.data ?? [])];
   const live = items.filter((i) => i.status !== 'voided');
   const totalUnits = live.reduce((s, i) => s + i.quantity, 0);
   const inventoryValue = live.reduce((s, i) => s + i.quantity * i.unitCost, 0);
@@ -318,7 +325,6 @@ export function InventoryPage() {
     <PageContainer>
       <PageHeader
         title="Inventario"
-        subtitle="Lotes, existencias y control de remate"
         actions={
           <>
             <Button variant="outline" onClick={() => setProductsOpen(true)}>
@@ -351,7 +357,9 @@ export function InventoryPage() {
         onRetry={() => refetch()}
         onRowClick={(row) => setMovementsTarget(row)}
         rowActions={buildActions}
-        preferencesKey="inventory"
+        rowClassName={(row) => (row.status === 'depleted' ? 'row-dimmed' : undefined)}
+        preferencesKey="inventory-journal"
+        defaultPreferences={{ sort: { id: 'arrivalDate', direction: 'desc' } }}
         toolbarLeft={
           <>
             <SearchInput

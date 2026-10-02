@@ -202,7 +202,7 @@ export function SettingsPage() {
   return (
     <PageContainer>
       <PageHeader title="Configuración" />
-      <div className="stack" style={{ maxWidth: '52rem' }}>
+      <div className="stack settings-stack" style={{ maxWidth: '52rem' }}>
         <BusinessTab />
         <CompanyTab />
         <AuthTab />

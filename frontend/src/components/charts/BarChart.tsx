@@ -19,13 +19,13 @@ const ReBarChart = lazy(() =>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
             <XAxis
               dataKey="label"
-              stroke="var(--color-muted-fg)"
+              stroke="var(--text-muted)"
               fontSize={12}
               tickLine={false}
               axisLine={false}
             />
             <YAxis
-              stroke="var(--color-muted-fg)"
+              stroke="var(--text-muted)"
               fontSize={12}
               tickLine={false}
               axisLine={false}

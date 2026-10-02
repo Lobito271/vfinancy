@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { ShieldCheck } from 'lucide-react';
 import { PageContainer, PageHeader, Section } from '@/components/layout';
-import { Form, NumberField, TextField, EmailField } from '@/components/form';
+import { Form, NumberField, MoneyField, TextField, EmailField } from '@/components/form';
 import { Button } from '@/components/button';
 import { Drawer } from '@/components/misc';
 import { SecuritySection } from '@/features/settings/components/SecuritySection';
@@ -82,13 +82,11 @@ function BusinessTab() {
               step={0.01}
               required
             />
-            <NumberField
+            <MoneyField
               name="purchaseLimitUsd"
-              label="Tope de compra USD"
+              label="Tope de compra"
+              currency="USD"
               description="Monto máximo por orden de compra antes de la advertencia."
-              min={0}
-              max={1_000_000}
-              step={1}
               required
             />
             <div>

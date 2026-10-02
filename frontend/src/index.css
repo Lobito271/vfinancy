@@ -778,6 +778,31 @@ pre {
   background-color: var(--bg-hover);
 }
 
+.input-affix__currency {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 48px;
+  width: 48px;
+  height: 38px;
+  padding: 0;
+  border-inline-end: 1px solid var(--border-light);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.input-affix__currency:hover:not(:disabled) {
+  background-color: var(--bg-hover);
+}
+
+.input-affix__currency:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .input-affix:focus-within {
   outline: 2px solid var(--color-ring);
   outline-offset: 1px;
@@ -803,6 +828,10 @@ pre {
 .input-affix > .number-field {
   flex: 1;
   width: 0;
+}
+
+.money-input__amount {
+  text-align: right;
 }
 
 .input-affix--prefix .input { padding-inline-start: 0; }

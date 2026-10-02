@@ -165,10 +165,10 @@ function SaleLines({ productOptions, priceById, productCreateOption }: SaleLines
                 min={1}
                 step={1}
               />
-              <MoneyField
-                name={`items.${index}.unitPrice` as FieldPath<SaleFormValues>}
-                label="Precio unitario"
-                currency="PEN"
+                <MoneyField
+                  name={`items.${index}.unitPrice` as FieldPath<SaleFormValues>}
+                  label="Precio unitario"
+                  currency="PEN"
               />
             </div>
             <p className="field-hint tabular">Total de línea: {formatCurrency(lineTotal)}</p>
@@ -262,7 +262,7 @@ function PaymentStep() {
             name="initialPayment"
             label="Pago inicial (opcional)"
             currency="PEN"
-            description={`Déjalo en S/ 0.00 para no registrar cobro. Máximo ${formatCurrency(total)}`}
+            description={`Déjalo en 0.00 para no registrar cobro. Máximo ${formatCurrency(total)}`}
           />
         </>
       )}

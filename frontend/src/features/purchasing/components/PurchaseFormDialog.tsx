@@ -8,6 +8,7 @@ import {
   DateField,
   TextareaField,
   SelectField,
+  MoneyField,
   NumberField,
   TextField,
   type CreateSelectOption,
@@ -184,6 +185,7 @@ function OrderDataStep({ cardOptions, customerOptions, cardsQuery, rateQuery, su
 
 function ItemsStep({ products }: { products: ProductCostOption[] }) {
   const { control, setValue } = useFormContext<PurchaseFormValues>();
+  const exchangeRate = useWatch({ control, name: 'exchangeRate' });
   const { fields, append, remove } = useFieldArray<PurchaseFormValues, 'items'>({ control, name: 'items' });
   const rows = useWatch<PurchaseFormValues, 'items'>({ control, name: 'items' });
 
@@ -230,12 +232,18 @@ function ItemsStep({ products }: { products: ProductCostOption[] }) {
             </div>
             <div className="form-grid">
               <NumberField name={`items.${index}.quantity` as Path<PurchaseFormValues>} label="Cantidad" required min={1} step={1} />
-              <NumberField name={`items.${index}.unitPrice` as Path<PurchaseFormValues>} label="Costo (USD)" required min={0} step={0.01} />
-              <NumberField
+              <MoneyField
+                name={`items.${index}.unitPrice` as Path<PurchaseFormValues>}
+                label="Costo"
+                currency="USD"
+                exchangeRate={exchangeRate}
+                required
+              />
+              <MoneyField
                 name={`items.${index}.salePricePen` as Path<PurchaseFormValues>}
-                label="Precio de venta (PEN)"
-                min={0}
-                step={0.01}
+                label="Precio de venta"
+                currency="PEN"
+                exchangeRate={exchangeRate}
               />
             </div>
           </div>

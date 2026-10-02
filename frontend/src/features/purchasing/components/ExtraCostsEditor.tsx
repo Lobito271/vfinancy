@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { Button } from '@/components/button';
 import { ConfirmDialog } from '@/components/dialog';
 import { EmptyState, ErrorState, Spinner } from '@/components/feedback';
-import { Field, Form, NumberField, SelectField, fieldDescribedBy } from '@/components/form';
+import { Field, Form, MoneyField, NumberField, fieldDescribedBy } from '@/components/form';
 import {
   Autocomplete,
   AutocompleteContent,
@@ -26,7 +26,6 @@ import {
 } from '@/features/purchasing/hooks/usePurchases';
 import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
-import { Currencies } from '@/constants/currencies';
 import type { ExtraCost, ExtraCostInput } from '@/services/purchasing';
 import type { ExtraCostConcept } from '@/services/wails-types';
 import { formatCurrency, formatNumber } from '@/utils/format';
@@ -40,11 +39,6 @@ const rowSchema = z.object({
 });
 
 type RowValues = z.infer<typeof rowSchema>;
-
-const currencyOptions = Object.values(Currencies).map((c) => ({
-  value: c.code,
-  label: `${c.code} — ${c.name}`,
-}));
 
 interface ConceptItem {
   value: string;
@@ -121,8 +115,7 @@ function RowForm({ concepts, defaultValues, currentRate, saving, onCancel, onSub
         <div className="stack stack--tight">
           <div className="form-grid">
             <ConceptField concepts={concepts} />
-            <NumberField name="amount" label="Monto" required min={0.01} step={0.01} />
-            <SelectField name="currency" label="Moneda" required options={currencyOptions} clearable={false} />
+            <MoneyField name="amount" label="Monto" currencyField="currency" required />
             <NumberField
               name="exchangeRate"
               label="Tipo de cambio (USD→PEN)"

@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { Button } from '@/components/button';
 import { ConfirmDialog } from '@/components/dialog';
 import { EmptyState, ErrorState, Spinner } from '@/components/feedback';
-import { Field, Form, NumberField, SelectField } from '@/components/form';
+import { Field, Form, NumberField, SelectField, fieldDescribedBy } from '@/components/form';
 import {
   Autocomplete,
   AutocompleteContent,
@@ -68,12 +68,14 @@ function ConceptField({ concepts }: { concepts: ExtraCostConcept[] }) {
   return (
     <Field label="Concepto" required error={error} className="form-grid__wide" htmlFor="extra-cost-concept">
       <Autocomplete items={items} value={value} onValueChange={(v) => setValue('concept', v)} openOnInputClick>
-        <AutocompleteInputGroup>
+        <AutocompleteInputGroup className={error ? 'input-affix--invalid' : undefined}>
           <AutocompleteInput
             id="extra-cost-concept"
             invalid={!!error}
             placeholder="Escriba o seleccione un concepto…"
             aria-invalid={!!error || undefined}
+            aria-required="true"
+            aria-describedby={fieldDescribedBy('extra-cost-concept', undefined, error)}
           />
           <AutocompleteTrigger />
         </AutocompleteInputGroup>

@@ -14,7 +14,9 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
       <Search className="search-box__icon" aria-hidden="true" />
       <Input
         ref={ref}
-        type="search"
+        type="text"
+        role="searchbox"
+        inputMode="search"
         value={value}
         aria-label="Buscar"
         {...props}

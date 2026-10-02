@@ -139,6 +139,7 @@ export function SecuritySection() {
                   value={current}
                   onChange={(e) => setCurrent(e.target.value)}
                   autoComplete="current-password"
+                  aria-required="true"
                 />
               </div>
             )}
@@ -153,8 +154,10 @@ export function SecuritySection() {
                 placeholder={passwordEnabled ? 'Déjalo vacío para no cambiarla' : undefined}
                 autoComplete="new-password"
                 invalid={!valid}
+                aria-invalid={!valid || undefined}
+                aria-describedby={!valid ? 'security-next-error' : undefined}
               />
-              {!valid && <p className="field-error">Usa al menos 8 caracteres.</p>}
+              {!valid && <p id="security-next-error" className="field-error" role="alert">Usa al menos 8 caracteres.</p>}
             </div>
             <div className="hstack hstack--sm" style={{ flexWrap: 'wrap' }}>
               <Button onClick={savePassword} loading={busy} disabled={!valid}>

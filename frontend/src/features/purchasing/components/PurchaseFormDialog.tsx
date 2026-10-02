@@ -172,7 +172,7 @@ function OrderDataStep({ cardOptions, customerOptions, cardsQuery, rateQuery, su
       <div className="form-grid form-grid--wide">
         <div className="stack stack--tight">
           <div className="hstack hstack--sm">
-            <label className="input-label">Tipo de cambio (USD→PEN)</label>
+            <Label htmlFor="exchangeRate" required className="input-label">Tipo de cambio (USD→PEN)</Label>
             {rateQuery.data?.isFallback && <Badge variant="warning">Modo contingencia</Badge>}
           </div>
           <NumberField name="exchangeRate" min={0.01} step={0.01} description={rateQuery.isLoading ? 'Cargando tipo de cambio…' : undefined} required />

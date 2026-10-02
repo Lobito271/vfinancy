@@ -14,10 +14,11 @@ export const SelectTrigger = React.forwardRef<
     ref={ref}
     className={cx('select-trigger', invalid && 'select-trigger--invalid', className)}
     {...props}
+    aria-invalid={invalid || undefined}
   >
     {children}
-    <SelectPrimitive.Icon className="select-trigger__icon">
-      <ChevronDown />
+    <SelectPrimitive.Icon className="select-trigger__icon" aria-hidden="true">
+      <ChevronDown aria-hidden="true" />
     </SelectPrimitive.Icon>
   </SelectPrimitive.Trigger>
 ));

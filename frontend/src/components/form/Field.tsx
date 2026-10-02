@@ -11,6 +11,11 @@ interface FieldProps {
   htmlFor?: string;
 }
 
+export function fieldDescribedBy(id: string, description?: string, error?: string) {
+  if (error) return `${id}-error`;
+  return description ? `${id}-hint` : undefined;
+}
+
 export function Field({ label, required, description, error, children, className, htmlFor }: FieldProps) {
   return (
     <div className={cx('field', className)}>
@@ -26,10 +31,10 @@ export function Field({ label, required, description, error, children, className
       )}
       {children}
       {description && !error && (
-        <p className="field-hint">{description}</p>
+        <p id={htmlFor ? `${htmlFor}-hint` : undefined} className="field-hint">{description}</p>
       )}
       {error && (
-        <p role="alert" className="field-error">
+        <p id={htmlFor ? `${htmlFor}-error` : undefined} role="alert" className="field-error">
           {error}
         </p>
       )}

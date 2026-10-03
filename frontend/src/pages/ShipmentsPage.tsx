@@ -14,7 +14,7 @@ import { useShipments, useDeleteShipment } from '@/features/shipments/hooks/useS
 import { ShipmentFormDialog } from '@/features/shipments/components/ShipmentFormDialog';
 import { SHIPMENT_STATUSES } from '@/services/shipments';
 import { useCustomers } from '@/features/customers/hooks/useCustomers';
-import { formatDate } from '@/utils/format';
+import { formatDate, truncate } from '@/utils/format';
 import { useNotificationStore } from '@/stores/notification';
 
 const STATUS_VARIANT: Record<ShipmentDTO['status'], 'secondary' | 'info' | 'success'> = {
@@ -88,7 +88,11 @@ export function ShipmentsPage() {
         id: 'customer',
         header: 'Cliente',
         sortable: true,
-        cell: (row) => <span>{nameById.get(row.customerId) ?? '—'}</span>,
+        maxChars: 30,
+        cell: (row) => {
+          const name = nameById.get(row.customerId);
+          return name ? <span title={name}>{truncate(name, 30)}</span> : '—';
+        },
       },
       {
         id: 'sale',
@@ -98,7 +102,15 @@ export function ShipmentsPage() {
       {
         id: 'description',
         header: 'Descripción',
-        cell: (row) => <span className="muted">{row.description || '—'}</span>,
+        maxChars: 40,
+        cell: (row) =>
+          row.description ? (
+            <span className="muted" title={row.description}>
+              {truncate(row.description, 40)}
+            </span>
+          ) : (
+            '—'
+          ),
       },
       {
         id: 'status',

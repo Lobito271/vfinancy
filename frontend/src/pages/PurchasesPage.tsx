@@ -36,7 +36,7 @@ import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
 import type { CreditCardDTO } from '@/services/wails-types';
 import type { Purchase } from '@/services/purchasing';
-import { formatCurrency, formatDate, formatNumber } from '@/utils/format';
+import { formatCurrency, formatDate, formatNumber, truncate } from '@/utils/format';
 import { useNotificationStore } from '@/stores/notification';
 
 const statusMap: Record<string, { variant: 'success' | 'warning' | 'info' | 'destructive' | 'muted'; label: string }> = {
@@ -52,6 +52,12 @@ const paymentMethodLabels: Record<string, string> = {
 };
 
 const CANCEL_REASONS = ['Mal estado', 'Error en el ingreso', 'Pedido duplicado', 'Cancelado por el proveedor'];
+
+// A capped cell keeps the full value reachable on hover.
+function capped(text: string, max: number) {
+  if (!text) return '—';
+  return <span title={text}>{truncate(text, max)}</span>;
+}
 
 const columns: Column<Purchase>[] = [
   {
@@ -70,19 +76,26 @@ const columns: Column<Purchase>[] = [
     id: 'supplierName',
     header: 'Proveedor',
     sortable: true,
-    cell: (row) => row.supplierName || '—',
+    maxChars: 30,
+    cell: (row) => capped(row.supplierName, 30),
   },
   {
     id: 'productsText',
     header: 'Productos',
-    cell: (row) => row.productsText || '—',
+    maxChars: 40,
+    cell: (row) => capped(row.productsText, 40),
   },
   {
-    id: 'realCostPen',
-    header: 'Costo real (PEN)',
+    id: 'cost',
+    header: 'Costo (PEN | USD)',
     sortable: true,
+    accessor: (row) => row.realCostPen,
     align: 'numeric',
-    cell: (row) => <span className="tabular">{formatCurrency(row.realCostPen)}</span>,
+    cell: (row) => (
+      <span className="tabular">
+        Costo: {formatCurrency(row.realCostPen)} | {formatCurrency(row.costUsd, 'USD')}
+      </span>
+    ),
   },
   {
     id: 'status',
@@ -98,13 +111,6 @@ const columns: Column<Purchase>[] = [
         </div>
       );
     },
-  },
-  {
-    id: 'costUsd',
-    header: 'Costo (USD)',
-    align: 'numeric',
-    sortable: true,
-    cell: (row) => <span className="fw-medium tabular">{formatCurrency(row.costUsd, 'USD')}</span>,
   },
 ];
 

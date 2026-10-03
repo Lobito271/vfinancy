@@ -26,7 +26,7 @@ import { ProductsDrawer } from '@/features/products/components/ProductsDrawer';
 import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
 import type { InventoryItem } from '@/types/domain';
-import { formatCurrency, formatDate, formatNumber } from '@/utils/format';
+import { formatCurrency, formatDate, formatNumber, truncate } from '@/utils/format';
 import { useNotificationStore } from '@/stores/notification';
 
 const columns: Column<InventoryItem>[] = [
@@ -40,13 +40,15 @@ const columns: Column<InventoryItem>[] = [
     id: 'productSku',
     header: 'SKU',
     sortable: true,
+    maxChars: 20,
     cell: (row) => <span className="fw-medium tabular">{row.productSku}</span>,
   },
   {
     id: 'productDescription',
     header: 'Producto',
     sortable: true,
-    cell: (row) => row.productDescription,
+    maxChars: 40,
+    cell: (row) => <span title={row.productDescription}>{truncate(row.productDescription, 40)}</span>,
   },
   {
     id: 'purchaseOrderNumber',

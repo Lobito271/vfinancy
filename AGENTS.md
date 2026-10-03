@@ -185,6 +185,7 @@ Primitives de layout en `src/components/layout`: `AppLayout`, `PageContainer`, `
 - **Fila de lista repetible**: en drawers/paneles de detalle usar el componente `<ListRow>` (de `@/components/misc`), nunca divs con estilos inline (`borderBottom`, `justifyContent: 'space-between'`).
 - **Detalle monetario**: bloque `doc-summary` (`.doc-summary__row/meta/amount/doc-number`) es la convención para resúmenes de dinero en drawers y dialogs de pago.
 - **Densidad**: tablas con header sticky (`thead` sticky + primera columna sticky), celdas 12px vertical, th uppercase 0.65rem.
+- **Límite de texto en columnas**: el texto libre (nombres, productos, descripciones) se acota con `Column.maxChars` (ancho de celda) + `truncate(valor, maxChars)` en el `cell`, conservando el valor completo en `title`. Los identificadores (SKU, códigos) solo llevan `maxChars`, sin truncar. Las columnas de badges y de importes no se limitan.
 - **Contenedores**: cards y secciones con borde duro 1.5px + `--shadow-flat`; separadores entre filas con `--border-light`.
 
 ### Accessibility baselines (WCAG AAA)

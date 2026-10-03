@@ -60,6 +60,14 @@ export function formatNumber(value: number, decimals = 0): string {
   }).format(value);
 }
 
+/**
+ * Cuts text to `max` characters, marking the cut with an ellipsis.
+ */
+export function truncate(text: string, max: number): string {
+  if (max <= 0 || text.length <= max) return text;
+  return `${text.slice(0, max - 1).trimEnd()}…`;
+}
+
 export function daysBetween(from: Date | string, to: Date | string): number {
   const a = toDate(from);
   const b = toDate(to);

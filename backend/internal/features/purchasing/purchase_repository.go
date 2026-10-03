@@ -42,19 +42,18 @@ func parseDecimal(s string) decimal.Decimal {
 	return d
 }
 
-// SummarizeLines renders the ordered quantities and line names of an
-// order into the "3× Mouse, 1× Teclado" summary used by the list and
-// the detail drawer.
+// SummarizeLines renders the first line of an order as the "3× Mouse"
+// summary used by the list's products column. Only the first product is
+// shown there; the full line detail lives in the order drawer.
 func SummarizeLines(lines []PurchaseLineSummary) string {
-	parts := make([]string, 0, len(lines))
-	for _, l := range lines {
-		q := parseDecimal(l.Quantity)
-		if q.Equal(q.Truncate(0)) {
-			q = q.Truncate(0)
-		}
-		parts = append(parts, q.String()+"× "+l.Name)
+	if len(lines) == 0 {
+		return ""
 	}
-	return strings.Join(parts, ", ")
+	q := parseDecimal(lines[0].Quantity)
+	if q.Equal(q.Truncate(0)) {
+		q = q.Truncate(0)
+	}
+	return q.String() + "× " + lines[0].Name
 }
 
 // AllLinesSold reports whether every unit of every line of an order has

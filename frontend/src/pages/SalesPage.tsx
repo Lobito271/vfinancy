@@ -27,8 +27,14 @@ import { queryKeys } from '@/services/queryKeys';
 import { Routes } from '@/constants/routes';
 import { PaymentMethodOptions } from '@/constants/paymentMethods';
 import type { Sale } from '@/types/domain';
-import { formatCurrency, formatDate, formatNumber } from '@/utils/format';
+import { formatCurrency, formatDate, formatNumber, truncate } from '@/utils/format';
 import { useNotificationStore } from '@/stores/notification';
+
+// A capped cell keeps the full value reachable on hover.
+function capped(text: string, max: number) {
+  if (!text) return '—';
+  return <span title={text}>{truncate(text, max)}</span>;
+}
 
 const columns: Column<Sale>[] = [
   {
@@ -43,7 +49,13 @@ const columns: Column<Sale>[] = [
     sortable: true,
     cell: (row) => <span className="fw-medium tabular">{row.number}</span>,
   },
-  { id: 'customerName', header: 'Cliente', sortable: true, cell: (row) => row.customerName || '—' },
+  {
+    id: 'customerName',
+    header: 'Cliente',
+    sortable: true,
+    maxChars: 30,
+    cell: (row) => capped(row.customerName, 30),
+  },
   {
     id: 'status',
     header: 'Estado',

@@ -9,6 +9,11 @@ export interface Column<T> {
   align?: 'left' | 'right' | 'center' | 'numeric';
   width?: number | string;
   minWidth?: number;
+  /**
+   * Caps the cell width in characters. Pair with truncate() on the cell
+   * renderer to cut the text itself at the same length.
+   */
+  maxChars?: number;
   sticky?: boolean | 'left' | 'right';
   className?: string;
   headerClassName?: string;

@@ -452,7 +452,10 @@ function DataTableBody<T>({
               return (
                 <td
                   key={col.id}
-                  style={sticky ? { position: 'sticky', left: 0, zIndex: 1 } : undefined}
+                  style={{
+                    ...(sticky ? { position: 'sticky', left: 0, zIndex: 1 } : {}),
+                    ...(col.maxChars ? { maxWidth: `${col.maxChars}ch` } : {}),
+                  }}
                   className={cx(
                     getCellAlign(col.align),
                     sticky && 'sticky-cell',

@@ -26,7 +26,7 @@ import { ProductsDrawer } from '@/features/products/components/ProductsDrawer';
 import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
 import type { InventoryItem } from '@/types/domain';
-import { formatCurrency, formatDate, formatNumber } from '@/utils/format';
+import { formatCurrency, formatDate, formatNumber, truncate } from '@/utils/format';
 import { useNotificationStore } from '@/stores/notification';
 
 const columns: Column<InventoryItem>[] = [
@@ -40,13 +40,26 @@ const columns: Column<InventoryItem>[] = [
     id: 'productSku',
     header: 'SKU',
     sortable: true,
+    maxChars: 20,
     cell: (row) => <span className="fw-medium tabular">{row.productSku}</span>,
   },
   {
     id: 'productDescription',
     header: 'Producto',
     sortable: true,
-    cell: (row) => row.productDescription,
+    maxChars: 40,
+    cell: (row) => <span title={row.productDescription}>{truncate(row.productDescription, 40)}</span>,
+  },
+  {
+    id: 'purchaseNumber',
+    header: 'Compra',
+    sortable: true,
+    cell: (row) =>
+      row.purchaseNumber ? (
+        <span className="tabular muted">{row.purchaseNumber}</span>
+      ) : (
+        '—'
+      ),
   },
   {
     id: 'quantity',
@@ -80,7 +93,11 @@ const columns: Column<InventoryItem>[] = [
     header: 'Días restantes',
     align: 'numeric',
     sortable: true,
-    cell: (row) => <span className="tabular">{row.daysRemaining}</span>,
+    cell: (row) => (
+      <span className={row.daysRemaining <= 0 ? 'tabular text-destructive' : 'tabular'}>
+        {row.daysRemaining}
+      </span>
+    ),
   },
   {
     id: 'status',

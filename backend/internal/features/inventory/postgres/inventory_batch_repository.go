@@ -29,19 +29,31 @@ func NewInventoryBatchRepository(db *sql.DB) *inventoryBatchRepository {
 }
 
 const batchColumns = `
-	id, product_id, purchase_order_item_id, arrival_date, quantity,
+	id, product_id, purchase_item_id, arrival_date, quantity,
 	original_quantity, unit_cost, exchange_rate, status, is_clearance,
 	created_at, updated_at
 `
 
+// batchListSelect adds the originating purchase. Outer joins
+// cannot take a row lock, so only List uses it.
+const batchListSelect = `
+	SELECT b.id, b.product_id, b.purchase_item_id, b.arrival_date, b.quantity,
+	b.original_quantity, b.unit_cost, b.exchange_rate, b.status, b.is_clearance,
+	b.created_at, b.updated_at,
+	po.id, COALESCE(po.number, '')
+	FROM inventory_batches b
+	LEFT JOIN purchase_items poi ON poi.id = b.purchase_item_id
+	LEFT JOIN purchases po ON po.id = poi.purchase_id
+`
+
 func (r *inventoryBatchRepository) Create(ctx context.Context, b *inventory.InventoryBatch) error {
 	const q = `INSERT INTO inventory_batches (
-		id, product_id, purchase_order_item_id, arrival_date, quantity,
+		id, product_id, purchase_item_id, arrival_date, quantity,
 		original_quantity, unit_cost, exchange_rate, status, is_clearance,
 		created_at, updated_at
 	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`
 	_, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
-		b.ID, b.ProductID, persistence.NullIfEmptyUUID(b.PurchaseOrderItemID),
+		b.ID, b.ProductID, persistence.NullIfEmptyUUID(b.PurchaseItemID),
 		b.ArrivalDate, b.Quantity.String(), b.OriginalQuantity.String(),
 		b.UnitCost.String(), b.ExchangeRate.String(), b.Status.String(),
 		b.IsClearanceOn(inventory.ClearanceDays, time.Now().UTC()),
@@ -91,8 +103,8 @@ func (r *inventoryBatchRepository) GetByIDForUpdate(ctx context.Context, id uuid
 	return scanBatch(row)
 }
 
-func (r *inventoryBatchRepository) ExistsByPurchaseLineID(ctx context.Context, purchaseLineID uuid.UUID) (bool, error) {
-	const q = `SELECT EXISTS (SELECT 1 FROM inventory_batches WHERE purchase_order_item_id = $1)`
+func (r *inventoryBatchRepository) ExistsByPurchaseItemID(ctx context.Context, purchaseLineID uuid.UUID) (bool, error) {
+	const q = `SELECT EXISTS (SELECT 1 FROM inventory_batches WHERE purchase_item_id = $1)`
 	var exists bool
 	if err := persistence.Q(ctx, r.q).QueryRowContext(ctx, q, purchaseLineID).Scan(&exists); err != nil {
 		return false, persistence.Translate(err)
@@ -106,12 +118,12 @@ func (r *inventoryBatchRepository) List(ctx context.Context, filter inventory.In
 		args    []any
 	)
 	if filter.ProductID != nil {
-		clauses = append(clauses, fmt.Sprintf("product_id = $%d", len(args)+1))
+		clauses = append(clauses, fmt.Sprintf("b.product_id = $%d", len(args)+1))
 		args = append(args, *filter.ProductID)
 	}
-	if filter.PurchaseLineID != nil {
-		clauses = append(clauses, fmt.Sprintf("purchase_order_item_id = $%d", len(args)+1))
-		args = append(args, *filter.PurchaseLineID)
+	if filter.PurchaseItemID != nil {
+		clauses = append(clauses, fmt.Sprintf("b.purchase_item_id = $%d", len(args)+1))
+		args = append(args, *filter.PurchaseItemID)
 	}
 	if len(filter.Statuses) > 0 {
 		placeholders := make([]string, 0, len(filter.Statuses))
@@ -119,19 +131,19 @@ func (r *inventoryBatchRepository) List(ctx context.Context, filter inventory.In
 			placeholders = append(placeholders, fmt.Sprintf("$%d", len(args)+1))
 			args = append(args, s)
 		}
-		clauses = append(clauses, "status IN ("+strings.Join(placeholders, ", ")+")")
+		clauses = append(clauses, "b.status IN ("+strings.Join(placeholders, ", ")+")")
 	} else {
 		if filter.OnlyActive {
-			clauses = append(clauses, "status = 'active'")
+			clauses = append(clauses, "b.status = 'active'")
 		}
 		if filter.OnlyClearance {
-			clauses = append(clauses, "is_clearance = TRUE")
+			clauses = append(clauses, "b.is_clearance = TRUE")
 		}
 	}
 	if search := strings.TrimSpace(filter.Search); search != "" {
 		pattern := "%" + strings.ToLower(search) + "%"
 		clauses = append(clauses, fmt.Sprintf(
-			`EXISTS (SELECT 1 FROM products p WHERE p.id = inventory_batches.product_id
+			`EXISTS (SELECT 1 FROM products p WHERE p.id = b.product_id
 				AND (LOWER(p.sku) LIKE $%d OR LOWER(p.description) LIKE $%d))`,
 			len(args)+1, len(args)+2))
 		args = append(args, pattern, pattern)
@@ -140,7 +152,8 @@ func (r *inventoryBatchRepository) List(ctx context.Context, filter inventory.In
 	limit, offset := persistence.LimitOffset(filter.PageRequest, 25, 200)
 
 	var total int
-	if err := persistence.Q(ctx, r.q).QueryRowContext(ctx, "SELECT count(*) FROM inventory_batches WHERE "+where, args...).Scan(&total); err != nil {
+	if err := persistence.Q(ctx, r.q).QueryRowContext(ctx,
+		"SELECT count(*) FROM inventory_batches b WHERE "+where, args...).Scan(&total); err != nil {
 		return repositories.Page[*inventory.InventoryBatch]{}, persistence.Translate(err)
 	}
 
@@ -148,8 +161,8 @@ func (r *inventoryBatchRepository) List(ctx context.Context, filter inventory.In
 	offsetPos := len(args) + 2
 	args = append(args, limit, offset)
 	rows, err := persistence.Q(ctx, r.q).QueryContext(ctx,
-		fmt.Sprintf("SELECT %s FROM inventory_batches WHERE %s ORDER BY arrival_date DESC LIMIT $%d OFFSET $%d",
-			batchColumns, where, limitPos, offsetPos),
+		batchListSelect+fmt.Sprintf(" WHERE %s ORDER BY b.arrival_date DESC LIMIT $%d OFFSET $%d",
+			where, limitPos, offsetPos),
 		args...)
 	if err != nil {
 		return repositories.Page[*inventory.InventoryBatch]{}, persistence.Translate(err)
@@ -191,11 +204,26 @@ func scanBatch(row *sql.Row) (*inventory.InventoryBatch, error) {
 	return scanBatchInto(row.Scan)
 }
 
+// scanBatchFromRows decodes a row selected with batchListSelect, which
+// appends the originating purchase.
 func scanBatchFromRows(rows *sql.Rows) (*inventory.InventoryBatch, error) {
-	return scanBatchInto(rows.Scan)
+	var (
+		sourceOrderID     sql.NullString
+		sourceOrderNumber sql.NullString
+	)
+	b, err := scanBatchInto(rows.Scan, &sourceOrderID, &sourceOrderNumber)
+	if err != nil {
+		return nil, err
+	}
+	if sourceOrderID.Valid {
+		id := persistence.ParseUUID(sourceOrderID.String)
+		b.SourcePurchaseID = &id
+	}
+	b.SourcePurchaseNumber = sourceOrderNumber.String
+	return b, nil
 }
 
-func scanBatchInto(scan func(dest ...any) error) (*inventory.InventoryBatch, error) {
+func scanBatchInto(scan func(dest ...any) error, origin ...any) (*inventory.InventoryBatch, error) {
 	b := &inventory.InventoryBatch{}
 	var (
 		purchaseLineID                       sql.NullString
@@ -203,16 +231,17 @@ func scanBatchInto(scan func(dest ...any) error) (*inventory.InventoryBatch, err
 		exchangeRate, status                 string
 		isClearance                          bool
 	)
-	if err := scan(
+	dest := []any{
 		&b.ID, &b.ProductID, &purchaseLineID, &b.ArrivalDate,
 		&quantity, &originalQuantity, &unitCost, &exchangeRate,
 		&status, &isClearance, &b.CreatedAt, &b.UpdatedAt,
-	); err != nil {
+	}
+	if err := scan(append(dest, origin...)...); err != nil {
 		return nil, persistence.Translate(err)
 	}
 	if purchaseLineID.Valid {
 		id := persistence.ParseUUID(purchaseLineID.String)
-		b.PurchaseOrderItemID = &id
+		b.PurchaseItemID = &id
 	}
 	q, err := valueobjects.QuantityFromString(quantity)
 	if err != nil {

@@ -22,28 +22,34 @@ const ClearanceDays = 25
 // the same date (typically from one purchase line). Each batch tracks
 // its own quantity and its clearance deadline.
 type InventoryBatch struct {
-	ID                  uuid.UUID
-	ProductID           uuid.UUID
-	PurchaseOrderItemID *uuid.UUID
-	ArrivalDate         valueobjects.Date
-	Quantity            valueobjects.Quantity
-	OriginalQuantity    valueobjects.Quantity
-	UnitCost            valueobjects.Money
-	ExchangeRate        valueobjects.ExchangeRate
-	Status              enums.BatchStatus
-	IsClearance         bool
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	ID               uuid.UUID
+	ProductID        uuid.UUID
+	PurchaseItemID   *uuid.UUID
+	ArrivalDate      valueobjects.Date
+	Quantity         valueobjects.Quantity
+	OriginalQuantity valueobjects.Quantity
+	UnitCost         valueobjects.Money
+	ExchangeRate     valueobjects.ExchangeRate
+	Status           enums.BatchStatus
+	IsClearance      bool
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+
+	// SourcePurchaseID and SourcePurchaseNumber are read-only
+	// views of the purchase the lot came from, filled by the repository
+	// for the kardex list and the lot picker.
+	SourcePurchaseID     *uuid.UUID
+	SourcePurchaseNumber string
 }
 
 // NewInventoryBatchOptions is the input to NewInventoryBatch.
 type NewInventoryBatchOptions struct {
-	ProductID           uuid.UUID
-	PurchaseOrderItemID *uuid.UUID
-	ArrivalDate         valueobjects.Date
-	InitialQuantity     valueobjects.Quantity
-	UnitCost            valueobjects.Money
-	ExchangeRate        valueobjects.ExchangeRate
+	ProductID       uuid.UUID
+	PurchaseItemID  *uuid.UUID
+	ArrivalDate     valueobjects.Date
+	InitialQuantity valueobjects.Quantity
+	UnitCost        valueobjects.Money
+	ExchangeRate    valueobjects.ExchangeRate
 }
 
 // NewInventoryBatch validates and constructs a new batch. The batch
@@ -70,17 +76,17 @@ func NewInventoryBatch(now time.Time, opts NewInventoryBatchOptions) (*Inventory
 		return nil, derrors.Wrap(derrors.ErrOutOfRange, errField("exchange rate must be positive"))
 	}
 	return &InventoryBatch{
-		ID:                  uuid.New(),
-		ProductID:           opts.ProductID,
-		PurchaseOrderItemID: opts.PurchaseOrderItemID,
-		ArrivalDate:         opts.ArrivalDate,
-		Quantity:            opts.InitialQuantity,
-		OriginalQuantity:    opts.InitialQuantity,
-		UnitCost:            opts.UnitCost,
-		ExchangeRate:        opts.ExchangeRate,
-		Status:              enums.BatchStatusActive,
-		CreatedAt:           now,
-		UpdatedAt:           now,
+		ID:               uuid.New(),
+		ProductID:        opts.ProductID,
+		PurchaseItemID:   opts.PurchaseItemID,
+		ArrivalDate:      opts.ArrivalDate,
+		Quantity:         opts.InitialQuantity,
+		OriginalQuantity: opts.InitialQuantity,
+		UnitCost:         opts.UnitCost,
+		ExchangeRate:     opts.ExchangeRate,
+		Status:           enums.BatchStatusActive,
+		CreatedAt:        now,
+		UpdatedAt:        now,
 	}, nil
 }
 

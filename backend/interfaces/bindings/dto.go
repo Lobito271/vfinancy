@@ -139,15 +139,16 @@ func quantityFloat(q valueobjects.Quantity) float64 {
 // deadline for the kardex table.
 func batchDTO(a *App, b *inventory.InventoryBatch) (InventoryBatchDTO, error) {
 	dto := InventoryBatchDTO{
-		ID:                  b.ID.String(),
-		ProductID:           b.ProductID.String(),
-		PurchaseOrderItemID: uuidPtrString(b.PurchaseOrderItemID),
-		ArrivalDate:         b.ArrivalDate.Format("2006-01-02"),
-		Quantity:            quantityFloat(b.Quantity),
-		OriginalQuantity:    quantityFloat(b.OriginalQuantity),
-		UnitCost:            moneyFloat(b.UnitCost),
-		Status:              string(b.Status),
-		IsClearance:         b.IsClearance,
+		ID:               b.ID.String(),
+		ProductID:        b.ProductID.String(),
+		PurchaseItemID:   uuidPtrString(b.PurchaseItemID),
+		ArrivalDate:      b.ArrivalDate.Format("2006-01-02"),
+		Quantity:         quantityFloat(b.Quantity),
+		OriginalQuantity: quantityFloat(b.OriginalQuantity),
+		UnitCost:         moneyFloat(b.UnitCost),
+		Status:           string(b.Status),
+		IsClearance:      b.IsClearance,
+		PurchaseNumber:   b.SourcePurchaseNumber,
 	}
 	if p, err := a.productsSvc.GetByID(a.Context(), b.ProductID); err == nil {
 		dto.ProductDescription = p.Description

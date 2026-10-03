@@ -185,6 +185,7 @@ Primitives de layout en `src/components/layout`: `AppLayout`, `PageContainer`, `
 - **Fila de lista repetible**: en drawers/paneles de detalle usar el componente `<ListRow>` (de `@/components/misc`), nunca divs con estilos inline (`borderBottom`, `justifyContent: 'space-between'`).
 - **Detalle monetario**: bloque `doc-summary` (`.doc-summary__row/meta/amount/doc-number`) es la convención para resúmenes de dinero en drawers y dialogs de pago.
 - **Densidad**: tablas con header sticky (`thead` sticky + primera columna sticky), celdas 12px vertical, th uppercase 0.65rem.
+- **Límite de texto en columnas**: el texto libre (nombres, productos, descripciones) se acota con `Column.maxChars` (ancho de celda) + `truncate(valor, maxChars)` en el `cell`, conservando el valor completo en `title`. Los identificadores (SKU, códigos) solo llevan `maxChars`, sin truncar. Las columnas de badges y de importes no se limitan.
 - **Contenedores**: cards y secciones con borde duro 1.5px + `--shadow-flat`; separadores entre filas con `--border-light`.
 
 ### Accessibility baselines (WCAG AAA)
@@ -240,6 +241,13 @@ Cada carpeta tiene su `index.ts` barrel — importar de `@/components/<categorí
 - **Audit columns** on every important entity: `id`, `created_at`, `updated_at`, `deleted_at` (soft delete). This is a single-account local app, so actor columns (`created_by`/`updated_by`) were deliberately removed. Feature entities carry these fields directly (e.g. `customer.Customer`).
 - **3NF**, FK constraints, optimized indexes.
 
+## Cost & profit rules (non-negotiable)
+
+- **Cost identity.** `purchases.total_cost_usd = purchases.cost_usd + purchases.extra_cost_usd`, maintained by `Purchase.RecomputeTotals`. Every extra-cost mutation calls `PurchasingService.refreshTotals`, which also rewrites `real_cost_pen`. Never let the three drift apart.
+- **Currency.** Base and extra costs are USD (the supplier currency). `real_cost_pen` is `(total_cost_usd + import_factor) * exchange_rate`. An extra cost already in USD is taken as-is; any other currency is divided by its own rate snapshot.
+- **Landing.** `PurchasingService.lineLandedUnitCostPen` distributes `real_cost_pen` across the purchase lines in proportion to their share of the base cost, and that per-unit value is what the inventory lot carries — so sale `cost_snapshot`, `cost_total` and `profit` all include the extra costs.
+- **Monthly profit.** `Utilidad = Precio de venta − (Costo base + Costos extras)`. Purchase costs are attributed to the month of `purchases.order_date` (not arrival) and converted to PEN at each purchase's own `exchange_rate`; revenue is the non-cancelled `sales.total` of the same calendar month. `bindings.ListMonthlyProfit` is the only source for the dashboard figures.
+
 ## Transactional Rules (non-negotiable)
 
 - Every **sale** (and any operation that mutates inventory or receivables) **must** run inside a DB transaction. Use `repositories.TransactionManager.WithinTransaction(ctx, fn)` (backed by `database.DB.WithTx`) — it begins/commits/rolls back, joins an already-active transaction in `ctx` (so composed service calls share one DB transaction), and ignores `sql.ErrTxDone` on already-rolled-back txns.
@@ -258,7 +266,7 @@ Cada carpeta tiene su `index.ts` barrel — importar de `@/components/<categorí
 
 - Files live in `backend/migrations/` under two dialect directories: `sqlite/` (the local runtime DB) and `postgres/` (the cloud mirror). Both contain the same versions in the same creation order; keep them in sync.
 - Only `.up.sql` exists today: this is a pre-release app with no production data, so rollback scripts were intentionally dropped and the runner exposes no rollback command (the `cli` has only `migrate` and `status`).
-- Filename must be `VERSION_name.up.sql` (single underscore between version and name; name may contain underscores but no dots). The initial schema is written in FK-safe creation order (FK-safe order: local_profiles/settings → customers/products/cards → orders → inventory → sales). FKs must never reference a table created later in the file: PostgreSQL rejects forward references at CREATE time, while SQLite silently tolerates them.
+- Filename must be `VERSION_name.up.sql` (single underscore between version and name; name may contain underscores but no dots). The initial schema is written in FK-safe creation order (FK-safe order: local_profiles/settings → customers/products/cards/suppliers → sales → purchases(+items, extra_costs) → inventory → sale_items → payments → shipments). `purchases.sale_id` references `sales`, which is why the `sales` table is created before `purchases`. FKs must never reference a table created later in the file: PostgreSQL rejects forward references at CREATE time, while SQLite silently tolerates them.
 - Each file is a version. Runner records applied versions in `schema_migrations(version, name, applied_at)`.
 - Apply with `go run ./backend/cmd/cli migrate` (default: local SQLite; add `--postgres` for the cloud). Status with `go run ./backend/cmd/cli status`.
 - The Wails app also auto-runs pending migrations on `OnStartup`.
@@ -270,7 +278,7 @@ Cada carpeta tiene su `index.ts` barrel — importar de `@/components/<categorí
 - **Config:** opt-in. Runtime fields (host/port/database/user/password/sslmode/interval + toggle) live in `%UserConfigDir%/vfinancy/settings.json` (edited in-app, bound via `GetSyncConfig/SaveSyncConfig/TestSyncConnection`); `SYNC_DB_HOST/PORT/NAME/USER/PASSWORD`, `SYNC_SSLMODE`, `SYNC_ENABLED`, `SYNC_POLL_INTERVAL_SEC` are env fallbacks. The mirror schema (`backend/migrations/postgres`) is ensured automatically on first connect.
 - **Model:** watermark-diff replication with last-writer-wins. Cursors are per table per direction (`<table>:push` / `<table>:pull` rows in `sync_cursors`). Hard deletes are captured locally by `AFTER DELETE` triggers in `migrations/sqlite/0000` into `sync_tombstones` and pushed to the mirror; tombstones are forgotten after being pushed. Remote rows are applied only when not older than the local copy (LWW, divergence recorded in `sync_conflicts`); SQLite always wins ties.
 - The engine lives in `internal/features/sync` (`registry.go` — 15 replicated tables, `LocalStore`/`RemoteStore` interfaces, LWW) and `internal/features/sync/postgres` (`NewLocal(*sql.DB)`, `NewRemote(dsn, log)`).
-- Replicated set: every business table (`application_settings`, `exchange_rates`, `customers`, `products`, `credit_cards`, `purchase_orders(+items)`, `inventory_batches/movements`, `sales(+items)`, `customer_payments(+allocations)`, `import_lots(+members)`). Device-local only: `local_profiles`, the settings file, and the sync bookkeeping tables.
+- Replicated set: every business table (`application_settings`, `exchange_rates`, `customers`, `products`, `credit_cards`, `purchases(+items, extra_costs)`, `inventory_batches/movements`, `sales(+items)`, `customer_payments(+allocations)`, `shipments`). Device-local only: `local_profiles`, the settings file, and the sync bookkeeping tables.
 
 ## Wails / Build Gotchas
 
@@ -291,7 +299,6 @@ Inventory aging rule: `max_sale_date = arrival_date + 25 days`. Items past that 
 - Feature-based vertical slices: **service + repository** per module. No use-case / workflow / application-service layer — the feature service is the only orchestrator.
 - Business logic independent from UI.
 - Small focused functions; document exported funcs; semantic versioning.
-- Unit tests per module; integration tests for critical business processes (sales, payments, inventory movements).
 - **No comments in code unless explicitly asked.**
 
 ## Comment Rules (Go)

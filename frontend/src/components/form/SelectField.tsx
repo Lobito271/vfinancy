@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useFormContext, Controller, type FieldPath, type FieldValues } from 'react-hook-form';
-import { Field } from './Field';
+import { X } from 'lucide-react';
+import { cx } from '@/utils/cx';
+import { Field, fieldDescribedBy } from './Field';
 import {
   Select,
   SelectContent,
@@ -55,13 +57,14 @@ export function SelectField<T extends FieldValues>({
 }: SelectFieldProps<T>) {
   const { control, formState } = useFormContext<T>();
   const error = formState.errors[name]?.message as string | undefined;
+  const id = String(name);
   return (
-    <Field label={label} required={required} description={description} error={error} className={className}>
+    <Field label={label} required={required} description={description} error={error} className={className} htmlFor={id}>
       <Controller
         control={control}
         name={name}
         render={({ field }) => (
-          <div className="select-wrap">
+          <div className={cx('select-wrap', loading && 'select-wrap--loading', clearable && field.value && !disabled && !loading && 'select-wrap--clearable')}>
             <Select
               items={[
                 ...(createOption ? [{ value: CREATE_VALUE, label: createOption.label }] : []),
@@ -79,7 +82,12 @@ export function SelectField<T extends FieldValues>({
               }}
               disabled={disabled || loading}
             >
-              <SelectTrigger invalid={!!error}>
+              <SelectTrigger
+                id={id}
+                invalid={!!error}
+                aria-required={required || undefined}
+                aria-describedby={fieldDescribedBy(id, description, error)}
+              >
                 <SelectValue placeholder={loading ? 'Cargando…' : placeholder} />
               </SelectTrigger>
               <SelectContent>
@@ -101,7 +109,7 @@ export function SelectField<T extends FieldValues>({
             {loading && (
               <Spinner size="sm" className="select-spinner" />
             )}
-            {clearable && field.value && !disabled && (
+            {clearable && field.value && !disabled && !loading && (
               <button
                 type="button"
                 onClick={() => {
@@ -111,7 +119,7 @@ export function SelectField<T extends FieldValues>({
                 className="select-clear"
                 aria-label="Limpiar selección"
               >
-                ×
+                <X aria-hidden="true" />
               </button>
             )}
           </div>

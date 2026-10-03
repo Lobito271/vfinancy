@@ -1,4 +1,9 @@
-import type { InventoryBatchDTO, InventoryMovementDTO, ReceiveStockRequest } from '../wails-types';
+import type {
+  InventoryBatchDTO,
+  InventoryMovementDTO,
+  LotOptionDTO,
+  ReceiveStockRequest,
+} from '../wails-types';
 import { wailsClient } from '../bindings';
 import { fetchAllPages } from '../paginate';
 import { productsService } from '../products';
@@ -21,6 +26,7 @@ function toItem(dto: InventoryBatchDTO, skuById: Map<string, string>): Inventory
     daysRemaining: dto.maxSaleDate ? daysBetween(today, dto.maxSaleDate) : 0,
     isClearance: dto.isClearance,
     status: dto.status,
+    purchaseNumber: dto.purchaseNumber,
   };
 }
 
@@ -40,6 +46,10 @@ export const inventoryService = {
       skuIndex(),
     ]);
     return (items as InventoryBatchDTO[]).map((dto) => toItem(dto, skus));
+  },
+
+  async lots(productId: string): Promise<LotOptionDTO[]> {
+    return wailsClient.listProductLots(productId);
   },
 
   async movements(productId?: string): Promise<InventoryMovementDTO[]> {

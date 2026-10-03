@@ -55,7 +55,7 @@
 
 ### [Recepción de Mercadería y Alertas de Remate]
 
-* **Descripción:** Controla el ingreso de productos al inventario al marcar una orden de compra como "Recibida", enrutando e incrementando automáticamente el stock en el almacén principal. Monitorea la antigüedad de los productos a partir de su fecha de ingreso y genera etiquetas visuales e indicadores de liquidación cuando se alcanza o supera el umbral de permanencia.
+* **Descripción:** Controla el ingreso de productos al inventario al marcar una compra como "Recibida", enrutando e incrementando automáticamente el stock en el almacén principal. Monitorea la antigüedad de los productos a partir de su fecha de ingreso y genera etiquetas visuales e indicadores de liquidación cuando se alcanza o supera el umbral de permanencia.
 
 * **Opciones y Flujos Personalizables:**
   * Realización de ajustes directos de stock manuales en casos excepcionales (cantidad entera > 0).

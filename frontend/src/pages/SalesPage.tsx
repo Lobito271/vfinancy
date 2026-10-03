@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ShoppingCart, CreditCard, Ban, Plus, ReceiptText, Eye, Users } from 'lucide-react';
+import { ShoppingCart, CreditCard, Ban, Plus, ReceiptText, Eye, Users, ArrowUpRight, Package } from 'lucide-react';
 import { PageContainer, PageHeader, StatBand } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
@@ -20,12 +21,21 @@ import {
 } from '@/components/select';
 import { useSales, useCancelSale, useCollectSalePayment } from '@/features/sales/hooks/useSales';
 import { SaleFormDialog } from '@/features/sales/components/SaleFormDialog';
+import { ShipmentFormDialog } from '@/features/shipments/components/ShipmentFormDialog';
 import { CustomersDrawer } from '@/features/customers/components/CustomersDrawer';
 import { wailsClient } from '@/services/bindings';
+import { queryKeys } from '@/services/queryKeys';
+import { Routes } from '@/constants/routes';
 import { PaymentMethodOptions } from '@/constants/paymentMethods';
 import type { Sale } from '@/types/domain';
-import { formatCurrency, formatDate, formatNumber } from '@/utils/format';
+import { formatCurrency, formatDate, formatNumber, truncate } from '@/utils/format';
 import { useNotificationStore } from '@/stores/notification';
+
+// A capped cell keeps the full value reachable on hover.
+function capped(text: string, max: number) {
+  if (!text) return '—';
+  return <span title={text}>{truncate(text, max)}</span>;
+}
 
 const columns: Column<Sale>[] = [
   {
@@ -40,7 +50,13 @@ const columns: Column<Sale>[] = [
     sortable: true,
     cell: (row) => <span className="fw-medium tabular">{row.number}</span>,
   },
-  { id: 'customerName', header: 'Cliente', sortable: true, cell: (row) => row.customerName || '—' },
+  {
+    id: 'customerName',
+    header: 'Cliente',
+    sortable: true,
+    maxChars: 30,
+    cell: (row) => capped(row.customerName, 30),
+  },
   {
     id: 'status',
     header: 'Estado',
@@ -82,9 +98,18 @@ export function SalesPage() {
   const [collectTarget, setCollectTarget] = useState<Sale | null>(null);
   const [historyTarget, setHistoryTarget] = useState<Sale | null>(null);
   const [detailTarget, setDetailTarget] = useState<Sale | null>(null);
+  const [shipmentTarget, setShipmentTarget] = useState<Sale | null>(null);
+
+  const shipmentDefaults = useMemo(() => ({ saleId: shipmentTarget?.id }), [shipmentTarget]);
+
+  const navigate = useNavigate();
+  const goToPurchase = (purchaseId: string) => {
+    setDetailTarget(null);
+    navigate(`${Routes.Purchases}?purchase=${purchaseId}`);
+  };
 
   const detailQuery = useQuery({
-    queryKey: ['sale-detail', detailTarget?.id],
+    queryKey: queryKeys.sales.detail(detailTarget?.id ?? ''),
     queryFn: () => wailsClient.getSale(detailTarget!.id),
     enabled: Boolean(detailTarget),
   });
@@ -116,6 +141,12 @@ export function SalesPage() {
 
   const openCreate = () => setFormOpen(true);
 
+  // Every line of a sale comes from the same import order, so the first
+  // one carries the link to it.
+  const originPurchaseId = detailQuery.data?.items.find((it) => it.purchaseId)?.purchaseId ?? '';
+  const originPurchaseNumber =
+    detailQuery.data?.items.find((it) => it.purchaseId)?.purchaseNumber ?? '';
+
   const buildActions = (row: Sale): RowAction[] => {
     const collectable = row.status === 'pending' || row.status === 'partial';
     const cancellable = row.status !== 'cancelled';
@@ -123,6 +154,9 @@ export function SalesPage() {
       { label: 'Ver detalle', icon: Eye, onSelect: () => setDetailTarget(row) },
       { label: 'Cobros', icon: ReceiptText, onSelect: () => setHistoryTarget(row) },
     ];
+    if (row.status !== 'cancelled') {
+      actions.push({ label: 'Envío', icon: Package, onSelect: () => setShipmentTarget(row) });
+    }
     if (collectable) {
       actions.push({ label: 'Cobrar', icon: CreditCard, onSelect: () => setCollectTarget(row) });
     }
@@ -226,6 +260,14 @@ export function SalesPage() {
       />
 
       <SaleFormDialog open={formOpen} onOpenChange={setFormOpen} />
+
+      <ShipmentFormDialog
+        open={!!shipmentTarget}
+        onOpenChange={(open) => {
+          if (!open) setShipmentTarget(null);
+        }}
+        defaults={shipmentDefaults}
+      />
       <CustomersDrawer open={customersOpen} onOpenChange={setCustomersOpen} />
 
       <RegisterPaymentDialog
@@ -432,6 +474,21 @@ export function SalesPage() {
                   <div className="doc-summary__meta">Utilidad</div>
                   <div className="doc-summary__amount">{formatCurrency(detailQuery.data.profit)}</div>
                 </div>
+                {originPurchaseId && (
+                  <div className="doc-summary__row">
+                    <div className="doc-summary__meta">Compra de origen</div>
+                    <div className="doc-summary__amount">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => goToPurchase(originPurchaseId)}
+                      >
+                        {originPurchaseNumber || 'Ver compra'}
+                        <ArrowUpRight />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
               {detailQuery.data.notes && <p className="muted">{detailQuery.data.notes}</p>}
               {detailQuery.data.cancelledReason && (
@@ -445,6 +502,16 @@ export function SalesPage() {
                     meta={
                       <>
                         {formatNumber(it.quantity)} × {formatCurrency(it.unitPrice)}
+                        {' · '}
+                        {it.lotArrivalDate ? `Lote ${formatDate(it.lotArrivalDate)}` : 'FIFO'}
+                        {' · '}
+                        {it.purchaseId ? (
+                          <button type="button" className="doc-link" onClick={() => goToPurchase(it.purchaseId)}>
+                            {it.purchaseNumber || 'Origen'}
+                          </button>
+                        ) : (
+                          'Sin origen'
+                        )}
                       </>
                     }
                     trailing={<span className="tabular">{formatCurrency(it.lineTotal)}</span>}

@@ -2,7 +2,7 @@ import { DashboardGrid, type DashboardGridItem } from '@/features/dashboard/Dash
 import {
   CollectedMonthWidget,
   NetProfitWidget,
-  MonthlyNetProfitChart,
+  MonthlyProfitWidget,
   MonthStatusBadgesWidget,
   ClearanceWidget,
 } from '@/features/dashboard/widgets';
@@ -12,7 +12,7 @@ const defaultLayout: DashboardGridItem[] = [
   { id: 'monthCollected', size: 'sm', content: <CollectedMonthWidget /> },
   { id: 'monthProfit', size: 'sm', content: <NetProfitWidget /> },
   { id: 'monthStatus', size: 'sm', content: <MonthStatusBadgesWidget /> },
-  { id: 'profitChart', size: 'full', content: <MonthlyNetProfitChart /> },
+  { id: 'monthlyProfit', size: 'full', content: <MonthlyProfitWidget /> },
   { id: 'clearance', size: 'full', content: <ClearanceWidget /> },
 ];
 

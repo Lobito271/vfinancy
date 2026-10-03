@@ -70,7 +70,7 @@ func (s *ProductService) Create(ctx context.Context, in CreateInput) (*Product, 
 
 // GetOrCreate returns the non-deleted product whose description
 // matches exactly, updating its cost when it changed; otherwise it
-// creates a new product. Used when a purchase order registers a new
+// creates a new product. Used when a purchase registers a new
 // product by name.
 func (s *ProductService) GetOrCreate(ctx context.Context, in CreateInput) (*Product, error) {
 	name := strings.TrimSpace(in.Description)

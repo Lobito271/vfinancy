@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { z } from 'zod';
 import { DialogBody, Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/dialog';
-import { Form, TextField, NumberField } from '@/components/form';
+import { Form, TextField, NumberField, MoneyField } from '@/components/form';
 import { Button } from '@/components/button';
 import { useCreateCreditCard, useUpdateCreditCard } from '../hooks/useTreasury';
 import { useNotificationStore } from '@/stores/notification';
@@ -83,7 +83,7 @@ export function CreditCardFormDialog({ open, onOpenChange, editCard, onCreated }
           <DialogBody>
             <TextField name="issuer" label="Banco / Entidad" placeholder="Banco o entidad" required />
             <TextField name="lastFour" label="Últimos 4 dígitos" placeholder="1234" required />
-            <NumberField name="creditLimit" label="Límite de crédito (USD)" min={0} step={100} required />
+            <MoneyField name="creditLimit" label="Límite de crédito" currency="USD" required />
             <NumberField name="cutOffDay" label="Día de corte (1-31)" min={1} max={31} required />
             <NumberField name="paymentDueDay" label="Día de pago (1-31)" min={1} max={31} required />
           </DialogBody>

@@ -16,8 +16,12 @@ export interface ShipmentQuery {
 }
 
 export interface ShipmentInput {
-  customerId?: string;
-  saleId?: string;
+  saleId: string;
+  /** Sent on create only; the backend rejects changes afterwards. */
+  securityCode?: string;
+  location?: string;
+  shipmentDate?: string;
+  deliveredAt?: string;
   description: string;
   notes?: string;
 }
@@ -34,20 +38,22 @@ export const shipmentService = {
   async create(input: ShipmentInput): Promise<ShipmentDTO> {
     return wailsClient.createShipment({
       ...input,
-      customerId: input.customerId ?? '',
-      saleId: input.saleId ?? '',
       status: 'pending',
       notes: input.notes ?? '',
+      location: input.location ?? '',
+      shipmentDate: input.shipmentDate ?? '',
+      deliveredAt: input.deliveredAt ?? '',
     });
   },
   async update(id: string, input: ShipmentInput, status: ShipmentStatus): Promise<ShipmentDTO> {
     return wailsClient.updateShipment({
       ...input,
       id,
-      customerId: input.customerId ?? '',
-      saleId: input.saleId ?? '',
       status,
       notes: input.notes ?? '',
+      location: input.location ?? '',
+      shipmentDate: input.shipmentDate ?? '',
+      deliveredAt: input.deliveredAt ?? '',
     });
   },
   async remove(id: string): Promise<void> {

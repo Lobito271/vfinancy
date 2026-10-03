@@ -97,8 +97,8 @@ export function ProductFormDialog({
                   description="Opcional: déjalo vacío para generarlo automáticamente."
                 />
                 <SelectField name="unitCode" label="Unidad de medida" required options={unitCodes} clearable={false} />
-                <MoneyField name="costUsd" label="Costo (USD)" currency="USD" />
-                <MoneyField name="salePrice" label="Precio de venta (PEN)" currency="PEN" />
+                <MoneyField name="costUsd" label="Costo" currency="USD" />
+                <MoneyField name="salePrice" label="Precio de venta" currency="PEN" />
               </DialogBody>
               <DialogFooter>
                 <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={pending}>
@@ -162,7 +162,7 @@ export function ProductsDrawer({ open, onOpenChange }: { open: boolean; onOpenCh
           ) : products.length === 0 ? (
             <EmptyState
               title="Sin productos"
-              description="Registra un producto o créalo desde una orden de compra."
+              description="Registra un producto o créalo desde una compra."
               action={{ label: 'Nuevo producto', onClick: () => setFormOpen(true) }}
             />
           ) : (

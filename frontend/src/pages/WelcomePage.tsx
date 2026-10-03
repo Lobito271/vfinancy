@@ -98,9 +98,12 @@ export function WelcomePage() {
             autoComplete="current-password"
             autoFocus
             required
+            invalid={!!error}
+            aria-invalid={!!error || undefined}
+            aria-describedby={error ? 'welcome-password-error' : undefined}
           />
           {error && (
-            <p className="welcome__error" role="alert">
+            <p id="welcome-password-error" className="welcome__error" role="alert">
               <AlertCircle />
               {error}
             </p>
@@ -137,6 +140,8 @@ export function WelcomePage() {
                   autoComplete="off"
                   spellCheck={false}
                   required
+                  aria-invalid={!!recoveryError || undefined}
+                  aria-describedby={recoveryError ? 'welcome-recovery-error' : undefined}
                 />
                 <Label htmlFor="welcome-recovery-password">Nueva contraseña</Label>
                 <PasswordInput
@@ -145,9 +150,12 @@ export function WelcomePage() {
                   onChange={(e) => setRecoveryPassword(e.target.value)}
                   autoComplete="new-password"
                   required
+                  invalid={!!recoveryError}
+                  aria-invalid={!!recoveryError || undefined}
+                  aria-describedby={recoveryError ? 'welcome-recovery-error' : undefined}
                 />
                 {recoveryError && (
-                  <p className="welcome__error" role="alert">
+                  <p id="welcome-recovery-error" className="welcome__error" role="alert">
                     <AlertCircle />
                     {recoveryError}
                   </p>

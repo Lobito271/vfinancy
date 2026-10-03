@@ -8,6 +8,7 @@ import {
   DateField,
   TextareaField,
   SelectField,
+  MoneyField,
   NumberField,
   TextField,
   type CreateSelectOption,
@@ -51,7 +52,7 @@ const PurchaseFormSchema = z
     paymentMethod: z.string().min(1, 'Seleccione la forma de pago'),
     creditCardId: z.string().optional(),
     exchangeRate: z.number().min(0.01, 'Tipo de cambio inválido'),
-    orderDate: z.string().min(1, 'Fecha requerida').regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido'),
+    date: z.string().min(1, 'Fecha requerida').regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato de fecha inválido'),
     expectedDate: z.string(),
     notes: z.string().optional(),
     items: z.array(lineSchema).min(1, 'Agregue al menos una línea'),
@@ -157,10 +158,10 @@ function OrderDataStep({ cardOptions, customerOptions, cardsQuery, rateQuery, su
       <div className="form-grid">
         <TextField
           name="number"
-          label="Número de orden"
+          label="Número de compra"
           description="Se genera automáticamente si lo dejas vacío."
         />
-        <DateField name="orderDate" label="Fecha de pedido" required />
+        <DateField name="date" label="Fecha de compra" required />
         <DateField name="expectedDate" label="Fecha estimada" />
       </div>
       <div className="form-grid">
@@ -172,7 +173,7 @@ function OrderDataStep({ cardOptions, customerOptions, cardsQuery, rateQuery, su
       <div className="form-grid form-grid--wide">
         <div className="stack stack--tight">
           <div className="hstack hstack--sm">
-            <label className="input-label">Tipo de cambio (USD→PEN)</label>
+            <Label htmlFor="exchangeRate" required className="input-label">Tipo de cambio (USD→PEN)</Label>
             {rateQuery.data?.isFallback && <Badge variant="warning">Modo contingencia</Badge>}
           </div>
           <NumberField name="exchangeRate" min={0.01} step={0.01} description={rateQuery.isLoading ? 'Cargando tipo de cambio…' : undefined} required />
@@ -184,6 +185,7 @@ function OrderDataStep({ cardOptions, customerOptions, cardsQuery, rateQuery, su
 
 function ItemsStep({ products }: { products: ProductCostOption[] }) {
   const { control, setValue } = useFormContext<PurchaseFormValues>();
+  const exchangeRate = useWatch({ control, name: 'exchangeRate' });
   const { fields, append, remove } = useFieldArray<PurchaseFormValues, 'items'>({ control, name: 'items' });
   const rows = useWatch<PurchaseFormValues, 'items'>({ control, name: 'items' });
 
@@ -230,12 +232,18 @@ function ItemsStep({ products }: { products: ProductCostOption[] }) {
             </div>
             <div className="form-grid">
               <NumberField name={`items.${index}.quantity` as Path<PurchaseFormValues>} label="Cantidad" required min={1} step={1} />
-              <NumberField name={`items.${index}.unitPrice` as Path<PurchaseFormValues>} label="Costo (USD)" required min={0} step={0.01} />
-              <NumberField
+              <MoneyField
+                name={`items.${index}.unitPrice` as Path<PurchaseFormValues>}
+                label="Costo"
+                currency="USD"
+                exchangeRate={exchangeRate}
+                required
+              />
+              <MoneyField
                 name={`items.${index}.salePricePen` as Path<PurchaseFormValues>}
-                label="Precio de venta (PEN)"
-                min={0}
-                step={0.01}
+                label="Precio de venta"
+                currency="PEN"
+                exchangeRate={exchangeRate}
               />
             </div>
           </div>
@@ -348,7 +356,7 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
       paymentMethod: 'card',
       creditCardId: '',
       exchangeRate: 0,
-      orderDate: today(),
+      date: today(),
       expectedDate: today(),
       notes: '',
       items: [emptyLine()],
@@ -372,7 +380,7 @@ const steps = [
         supplierId: values.supplierId,
         paymentMethod: (values.paymentMethod as 'card' | 'cash' | 'digital_wallet'),
         creditCardId: values.creditCardId ?? '',
-        orderDate: values.orderDate,
+        date: values.date,
         expectedDate: values.expectedDate,
         exchangeRate: values.exchangeRate,
         notes: values.notes ?? '',
@@ -386,12 +394,12 @@ const steps = [
       },
       {
         onSuccess: (purchase) => {
-          push({ title: 'Orden de compra creada', description: purchase.number, variant: 'success' });
+          push({ title: 'Compra creada', description: purchase.number, variant: 'success' });
           onOpenChange(false);
         },
         onError: (err: unknown) => {
           push({
-            title: 'No se pudo crear la orden de compra',
+            title: 'No se pudo crear la compra',
             description: err instanceof Error ? err.message : undefined,
             variant: 'destructive',
           });
@@ -414,7 +422,7 @@ const steps = [
       <DialogContent size="xl">
         <DialogHeader>
           <div className="stack stack--xs">
-            <DialogTitle>Nueva orden de compra</DialogTitle>
+            <DialogTitle>Nueva compra</DialogTitle>
             <p className="dialog-subheader">
               Paso {step + 1} de {steps.length} · {steps[step].description}
             </p>
@@ -455,7 +463,7 @@ const steps = [
                     onClick={async () => {
                       const fields: Array<Path<PurchaseFormValues>> =
                         step === 0
-                          ? ['creditCardId', 'customerId', 'supplierId', 'paymentMethod', 'orderDate', 'exchangeRate']
+                          ? ['creditCardId', 'customerId', 'supplierId', 'paymentMethod', 'date', 'exchangeRate']
                           : ['items'];
                       if (await form.trigger(fields)) setStep((s) => s + 1);
                     }}
@@ -495,7 +503,7 @@ const steps = [
             if (!o) setConfirmingValues(null);
           }}
           variant="warning"
-          title={`La orden supera ${formatCurrency(purchaseLimit, 'USD')}`}
+          title={`La compra supera ${formatCurrency(purchaseLimit, 'USD')}`}
           confirmLabel="Crear de todas formas"
           loading={create.isPending}
           onConfirm={() => {

@@ -13,7 +13,7 @@ import type { CreditCardDTO, CardProjectionDTO } from '@/services/wails-types';
 import { useCreditCards, useCardProjections, usePayCard, useDeleteCreditCard } from '@/features/treasury/hooks/useTreasury';
 import { CreditCardFormDialog } from '@/features/treasury/components/CreditCardFormDialog';
 import { CardPaymentDialog } from '@/features/treasury/components/CardPaymentDialog';
-import { formatCurrency, formatDate } from '@/utils/format';
+import { formatCurrency, formatDate, truncate } from '@/utils/format';
 import { useNotificationStore } from '@/stores/notification';
 
 interface CardTarget {
@@ -104,9 +104,10 @@ export function TreasuryPage() {
         id: 'card',
         header: 'Tarjeta',
         sortable: true,
+        maxChars: 30,
         cell: (row) => (
-          <span className="fw-medium tabular">
-            {row.issuer} •••• {row.lastFour}
+          <span className="fw-medium tabular" title={`${row.issuer} •••• ${row.lastFour}`}>
+            {truncate(`${row.issuer} •••• ${row.lastFour}`, 30)}
           </span>
         ),
       },
@@ -168,9 +169,10 @@ export function TreasuryPage() {
         id: 'card',
         header: 'Tarjeta',
         sortable: true,
+        maxChars: 30,
         cell: (row) => (
-          <span className="fw-medium tabular">
-            {row.issuer} •••• {row.lastFour}
+          <span className="fw-medium tabular" title={`${row.issuer} •••• ${row.lastFour}`}>
+            {truncate(`${row.issuer} •••• ${row.lastFour}`, 30)}
           </span>
         ),
       },

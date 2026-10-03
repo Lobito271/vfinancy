@@ -1,7 +1,7 @@
 import { useFormContext, Controller, type FieldPath, type FieldValues } from 'react-hook-form';
 import { NumberField as NumberFieldPrimitive } from '@base-ui/react/number-field';
 import type { ReactNode } from 'react';
-import { Field } from './Field';
+import { Field, fieldDescribedBy } from './Field';
 import { Input, Textarea } from '@/components/input';
 
 interface BaseFieldProps<T extends FieldValues> {
@@ -30,14 +30,17 @@ export function TextField<T extends FieldValues>({
 }: TextFieldProps<T>) {
   const { register, formState } = useFormContext<T>();
   const error = formState.errors[name]?.message as string | undefined;
+  const id = String(name);
   return (
-    <Field label={label} required={required} description={description} error={error} className={className} htmlFor={String(name)}>
+    <Field label={label} required={required} description={description} error={error} className={className} htmlFor={id}>
       <Input
-        id={String(name)}
         type={type}
         invalid={!!error}
         {...register(name, { valueAsNumber: false })}
         {...inputProps}
+        id={id}
+        aria-required={required || undefined}
+        aria-describedby={fieldDescribedBy(id, description, error)}
       />
     </Field>
   );
@@ -69,14 +72,14 @@ export function NumberField<T extends FieldValues>({
   const { control, formState } = useFormContext<T>();
   const error = formState.errors[name]?.message as string | undefined;
   const step = stepProp ?? (kind === 'decimal' ? 0.01 : 1);
+  const id = String(name);
   return (
-    <Field label={label} required={required} description={description} error={error} className={className} htmlFor={String(name)}>
+    <Field label={label} required={required} description={description} error={error} className={className} htmlFor={id}>
       <Controller
         control={control}
         name={name}
         render={({ field }) => (
           <NumberFieldPrimitive.Root
-            id={String(name)}
             className="number-field"
             locale="es-PE"
             value={typeof field.value === 'number' ? field.value : null}
@@ -88,8 +91,11 @@ export function NumberField<T extends FieldValues>({
             onValueChange={(value) => field.onChange((value ?? 0) as never)}
           >
             <NumberFieldPrimitive.Input
+              id={id}
               className="input tabular"
               aria-invalid={!!error || undefined}
+              aria-required={required || undefined}
+              aria-describedby={fieldDescribedBy(id, description, error)}
               placeholder={placeholder}
             />
           </NumberFieldPrimitive.Root>
@@ -116,14 +122,17 @@ export function TextareaField<T extends FieldValues>({
 }: TextareaFieldProps<T>) {
   const { register, formState } = useFormContext<T>();
   const error = formState.errors[name]?.message as string | undefined;
+  const id = String(name);
   return (
-    <Field label={label} required={required} description={description} error={error} className={className} htmlFor={String(name)}>
+    <Field label={label} required={required} description={description} error={error} className={className} htmlFor={id}>
       <Textarea
-        id={String(name)}
         rows={rows}
         invalid={!!error}
         {...register(name)}
         {...rest}
+        id={id}
+        aria-required={required || undefined}
+        aria-describedby={fieldDescribedBy(id, description, error)}
       />
     </Field>
   );

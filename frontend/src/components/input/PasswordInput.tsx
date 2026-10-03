@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
+import { cx } from '@/utils/cx';
 import { Input } from './Input';
 
 interface PasswordInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'> {
@@ -8,14 +9,15 @@ interface PasswordInputProps extends Omit<React.InputHTMLAttributes<HTMLInputEle
 }
 
 export const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
-  ({ invalid, ...props }, ref) => {
+  ({ invalid, disabled, ...props }, ref) => {
     const [show, setShow] = useState(false);
     return (
-      <div className="input-affix input-affix--suffix">
+      <div className={cx('input-affix input-affix--suffix', invalid && 'input-affix--invalid', disabled && 'input-affix--disabled')}>
         <Input
           ref={ref}
           type={show ? 'text' : 'password'}
           invalid={invalid}
+          disabled={disabled}
           {...props}
         />
         <button

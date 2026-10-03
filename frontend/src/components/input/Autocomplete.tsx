@@ -37,7 +37,7 @@ export const AutocompleteTrigger = React.forwardRef<
     {...props}
   >
     {children}
-    <ChevronDown />
+    <ChevronDown aria-hidden="true" />
   </AutocompletePrimitive.Trigger>
 ));
 AutocompleteTrigger.displayName = 'AutocompleteTrigger';

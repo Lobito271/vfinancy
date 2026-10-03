@@ -14,6 +14,7 @@ export interface InventoryItem {
   daysRemaining: number;
   isClearance: boolean;
   status: string;
+  purchaseNumber: string;
 }
 
 export interface Sale {

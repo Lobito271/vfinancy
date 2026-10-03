@@ -29,4 +29,8 @@ type CustomerPaymentRepository interface {
 	// ListCollections returns the sale allocations of active payments
 	// whose payment date falls in [from, to).
 	ListCollections(ctx context.Context, from, to time.Time) ([]SaleCollection, error)
+	// MonthlyRevenue groups the total of the non-cancelled sales of
+	// [from, to) by calendar month of sale_date, keyed by Year*12+Month
+	// (month is 1-based). Amounts are decimal strings.
+	MonthlyRevenue(ctx context.Context, from, to time.Time) (map[int]string, error)
 }

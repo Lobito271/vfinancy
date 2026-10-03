@@ -11,7 +11,7 @@ import (
 	derrors "vfinancy/backend/internal/domain/errors"
 )
 
-// Supplier is a vendor from which purchase orders are sourced.
+// Supplier is a vendor from which purchases are sourced.
 type Supplier struct {
 	ID          uuid.UUID
 	Name        string

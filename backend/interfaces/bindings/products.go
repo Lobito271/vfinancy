@@ -26,7 +26,7 @@ func productDTO(p *product.Product) ProductDTO {
 	}
 }
 
-// ListProducts returns the catalog created through purchase orders.
+// ListProducts returns the catalog created through purchases.
 func (a *App) ListProducts(req PaginationRequest, search string) (PageResult, error) {
 	page, err := a.productsSvc.List(a.Context(), product.ProductFilter{Search: search, PageRequest: req.toPageRequest()})
 	if err != nil {

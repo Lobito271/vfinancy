@@ -1,15 +1,92 @@
-import { CircleDollarSign, TrendingUp } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { CircleDollarSign, TrendingUp } from 'lucide-react';
 import { StatCard } from '@/components/card';
 import { Badge } from '@/components/badge';
 import { EmptyState } from '@/components/feedback';
-import { BarChart } from '@/components/charts';
 import { formatCurrency, formatNumber, daysBetween } from '@/utils/format';
 import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
+import type { MonthlyProfitDTO } from '@/services/wails-types';
 import { useDashboardData } from '../hooks/useDashboard';
 import { WidgetShell } from './WidgetShell';
 import { ListRow } from '@/components/misc';
+
+const PROFIT_MONTHS = 12;
+
+function useMonthlyProfit() {
+  return useQuery({
+    queryKey: queryKeys.dashboard.monthlyProfit(PROFIT_MONTHS),
+    queryFn: () => wailsClient.listMonthlyProfit(PROFIT_MONTHS),
+  });
+}
+
+/** Last row of the series, which is the running month. */
+function currentMonth(rows: MonthlyProfitDTO[]): MonthlyProfitDTO | undefined {
+  return rows[rows.length - 1];
+}
+
+export function MonthlyProfitWidget() {
+  const { data, isLoading, isError, error } = useMonthlyProfit();
+  const rows = data ?? [];
+
+  return (
+    <WidgetShell
+      title="Utilidad mensual"
+      description="Precio de venta menos el costo total (base + extras), mes a mes"
+      loading={isLoading}
+      error={isError ? (error as Error) : null}
+      actions={<Badge variant="primary">Últimos {PROFIT_MONTHS} meses</Badge>}
+    >
+      {rows.length === 0 ? (
+        <EmptyState
+          title="Sin datos de utilidad"
+          description="Registra compras y ventas para completar el desglose."
+        />
+      ) : (
+        <div className="stack stack--sm">
+          {rows.map((r) => (
+            <ListRow
+              key={`${r.year}-${r.month}`}
+              title={r.label}
+              meta={
+                <>
+                  {`Base ${formatCurrency(r.baseCostUsd, 'USD')}`}
+                  {` · Extras ${formatCurrency(r.extraCostUsd, 'USD')}`}
+                  {` · Total ${formatCurrency(r.totalCostUsd, 'USD')}`}
+                  {` · Ventas ${formatCurrency(r.salesPen)}`}
+                </>
+              }
+              trailing={
+                <>
+                  <span className="list-row__meta">Utilidad</span>
+                  <span
+                    className={
+                      r.profitPen < 0 ? 'tabular text-destructive' : 'tabular fw-medium'
+                    }
+                  >
+                    {formatCurrency(r.profitPen)}
+                  </span>
+                </>
+              }
+            />
+          ))}
+        </div>
+      )}
+    </WidgetShell>
+  );
+}
+
+export function NetProfitWidget() {
+  const { data, isLoading } = useMonthlyProfit();
+  const current = currentMonth(data ?? []);
+  return (
+    <StatCard
+      label="Utilidad del mes"
+      value={isLoading ? '—' : formatCurrency(current?.profitPen ?? 0)}
+      icon={TrendingUp}
+    />
+  );
+}
 
 export function CollectedMonthWidget() {
   const { data } = useDashboardData();
@@ -19,40 +96,6 @@ export function CollectedMonthWidget() {
       value={formatCurrency(data?.monthCollected ?? 0)}
       icon={CircleDollarSign}
     />
-  );
-}
-
-export function NetProfitWidget() {
-  const { data } = useDashboardData();
-  return (
-    <StatCard
-      label="Ganancia neta del mes"
-      value={formatCurrency(data?.monthProfit ?? 0)}
-      icon={TrendingUp}
-    />
-  );
-}
-
-export function MonthlyNetProfitChart() {
-  const { data, isLoading, isError, error } = useDashboardData();
-  const points = data?.profitSeries ?? [];
-  return (
-    <WidgetShell
-      title="Ganancia neta mensual"
-      description="Utilidad consolidada de los últimos 6 meses"
-      loading={isLoading}
-      error={isError ? (error as Error) : null}
-      actions={<Badge variant="primary">Últimos 6 meses</Badge>}
-    >
-      {points.some((p) => p.value !== 0) ? (
-        <BarChart data={points} formatY={(v) => formatCurrency(v)} />
-      ) : (
-        <EmptyState
-          title="Sin ganancias registradas"
-          description="Las ventas cobradas completarán el gráfico."
-        />
-      )}
-    </WidgetShell>
   );
 }
 

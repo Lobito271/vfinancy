@@ -41,3 +41,32 @@ func IsPostgres() bool { return CurrentDialect() == DialectPostgres }
 
 // IsSQLite reports whether the process is running against SQLite.
 func IsSQLite() bool { return CurrentDialect() == DialectSQLite }
+
+// Num casts a stored decimal column to a number so aggregates can run
+// over it. Quantities and amounts are stored as decimal strings to
+// avoid float drift in Go; casting inside SQL is only used for sums and
+// comparisons the caller never routes through Money.
+func Num(column string) string {
+	if IsSQLite() {
+		return "CAST(" + column + " AS REAL)"
+	}
+	return "CAST(" + column + " AS numeric)"
+}
+
+// Year and Month extract the calendar year and the 1-based month of a
+// timestamp column for grouping. Timestamp storage differs per dialect:
+// SQLite holds epoch milliseconds, PostgreSQL a native timestamptz.
+func Year(column string) string {
+	if IsSQLite() {
+		return "CAST(strftime('%Y', " + column + " / 1000, 'unixepoch') AS INTEGER)"
+	}
+	return "CAST(EXTRACT(YEAR FROM " + column + ") AS INTEGER)"
+}
+
+// Month is the 1-based month counterpart of Year.
+func Month(column string) string {
+	if IsSQLite() {
+		return "CAST(strftime('%m', " + column + " / 1000, 'unixepoch') AS INTEGER)"
+	}
+	return "CAST(EXTRACT(MONTH FROM " + column + ") AS INTEGER)"
+}

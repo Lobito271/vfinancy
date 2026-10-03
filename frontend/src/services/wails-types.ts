@@ -158,7 +158,7 @@ export interface InventoryBatchDTO {
   id: string;
   productId: string;
   productDescription: string;
-  purchaseOrderItemId: string;
+  purchaseItemId: string;
   arrivalDate: string;
   quantity: number;
   originalQuantity: number;
@@ -166,6 +166,29 @@ export interface InventoryBatchDTO {
   status: string;
   isClearance: boolean;
   maxSaleDate: string;
+  purchaseNumber: string;
+}
+
+export interface MonthlyProfitDTO {
+  year: number;
+  month: number;
+  label: string;
+  baseCostUsd: number;
+  extraCostUsd: number;
+  totalCostUsd: number;
+  totalCostPen: number;
+  salesPen: number;
+  profitPen: number;
+}
+
+export interface LotOptionDTO {
+  id: string;
+  arrivalDate: string;
+  quantity: number;
+  unitCost: number;
+  isClearance: boolean;
+  maxSaleDate: string;
+  purchaseNumber: string;
 }
 
 export interface InventoryMovementDTO {
@@ -206,6 +229,9 @@ export interface SaleItemDTO {
   unitPrice: number;
   lineTotal: number;
   costSnapshot: number;
+  lotArrivalDate: string;
+  purchaseId: string;
+  purchaseNumber: string;
 }
 
 export interface SaleDTO {
@@ -240,6 +266,7 @@ export interface SaleLineRequest {
   productId: string;
   quantity: number;
   unitPrice: number;
+  batchId?: string;
 }
 
 export interface CreateSaleRequest {
@@ -294,12 +321,13 @@ export interface PurchaseItemDTO {
   unitCostUsd: number;
   lineTotalUsd: number;
   salePricePen: number;
+  quantitySold: number;
 }
 
-export interface PurchaseOrderDTO {
+export interface PurchaseDTO {
   id: string;
   number: string;
-  orderDate: string;
+  date: string;
   expectedDate: string;
   receivedDate: string;
   arrivalDate: string;
@@ -309,11 +337,17 @@ export interface PurchaseOrderDTO {
   exchangeRate: number;
   notes: string;
   customerId: string;
+  customerName: string;
   supplierId: string;
   supplierName: string;
+  saleId: string;
+  saleNumber: string;
+  soldOut: boolean;
   productsText: string;
   creditCardId: string;
   costUsd: number;
+  extraCostUsd: number;
+  totalCostUsd: number;
   salePricePen: number;
   realCostPen: number;
   refundAmount: number;
@@ -347,7 +381,7 @@ export interface CreatePurchaseRequest {
   paymentMethod: 'card' | 'cash' | 'digital_wallet';
   creditCardId: string;
   exchangeRate: number;
-  orderDate: string;
+  date: string;
   expectedDate: string;
   notes: string;
   items: PurchaseItemRequest[];
@@ -360,7 +394,7 @@ export interface CancelPurchaseRequest {
 
 export interface ExtraCostDTO {
   id: string;
-  purchaseOrderId: string;
+  purchaseId: string;
   concept: string;
   amount: number;
   currencyCode: string;
@@ -427,8 +461,13 @@ export interface ExchangeRateDTO {
 export interface ShipmentDTO {
   id: string;
   code: string;
+  securityCode: string;
   saleId: string;
+  saleNumber: string;
   customerId: string;
+  location: string;
+  shipmentDate: string;
+  deliveredAt: string;
   description: string;
   notes: string;
   status: 'pending' | 'shipped' | 'delivered';
@@ -439,7 +478,10 @@ export interface ShipmentDTO {
 export interface SaveShipmentRequest {
   id?: string;
   saleId: string;
-  customerId: string;
+  securityCode?: string;
+  location: string;
+  shipmentDate: string;
+  deliveredAt: string;
   description: string;
   notes: string;
   status: string;
@@ -496,6 +538,7 @@ export interface AppBindings {
 
   ListInventoryBatches(req: PaginationRequest, status: string, search: string): Promise<PageResult<InventoryBatchDTO>>;
   ListInventoryMovements(req: PaginationRequest, productId: string): Promise<PageResult<InventoryMovementDTO>>;
+  ListProductLots(productId: string): Promise<LotOptionDTO[]>;
   ReceiveStock(req: ReceiveStockRequest): Promise<InventoryBatchDTO>;
   AdjustStock(req: AdjustStockRequest): Promise<void>;
   VoidStock(req: VoidStockRequest): Promise<void>;
@@ -507,15 +550,16 @@ export interface AppBindings {
   CancelSale(req: CancelSaleRequest): Promise<SaleDTO>;
   RegisterSalePayment(req: SalePaymentRequest): Promise<SaleDTO>;
   ListSalePayments(req: PaginationRequest, customerId: string, saleId: string): Promise<PageResult<CustomerPaymentDTO>>;
+  ListMonthlyProfit(months: number): Promise<MonthlyProfitDTO[]>;
   ListSaleCollections(from: string, to: string): Promise<SaleCollectionDTO[]>;
 
-  ListPurchaseOrders(req: PurchaseFilterRequest): Promise<PageResult<PurchaseOrderDTO>>;
-  GetPurchaseOrder(id: string): Promise<PurchaseOrderDTO>;
-  CreatePurchase(req: CreatePurchaseRequest): Promise<PurchaseOrderDTO>;
+  ListPurchases(req: PurchaseFilterRequest): Promise<PageResult<PurchaseDTO>>;
+  GetPurchase(id: string): Promise<PurchaseDTO>;
+  CreatePurchase(req: CreatePurchaseRequest): Promise<PurchaseDTO>;
   MarkPurchaseReceived(id: string, receivedDate: string): Promise<void>;
-  CancelPurchase(req: CancelPurchaseRequest): Promise<PurchaseOrderDTO>;
-  MarkPurchaseFaulty(req: CancelPurchaseRequest): Promise<PurchaseOrderDTO>;
-  UpdatePurchaseNumber(id: string, number: string): Promise<PurchaseOrderDTO>;
+  CancelPurchase(req: CancelPurchaseRequest): Promise<PurchaseDTO>;
+  MarkPurchaseFaulty(req: CancelPurchaseRequest): Promise<PurchaseDTO>;
+  UpdatePurchaseNumber(id: string, number: string): Promise<PurchaseDTO>;
   ListPurchaseExtraCosts(purchaseId: string): Promise<ExtraCostDTO[]>;
   AddPurchaseExtraCost(purchaseId: string, req: ExtraCostRequest): Promise<ExtraCostDTO>;
   UpdatePurchaseExtraCost(purchaseId: string, costId: string, req: ExtraCostRequest): Promise<ExtraCostDTO>;

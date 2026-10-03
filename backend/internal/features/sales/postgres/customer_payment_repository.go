@@ -254,3 +254,37 @@ func decodeCustomerPayment(p *sales.CustomerPayment, reference, notes sql.NullSt
 }
 
 var _ sales.CustomerPaymentRepository = (*customerPaymentRepository)(nil)
+
+// monthlyRevenueQuery groups the sale totals of [from, to) by calendar
+// month of sale_date. Cancelled sales are excluded because they carry no
+// revenue. Amounts are cast to text so no precision is lost.
+func monthlyRevenueQuery() string {
+	return `SELECT ` +
+		persistence.Year("sale_date") + ` AS y, ` +
+		persistence.Month("sale_date") + ` AS m, ` +
+		`CAST(SUM(` + persistence.Num("total") + `) AS TEXT) AS revenue ` +
+		`FROM sales ` +
+		`WHERE deleted_at IS NULL AND status <> 'cancelled' ` +
+		`AND sale_date >= $1 AND sale_date < $2 ` +
+		`GROUP BY y, m ORDER BY y, m`
+}
+
+func (r *customerPaymentRepository) MonthlyRevenue(ctx context.Context, from, to time.Time) (map[int]string, error) {
+	rows, err := persistence.Q(ctx, r.q).QueryContext(ctx, monthlyRevenueQuery(), from, to)
+	if err != nil {
+		return nil, persistence.Translate(err)
+	}
+	out := make(map[int]string)
+	if err := persistence.ScanRows(rows, func(row *sql.Rows) error {
+		var year, month int
+		var revenue string
+		if err := row.Scan(&year, &month, &revenue); err != nil {
+			return persistence.Translate(err)
+		}
+		out[year*12+month-1] = revenue
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return out, nil
+}

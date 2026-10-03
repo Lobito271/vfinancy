@@ -47,6 +47,11 @@ async function resolveBindings(): Promise<AppBindings> {
 }
 
 export const wailsClient = {
+  async listMonthlyProfit(months: number) {
+    const b = await resolveBindings();
+    return b.ListMonthlyProfit(months);
+  },
+
   async getLocalAuthState() {
     const b = await resolveBindings();
     return b.GetLocalAuthState();
@@ -226,6 +231,10 @@ export const wailsClient = {
     const b = await resolveBindings();
     return b.ListInventoryMovements(req, productId);
   },
+  async listProductLots(productId: string) {
+    const b = await resolveBindings();
+    return b.ListProductLots(productId);
+  },
   async receiveStock(req: ReceiveStockRequest) {
     const b = await resolveBindings();
     return b.ReceiveStock(req);
@@ -272,13 +281,13 @@ export const wailsClient = {
     return b.ListSaleCollections(from, to);
   },
 
-  async listPurchaseOrders(req: PurchaseFilterRequest) {
+  async listPurchases(req: PurchaseFilterRequest) {
     const b = await resolveBindings();
-    return b.ListPurchaseOrders(req);
+    return b.ListPurchases(req);
   },
-  async getPurchaseOrder(id: string) {
+  async getPurchase(id: string) {
     const b = await resolveBindings();
-    return b.GetPurchaseOrder(id);
+    return b.GetPurchase(id);
   },
   async createPurchase(req: CreatePurchaseRequest) {
     const b = await resolveBindings();

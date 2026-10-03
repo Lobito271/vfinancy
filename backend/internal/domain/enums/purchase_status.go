@@ -1,6 +1,6 @@
 package enums
 
-// PurchaseStatus is the lifecycle state of a purchase order:
+// PurchaseStatus is the lifecycle state of a purchase:
 // pending → received | cancelled.
 type PurchaseStatus string
 

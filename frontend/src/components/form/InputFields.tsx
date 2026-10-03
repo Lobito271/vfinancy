@@ -1,5 +1,5 @@
 import { useFormContext, type FieldPath, type FieldValues } from 'react-hook-form';
-import { Field } from './Field';
+import { Field, fieldDescribedBy } from './Field';
 import { PasswordInput } from '@/components/input';
 import { TextField } from './BasicFields';
 
@@ -15,9 +15,17 @@ interface PasswordFieldProps<T extends FieldValues> {
 export function PasswordField<T extends FieldValues>({ name, label, description, required, className, autoComplete = 'current-password' }: PasswordFieldProps<T>) {
   const { register, formState } = useFormContext<T>();
   const error = formState.errors[name]?.message as string | undefined;
+  const id = String(name);
   return (
-    <Field label={label} required={required} description={description} error={error} className={className} htmlFor={String(name)}>
-      <PasswordInput id={String(name)} autoComplete={autoComplete} invalid={!!error} {...register(name)} />
+    <Field label={label} required={required} description={description} error={error} className={className} htmlFor={id}>
+      <PasswordInput
+        id={id}
+        autoComplete={autoComplete}
+        invalid={!!error}
+        aria-required={required || undefined}
+        aria-describedby={fieldDescribedBy(id, description, error)}
+        {...register(name)}
+      />
     </Field>
   );
 }

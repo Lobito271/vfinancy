@@ -188,6 +188,7 @@ func (a *App) initializeServices(ctx context.Context) error {
 	a.salesSvc.SetClientOrderRateProvider(a.usdPenRate)
 
 	a.shipmentSvc = shipment.New(shipmentpostgres.NewShipmentRepository(db.DB), txm, a.log)
+	a.shipmentSvc.SetSales(a.salesSvc)
 
 	return nil
 }

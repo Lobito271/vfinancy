@@ -17,22 +17,22 @@ import (
 // order. The exchange rate is the USD->PEN snapshot taken when the
 // cost was assigned or last updated.
 type ExtraCostDTO struct {
-	ID              string  `json:"id"`
-	PurchaseOrderID string  `json:"purchaseOrderId"`
-	Concept         string  `json:"concept"`
-	Amount          float64 `json:"amount"`
-	CurrencyCode    string  `json:"currencyCode"`
-	ExchangeRate    float64 `json:"exchangeRate"`
+	ID           string  `json:"id"`
+	PurchaseID   string  `json:"purchaseId"`
+	Concept      string  `json:"concept"`
+	Amount       float64 `json:"amount"`
+	CurrencyCode string  `json:"currencyCode"`
+	ExchangeRate float64 `json:"exchangeRate"`
 }
 
 func extraCostDTO(ec *purchasing.ExtraCost) ExtraCostDTO {
 	return ExtraCostDTO{
-		ID:              ec.ID.String(),
-		PurchaseOrderID: ec.PurchaseOrderID.String(),
-		Concept:         ec.Concept,
-		Amount:          moneyFloat(ec.Amount),
-		CurrencyCode:    ec.CurrencyCode.String(),
-		ExchangeRate:    ec.ExchangeRate.Decimal().InexactFloat64(),
+		ID:           ec.ID.String(),
+		PurchaseID:   ec.PurchaseID.String(),
+		Concept:      ec.Concept,
+		Amount:       moneyFloat(ec.Amount),
+		CurrencyCode: ec.CurrencyCode.String(),
+		ExchangeRate: ec.ExchangeRate.Decimal().InexactFloat64(),
 	}
 }
 

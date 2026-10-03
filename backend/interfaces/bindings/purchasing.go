@@ -20,12 +20,13 @@ type PurchaseItemDTO struct {
 	UnitCostUSD      float64 `json:"unitCostUsd"`
 	LineTotalUSD     float64 `json:"lineTotalUsd"`
 	SalePricePen     float64 `json:"salePricePen"`
+	QuantitySold    float64 `json:"quantitySold"`
 }
 
-type PurchaseOrderDTO struct {
+type PurchaseDTO struct {
 	ID                 string            `json:"id"`
 	Number             string            `json:"number"`
-	OrderDate          string            `json:"orderDate"`
+	OrderDate          string            `json:"date"`
 	ExpectedDate       string            `json:"expectedDate"`
 	ReceivedDate       string            `json:"receivedDate"`
 	ArrivalDate        string            `json:"arrivalDate"`
@@ -35,11 +36,17 @@ type PurchaseOrderDTO struct {
 	ExchangeRate       float64           `json:"exchangeRate"`
 	Notes              string            `json:"notes"`
 	CustomerID         string            `json:"customerId"`
+	CustomerName       string            `json:"customerName"`
 	SupplierID         string            `json:"supplierId"`
 	SupplierName       string            `json:"supplierName"`
+	SaleID             string            `json:"saleId"`
+	SaleNumber         string            `json:"saleNumber"`
+	SoldOut            bool              `json:"soldOut"`
 	ProductsText       string            `json:"productsText"`
 	CreditCardID       string            `json:"creditCardId"`
 	CostUSD            float64           `json:"costUsd"`
+	ExtraCostUSD       float64           `json:"extraCostUsd"`
+	TotalCostUSD       float64           `json:"totalCostUsd"`
 	SalePricePen       float64           `json:"salePricePen"`
 	RealCostPen        float64           `json:"realCostPen"`
 	RefundAmount       float64           `json:"refundAmount"`
@@ -50,7 +57,7 @@ type PurchaseOrderDTO struct {
 	Items              []PurchaseItemDTO `json:"items"`
 }
 
-func purchaseDTO(po *purchasing.PurchaseOrder) PurchaseOrderDTO {
+func purchaseDTO(po *purchasing.Purchase) PurchaseDTO {
 	items := make([]PurchaseItemDTO, 0, len(po.Items))
 	for _, it := range po.Items {
 		items = append(items, PurchaseItemDTO{
@@ -64,9 +71,10 @@ func purchaseDTO(po *purchasing.PurchaseOrder) PurchaseOrderDTO {
 			UnitCostUSD:      moneyFloat(it.UnitCostUSD),
 			LineTotalUSD:     moneyFloat(it.LineTotalUSD),
 			SalePricePen:     moneyFloat(it.SalePricePen),
+			QuantitySold:    quantityFloat(it.QuantitySold),
 		})
 	}
-	return PurchaseOrderDTO{
+	return PurchaseDTO{
 		ID:                 po.ID.String(),
 		Number:             po.Number,
 		OrderDate:          dayStr(po.OrderDate),
@@ -79,11 +87,17 @@ func purchaseDTO(po *purchasing.PurchaseOrder) PurchaseOrderDTO {
 		ExchangeRate:       po.ExchangeRate.Decimal().InexactFloat64(),
 		Notes:              po.Notes,
 		CustomerID:         uuidPtrString(po.CustomerID),
+		CustomerName:       po.CustomerName,
 		SupplierID:         uuidPtrString(po.SupplierID),
 		SupplierName:       po.SupplierName,
+		SaleID:             uuidPtrString(po.SaleID),
+		SaleNumber:         po.SaleNumber,
+		SoldOut:            po.SoldOut,
 		ProductsText:       po.ProductsText,
 		CreditCardID:       uuidPtrString(po.CreditCardID),
 		CostUSD:            moneyFloat(po.CostUSD),
+		ExtraCostUSD:       moneyFloat(po.ExtraCostUSD),
+		TotalCostUSD:       moneyFloat(po.TotalCostUSD),
 		SalePricePen:       moneyFloat(po.SalePricePen),
 		RealCostPen:        moneyFloat(po.RealCostPen),
 		RefundAmount:       moneyFloat(po.RefundAmount),
@@ -104,9 +118,9 @@ type PurchaseFilterRequest struct {
 	To           string `json:"to"`
 }
 
-// ListPurchaseOrders supports the advanced filters drawer (date
+// ListPurchases supports the advanced filters drawer (date
 // range, credit card).
-func (a *App) ListPurchaseOrders(req PurchaseFilterRequest) (PageResult, error) {
+func (a *App) ListPurchases(req PurchaseFilterRequest) (PageResult, error) {
 	cardID, err := parseOptionalUUID(req.CreditCardID)
 	if err != nil {
 		return PageResult{}, err
@@ -130,22 +144,22 @@ func (a *App) ListPurchaseOrders(req PurchaseFilterRequest) (PageResult, error) 
 	if err != nil {
 		return PageResult{}, err
 	}
-	items := make([]PurchaseOrderDTO, 0, len(page.Items))
+	items := make([]PurchaseDTO, 0, len(page.Items))
 	for _, po := range page.Items {
 		items = append(items, purchaseDTO(po))
 	}
 	return PageResult{Items: items, Total: page.Total, Page: req.Page, PageSize: req.PageSize}, nil
 }
 
-// GetPurchaseOrder returns one order with its items.
-func (a *App) GetPurchaseOrder(id string) (PurchaseOrderDTO, error) {
+// GetPurchase returns one order with its items.
+func (a *App) GetPurchase(id string) (PurchaseDTO, error) {
 	oid, err := parseUUID(id)
 	if err != nil {
-		return PurchaseOrderDTO{}, err
+		return PurchaseDTO{}, err
 	}
 	po, err := a.purchasingSvc.GetByID(a.Context(), oid)
 	if err != nil {
-		return PurchaseOrderDTO{}, err
+		return PurchaseDTO{}, err
 	}
 	return purchaseDTO(po), nil
 }
@@ -165,7 +179,7 @@ type CreatePurchaseRequest struct {
 	PaymentMethod string                `json:"paymentMethod"`
 	CreditCardID  string                `json:"creditCardId"`
 	ExchangeRate  float64               `json:"exchangeRate"`
-	OrderDate     string                `json:"orderDate"`
+	OrderDate     string                `json:"date"`
 	ExpectedDate  string                `json:"expectedDate"`
 	Notes         string                `json:"notes"`
 	Items         []PurchaseItemRequest `json:"items"`
@@ -173,14 +187,14 @@ type CreatePurchaseRequest struct {
 
 // CreatePurchase registers a USD order (general or for a client) tied
 // to a credit card, applying the TC and the import cost factor.
-func (a *App) CreatePurchase(req CreatePurchaseRequest) (PurchaseOrderDTO, error) {
+func (a *App) CreatePurchase(req CreatePurchaseRequest) (PurchaseDTO, error) {
 	in, err := a.purchaseInput(req)
 	if err != nil {
-		return PurchaseOrderDTO{}, err
+		return PurchaseDTO{}, err
 	}
 	po, err := a.purchasingSvc.Create(a.Context(), in)
 	if err != nil {
-		return PurchaseOrderDTO{}, err
+		return PurchaseDTO{}, err
 	}
 	return purchaseDTO(po), nil
 }
@@ -280,41 +294,41 @@ type CancelPurchaseRequest struct {
 // CancelPurchase annuls the order: reverts stock and releases the card
 // charge; when the billing cycle was already settled the amount is
 // recorded as a refund credit (edge case 4.1).
-func (a *App) CancelPurchase(req CancelPurchaseRequest) (PurchaseOrderDTO, error) {
+func (a *App) CancelPurchase(req CancelPurchaseRequest) (PurchaseDTO, error) {
 	oid, err := parseUUID(req.ID)
 	if err != nil {
-		return PurchaseOrderDTO{}, err
+		return PurchaseDTO{}, err
 	}
 	po, err := a.purchasingSvc.Cancel(a.Context(), oid, req.Reason)
 	if err != nil {
-		return PurchaseOrderDTO{}, err
+		return PurchaseDTO{}, err
 	}
 	return purchaseDTO(po), nil
 }
 
 // MarkPurchaseFaulty records an arrival in bad condition and annuls the
 // order with a full refund.
-func (a *App) MarkPurchaseFaulty(req CancelPurchaseRequest) (PurchaseOrderDTO, error) {
+func (a *App) MarkPurchaseFaulty(req CancelPurchaseRequest) (PurchaseDTO, error) {
 	oid, err := parseUUID(req.ID)
 	if err != nil {
-		return PurchaseOrderDTO{}, err
+		return PurchaseDTO{}, err
 	}
 	po, err := a.purchasingSvc.MarkFaulty(a.Context(), purchasing.FaultyInput{ID: oid, Reason: req.Reason})
 	if err != nil {
-		return PurchaseOrderDTO{}, err
+		return PurchaseDTO{}, err
 	}
 	return purchaseDTO(po), nil
 }
 
 // UpdatePurchaseNumber corrects the number of an order.
-func (a *App) UpdatePurchaseNumber(id string, number string) (PurchaseOrderDTO, error) {
+func (a *App) UpdatePurchaseNumber(id string, number string) (PurchaseDTO, error) {
 	oid, err := parseUUID(id)
 	if err != nil {
-		return PurchaseOrderDTO{}, err
+		return PurchaseDTO{}, err
 	}
 	po, err := a.purchasingSvc.UpdateNumber(a.Context(), oid, number)
 	if err != nil {
-		return PurchaseOrderDTO{}, err
+		return PurchaseDTO{}, err
 	}
 	return purchaseDTO(po), nil
 }

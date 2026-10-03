@@ -182,7 +182,7 @@ export function CloudSyncSection() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="hstack hstack--sm">
+            <div className="hstack hstack--sm" style={{ flexWrap: 'wrap' }}>
               <Button onClick={() => test.mutate()} loading={test.isPending} variant="outline">
                 Probar conexión
               </Button>

@@ -40,10 +40,10 @@ export function CardPaymentDialog({ card, open, onOpenChange, loading, onConfirm
           <DialogBody>
             <MoneyField
               name="amount"
-              label="Monto del pago (USD)"
+              label="Monto del pago"
               currency="USD"
               required
-              description="Se registra el pago y el saldo del ciclo vuelve a $0.00."
+              description="Se registra el pago y se actualiza el saldo del ciclo."
             />
           </DialogBody>
           <DialogFooter>

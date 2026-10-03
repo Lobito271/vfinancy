@@ -12,7 +12,7 @@ import (
 // InventoryBatchFilter is the input to InventoryBatchRepository.List.
 type InventoryBatchFilter struct {
 	ProductID      *uuid.UUID
-	PurchaseLineID *uuid.UUID
+	PurchaseItemID *uuid.UUID
 	Statuses       []string // exact batch statuses; takes precedence over OnlyActive/OnlyClearance
 	OnlyActive     bool     // exclude depleted / voided
 	OnlyClearance  bool     // batches past their maximum sale date
@@ -34,10 +34,10 @@ type InventoryBatchRepository interface {
 	// repositories.TransactionManager.WithinTransaction.
 	GetByIDForUpdate(ctx context.Context, id uuid.UUID) (*InventoryBatch, error)
 
-	// ExistsByPurchaseLineID reports whether a batch has already been
-	// created for the given purchase order line. Used to make purchase
+	// ExistsByPurchaseItemID reports whether a batch has already been
+	// created for the given purchase line. Used to make purchase
 	// receipts idempotent across Create / Approve / MarkAsReceived.
-	ExistsByPurchaseLineID(ctx context.Context, purchaseLineID uuid.UUID) (bool, error)
+	ExistsByPurchaseItemID(ctx context.Context, purchaseLineID uuid.UUID) (bool, error)
 
 	List(ctx context.Context, filter InventoryBatchFilter) (repositories.Page[*InventoryBatch], error)
 

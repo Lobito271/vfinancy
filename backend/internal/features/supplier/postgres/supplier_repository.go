@@ -145,12 +145,12 @@ func (r *supplierRepository) List(ctx context.Context, filter supplier.SupplierF
 	return repositories.Page[*supplier.Supplier]{Items: out, Total: total, Limit: limit, Offset: offset}, nil
 }
 
-// InUse reports whether any non-deleted purchase order references the
+// InUse reports whether any non-deleted purchase references the
 // supplier.
 func (r *supplierRepository) InUse(ctx context.Context, id uuid.UUID) (bool, error) {
 	var n int
 	if err := persistence.Q(ctx, r.q).QueryRowContext(ctx,
-		`SELECT 1 FROM purchase_orders WHERE supplier_id = $1 AND deleted_at IS NULL LIMIT 1`, id).Scan(&n); err != nil {
+		`SELECT 1 FROM purchases WHERE supplier_id = $1 AND deleted_at IS NULL LIMIT 1`, id).Scan(&n); err != nil {
 		if persistence.IsPgNoRows(err) {
 			return false, nil
 		}

@@ -291,7 +291,6 @@ Inventory aging rule: `max_sale_date = arrival_date + 25 days`. Items past that 
 - Feature-based vertical slices: **service + repository** per module. No use-case / workflow / application-service layer — the feature service is the only orchestrator.
 - Business logic independent from UI.
 - Small focused functions; document exported funcs; semantic versioning.
-- Unit tests per module; integration tests for critical business processes (sales, payments, inventory movements).
 - **No comments in code unless explicitly asked.**
 
 ## Comment Rules (Go)

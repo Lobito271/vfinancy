@@ -93,7 +93,11 @@ const columns: Column<InventoryItem>[] = [
     header: 'Días restantes',
     align: 'numeric',
     sortable: true,
-    cell: (row) => <span className="tabular">{row.daysRemaining}</span>,
+    cell: (row) => (
+      <span className={row.daysRemaining <= 0 ? 'tabular text-destructive' : 'tabular'}>
+        {row.daysRemaining}
+      </span>
+    ),
   },
   {
     id: 'status',

@@ -12,12 +12,12 @@ import (
 // DefaultUnitCode is used when a line carries no unit.
 const DefaultUnitCode = "Unidad"
 
-// PurchaseOrderItem is a single line of a purchase order. A line with
+// PurchaseItem is a single line of a purchase. A line with
 // a nil ProductID auto-creates the product from its description on
 // order creation.
-type PurchaseOrderItem struct {
+type PurchaseItem struct {
 	ID               uuid.UUID
-	PurchaseOrderID  uuid.UUID
+	PurchaseID  uuid.UUID
 	ProductID        *uuid.UUID
 	LineNumber       int
 	Description      string
@@ -35,13 +35,13 @@ type PurchaseOrderItem struct {
 }
 
 // SoldOut reports whether every unit of the line has been sold.
-func (li *PurchaseOrderItem) SoldOut() bool {
+func (li *PurchaseItem) SoldOut() bool {
 	return li.QuantitySold.GreaterOrEqual(li.QuantityOrdered)
 }
 
-// PurchaseOrderItemOptions is the input to NewPurchaseOrderItem.
-type PurchaseOrderItemOptions struct {
-	PurchaseOrderID uuid.UUID
+// PurchaseItemOptions is the input to NewPurchaseItem.
+type PurchaseItemOptions struct {
+	PurchaseID uuid.UUID
 	ProductID       *uuid.UUID
 	LineNumber      int
 	Description     string
@@ -51,9 +51,9 @@ type PurchaseOrderItemOptions struct {
 	SalePricePen    valueobjects.Money
 }
 
-// NewPurchaseOrderItem validates and constructs a line, computing the
+// NewPurchaseItem validates and constructs a line, computing the
 // USD line total.
-func NewPurchaseOrderItem(opts PurchaseOrderItemOptions) (*PurchaseOrderItem, error) {
+func NewPurchaseItem(opts PurchaseItemOptions) (*PurchaseItem, error) {
 	if !opts.Quantity.IsPositive() {
 		return nil, derrors.Wrap(derrors.ErrNegativeQuantity, errField("quantity must be greater than zero"))
 	}
@@ -67,9 +67,9 @@ func NewPurchaseOrderItem(opts PurchaseOrderItemOptions) (*PurchaseOrderItem, er
 	if unitCode == "" {
 		unitCode = DefaultUnitCode
 	}
-	return &PurchaseOrderItem{
+	return &PurchaseItem{
 		ID:               uuid.New(),
-		PurchaseOrderID:  opts.PurchaseOrderID,
+		PurchaseID:  opts.PurchaseID,
 		ProductID:        opts.ProductID,
 		LineNumber:       opts.LineNumber,
 		Description:      opts.Description,
@@ -81,10 +81,4 @@ func NewPurchaseOrderItem(opts PurchaseOrderItemOptions) (*PurchaseOrderItem, er
 		SalePricePen:     opts.SalePricePen,
 		CreatedAt:        time.Now().UTC(),
 	}, nil
-}
-
-// LineRealCostPen is the landed cost in PEN of one unit of the line:
-// unit_cost_usd * exchange_rate.
-func (li *PurchaseOrderItem) LineRealCostPen(rate valueobjects.ExchangeRate) valueobjects.Money {
-	return rate.Convert(li.UnitCostUSD)
 }

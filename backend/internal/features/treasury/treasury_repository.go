@@ -22,7 +22,7 @@ type CreditCardRepository interface {
 	GetByIDForUpdate(ctx context.Context, id uuid.UUID) (*CreditCard, error)
 	List(ctx context.Context) ([]*CreditCard, error)
 
-	// CycleTotals sums, for purchase orders charged to the card with
+	// CycleTotals sums, for purchases charged to the card with
 	// order_date in [from, to): totalUSD is the summed cost_usd of
 	// non-cancelled orders; refundsUSD the summed refund_amount of
 	// cancelled orders.

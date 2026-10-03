@@ -51,12 +51,12 @@ const columns: Column<InventoryItem>[] = [
     cell: (row) => <span title={row.productDescription}>{truncate(row.productDescription, 40)}</span>,
   },
   {
-    id: 'purchaseOrderNumber',
+    id: 'purchaseNumber',
     header: 'Compra',
     sortable: true,
     cell: (row) =>
-      row.purchaseOrderNumber ? (
-        <span className="tabular muted">{row.purchaseOrderNumber}</span>
+      row.purchaseNumber ? (
+        <span className="tabular muted">{row.purchaseNumber}</span>
       ) : (
         '—'
       ),

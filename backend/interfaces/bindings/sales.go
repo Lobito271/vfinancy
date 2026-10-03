@@ -16,11 +16,11 @@ type SaleItemDTO struct {
 	LineTotal     float64 `json:"lineTotal"`
 	CostSnapshot  float64 `json:"costSnapshot"`
 	LotArrivalDate string `json:"lotArrivalDate"`
-	// PurchaseOrderID and PurchaseOrderNumber identify the purchase the
+	// PurchaseID and PurchaseNumber identify the purchase the
 	// line was sold from. Both are empty for a client order, which never
 	// touches stock.
-	PurchaseOrderID     string `json:"purchaseOrderId"`
-	PurchaseOrderNumber string `json:"purchaseOrderNumber"`
+	PurchaseID     string `json:"purchaseId"`
+	PurchaseNumber string `json:"purchaseNumber"`
 }
 
 type SaleDTO struct {
@@ -54,8 +54,8 @@ func saleDTO(s *sales.Sale) SaleDTO {
 			CostSnapshot: moneyFloat(it.CostSnapshot),
 
 			LotArrivalDate:      dayStrPtr(it.OriginLotArrivalDate),
-			PurchaseOrderID:     uuidPtrString(it.OriginPurchaseOrderID),
-			PurchaseOrderNumber: it.OriginPurchaseOrderNumber,
+			PurchaseID:     uuidPtrString(it.OriginPurchaseID),
+			PurchaseNumber: it.OriginPurchaseNumber,
 		})
 	}
 	return SaleDTO{

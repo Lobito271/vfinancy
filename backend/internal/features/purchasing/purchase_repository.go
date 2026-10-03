@@ -70,35 +70,38 @@ func AllLinesSold(lines []PurchaseLineSummary) bool {
 	return true
 }
 
-// PurchaseRepository persists purchase orders and their line items.
+// PurchaseRepository persists purchases and their line items.
 type PurchaseRepository interface {
 	// Create inserts the order and all of its items.
-	Create(ctx context.Context, po *PurchaseOrder, items []*PurchaseOrderItem) error
+	Create(ctx context.Context, po *Purchase, items []*PurchaseItem) error
 	// Update persists the mutable order fields.
-	Update(ctx context.Context, po *PurchaseOrder) error
+	Update(ctx context.Context, po *Purchase) error
 	// SoftDelete marks the order as deleted.
 	SoftDelete(ctx context.Context, id uuid.UUID) error
 	// GetByID loads a single order without its items.
-	GetByID(ctx context.Context, id uuid.UUID) (*PurchaseOrder, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*Purchase, error)
 	// ListItems returns the lines of an order ordered by line number.
-	ListItems(ctx context.Context, purchaseOrderID uuid.UUID) ([]*PurchaseOrderItem, error)
+	ListItems(ctx context.Context, purchaseOrderID uuid.UUID) ([]*PurchaseItem, error)
 	// UpdateItemReceipt records the received quantity of a line.
 	UpdateItemReceipt(ctx context.Context, itemID uuid.UUID, received valueobjects.Quantity) error
 	// NextNumber returns the next "PO-" zero-padded sequence number.
 	NextNumber(ctx context.Context) (string, error)
-	// List returns the orders matching the filter.
-	List(ctx context.Context, filter PurchaseFilter) (repositories.Page[*PurchaseOrder], error)
-	// ListLineSummaries returns the product lines of the given orders,
-	// keyed by order id and ordered by line number, for the list's
+	// List returns the purchases matching the filter.
+	List(ctx context.Context, filter PurchaseFilter) (repositories.Page[*Purchase], error)
+	// ListLineSummaries returns the product lines of the given purchases,
+	// keyed by purchase id and ordered by line number, for the list's
 	// products column.
 	ListLineSummaries(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID][]PurchaseLineSummary, error)
-	// ListExtraCosts returns the extra costs of an order, newest first.
-	ListExtraCosts(ctx context.Context, purchaseOrderID uuid.UUID) ([]*ExtraCost, error)
-	// CreateExtraCost inserts one extra cost against an order.
+	// ListExtraCosts returns the extra costs of a purchase, newest first.
+	ListExtraCosts(ctx context.Context, purchaseID uuid.UUID) ([]*ExtraCost, error)
+	// CreateExtraCost inserts one extra cost against a purchase.
 	CreateExtraCost(ctx context.Context, ec *ExtraCost) error
 	// UpdateExtraCost persists the mutable fields of an extra cost
-	// scoped to its parent order.
+	// scoped to its parent purchase.
 	UpdateExtraCost(ctx context.Context, ec *ExtraCost) error
-	// DeleteExtraCost removes one extra cost scoped to its parent order.
+	// DeleteExtraCost removes one extra cost scoped to its parent purchase.
 	DeleteExtraCost(ctx context.Context, id, purchaseOrderID uuid.UUID) error
+	// MonthlyCosts groups the non-cancelled purchase costs of [from, to)
+	// by calendar month, converted to PEN at each purchase's own rate.
+	MonthlyCosts(ctx context.Context, from, to time.Time) ([]MonthlyCost, error)
 }

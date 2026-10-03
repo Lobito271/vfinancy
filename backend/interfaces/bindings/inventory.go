@@ -58,18 +58,18 @@ func (a *App) UpdatePreference(key string, value interface{}) (PreferencesDTO, e
 }
 
 type InventoryBatchDTO struct {
-	ID                  string  `json:"id"`
-	ProductID           string  `json:"productId"`
-	ProductDescription  string  `json:"productDescription"`
-	PurchaseOrderItemID string  `json:"purchaseOrderItemId"`
-	ArrivalDate         string  `json:"arrivalDate"`
-	Quantity            float64 `json:"quantity"`
-	OriginalQuantity    float64 `json:"originalQuantity"`
-	UnitCost            float64 `json:"unitCost"`
-	Status              string  `json:"status"`
-	IsClearance         bool    `json:"isClearance"`
-	MaxSaleDate         string  `json:"maxSaleDate"`
-	PurchaseOrderNumber string  `json:"purchaseOrderNumber"`
+	ID                 string  `json:"id"`
+	ProductID          string  `json:"productId"`
+	ProductDescription string  `json:"productDescription"`
+	PurchaseItemID     string  `json:"purchaseItemId"`
+	ArrivalDate        string  `json:"arrivalDate"`
+	Quantity           float64 `json:"quantity"`
+	OriginalQuantity   float64 `json:"originalQuantity"`
+	UnitCost           float64 `json:"unitCost"`
+	Status             string  `json:"status"`
+	IsClearance        bool    `json:"isClearance"`
+	MaxSaleDate        string  `json:"maxSaleDate"`
+	PurchaseNumber     string  `json:"purchaseNumber"`
 }
 
 type InventoryMovementDTO struct {
@@ -122,13 +122,13 @@ func (a *App) ListInventoryBatches(req PaginationRequest, status string, search 
 
 // LotOptionDTO is one selectable lot in the sale form.
 type LotOptionDTO struct {
-	ID                  string  `json:"id"`
-	ArrivalDate         string  `json:"arrivalDate"`
-	Quantity            float64 `json:"quantity"`
-	UnitCost            float64 `json:"unitCost"`
-	IsClearance         bool    `json:"isClearance"`
-	MaxSaleDate         string  `json:"maxSaleDate"`
-	PurchaseOrderNumber string  `json:"purchaseOrderNumber"`
+	ID             string  `json:"id"`
+	ArrivalDate    string  `json:"arrivalDate"`
+	Quantity       float64 `json:"quantity"`
+	UnitCost       float64 `json:"unitCost"`
+	IsClearance    bool    `json:"isClearance"`
+	MaxSaleDate    string  `json:"maxSaleDate"`
+	PurchaseNumber string  `json:"purchaseNumber"`
 }
 
 // ListProductLots returns the active lots of a product so the sale form
@@ -150,13 +150,13 @@ func (a *App) ListProductLots(productID string) ([]LotOptionDTO, error) {
 	lots := make([]LotOptionDTO, 0, len(page.Items))
 	for _, b := range page.Items {
 		lots = append(lots, LotOptionDTO{
-			ID:                  b.ID.String(),
-			ArrivalDate:         b.ArrivalDate.Format("2006-01-02"),
-			Quantity:            quantityFloat(b.Quantity),
-			UnitCost:            moneyFloat(b.UnitCost),
-			IsClearance:         b.IsClearance,
-			MaxSaleDate:         b.MaxSaleDate(days).Format("2006-01-02"),
-			PurchaseOrderNumber: b.SourcePurchaseOrderNumber,
+			ID:             b.ID.String(),
+			ArrivalDate:    b.ArrivalDate.Format("2006-01-02"),
+			Quantity:       quantityFloat(b.Quantity),
+			UnitCost:       moneyFloat(b.UnitCost),
+			IsClearance:    b.IsClearance,
+			MaxSaleDate:    b.MaxSaleDate(days).Format("2006-01-02"),
+			PurchaseNumber: b.SourcePurchaseNumber,
 		})
 	}
 	return lots, nil

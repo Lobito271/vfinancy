@@ -26,12 +26,12 @@ type SaleItem struct {
 	Description      string
 	CreatedAt        time.Time
 
-	// OriginLotArrivalDate, OriginPurchaseOrderID and
-	// OriginPurchaseOrderNumber are read-only views of the lot the line
+	// OriginLotArrivalDate, OriginPurchaseID and
+	// OriginPurchaseNumber are read-only views of the lot the line
 	// was sold from, filled by the repository for the sale detail.
-	OriginLotArrivalDate      *time.Time
-	OriginPurchaseOrderID     *uuid.UUID
-	OriginPurchaseOrderNumber string
+	OriginLotArrivalDate *time.Time
+	OriginPurchaseID     *uuid.UUID
+	OriginPurchaseNumber string
 }
 
 // NewSaleItemOptions is the input to NewSaleItem.

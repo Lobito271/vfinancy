@@ -51,7 +51,7 @@ const paymentMethodLabels: Record<string, string> = {
   digital_wallet: 'Billetera digital',
 };
 
-const CANCEL_REASONS = ['Mal estado', 'Error en el ingreso', 'Pedido duplicado', 'Cancelado por el proveedor'];
+const CANCEL_REASONS = ['Mal estado', 'Error en el ingreso', 'Compra duplicada', 'Cancelado por el proveedor'];
 
 // A capped cell keeps the full value reachable on hover.
 function capped(text: string, max: number) {
@@ -93,7 +93,7 @@ const columns: Column<Purchase>[] = [
     align: 'numeric',
     cell: (row) => (
       <span className="tabular">
-        Costo: {formatCurrency(row.realCostPen)} | {formatCurrency(row.costUsd, 'USD')}
+        Costo: {formatCurrency(row.realCostPen)} | {formatCurrency(row.totalCostUsd, 'USD')}
       </span>
     ),
   },
@@ -126,7 +126,7 @@ function EditNumberDialog({ open, onOpenChange, purchase }: { open: boolean; onO
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="sm">
         <DialogHeader>
-          <DialogTitle>Editar número de orden</DialogTitle>
+          <DialogTitle>Editar número de compra</DialogTitle>
         </DialogHeader>
         <Form<{ number: string }>
           key={purchase?.id ?? 'number'}
@@ -149,7 +149,7 @@ function EditNumberDialog({ open, onOpenChange, purchase }: { open: boolean; onO
           }}
         >
           <DialogBody>
-            <TextField name="number" label="Número de orden" required autoFocus />
+            <TextField name="number" label="Número de compra" required autoFocus />
           </DialogBody>
           <DialogFooter>
             <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={updateNumber.isPending}>
@@ -186,13 +186,13 @@ export function PurchasesPage() {
   const [detailTarget, setDetailTarget] = useState<{ id: string; number?: string } | null>(null);
   const [numberEditTarget, setNumberEditTarget] = useState<Purchase | null>(null);
 
-  // Sales link here with ?order=<id>; clear it when the drawer closes so
+  // Sales link here with ?purchase=<id>; clear it when the drawer closes so
   // the back button does not re-open the drawer.
   const [searchParams, setSearchParams] = useSearchParams();
-  const requestedOrderId = searchParams.get('order') ?? '';
+  const requestedPurchaseId = searchParams.get('purchase') ?? '';
   useEffect(() => {
-    if (requestedOrderId) setDetailTarget({ id: requestedOrderId });
-  }, [requestedOrderId]);
+    if (requestedPurchaseId) setDetailTarget({ id: requestedPurchaseId });
+  }, [requestedPurchaseId]);
 
   const closeDetail = () => {
     setDetailTarget(null);
@@ -202,7 +202,7 @@ export function PurchasesPage() {
 
   const detailQuery = useQuery({
     queryKey: queryKeys.purchasing.detail(detailTarget?.id ?? ''),
-    queryFn: () => wailsClient.getPurchaseOrder(detailTarget!.id),
+    queryFn: () => wailsClient.getPurchase(detailTarget!.id),
     enabled: Boolean(detailTarget),
   });
 
@@ -225,7 +225,10 @@ export function PurchasesPage() {
     return purchases.filter((p) => p.status === statusFilter);
   }, [purchases, statusFilter]);
 
-  const totalAmount = purchases.reduce((s, p) => s + p.costUsd, 0);
+  const baseCost = purchases.reduce((s, p) => s + p.costUsd, 0);
+  const extraCost = purchases.reduce((s, p) => s + p.extraCostUsd, 0);
+  const totalCost = purchases.reduce((s, p) => s + p.totalCostUsd, 0);
+  const landedCost = purchases.reduce((s, p) => s + p.realCostPen, 0);
   const pending = purchases.filter((p) => p.status === 'pending' || p.status === 'received').length;
   const cancelled = purchases.filter((p) => p.status === 'cancelled').length;
 
@@ -289,8 +292,11 @@ export function PurchasesPage() {
       />
 
       <StatBand>
-        <StatCard label="Órdenes de compra" value={String(purchases.length)} icon={Package} />
-        <StatCard label="Monto total" value={formatCurrency(totalAmount)} />
+        <StatCard label="Compras" value={String(purchases.length)} icon={Package} />
+        <StatCard label="Costo base (USD)" value={formatCurrency(baseCost, 'USD')} />
+        <StatCard label="Costos extras (USD)" value={formatCurrency(extraCost, 'USD')} />
+        <StatCard label="Costo total (USD)" value={formatCurrency(totalCost, 'USD')} />
+        <StatCard label="Costo real (PEN)" value={formatCurrency(landedCost)} />
         <StatCard label="Por Pagar" value={String(pending)} />
         <StatCard label="Anuladas" value={String(cancelled)} />
       </StatBand>
@@ -313,7 +319,7 @@ export function PurchasesPage() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               onClear={() => setSearchInput('')}
-              placeholder="Número u orden del proveedor…"
+              placeholder="Número o proveedor…"
               className="datatable-search"
               aria-label="Buscar compra"
             />
@@ -346,8 +352,8 @@ export function PurchasesPage() {
         }
         empty={
           <EmptyState
-            title="No hay órdenes de compra"
-            description="Crea tu primera orden de compra para abastecer el inventario."
+            title="No hay compras"
+            description="Crea tu primera compra para abastecer el inventario."
             action={{ label: 'Nueva compra', onClick: openCreate }}
           />
         }
@@ -420,12 +426,12 @@ export function PurchasesPage() {
             { id: receivedTarget.id, receivedDate: arrivalDate },
             {
               onSuccess: () => {
-                push({ title: 'Pedido marcado como recibido', variant: 'success' });
+                push({ title: 'Compra marcada como recibida', variant: 'success' });
                 setReceivedTarget(null);
               },
               onError: (err: unknown) => {
                 push({
-                  title: 'No se pudo marcar el pedido',
+                  title: 'No se pudo marcar la compra',
                   description: err instanceof Error ? err.message : undefined,
                   variant: 'destructive',
                 });
@@ -441,19 +447,19 @@ export function PurchasesPage() {
         onOpenChange={(open) => {
           if (!open) setCancelTarget(null);
         }}
-        title="Anular orden de compra"
+        title="Anular compra"
         confirmLabel="Anular"
         reasons={CANCEL_REASONS}
         loading={cancel.isPending || markFaulty.isPending}
         onConfirm={(reason, preset) => {
           if (!cancelTarget) return;
           const onSuccess = () => {
-            push({ title: 'Orden de compra anulada', variant: 'success' });
+            push({ title: 'Compra anulada', variant: 'success' });
             setCancelTarget(null);
           };
           const onError = (err: unknown) => {
             push({
-              title: 'No se pudo anular la orden',
+              title: 'No se pudo anular la compra',
               description: err instanceof Error ? err.message : undefined,
               variant: 'destructive',
             });
@@ -479,7 +485,7 @@ export function PurchasesPage() {
           (detailQuery.isLoading ? (
             <Spinner />
           ) : detailQuery.isError ? (
-            <EmptyState title="No se pudo cargar" description="No se pudo cargar el detalle de la orden." />
+            <EmptyState title="No se pudo cargar" description="No se pudo cargar el detalle de la compra." />
           ) : detailQuery.data ? (
             <div className="stack">
               <div className="doc-summary">
@@ -516,8 +522,8 @@ export function PurchasesPage() {
                   </div>
                 </div>
                 <div className="doc-summary__row">
-                  <div className="doc-summary__meta">Fecha de pedido</div>
-                  <div className="doc-summary__amount">{formatDate(detailQuery.data.orderDate)}</div>
+                  <div className="doc-summary__meta">Fecha de compra</div>
+                  <div className="doc-summary__amount">{formatDate(detailQuery.data.date)}</div>
                 </div>
                 {detailQuery.data.expectedDate && (
                   <div className="doc-summary__row">
@@ -536,10 +542,24 @@ export function PurchasesPage() {
                   <div className="doc-summary__amount tabular">{formatNumber(detailQuery.data.exchangeRate, 4)}</div>
                 </div>
                 <div className="doc-summary__row">
-                  <div className="doc-summary__meta">Costo (USD)</div>
-                  <div className="doc-summary__amount">{formatCurrency(detailQuery.data.costUsd, 'USD')}</div>
+                  <div className="doc-summary__meta">Costo base (USD)</div>
+                  <div className="doc-summary__amount">
+                    {formatCurrency(detailQuery.data.costUsd, 'USD')}
+                  </div>
                 </div>
                 <div className="doc-summary__row">
+                  <div className="doc-summary__meta">Costos extras (USD)</div>
+                  <div className="doc-summary__amount">
+                    {formatCurrency(detailQuery.data.extraCostUsd, 'USD')}
+                  </div>
+                </div>
+                <div className="doc-summary__row doc-summary__row--total">
+                  <div className="doc-summary__meta">Costo total (USD)</div>
+                  <div className="doc-summary__amount">
+                    {formatCurrency(detailQuery.data.totalCostUsd, 'USD')}
+                  </div>
+                </div>
+                <div className="doc-summary__row doc-summary__row--total">
                   <div className="doc-summary__meta">Costo real (PEN)</div>
                   <div className="doc-summary__amount">{formatCurrency(detailQuery.data.realCostPen)}</div>
                 </div>

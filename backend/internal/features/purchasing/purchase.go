@@ -10,10 +10,10 @@ import (
 	"vfinancy/backend/internal/domain/valueobjects"
 )
 
-// USD is the transactional currency of every purchase order.
+// USD is the transactional currency of every purchase.
 const USD = "USD"
 
-// PurchasePaymentMethod is how an order is paid.
+// PurchasePaymentMethod is how a purchase is paid.
 type PurchasePaymentMethod string
 
 // Purchase payment methods.
@@ -35,10 +35,12 @@ func (p PurchasePaymentMethod) Valid() bool {
 	return false
 }
 
-// PurchaseOrder is the root aggregate for a purchase. All monetary
-// costs are recorded in USD (the supplier currency) with the PEN
-// landed-cost projections stored alongside.
-type PurchaseOrder struct {
+// Purchase is the root aggregate for a purchase. CostUSD is the base
+// cost of the ordered lines, ExtraCostUSD is the sum of the extra
+// costs normalised to USD, and TotalCostUSD is their sum. All three
+// are in USD (the supplier currency) with the PEN landed-cost
+// projections stored alongside.
+type Purchase struct {
 	ID                 uuid.UUID
 	Number             string
 	OrderDate          time.Time
@@ -55,6 +57,8 @@ type PurchaseOrder struct {
 	CreditCardID       *uuid.UUID
 	SaleID             *uuid.UUID
 	CostUSD            valueobjects.Money
+	ExtraCostUSD       valueobjects.Money
+	TotalCostUSD       valueobjects.Money
 	SalePricePen       valueobjects.Money
 	RealCostPen        valueobjects.Money
 	RefundAmount       valueobjects.Money
@@ -66,13 +70,13 @@ type PurchaseOrder struct {
 	UpdatedAt          time.Time
 	DeletedAt          *time.Time
 
-	// Items are the order lines. Loaded by the repository / service.
-	Items []*PurchaseOrderItem
+	// Items are the purchase lines. Loaded by the repository / service.
+	Items []*PurchaseItem
 
 	// SupplierName, CustomerName, SaleNumber, ProductsText and SoldOut
 	// are read-only denormalized views filled by the repository / service
 	// for the list and the detail. SoldOut is true when every line of the
-	// order has been fully sold.
+	// purchase has been fully sold.
 	SupplierName  string
 	CustomerName  string
 	SaleNumber    string
@@ -82,7 +86,7 @@ type PurchaseOrder struct {
 
 // Validate checks the aggregate invariants that hold regardless of the
 // operation being performed.
-func (p *PurchaseOrder) Validate() error {
+func (p *Purchase) Validate() error {
 	if p.ID == uuid.Nil {
 		return derrors.Wrap(derrors.ErrRequired, errField("purchase id is required"))
 	}
@@ -98,23 +102,32 @@ func (p *PurchaseOrder) Validate() error {
 	if !p.PaymentMethod.Valid() {
 		return derrors.Wrap(derrors.ErrInvalidEnum, errField("payment method is invalid"))
 	}
-	// RefundAmount and CostUSD/SalePricePen/RealCostPen are recorded
-	// inputs and must never be negative.
-	if p.CostUSD.IsNegative() || p.SalePricePen.IsNegative() || p.RealCostPen.IsNegative() ||
+	// Recorded amounts must never be negative.
+	if p.CostUSD.IsNegative() || p.ExtraCostUSD.IsNegative() || p.TotalCostUSD.IsNegative() ||
+		p.SalePricePen.IsNegative() || p.RealCostPen.IsNegative() ||
 		p.RefundAmount.IsNegative() {
 		return derrors.Wrap(derrors.ErrNegativeMoney, errField("financial amounts cannot be negative"))
 	}
 	return nil
 }
 
+// RecomputeTotals derives ExtraCostUSD and TotalCostUSD from the base
+// cost and the normalised extra total. It is called after every extra
+// cost mutation so the stored totals always satisfy
+// TotalCostUSD = CostUSD + ExtraCostUSD.
+func (p *Purchase) RecomputeTotals() {
+	total, _ := valueobjects.MoneyFromDecimal(p.CostUSD.Decimal().Add(p.ExtraCostUSD.Decimal()))
+	p.TotalCostUSD = total.RoundToCurrencyPrecision()
+}
+
 // IsPending / IsReceived / IsCancelled report the lifecycle state.
-func (p *PurchaseOrder) IsPending() bool   { return p.Status == enums.PurchaseStatusPending }
-func (p *PurchaseOrder) IsReceived() bool  { return p.Status == enums.PurchaseStatusReceived }
-func (p *PurchaseOrder) IsCancelled() bool { return p.Status == enums.PurchaseStatusCancelled }
+func (p *Purchase) IsPending() bool   { return p.Status == enums.PurchaseStatusPending }
+func (p *Purchase) IsReceived() bool  { return p.Status == enums.PurchaseStatusReceived }
+func (p *Purchase) IsCancelled() bool { return p.Status == enums.PurchaseStatusCancelled }
 
 // MarkReceived transitions a pending order to received and stamps the
 // receipt (and arrival) date used by the inventory aging rule.
-func (p *PurchaseOrder) MarkReceived(at time.Time) error {
+func (p *Purchase) MarkReceived(at time.Time) error {
 	if p.Status != enums.PurchaseStatusPending {
 		return derrors.Wrap(derrors.ErrInvalidStateTransition, errField("only pending purchases can be marked as received"))
 	}
@@ -126,7 +139,7 @@ func (p *PurchaseOrder) MarkReceived(at time.Time) error {
 
 // Cancel voids a pending or received order. The service restores
 // inventory and releases the card charge as compensation.
-func (p *PurchaseOrder) Cancel(reason string, at time.Time) error {
+func (p *Purchase) Cancel(reason string, at time.Time) error {
 	if p.Status == enums.PurchaseStatusCancelled {
 		return derrors.Wrap(derrors.ErrPurchaseCancelled, errField("purchase is already cancelled"))
 	}

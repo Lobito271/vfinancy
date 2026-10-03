@@ -123,10 +123,10 @@ func (r *creditCardRepository) List(ctx context.Context) ([]*treasury.CreditCard
 func (r *creditCardRepository) CycleTotals(ctx context.Context, cardID uuid.UUID, from, to time.Time) (valueobjects.Money, valueobjects.Money, error) {
 	fromStr, toStr := from.Format("2006-01-02"), to.Format("2006-01-02")
 	const (
-		qTotal = `SELECT COALESCE(SUM(cost_usd), 0) FROM purchase_orders
+		qTotal = `SELECT COALESCE(SUM(cost_usd), 0) FROM purchases
 			WHERE credit_card_id = $1 AND deleted_at IS NULL
 			AND order_date >= $2 AND order_date < $3 AND status <> 'cancelled'`
-		qRefunds = `SELECT COALESCE(SUM(refund_amount), 0) FROM purchase_orders
+		qRefunds = `SELECT COALESCE(SUM(refund_amount), 0) FROM purchases
 			WHERE credit_card_id = $1 AND deleted_at IS NULL
 			AND order_date >= $2 AND order_date < $3 AND status = 'cancelled'`
 	)

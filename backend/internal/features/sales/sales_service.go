@@ -533,8 +533,27 @@ func (s *SalesService) ListPaymentsForSale(ctx context.Context, saleID uuid.UUID
 	return s.payments.ListForSale(ctx, saleID)
 }
 
-// ListCollections returns the sale allocations of active payments
+// MonthlyRevenue returns the sale allocations of active payments
 // received in [from, to), used by dashboard analytics.
 func (s *SalesService) ListCollections(ctx context.Context, from, to time.Time) ([]SaleCollection, error) {
 	return s.payments.ListCollections(ctx, from, to)
+}
+
+// MonthlyRevenue groups the total of the non-cancelled sales of
+// [from, to) by calendar month of sale_date, keyed by Year*12+Month
+// (1-based month). Months without sales are absent from the map.
+func (s *SalesService) MonthlyRevenue(ctx context.Context, from, to time.Time) (map[int]valueobjects.Money, error) {
+	raw, err := s.payments.MonthlyRevenue(ctx, from, to)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[int]valueobjects.Money, len(raw))
+	for key, s := range raw {
+		m, err := valueobjects.MoneyFromString(s)
+		if err != nil {
+			return nil, err
+		}
+		out[key] = m
+	}
+	return out, nil
 }

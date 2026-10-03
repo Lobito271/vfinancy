@@ -2232,6 +2232,15 @@ pre {
   border-block-end: none;
 }
 
+/* derived totals: base + extras, and its PEN projection */
+.doc-summary__row--total {
+  font-weight: 600;
+}
+
+.doc-summary__row--total .doc-summary__meta {
+  color: var(--text-primary);
+}
+
 .doc-summary__meta {
   font-size: 0.8rem;
   color: var(--text-muted);

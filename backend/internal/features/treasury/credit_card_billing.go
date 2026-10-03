@@ -71,10 +71,10 @@ type CardPaymentProjection struct {
 	CycleStart time.Time
 	CycleEnd   time.Time
 	PaymentDue time.Time
-	// TotalUSD sums cost_usd of purchase orders charged to the card
+	// TotalUSD sums cost_usd of purchases charged to the card
 	// inside the cycle (cancelled orders excluded).
 	TotalUSD valueobjects.Money
-	// RefundsUSD sums refund_amount of cancelled purchase orders in
+	// RefundsUSD sums refund_amount of cancelled purchases in
 	// the cycle (saldo a favor).
 	RefundsUSD valueobjects.Money
 	// Status is "open" or "settled" (settled once the cycle end has

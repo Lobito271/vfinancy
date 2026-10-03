@@ -199,7 +199,7 @@ CREATE UNIQUE INDEX uq_sales_number ON sales (number) WHERE deleted_at IS NULL;
 CREATE INDEX idx_sales_customer ON sales (customer_id, sale_date) WHERE deleted_at IS NULL;
 CREATE INDEX idx_sales_status ON sales (status, sale_date) WHERE deleted_at IS NULL;
 
-CREATE TABLE purchase_orders (
+CREATE TABLE purchases (
     id             TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
     number         VARCHAR(30) NOT NULL,
     order_date     TIMESTAMP   NOT NULL,
@@ -216,6 +216,8 @@ CREATE TABLE purchase_orders (
     sale_id        TEXT,
     arrival_date   TIMESTAMP,
     cost_usd       TEXT        NOT NULL DEFAULT '0.00' CHECK (CAST(cost_usd AS REAL) >= 0),
+    extra_cost_usd TEXT        NOT NULL DEFAULT '0.00' CHECK (CAST(extra_cost_usd AS REAL) >= 0),
+    total_cost_usd TEXT        NOT NULL DEFAULT '0.00' CHECK (CAST(total_cost_usd AS REAL) >= 0),
     sale_price_pen TEXT        NOT NULL DEFAULT '0.00' CHECK (CAST(sale_price_pen AS REAL) >= 0),
     real_cost_pen  TEXT        NOT NULL DEFAULT '0.00' CHECK (CAST(real_cost_pen AS REAL) >= 0),
     refund_amount  TEXT        NOT NULL DEFAULT '0.00' CHECK (CAST(refund_amount AS REAL) >= 0),
@@ -228,24 +230,24 @@ CREATE TABLE purchase_orders (
     updated_at     TIMESTAMP   NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
     deleted_at     TIMESTAMP,
 
-    CONSTRAINT fk_purchase_orders_customer
+    CONSTRAINT fk_purchases_customer
         FOREIGN KEY (customer_id) REFERENCES customers(id) ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT fk_purchase_orders_supplier
+    CONSTRAINT fk_purchases_supplier
         FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT fk_purchase_orders_card
+    CONSTRAINT fk_purchases_card
         FOREIGN KEY (credit_card_id) REFERENCES credit_cards(id) ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT fk_purchase_orders_sale
+    CONSTRAINT fk_purchases_sale
         FOREIGN KEY (sale_id) REFERENCES sales(id) ON UPDATE CASCADE ON DELETE SET NULL,
-    CONSTRAINT ck_purchase_orders_dates CHECK (expected_date IS NULL OR expected_date >= order_date)
+    CONSTRAINT ck_purchases_dates CHECK (expected_date IS NULL OR expected_date >= order_date)
 );
 
-CREATE UNIQUE INDEX uq_purchase_orders_number ON purchase_orders (number) WHERE deleted_at IS NULL;
-CREATE INDEX idx_purchase_orders_status ON purchase_orders (status, order_date) WHERE deleted_at IS NULL;
-CREATE INDEX idx_purchase_orders_card ON purchase_orders (credit_card_id, order_date) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX uq_purchases_number ON purchases (number) WHERE deleted_at IS NULL;
+CREATE INDEX idx_purchases_status ON purchases (status, order_date) WHERE deleted_at IS NULL;
+CREATE INDEX idx_purchases_card ON purchases (credit_card_id, order_date) WHERE deleted_at IS NULL;
 
-CREATE TABLE purchase_order_items (
+CREATE TABLE purchase_items (
     id                TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-    purchase_order_id TEXT       NOT NULL,
+    purchase_id TEXT       NOT NULL,
     product_id        TEXT,
     line_number       INTEGER    NOT NULL DEFAULT 1 CHECK (line_number >= 1),
     description       TEXT       NOT NULL,
@@ -257,20 +259,20 @@ CREATE TABLE purchase_order_items (
     sale_price_pen    TEXT       NOT NULL DEFAULT '0.00' CHECK (CAST(sale_price_pen AS REAL) >= 0),
     created_at        TIMESTAMP  NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
 
-    CONSTRAINT fk_purchase_order_items_order
-        FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id) ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT fk_purchase_order_items_product
+    CONSTRAINT fk_purchase_items_purchase
+        FOREIGN KEY (purchase_id) REFERENCES purchases(id) ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_purchase_items_product
         FOREIGN KEY (product_id) REFERENCES products(id) ON UPDATE CASCADE ON DELETE SET NULL,
-    CONSTRAINT ck_purchase_order_items_description_nonblank CHECK (length(trim(description)) > 0)
+    CONSTRAINT ck_purchase_items_description_nonblank CHECK (length(trim(description)) > 0)
 );
 
-CREATE INDEX idx_purchase_order_items_order ON purchase_order_items (purchase_order_id);
-CREATE INDEX idx_purchase_order_items_product ON purchase_order_items (product_id);
+CREATE INDEX idx_purchase_items_purchase ON purchase_items (purchase_id);
+CREATE INDEX idx_purchase_items_product ON purchase_items (product_id);
 
--- Costos extras de una orden de compra (informativos: no afectan cost_usd / real_cost_pen).
+-- Costos extras de una compra: suman a extra_cost_usd y total_cost_usd.
 CREATE TABLE purchase_extra_costs (
     id                TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-    purchase_order_id TEXT    NOT NULL,
+    purchase_id TEXT    NOT NULL,
     concept           TEXT    NOT NULL,
     amount            TEXT    NOT NULL DEFAULT '0.00' CHECK (CAST(amount AS REAL) >= 0),
     currency_code     VARCHAR(3) NOT NULL DEFAULT 'USD',
@@ -279,17 +281,17 @@ CREATE TABLE purchase_extra_costs (
     created_at        TIMESTAMP NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
     updated_at        TIMESTAMP NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
 
-    CONSTRAINT fk_purchase_extra_costs_order
-        FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id) ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_purchase_extra_costs_purchase
+        FOREIGN KEY (purchase_id) REFERENCES purchases(id) ON UPDATE CASCADE ON DELETE CASCADE,
     CONSTRAINT ck_purchase_extra_costs_concept_nonblank CHECK (length(trim(concept)) > 0)
 );
 
-CREATE INDEX idx_purchase_extra_costs_order ON purchase_extra_costs (purchase_order_id);
+CREATE INDEX idx_purchase_extra_costs_purchase ON purchase_extra_costs (purchase_id);
 
 CREATE TABLE inventory_batches (
     id                     TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
     product_id             TEXT       NOT NULL,
-    purchase_order_item_id TEXT,
+    purchase_item_id TEXT,
     arrival_date           TIMESTAMP  NOT NULL,
     quantity               TEXT       NOT NULL DEFAULT '0.0000' CHECK (CAST(quantity AS REAL) >= 0),
     original_quantity      TEXT       NOT NULL DEFAULT '0.0000' CHECK (CAST(original_quantity AS REAL) >= 0),
@@ -304,8 +306,8 @@ CREATE TABLE inventory_batches (
 
     CONSTRAINT fk_inventory_batches_product
         FOREIGN KEY (product_id) REFERENCES products(id) ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT fk_inventory_batches_poi
-        FOREIGN KEY (purchase_order_item_id) REFERENCES purchase_order_items(id) ON UPDATE CASCADE ON DELETE SET NULL
+    CONSTRAINT fk_inventory_batches_purchase_item
+        FOREIGN KEY (purchase_item_id) REFERENCES purchase_items(id) ON UPDATE CASCADE ON DELETE SET NULL
 );
 
 CREATE INDEX idx_inventory_batches_product ON inventory_batches (product_id, status);
@@ -455,14 +457,14 @@ CREATE TRIGGER trg_credit_cards_sync_delete AFTER DELETE ON credit_cards BEGIN
     VALUES ('credit_cards', OLD.id, OLD.updated_at);
 END;
 
-CREATE TRIGGER trg_purchase_orders_sync_delete AFTER DELETE ON purchase_orders BEGIN
+CREATE TRIGGER trg_purchases_sync_delete AFTER DELETE ON purchases BEGIN
     INSERT INTO sync_tombstones (table_name, record_id, updated_at)
-    VALUES ('purchase_orders', OLD.id, OLD.updated_at);
+    VALUES ('purchases', OLD.id, OLD.updated_at);
 END;
 
-CREATE TRIGGER trg_purchase_order_items_sync_delete AFTER DELETE ON purchase_order_items BEGIN
+CREATE TRIGGER trg_purchase_items_sync_delete AFTER DELETE ON purchase_items BEGIN
     INSERT INTO sync_tombstones (table_name, record_id, updated_at)
-    VALUES ('purchase_order_items', OLD.id, OLD.created_at);
+    VALUES ('purchase_items', OLD.id, OLD.created_at);
 END;
 
 CREATE TRIGGER trg_purchase_extra_costs_sync_delete AFTER DELETE ON purchase_extra_costs BEGIN

@@ -193,7 +193,7 @@ func (s *InventoryService) ReturnVoidedSale(ctx context.Context, saleID uuid.UUI
 // ReceiveFromPurchaseInput is the payload of ReceiveFromPurchase.
 type ReceiveFromPurchaseInput struct {
 	ProductID      uuid.UUID
-	PurchaseLineID uuid.UUID
+	PurchaseItemID uuid.UUID
 	ArrivalDate    valueobjects.Date
 	Quantity       valueobjects.Quantity
 	UnitCost       valueobjects.Money
@@ -209,7 +209,7 @@ type ReceiveFromPurchaseInput struct {
 func (s *InventoryService) ReceiveFromPurchase(ctx context.Context, in ReceiveFromPurchaseInput) (*InventoryBatch, error) {
 	var out *InventoryBatch
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
-		exists, err := s.batches.ExistsByPurchaseLineID(ctx, in.PurchaseLineID)
+		exists, err := s.batches.ExistsByPurchaseItemID(ctx, in.PurchaseItemID)
 		if err != nil {
 			return err
 		}
@@ -217,12 +217,12 @@ func (s *InventoryService) ReceiveFromPurchase(ctx context.Context, in ReceiveFr
 			return nil
 		}
 		batch, err := NewInventoryBatch(time.Now().UTC(), NewInventoryBatchOptions{
-			ProductID:           in.ProductID,
-			PurchaseOrderItemID: &in.PurchaseLineID,
-			ArrivalDate:         in.ArrivalDate,
-			InitialQuantity:     in.Quantity,
-			UnitCost:            in.UnitCost,
-			ExchangeRate:        in.ExchangeRate,
+			ProductID:       in.ProductID,
+			PurchaseItemID:  &in.PurchaseItemID,
+			ArrivalDate:     in.ArrivalDate,
+			InitialQuantity: in.Quantity,
+			UnitCost:        in.UnitCost,
+			ExchangeRate:    in.ExchangeRate,
 		})
 		if err != nil {
 			return err
@@ -230,7 +230,7 @@ func (s *InventoryService) ReceiveFromPurchase(ctx context.Context, in ReceiveFr
 		if err := s.batches.Create(ctx, batch); err != nil {
 			return err
 		}
-		ref, err := valueobjects.NewReference(enums.ReferenceTypePurchase, in.PurchaseLineID)
+		ref, err := valueobjects.NewReference(enums.ReferenceTypePurchase, in.PurchaseItemID)
 		if err != nil {
 			return err
 		}
@@ -259,7 +259,7 @@ func (s *InventoryService) ReceiveFromPurchase(ctx context.Context, in ReceiveFr
 	if out != nil {
 		s.log.Info("inventory received from purchase",
 			"batch_id", out.ID,
-			"purchase_line_id", in.PurchaseLineID,
+			"purchase_line_id", in.PurchaseItemID,
 			"product_id", in.ProductID,
 			"quantity", out.Quantity,
 		)
@@ -268,7 +268,7 @@ func (s *InventoryService) ReceiveFromPurchase(ctx context.Context, in ReceiveFr
 }
 
 // VoidPurchaseReceipt deducts the remaining stock of every batch
-// created from the given purchase order lines and appends an outbound
+// created from the given purchase lines and appends an outbound
 // "void_purchase" movement. Batches already consumed (zero remaining)
 // are left untouched; batch rows are kept for audit and to preserve
 // historical sale allocations.
@@ -277,7 +277,7 @@ func (s *InventoryService) VoidPurchaseReceipt(ctx context.Context, purchaseLine
 		now := time.Now().UTC()
 		for _, lineID := range purchaseLineIDs {
 			page, err := s.batches.List(ctx, InventoryBatchFilter{
-				PurchaseLineID: &lineID,
+				PurchaseItemID: &lineID,
 				OnlyActive:     true,
 				PageRequest:    repositories.PageRequest{Limit: 100},
 			})

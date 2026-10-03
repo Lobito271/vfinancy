@@ -103,9 +103,9 @@ export function SalesPage() {
   const shipmentDefaults = useMemo(() => ({ saleId: shipmentTarget?.id }), [shipmentTarget]);
 
   const navigate = useNavigate();
-  const goToPurchase = (purchaseOrderId: string) => {
+  const goToPurchase = (purchaseId: string) => {
     setDetailTarget(null);
-    navigate(`${Routes.Purchases}?order=${purchaseOrderId}`);
+    navigate(`${Routes.Purchases}?purchase=${purchaseId}`);
   };
 
   const detailQuery = useQuery({
@@ -143,9 +143,9 @@ export function SalesPage() {
 
   // Every line of a sale comes from the same import order, so the first
   // one carries the link to it.
-  const originPurchaseId = detailQuery.data?.items.find((it) => it.purchaseOrderId)?.purchaseOrderId ?? '';
+  const originPurchaseId = detailQuery.data?.items.find((it) => it.purchaseId)?.purchaseId ?? '';
   const originPurchaseNumber =
-    detailQuery.data?.items.find((it) => it.purchaseOrderId)?.purchaseOrderNumber ?? '';
+    detailQuery.data?.items.find((it) => it.purchaseId)?.purchaseNumber ?? '';
 
   const buildActions = (row: Sale): RowAction[] => {
     const collectable = row.status === 'pending' || row.status === 'partial';
@@ -476,14 +476,14 @@ export function SalesPage() {
                 </div>
                 {originPurchaseId && (
                   <div className="doc-summary__row">
-                    <div className="doc-summary__meta">Orden de compra</div>
+                    <div className="doc-summary__meta">Compra de origen</div>
                     <div className="doc-summary__amount">
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => goToPurchase(originPurchaseId)}
                       >
-                        {originPurchaseNumber || 'Ver orden'}
+                        {originPurchaseNumber || 'Ver compra'}
                         <ArrowUpRight />
                       </Button>
                     </div>
@@ -505,9 +505,9 @@ export function SalesPage() {
                         {' · '}
                         {it.lotArrivalDate ? `Lote ${formatDate(it.lotArrivalDate)}` : 'FIFO'}
                         {' · '}
-                        {it.purchaseOrderId ? (
-                          <button type="button" className="doc-link" onClick={() => goToPurchase(it.purchaseOrderId)}>
-                            {it.purchaseOrderNumber || 'Origen'}
+                        {it.purchaseId ? (
+                          <button type="button" className="doc-link" onClick={() => goToPurchase(it.purchaseId)}>
+                            {it.purchaseNumber || 'Origen'}
                           </button>
                         ) : (
                           'Sin origen'

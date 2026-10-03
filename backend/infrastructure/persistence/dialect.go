@@ -52,3 +52,21 @@ func Num(column string) string {
 	}
 	return "CAST(" + column + " AS numeric)"
 }
+
+// Year and Month extract the calendar year and the 1-based month of a
+// timestamp column for grouping. Timestamp storage differs per dialect:
+// SQLite holds epoch milliseconds, PostgreSQL a native timestamptz.
+func Year(column string) string {
+	if IsSQLite() {
+		return "CAST(strftime('%Y', " + column + " / 1000, 'unixepoch') AS INTEGER)"
+	}
+	return "CAST(EXTRACT(YEAR FROM " + column + ") AS INTEGER)"
+}
+
+// Month is the 1-based month counterpart of Year.
+func Month(column string) string {
+	if IsSQLite() {
+		return "CAST(strftime('%m', " + column + " / 1000, 'unixepoch') AS INTEGER)"
+	}
+	return "CAST(EXTRACT(MONTH FROM " + column + ") AS INTEGER)"
+}

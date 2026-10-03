@@ -199,7 +199,7 @@ function SaleLineCard({
           placeholder="Automático (FIFO)"
           options={lots.map((lot) => ({
             value: lot.id,
-            label: `${formatDate(lot.arrivalDate)} · ${formatNumber(lot.quantity)} und · ${formatCurrency(lot.unitCost)}${lot.isClearance ? ' · remate' : ''}${lot.purchaseOrderNumber ? ` · ${lot.purchaseOrderNumber}` : ''}`,
+            label: `${formatDate(lot.arrivalDate)} · ${formatNumber(lot.quantity)} und · ${formatCurrency(lot.unitCost)}${lot.isClearance ? ' · remate' : ''}${lot.purchaseNumber ? ` · ${lot.purchaseNumber}` : ''}`,
           }))}
         />
       )}

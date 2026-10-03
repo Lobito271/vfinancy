@@ -26,7 +26,7 @@ function toItem(dto: InventoryBatchDTO, skuById: Map<string, string>): Inventory
     daysRemaining: dto.maxSaleDate ? daysBetween(today, dto.maxSaleDate) : 0,
     isClearance: dto.isClearance,
     status: dto.status,
-    purchaseOrderNumber: dto.purchaseOrderNumber,
+    purchaseNumber: dto.purchaseNumber,
   };
 }
 

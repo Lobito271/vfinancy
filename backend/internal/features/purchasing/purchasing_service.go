@@ -127,16 +127,54 @@ func (s *PurchasingService) factor(ctx context.Context) float64 {
 	return defaultImportFactor
 }
 
-// realCostPEN computes the landed cost in PEN for an order bought in
-// USD: (cost_usd + factor) * exchange_rate.
-func (s *PurchasingService) realCostPEN(ctx context.Context, costUSD valueobjects.Money, rate valueobjects.ExchangeRate) valueobjects.Money {
+// realCostPEN computes the landed cost in PEN of a purchase bought in
+// USD: (total_cost_usd + factor) * exchange_rate, where total_cost_usd
+// already includes the extra costs.
+func (s *PurchasingService) realCostPEN(ctx context.Context, totalCostUSD valueobjects.Money, rate valueobjects.ExchangeRate) valueobjects.Money {
 	m, _ := valueobjects.MoneyFromDecimal(
-		costUSD.Decimal().Add(decimal.NewFromFloat(s.factor(ctx))).Mul(rate.Decimal()),
+		totalCostUSD.Decimal().Add(decimal.NewFromFloat(s.factor(ctx))).Mul(rate.Decimal()),
 	)
 	return m
 }
 
-// CreateItemInput is one line of a new purchase order. When ProductID
+// lineLandedUnitCostPen is the per-unit landed cost that the inventory
+// lot of a line carries. It distributes the purchase's total landed
+// cost (base + extras + import factor, converted at the purchase rate)
+// across the lines in proportion to their share of the base cost, so
+// the sum of every line equals the purchase's real_cost_pen and sale
+// profit includes the extra costs.
+func (s *PurchasingService) lineLandedUnitCostPen(ctx context.Context, po *Purchase, li *PurchaseItem) valueobjects.Money {
+	if po.CostUSD.IsZero() || li.QuantityOrdered.IsZero() {
+		return valueobjects.Zero()
+	}
+	share := li.LineTotalUSD.Decimal().Div(po.CostUSD.Decimal())
+	unit, err := valueobjects.MoneyFromDecimal(
+		s.realCostPEN(ctx, po.TotalCostUSD, po.ExchangeRate).Decimal().
+			Mul(share).
+			Div(li.QuantityOrdered.Decimal()))
+	if err != nil {
+		return valueobjects.Zero()
+	}
+	return unit.RoundToCurrencyPrecision()
+}
+
+// refreshTotals reloads the extra costs of a purchase, normalises them
+// to USD and rewrites extra_cost_usd / total_cost_usd / real_cost_pen.
+// Every extra-cost mutation calls it so the stored totals always
+// satisfy TotalCostUSD = CostUSD + ExtraCostUSD.
+func (s *PurchasingService) refreshTotals(ctx context.Context, po *Purchase) error {
+	costs, err := s.orders.ListExtraCosts(ctx, po.ID)
+	if err != nil {
+		return err
+	}
+	po.ExtraCostUSD = SumExtraCostUSD(costs)
+	po.RecomputeTotals()
+	po.RealCostPen = s.realCostPEN(ctx, po.TotalCostUSD, po.ExchangeRate)
+	po.UpdatedAt = time.Now().UTC()
+	return s.orders.Update(ctx, po)
+}
+
+// CreateItemInput is one line of a new purchase. When ProductID
 // is nil the product is auto-created from the description.
 type CreateItemInput struct {
 	ProductID    *uuid.UUID
@@ -168,9 +206,9 @@ type CreateInput struct {
 // the order with its items — all in one transaction. CostUSD is the sum
 // of the line totals, RealCostPen is (CostUSD + import factor) * rate,
 // and, when paid by credit card, the full order cost is charged to it.
-func (s *PurchasingService) Create(ctx context.Context, in CreateInput) (*PurchaseOrder, error) {
+func (s *PurchasingService) Create(ctx context.Context, in CreateInput) (*Purchase, error) {
 	if len(in.Items) == 0 {
-		return nil, apperrors.Errorf(apperrors.ErrValidation, "purchase order must have at least one item")
+		return nil, apperrors.Errorf(apperrors.ErrValidation, "purchase must have at least one item")
 	}
 	if in.PaymentMethod == "" {
 		in.PaymentMethod = DefaultPaymentMethod
@@ -209,7 +247,7 @@ func (s *PurchasingService) Create(ctx context.Context, in CreateInput) (*Purcha
 		orderDate = time.Now().UTC()
 	}
 
-	var out *PurchaseOrder
+	var out *Purchase
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
 		if s.suppliers != nil {
 			sup, err := s.suppliers.GetByID(ctx, *in.SupplierID)
@@ -220,7 +258,7 @@ func (s *PurchasingService) Create(ctx context.Context, in CreateInput) (*Purcha
 				return apperrors.Errorf(apperrors.ErrConflict, "el proveedor está inactivo")
 			}
 		}
-		items := make([]*PurchaseOrderItem, 0, len(in.Items))
+		items := make([]*PurchaseItem, 0, len(in.Items))
 		costUSD := valueobjects.Zero()
 		salePen := valueobjects.Zero()
 		for i, it := range in.Items {
@@ -250,7 +288,7 @@ func (s *PurchasingService) Create(ctx context.Context, in CreateInput) (*Purcha
 				}
 				description = prod.Description
 			}
-			li, err := NewPurchaseOrderItem(PurchaseOrderItemOptions{
+			li, err := NewPurchaseItem(PurchaseItemOptions{
 				LineNumber:   i + 1,
 				ProductID:    productID,
 				Description:  description,
@@ -274,7 +312,7 @@ func (s *PurchasingService) Create(ctx context.Context, in CreateInput) (*Purcha
 			}
 		}
 		now := time.Now().UTC()
-		po := &PurchaseOrder{
+		po := &Purchase{
 			ID:            uuid.New(),
 			Number:        number,
 			OrderDate:     orderDate,
@@ -288,6 +326,8 @@ func (s *PurchasingService) Create(ctx context.Context, in CreateInput) (*Purcha
 			SupplierID:    in.SupplierID,
 			CreditCardID:  in.CreditCardID,
 			CostUSD:       costUSD,
+			ExtraCostUSD:  valueobjects.Zero(),
+			TotalCostUSD:  costUSD,
 			SalePricePen:  salePen,
 			RealCostPen:   s.realCostPEN(ctx, costUSD, in.ExchangeRate),
 			Items:         items,
@@ -311,7 +351,7 @@ func (s *PurchasingService) Create(ctx context.Context, in CreateInput) (*Purcha
 	if err != nil {
 		return nil, err
 	}
-	s.log.Info("purchase order created",
+	s.log.Info("purchase created",
 		"po_id", out.ID,
 		"number", out.Number,
 		"cost_usd", out.CostUSD.String(),
@@ -354,10 +394,10 @@ func (s *PurchasingService) MarkAsReceived(ctx context.Context, id uuid.UUID, at
 			}
 			if _, err := s.stock.ReceiveFromPurchase(ctx, inventory.ReceiveFromPurchaseInput{
 				ProductID:      *li.ProductID,
-				PurchaseLineID: li.ID,
+				PurchaseItemID: li.ID,
 				ArrivalDate:    at,
 				Quantity:       li.QuantityOrdered,
-				UnitCost:       li.LineRealCostPen(po.ExchangeRate),
+				UnitCost:       s.lineLandedUnitCostPen(ctx, po, li),
 				ExchangeRate:   po.ExchangeRate,
 			}); err != nil {
 				return err
@@ -376,11 +416,11 @@ func (s *PurchasingService) MarkAsReceived(ctx context.Context, id uuid.UUID, at
 // the card charge is released, and when the order belonged to an
 // already-settled card cycle the cost is recorded as refund_amount
 // (saldo a favor) without touching historical cycle balances.
-func (s *PurchasingService) Cancel(ctx context.Context, id uuid.UUID, reason string) (*PurchaseOrder, error) {
+func (s *PurchasingService) Cancel(ctx context.Context, id uuid.UUID, reason string) (*Purchase, error) {
 	if reason == "" {
 		return nil, apperrors.Errorf(apperrors.ErrValidation, "cancel reason is required")
 	}
-	var out *PurchaseOrder
+	var out *Purchase
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
 		po, err := s.orders.GetByID(ctx, id)
 		if err != nil {
@@ -407,14 +447,14 @@ type FaultyInput struct {
 
 // MarkFaulty runs the "llegó en mal estado" workflow: it flags the
 // order as faulty and cancels it exactly like Cancel.
-func (s *PurchasingService) MarkFaulty(ctx context.Context, in FaultyInput) (*PurchaseOrder, error) {
+func (s *PurchasingService) MarkFaulty(ctx context.Context, in FaultyInput) (*Purchase, error) {
 	if in.ID == uuid.Nil {
 		return nil, apperrors.Errorf(apperrors.ErrValidation, "purchase id is required")
 	}
 	if in.Reason == "" {
 		return nil, apperrors.Errorf(apperrors.ErrValidation, "faulty reason is required")
 	}
-	var out *PurchaseOrder
+	var out *Purchase
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
 		po, err := s.orders.GetByID(ctx, in.ID)
 		if err != nil {
@@ -439,7 +479,7 @@ func (s *PurchasingService) MarkFaulty(ctx context.Context, in FaultyInput) (*Pu
 }
 
 // cancelOrder applies the shared cancellation flow to a loaded order.
-func (s *PurchasingService) cancelOrder(ctx context.Context, po *PurchaseOrder, reason string) error {
+func (s *PurchasingService) cancelOrder(ctx context.Context, po *Purchase, reason string) error {
 	items, err := s.orders.ListItems(ctx, po.ID)
 	if err != nil {
 		return err
@@ -467,7 +507,7 @@ func (s *PurchasingService) cancelOrder(ctx context.Context, po *PurchaseOrder, 
 // releaseCardCharge removes the order cost from the card's unpaid
 // balance and records a refund when the order date falls before the
 // current billing cycle (the cycle it belonged to was already settled).
-func (s *PurchasingService) releaseCardCharge(ctx context.Context, po *PurchaseOrder) error {
+func (s *PurchasingService) releaseCardCharge(ctx context.Context, po *Purchase) error {
 	if po.CreditCardID == nil || s.cards == nil || !po.CostUSD.IsPositive() {
 		return nil
 	}
@@ -489,7 +529,7 @@ type ClientOrderLine struct {
 	SalePricePen valueobjects.Money
 }
 
-// CreateClientOrder creates the internal purchase order behind a sale:
+// CreateClientOrder creates the internal purchase behind a sale:
 // linked to the customer, no credit card (the sale flow assigns cost and
 // rate later), per-line cost taken from the product's USD cost, and
 // the USD->PEN rate snapshotted by the caller. It runs in the caller's
@@ -516,7 +556,7 @@ func (s *PurchasingService) CreateClientOrder(ctx context.Context, customerID, s
 			return err
 		}
 		now := time.Now().UTC()
-		po := &PurchaseOrder{
+		po := &Purchase{
 			ID:            uuid.New(),
 			Number:        number,
 			OrderDate:     now,
@@ -527,7 +567,7 @@ func (s *PurchasingService) CreateClientOrder(ctx context.Context, customerID, s
 			CustomerID:    &customerID,
 			SaleID:        &saleID,
 			Notes:         "pedido de cliente (venta " + saleID.String() + ")",
-			Items:         []*PurchaseOrderItem{},
+			Items:         []*PurchaseItem{},
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		}
@@ -540,14 +580,14 @@ func (s *PurchasingService) CreateClientOrder(ctx context.Context, customerID, s
 			if description == "" {
 				description = prod.Description
 			}
-			li, err := NewPurchaseOrderItem(PurchaseOrderItemOptions{
-				PurchaseOrderID: po.ID,
-				LineNumber:      i + 1,
-				ProductID:       &line.ProductID,
-				Description:     description,
-				Quantity:        line.Quantity,
-				UnitCostUSD:     prod.CostUSD,
-				SalePricePen:    line.SalePricePen,
+			li, err := NewPurchaseItem(PurchaseItemOptions{
+				PurchaseID:   po.ID,
+				LineNumber:   i + 1,
+				ProductID:    &line.ProductID,
+				Description:  description,
+				Quantity:     line.Quantity,
+				UnitCostUSD:  prod.CostUSD,
+				SalePricePen: line.SalePricePen,
 			})
 			if err != nil {
 				return err
@@ -566,8 +606,8 @@ func (s *PurchasingService) CreateClientOrder(ctx context.Context, customerID, s
 	})
 }
 
-// GetByID returns the purchase order with its items.
-func (s *PurchasingService) GetByID(ctx context.Context, id uuid.UUID) (*PurchaseOrder, error) {
+// GetByID returns the purchase with its items.
+func (s *PurchasingService) GetByID(ctx context.Context, id uuid.UUID) (*Purchase, error) {
 	po, err := s.orders.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -585,7 +625,7 @@ func (s *PurchasingService) GetByID(ctx context.Context, id uuid.UUID) (*Purchas
 
 // lineSummaries converts loaded order lines into the summary shape
 // shared by the products column and the sold-out flag.
-func lineSummaries(items []*PurchaseOrderItem) []PurchaseLineSummary {
+func lineSummaries(items []*PurchaseItem) []PurchaseLineSummary {
 	lines := make([]PurchaseLineSummary, 0, len(items))
 	for _, li := range items {
 		lines = append(lines, PurchaseLineSummary{
@@ -598,12 +638,12 @@ func lineSummaries(items []*PurchaseOrderItem) []PurchaseLineSummary {
 	return lines
 }
 
-// List returns purchase orders matching the filter, enriched with the
+// List returns purchases matching the filter, enriched with the
 // supplier and products columns.
-func (s *PurchasingService) List(ctx context.Context, filter PurchaseFilter) (repositories.Page[*PurchaseOrder], error) {
+func (s *PurchasingService) List(ctx context.Context, filter PurchaseFilter) (repositories.Page[*Purchase], error) {
 	page, err := s.orders.List(ctx, filter)
 	if err != nil {
-		return repositories.Page[*PurchaseOrder]{}, err
+		return repositories.Page[*Purchase]{}, err
 	}
 	if len(page.Items) > 0 {
 		ids := make([]uuid.UUID, 0, len(page.Items))
@@ -612,7 +652,7 @@ func (s *PurchasingService) List(ctx context.Context, filter PurchaseFilter) (re
 		}
 		summaries, err := s.orders.ListLineSummaries(ctx, ids)
 		if err != nil {
-			return repositories.Page[*PurchaseOrder]{}, err
+			return repositories.Page[*Purchase]{}, err
 		}
 		for _, po := range page.Items {
 			po.ProductsText = SummarizeLines(summaries[po.ID])
@@ -622,19 +662,19 @@ func (s *PurchasingService) List(ctx context.Context, filter PurchaseFilter) (re
 	return page, nil
 }
 
-// ListItems returns the lines of a purchase order.
-func (s *PurchasingService) ListItems(ctx context.Context, purchaseOrderID uuid.UUID) ([]*PurchaseOrderItem, error) {
+// ListItems returns the lines of a purchase.
+func (s *PurchasingService) ListItems(ctx context.Context, purchaseOrderID uuid.UUID) ([]*PurchaseItem, error) {
 	return s.orders.ListItems(ctx, purchaseOrderID)
 }
 
 // UpdateNumber changes the order number. Sequence numbers are
 // generated once and can be corrected through this method.
-func (s *PurchasingService) UpdateNumber(ctx context.Context, id uuid.UUID, number string) (*PurchaseOrder, error) {
+func (s *PurchasingService) UpdateNumber(ctx context.Context, id uuid.UUID, number string) (*Purchase, error) {
 	number = strings.TrimSpace(number)
 	if number == "" {
 		return nil, apperrors.Errorf(apperrors.ErrValidation, "order number is required")
 	}
-	var out *PurchaseOrder
+	var out *Purchase
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
 		po, err := s.orders.GetByID(ctx, id)
 		if err != nil {
@@ -707,19 +747,22 @@ func (s *PurchasingService) AddExtraCost(ctx context.Context, purchaseID uuid.UU
 		}
 		now := time.Now().UTC()
 		ec := &ExtraCost{
-			ID:              uuid.New(),
-			PurchaseOrderID: purchaseID,
-			Concept:         in.Concept,
-			Amount:          in.Amount,
-			CurrencyCode:    in.CurrencyCode,
-			ExchangeRate:    s.effectiveRate(ctx, in.ExchangeRate, po.ExchangeRate),
-			CreatedAt:       now,
-			UpdatedAt:       now,
+			ID:           uuid.New(),
+			PurchaseID:   purchaseID,
+			Concept:      in.Concept,
+			Amount:       in.Amount,
+			CurrencyCode: in.CurrencyCode,
+			ExchangeRate: s.effectiveRate(ctx, in.ExchangeRate, po.ExchangeRate),
+			CreatedAt:    now,
+			UpdatedAt:    now,
 		}
 		if err := ec.Validate(); err != nil {
 			return err
 		}
 		if err := s.orders.CreateExtraCost(ctx, ec); err != nil {
+			return err
+		}
+		if err := s.refreshTotals(ctx, po); err != nil {
 			return err
 		}
 		out = ec
@@ -748,18 +791,21 @@ func (s *PurchasingService) UpdateExtraCost(ctx context.Context, purchaseID, cos
 			return apperrors.Errorf(apperrors.ErrConflict, "no se pueden modificar costos de una compra anulada")
 		}
 		ec := &ExtraCost{
-			ID:              costID,
-			PurchaseOrderID: purchaseID,
-			Concept:         in.Concept,
-			Amount:          in.Amount,
-			CurrencyCode:    in.CurrencyCode,
-			ExchangeRate:    s.effectiveRate(ctx, in.ExchangeRate, po.ExchangeRate),
-			UpdatedAt:       time.Now().UTC(),
+			ID:           costID,
+			PurchaseID:   purchaseID,
+			Concept:      in.Concept,
+			Amount:       in.Amount,
+			CurrencyCode: in.CurrencyCode,
+			ExchangeRate: s.effectiveRate(ctx, in.ExchangeRate, po.ExchangeRate),
+			UpdatedAt:    time.Now().UTC(),
 		}
 		if err := ec.Validate(); err != nil {
 			return err
 		}
 		if err := s.orders.UpdateExtraCost(ctx, ec); err != nil {
+			return err
+		}
+		if err := s.refreshTotals(ctx, po); err != nil {
 			return err
 		}
 		out = ec
@@ -786,7 +832,10 @@ func (s *PurchasingService) DeleteExtraCost(ctx context.Context, purchaseID, cos
 		if po.IsCancelled() {
 			return apperrors.Errorf(apperrors.ErrConflict, "no se pueden modificar costos de una compra anulada")
 		}
-		return s.orders.DeleteExtraCost(ctx, costID, purchaseID)
+		if err := s.orders.DeleteExtraCost(ctx, costID, purchaseID); err != nil {
+			return err
+		}
+		return s.refreshTotals(ctx, po)
 	})
 	if err != nil {
 		return err
@@ -795,7 +844,31 @@ func (s *PurchasingService) DeleteExtraCost(ctx context.Context, purchaseID, cos
 	return nil
 }
 
-// ListExtraCosts returns the extra costs of a purchase order.
+// ListExtraCosts returns the extra costs of a purchase.
 func (s *PurchasingService) ListExtraCosts(ctx context.Context, purchaseOrderID uuid.UUID) ([]*ExtraCost, error) {
 	return s.orders.ListExtraCosts(ctx, purchaseOrderID)
+}
+
+// MonthlyProfit returns the month-by-month profit breakdown for the last
+// `months` months up to and including the month of `at`. Purchase costs
+// are attributed to the month of Purchase.OrderDate and converted to PEN
+// at each purchase's own rate; revenue is the sum of the non-cancelled
+// sales of the same calendar month. Months without activity are reported
+// with zeroes so the series is continuous, oldest first.
+//
+// Profit = SalesPEN - TotalCostPEN, where TotalCostPEN is the landed
+// cost including the extra costs.
+func (s *PurchasingService) MonthlyProfit(ctx context.Context, at time.Time, months int, revenue map[int]valueobjects.Money) []ProfitBreakdown {
+	keys := MonthRange(at, months)
+	if len(keys) == 0 {
+		return nil
+	}
+	first := time.Date(at.Year(), at.Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, -(months - 1), 0)
+	until := first.AddDate(0, months, 0)
+	costs, err := s.orders.MonthlyCosts(ctx, first, until)
+	if err != nil {
+		s.log.Error("monthly purchase costs failed", "error", err.Error())
+		costs = nil
+	}
+	return MonthlyProfit(costs, revenue, keys)
 }

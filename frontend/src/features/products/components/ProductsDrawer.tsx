@@ -162,7 +162,7 @@ export function ProductsDrawer({ open, onOpenChange }: { open: boolean; onOpenCh
           ) : products.length === 0 ? (
             <EmptyState
               title="Sin productos"
-              description="Registra un producto o créalo desde una orden de compra."
+              description="Registra un producto o créalo desde una compra."
               action={{ label: 'Nuevo producto', onClick: () => setFormOpen(true) }}
             />
           ) : (

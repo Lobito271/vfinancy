@@ -135,8 +135,8 @@ const saleItemListSelect = `
 	b.arrival_date, po.id, COALESCE(po.number, '')
 	FROM sale_items si
 	LEFT JOIN inventory_batches b ON b.id = si.inventory_batch_id
-	LEFT JOIN purchase_order_items poi ON poi.id = b.purchase_order_item_id
-	LEFT JOIN purchase_orders po ON po.id = poi.purchase_order_id
+	LEFT JOIN purchase_items poi ON poi.id = b.purchase_item_id
+	LEFT JOIN purchases po ON po.id = poi.purchase_id
 `
 
 func (r *saleRepository) ListItems(ctx context.Context, saleID uuid.UUID) ([]*sales.SaleItem, error) {
@@ -326,16 +326,16 @@ func parseSaleType(s string) enums.SaleType {
 func scanSaleItem(rows *sql.Rows) (*sales.SaleItem, error) {
 	li := &sales.SaleItem{}
 	var (
-		batchID, description            sql.NullString
-		originPurchaseOrderID, poNumber sql.NullString
-		lotArrival                      sql.NullTime
-		quantity, unitPrice             string
-		lineTotal, costSnapshot         string
+		batchID, description       sql.NullString
+		originPurchaseID, poNumber sql.NullString
+		lotArrival                 sql.NullTime
+		quantity, unitPrice        string
+		lineTotal, costSnapshot    string
 	)
 	if err := rows.Scan(
 		&li.ID, &li.SaleID, &li.ProductID, &batchID, &li.LineNumber,
 		&quantity, &unitPrice, &lineTotal, &costSnapshot, &description, &li.CreatedAt,
-		&lotArrival, &originPurchaseOrderID, &poNumber,
+		&lotArrival, &originPurchaseID, &poNumber,
 	); err != nil {
 		return nil, persistence.Translate(err)
 	}
@@ -347,11 +347,11 @@ func scanSaleItem(rows *sql.Rows) (*sales.SaleItem, error) {
 		t := lotArrival.Time
 		li.OriginLotArrivalDate = &t
 	}
-	if originPurchaseOrderID.Valid {
-		id := persistence.ParseUUID(originPurchaseOrderID.String)
-		li.OriginPurchaseOrderID = &id
+	if originPurchaseID.Valid {
+		id := persistence.ParseUUID(originPurchaseID.String)
+		li.OriginPurchaseID = &id
 	}
-	li.OriginPurchaseOrderNumber = poNumber.String
+	li.OriginPurchaseNumber = poNumber.String
 	q, err := valueobjects.QuantityFromString(quantity)
 	if err != nil {
 		return nil, err

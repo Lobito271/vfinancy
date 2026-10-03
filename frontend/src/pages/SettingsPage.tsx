@@ -86,7 +86,7 @@ function BusinessTab() {
               name="purchaseLimitUsd"
               label="Tope de compra"
               currency="USD"
-              description="Monto máximo por orden de compra antes de la advertencia."
+              description="Monto máximo por compra antes de la advertencia."
               required
             />
             <div>

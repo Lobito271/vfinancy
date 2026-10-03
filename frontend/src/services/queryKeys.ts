@@ -60,5 +60,6 @@ export const queryKeys = {
   },
   dashboard: {
     overview: ['dashboard', 'overview'] as const,
+    monthlyProfit: (months: number) => ['dashboard', 'monthlyProfit', months] as const,
   },
 } as const;

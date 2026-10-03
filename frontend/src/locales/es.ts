@@ -124,7 +124,7 @@ const es = {
   },
   purchases: {
     title: 'Compras',
-    subtitle: 'Órdenes de compra y cuentas por pagar',
+    subtitle: 'Compras y cuentas por pagar',
     orderNumber: 'N° de orden',
     supplier: 'Proveedor',
   },

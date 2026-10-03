@@ -4,7 +4,7 @@ import type {
   ExtraCostDTO,
   ExtraCostRequest,
   PurchaseItemRequest,
-  PurchaseOrderDTO,
+  PurchaseDTO,
 } from '../wails-types';
 import { wailsClient } from '../bindings';
 import { fetchAllPages } from '../paginate';
@@ -27,13 +27,7 @@ interface PurchaseQuery {
   pageSize?: number;
 }
 
-export interface Purchase extends PurchaseOrderDTO {
-  date: string;
-}
-
-function toPurchase(dto: PurchaseOrderDTO): Purchase {
-  return { ...dto, date: dto.orderDate };
-}
+export type Purchase = PurchaseDTO;
 
 function toItems(items: PurchaseLineInput[]): PurchaseItemRequest[] {
   return items.map((it) => ({
@@ -51,7 +45,7 @@ export interface PurchaseCreateInput {
   supplierId: string;
   paymentMethod: 'card' | 'cash' | 'digital_wallet';
   creditCardId: string;
-  orderDate: string;
+  date: string;
   expectedDate?: string;
   exchangeRate?: number;
   notes?: string;
@@ -79,7 +73,7 @@ function toExtraCostRequest(input: ExtraCostInput): ExtraCostRequest {
 export const purchasingService = {
   async list(q: PurchaseQuery = {}): Promise<Purchase[]> {
     const items = await fetchAllPages((page, pageSize) =>
-      wailsClient.listPurchaseOrders({
+      wailsClient.listPurchases({
         page,
         pageSize,
         search: q.search ?? '',
@@ -89,11 +83,11 @@ export const purchasingService = {
         to: q.to ?? '',
       }),
     );
-    return (items as PurchaseOrderDTO[]).map(toPurchase);
+    return items as PurchaseDTO[];
   },
 
   async get(id: string): Promise<Purchase> {
-    return toPurchase(await wailsClient.getPurchaseOrder(id));
+    return wailsClient.getPurchase(id);
   },
 
   async create(input: PurchaseCreateInput): Promise<Purchase> {
@@ -104,17 +98,16 @@ export const purchasingService = {
       paymentMethod: input.paymentMethod,
       creditCardId: input.creditCardId,
       exchangeRate: input.exchangeRate ?? 1,
-      orderDate: input.orderDate,
+      date: input.date,
       expectedDate: input.expectedDate ?? '',
       notes: input.notes ?? '',
       items: toItems(input.items),
     };
-    const dto = await wailsClient.createPurchase(req);
-    return toPurchase(dto);
+    return wailsClient.createPurchase(req);
   },
 
   async cancel(id: string, reason: string): Promise<Purchase> {
-    return toPurchase(await wailsClient.cancelPurchase({ id, reason }));
+    return wailsClient.cancelPurchase({ id, reason });
   },
 
   async markReceived(id: string, receivedDate: string): Promise<void> {
@@ -122,11 +115,11 @@ export const purchasingService = {
   },
 
   async markFaulty(id: string, reason: string): Promise<Purchase> {
-    return toPurchase(await wailsClient.markPurchaseFaulty({ id, reason }));
+    return wailsClient.markPurchaseFaulty({ id, reason });
   },
 
   async updateNumber(id: string, number: string): Promise<Purchase> {
-    return toPurchase(await wailsClient.updatePurchaseNumber(id, number));
+    return wailsClient.updatePurchaseNumber(id, number);
   },
 
   async listExtraCosts(purchaseId: string): Promise<ExtraCost[]> {

@@ -2,18 +2,13 @@ import { useQuery } from '@tanstack/react-query';
 import { wailsClient } from '@/services/bindings';
 import { fetchAllPages } from '@/services/paginate';
 import { queryKeys } from '@/services/queryKeys';
-import type { ChartPoint } from '@/types/domain';
 
 interface DashboardData {
   monthCollected: number;
-  monthProfit: number;
-  profitSeries: ChartPoint[];
   monthPaidCount: number;
   monthPendingCount: number;
   monthCancelledCount: number;
 }
-
-const monthLabels = new Intl.DateTimeFormat('es-PE', { month: 'short' });
 
 const dayPattern = /^(\d{4})-(\d{2})-(\d{2})/;
 
@@ -27,12 +22,15 @@ function firstOfMonth(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
 }
 
+// useDashboardData feeds the cash-collection and status widgets. The
+// profitability figures live in ListMonthlyProfit, which aggregates
+// purchases and sales on the server instead of guessing a margin here.
 export function useDashboardData() {
   return useQuery({
     queryKey: queryKeys.dashboard.overview,
     queryFn: async (): Promise<DashboardData> => {
       const now = new Date();
-      const rangeStart = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+      const rangeStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       const rangeEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
       const [collections, sales] = await Promise.all([
@@ -52,32 +50,11 @@ export function useDashboardData() {
         ),
       ]);
 
-      const saleById = new Map(sales.map((s) => [s.id, s]));
-
-      const series: ChartPoint[] = [];
-      const index = new Map<number, number>();
-      for (let i = 5; i >= 0; i -= 1) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        index.set(d.getFullYear() * 12 + d.getMonth(), series.length);
-        series.push({ label: monthLabels.format(d), value: 0 });
-      }
-
       let monthCollected = 0;
-      let monthProfit = 0;
       for (const c of collections) {
-        const sale = saleById.get(c.saleId);
-        if (!sale || sale.status === 'cancelled') continue;
         const day = parseDay(c.paymentDate);
-        if (!day) continue;
-        const slot = index.get(day.y * 12 + day.m);
-        if (slot === undefined) continue;
-        const margin = sale.total > 0 ? sale.profit / sale.total : 0;
-        const collectedProfit = c.amount * margin;
-        series[slot].value += collectedProfit;
-        if (slot === series.length - 1) {
-          monthCollected += c.amount;
-          monthProfit += collectedProfit;
-        }
+        if (!day || day.y !== now.getFullYear() || day.m !== now.getMonth()) continue;
+        monthCollected += c.amount;
       }
 
       let monthPaidCount = 0;
@@ -93,8 +70,6 @@ export function useDashboardData() {
 
       return {
         monthCollected,
-        monthProfit,
-        profitSeries: series,
         monthPaidCount,
         monthPendingCount,
         monthCancelledCount,

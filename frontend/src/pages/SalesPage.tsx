@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ShoppingCart, CreditCard, Ban, Plus, ReceiptText, Eye, Users, ArrowUpRight } from 'lucide-react';
+import { ShoppingCart, CreditCard, Ban, Plus, ReceiptText, Eye, Users, ArrowUpRight, Package } from 'lucide-react';
 import { PageContainer, PageHeader, StatBand } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
@@ -21,6 +21,7 @@ import {
 } from '@/components/select';
 import { useSales, useCancelSale, useCollectSalePayment } from '@/features/sales/hooks/useSales';
 import { SaleFormDialog } from '@/features/sales/components/SaleFormDialog';
+import { ShipmentFormDialog } from '@/features/shipments/components/ShipmentFormDialog';
 import { CustomersDrawer } from '@/features/customers/components/CustomersDrawer';
 import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
@@ -97,6 +98,9 @@ export function SalesPage() {
   const [collectTarget, setCollectTarget] = useState<Sale | null>(null);
   const [historyTarget, setHistoryTarget] = useState<Sale | null>(null);
   const [detailTarget, setDetailTarget] = useState<Sale | null>(null);
+  const [shipmentTarget, setShipmentTarget] = useState<Sale | null>(null);
+
+  const shipmentDefaults = useMemo(() => ({ saleId: shipmentTarget?.id }), [shipmentTarget]);
 
   const navigate = useNavigate();
   const goToPurchase = (purchaseOrderId: string) => {
@@ -150,6 +154,9 @@ export function SalesPage() {
       { label: 'Ver detalle', icon: Eye, onSelect: () => setDetailTarget(row) },
       { label: 'Cobros', icon: ReceiptText, onSelect: () => setHistoryTarget(row) },
     ];
+    if (row.status !== 'cancelled') {
+      actions.push({ label: 'Envío', icon: Package, onSelect: () => setShipmentTarget(row) });
+    }
     if (collectable) {
       actions.push({ label: 'Cobrar', icon: CreditCard, onSelect: () => setCollectTarget(row) });
     }
@@ -253,6 +260,14 @@ export function SalesPage() {
       />
 
       <SaleFormDialog open={formOpen} onOpenChange={setFormOpen} />
+
+      <ShipmentFormDialog
+        open={!!shipmentTarget}
+        onOpenChange={(open) => {
+          if (!open) setShipmentTarget(null);
+        }}
+        defaults={shipmentDefaults}
+      />
       <CustomersDrawer open={customersOpen} onOpenChange={setCustomersOpen} />
 
       <RegisterPaymentDialog

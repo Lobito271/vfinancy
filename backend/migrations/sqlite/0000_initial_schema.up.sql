@@ -400,26 +400,33 @@ CREATE INDEX idx_customer_payment_alloc_payment ON customer_payment_allocations 
 CREATE INDEX idx_customer_payment_alloc_sale ON customer_payment_allocations (sale_id);
 
 CREATE TABLE shipments (
-    id          TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-    code        VARCHAR(4)  NOT NULL,
-    sale_id     TEXT,
-    customer_id TEXT,
-    description TEXT,
-    notes       TEXT,
-    status      VARCHAR(20) NOT NULL DEFAULT 'pending'
+    id            TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    code          VARCHAR(20) NOT NULL,
+    security_code VARCHAR(4)  NOT NULL CHECK (length(trim(security_code)) = 4),
+    sale_id       TEXT        NOT NULL,
+    customer_id   TEXT,
+    location      TEXT,
+    shipment_date TIMESTAMP,
+    delivered_at  TIMESTAMP,
+    description   TEXT,
+    notes         TEXT,
+    status        VARCHAR(20) NOT NULL DEFAULT 'pending'
         CHECK (status IN ('pending', 'shipped', 'delivered')),
 
-    created_at  TIMESTAMP   NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-    updated_at  TIMESTAMP   NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-    deleted_at  TIMESTAMP,
+    created_at    TIMESTAMP   NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
+    updated_at    TIMESTAMP   NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
+    deleted_at    TIMESTAMP,
 
     CONSTRAINT fk_shipments_sale
-        FOREIGN KEY (sale_id) REFERENCES sales(id) ON UPDATE CASCADE ON DELETE SET NULL,
+        FOREIGN KEY (sale_id) REFERENCES sales(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT fk_shipments_customer
-        FOREIGN KEY (customer_id) REFERENCES customers(id) ON UPDATE CASCADE ON DELETE SET NULL
+        FOREIGN KEY (customer_id) REFERENCES customers(id) ON UPDATE CASCADE ON DELETE SET NULL,
+    CONSTRAINT ck_shipments_dates
+        CHECK (delivered_at IS NULL OR shipment_date IS NULL OR delivered_at >= shipment_date)
 );
 
 CREATE UNIQUE INDEX uq_shipments_code ON shipments (code) WHERE deleted_at IS NULL;
+CREATE INDEX idx_shipments_sale ON shipments (sale_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_shipments_customer ON shipments (customer_id, created_at) WHERE deleted_at IS NULL;
 CREATE INDEX idx_shipments_status ON shipments (status, created_at) WHERE deleted_at IS NULL;
 

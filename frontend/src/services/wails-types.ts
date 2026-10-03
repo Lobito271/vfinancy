@@ -447,8 +447,13 @@ export interface ExchangeRateDTO {
 export interface ShipmentDTO {
   id: string;
   code: string;
+  securityCode: string;
   saleId: string;
+  saleNumber: string;
   customerId: string;
+  location: string;
+  shipmentDate: string;
+  deliveredAt: string;
   description: string;
   notes: string;
   status: 'pending' | 'shipped' | 'delivered';
@@ -459,7 +464,10 @@ export interface ShipmentDTO {
 export interface SaveShipmentRequest {
   id?: string;
   saleId: string;
-  customerId: string;
+  securityCode?: string;
+  location: string;
+  shipmentDate: string;
+  deliveredAt: string;
   description: string;
   notes: string;
   status: string;

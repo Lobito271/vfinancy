@@ -15,6 +15,7 @@ import { ShipmentFormDialog } from '@/features/shipments/components/ShipmentForm
 import { SHIPMENT_STATUSES } from '@/services/shipments';
 import { useCustomers } from '@/features/customers/hooks/useCustomers';
 import { formatDate, truncate } from '@/utils/format';
+import { copyText } from '@/utils/clipboard';
 import { useNotificationStore } from '@/stores/notification';
 
 const STATUS_VARIANT: Record<ShipmentDTO['status'], 'secondary' | 'info' | 'success'> = {
@@ -22,19 +23,6 @@ const STATUS_VARIANT: Record<ShipmentDTO['status'], 'secondary' | 'info' | 'succ
   shipped: 'info',
   delivered: 'success',
 };
-
-async function copyText(text: string): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    const ta = document.createElement('textarea');
-    ta.value = text;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-  }
-}
 
 export function ShipmentsPage() {
   const [search, setSearch] = useState('');
@@ -76,13 +64,32 @@ export function ShipmentsPage() {
         cell: (row) => (
           <span className="hstack" style={{ gap: '0.5rem' }}>
             <span className="fw-medium tabular mono">{row.code}</span>
-            <Button variant="ghost" size="sm" onClick={() => void copyText(row.code).then(() => {
+            <Button variant="ghost" size="sm" aria-label={`Copiar código ${row.code}`} onClick={() => void copyText(row.code).then(() => {
               push({ title: `Código ${row.code} copiado`, variant: 'success' });
             })}>
               <Copy size={14} />
             </Button>
           </span>
         ),
+      },
+      {
+        id: 'securityCode',
+        header: 'Clave',
+        cell: (row) => (
+          <span className="hstack" style={{ gap: '0.5rem' }}>
+            <span className="fw-medium tabular mono">{row.securityCode}</span>
+            <Button variant="ghost" size="sm" aria-label={`Copiar clave ${row.securityCode}`} onClick={() => void copyText(row.securityCode).then(() => {
+              push({ title: `Clave ${row.securityCode} copiada`, variant: 'success' });
+            })}>
+              <Copy size={14} />
+            </Button>
+          </span>
+        ),
+      },
+      {
+        id: 'sale',
+        header: 'Venta',
+        cell: (row) => (row.saleNumber ? <span className="mono">{row.saleNumber}</span> : '—'),
       },
       {
         id: 'customer',
@@ -95,9 +102,27 @@ export function ShipmentsPage() {
         },
       },
       {
-        id: 'sale',
-        header: 'Venta',
-        cell: (row) => (row.saleId ? <span className="mono">{row.saleId.slice(0, 8)}</span> : '—'),
+        id: 'location',
+        header: 'Ubicación',
+        maxChars: 24,
+        cell: (row) =>
+          row.location ? (
+            <span className="muted" title={row.location}>
+              {truncate(row.location, 24)}
+            </span>
+          ) : (
+            '—'
+          ),
+      },
+      {
+        id: 'shipmentDate',
+        header: 'Envío',
+        cell: (row) => <span className="tabular">{row.shipmentDate ? formatDate(row.shipmentDate) : '—'}</span>,
+      },
+      {
+        id: 'deliveredAt',
+        header: 'Entrega',
+        cell: (row) => <span className="tabular">{row.deliveredAt ? formatDate(row.deliveredAt) : '—'}</span>,
       },
       {
         id: 'description',
@@ -176,7 +201,7 @@ export function ShipmentsPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onClear={() => setSearch('')}
-                placeholder="Buscar por código o descripción…"
+                placeholder="Buscar por código, clave o descripción…"
                 className="datatable-search"
                 aria-label="Buscar envío"
               />

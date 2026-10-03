@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"vfinancy/backend/internal/domain/repositories"
 	"vfinancy/backend/internal/features/inventory"
 )
 
@@ -68,6 +69,7 @@ type InventoryBatchDTO struct {
 	Status              string  `json:"status"`
 	IsClearance         bool    `json:"isClearance"`
 	MaxSaleDate         string  `json:"maxSaleDate"`
+	PurchaseOrderNumber string  `json:"purchaseOrderNumber"`
 }
 
 type InventoryMovementDTO struct {
@@ -116,6 +118,48 @@ func (a *App) ListInventoryBatches(req PaginationRequest, status string, search 
 		items = append(items, dto)
 	}
 	return PageResult{Items: items, Total: page.Total, Page: req.Page, PageSize: req.PageSize}, nil
+}
+
+// LotOptionDTO is one selectable lot in the sale form.
+type LotOptionDTO struct {
+	ID                  string  `json:"id"`
+	ArrivalDate         string  `json:"arrivalDate"`
+	Quantity            float64 `json:"quantity"`
+	UnitCost            float64 `json:"unitCost"`
+	IsClearance         bool    `json:"isClearance"`
+	MaxSaleDate         string  `json:"maxSaleDate"`
+	PurchaseOrderNumber string  `json:"purchaseOrderNumber"`
+}
+
+// ListProductLots returns the active lots of a product so the sale form
+// can let the user pick which one to sell from.
+func (a *App) ListProductLots(productID string) ([]LotOptionDTO, error) {
+	pid, err := parseUUID(productID)
+	if err != nil {
+		return nil, err
+	}
+	page, err := a.inventorySvc.ListBatches(a.Context(), inventory.InventoryBatchFilter{
+		ProductID:   &pid,
+		OnlyActive:  true,
+		PageRequest: repositories.PageRequest{Limit: 50},
+	})
+	if err != nil {
+		return nil, err
+	}
+	days := a.inventorySvc.ClearanceDaysFor(a.Context())
+	lots := make([]LotOptionDTO, 0, len(page.Items))
+	for _, b := range page.Items {
+		lots = append(lots, LotOptionDTO{
+			ID:                  b.ID.String(),
+			ArrivalDate:         b.ArrivalDate.Format("2006-01-02"),
+			Quantity:            quantityFloat(b.Quantity),
+			UnitCost:            moneyFloat(b.UnitCost),
+			IsClearance:         b.IsClearance,
+			MaxSaleDate:         b.MaxSaleDate(days).Format("2006-01-02"),
+			PurchaseOrderNumber: b.SourcePurchaseOrderNumber,
+		})
+	}
+	return lots, nil
 }
 
 // ListInventoryMovements returns the kardex ledger.

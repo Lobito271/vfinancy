@@ -49,6 +49,17 @@ const columns: Column<InventoryItem>[] = [
     cell: (row) => row.productDescription,
   },
   {
+    id: 'purchaseOrderNumber',
+    header: 'Compra',
+    sortable: true,
+    cell: (row) =>
+      row.purchaseOrderNumber ? (
+        <span className="tabular muted">{row.purchaseOrderNumber}</span>
+      ) : (
+        '—'
+      ),
+  },
+  {
     id: 'quantity',
     header: 'Cantidad',
     align: 'numeric',

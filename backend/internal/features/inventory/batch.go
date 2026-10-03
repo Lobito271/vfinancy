@@ -34,6 +34,12 @@ type InventoryBatch struct {
 	IsClearance         bool
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+
+	// SourcePurchaseOrderID and SourcePurchaseOrderNumber are read-only
+	// views of the purchase the lot came from, filled by the repository
+	// for the kardex list and the lot picker.
+	SourcePurchaseOrderID     *uuid.UUID
+	SourcePurchaseOrderNumber string
 }
 
 // NewInventoryBatchOptions is the input to NewInventoryBatch.

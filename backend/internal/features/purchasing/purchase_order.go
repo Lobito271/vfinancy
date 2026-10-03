@@ -53,6 +53,7 @@ type PurchaseOrder struct {
 	CustomerID         *uuid.UUID
 	SupplierID         *uuid.UUID
 	CreditCardID       *uuid.UUID
+	SaleID             *uuid.UUID
 	CostUSD            valueobjects.Money
 	SalePricePen       valueobjects.Money
 	RealCostPen        valueobjects.Money
@@ -68,10 +69,15 @@ type PurchaseOrder struct {
 	// Items are the order lines. Loaded by the repository / service.
 	Items []*PurchaseOrderItem
 
-	// SupplierName and ProductsText are read-only denormalized views
-	// filled by the repository / service for the list and the detail.
-	SupplierName string
-	ProductsText string
+	// SupplierName, CustomerName, SaleNumber, ProductsText and SoldOut
+	// are read-only denormalized views filled by the repository / service
+	// for the list and the detail. SoldOut is true when every line of the
+	// order has been fully sold.
+	SupplierName  string
+	CustomerName  string
+	SaleNumber    string
+	ProductsText  string
+	SoldOut       bool
 }
 
 // Validate checks the aggregate invariants that hold regardless of the

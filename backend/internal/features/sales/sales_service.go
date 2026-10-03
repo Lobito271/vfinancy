@@ -31,7 +31,7 @@ import (
 // stockReserver is the narrow inventory contract consumed by the
 // sales slice. It is satisfied by *inventory.InventoryService.
 type stockReserver interface {
-	ReserveForSale(ctx context.Context, in inventory.ReserveForSaleInput) (valueobjects.Money, error)
+	ReserveForSale(ctx context.Context, in inventory.ReserveForSaleInput) (*uuid.UUID, valueobjects.Money, error)
 	ReturnVoidedSale(ctx context.Context, saleID uuid.UUID) error
 }
 
@@ -89,6 +89,9 @@ type ItemInput struct {
 	ProductID uuid.UUID
 	Quantity  valueobjects.Quantity
 	UnitPrice valueobjects.Money
+	// InventoryBatchID pins the line to a specific lot; nil lets the
+	// inventory service pick FIFO.
+	InventoryBatchID *uuid.UUID
 }
 
 // CreateInput is the payload for Create. A nil DueDate means a cash
@@ -199,11 +202,12 @@ func (s *SalesService) Create(ctx context.Context, in CreateInput) (*CreateResul
 		items := make([]*SaleItem, 0, len(in.Items))
 		for i, it := range in.Items {
 			li, err := NewSaleItem(now, NewSaleItemOptions{
-				SaleID:     sale.ID,
-				ProductID:  it.ProductID,
-				LineNumber: i + 1,
-				Quantity:   it.Quantity,
-				UnitPrice:  it.UnitPrice,
+				SaleID:           sale.ID,
+				ProductID:        it.ProductID,
+				InventoryBatchID: it.InventoryBatchID,
+				LineNumber:       i + 1,
+				Quantity:         it.Quantity,
+				UnitPrice:        it.UnitPrice,
 			})
 			if err != nil {
 				return err
@@ -219,14 +223,16 @@ func (s *SalesService) Create(ctx context.Context, in CreateInput) (*CreateResul
 				if s.stock == nil {
 					return derrors.New("INTERNAL", "inventory is not configured")
 				}
-				unitCost, err := s.stock.ReserveForSale(ctx, inventory.ReserveForSaleInput{
+				batchID, unitCost, err := s.stock.ReserveForSale(ctx, inventory.ReserveForSaleInput{
 					ProductID: li.ProductID,
 					Quantity:  li.Quantity,
 					SaleID:    sale.ID,
+					BatchID:   li.InventoryBatchID,
 				})
 				if err != nil {
 					return err
 				}
+				li.InventoryBatchID = batchID
 				li.CostSnapshot = unitCost
 			case enums.SaleTypeClientOrder:
 				prod, err := s.products.GetByID(ctx, li.ProductID)

@@ -18,6 +18,9 @@ type ReserveForSaleInput struct {
 	ProductID uuid.UUID
 	Quantity  valueobjects.Quantity
 	SaleID    uuid.UUID
+	// BatchID pins the sale to one specific lot. When nil the oldest
+	// active lot is consumed first.
+	BatchID *uuid.UUID
 }
 
 // ReserveForSale consumes `in.Quantity` from the active batches of the
@@ -26,12 +29,13 @@ type ReserveForSaleInput struct {
 // movement referencing the sale is appended to the ledger. The whole
 // operation runs on a single transaction with each batch row locked.
 //
-// It returns the weighted average unit cost of the consumed units; the
-// caller uses it as the sale line's cost snapshot. When the stock is
-// short the transaction is rolled back and ErrInsufficientStock is
-// returned.
-func (s *InventoryService) ReserveForSale(ctx context.Context, in ReserveForSaleInput) (valueobjects.Money, error) {
+// It returns the weighted average unit cost of the consumed units and,
+// when the units came from a single lot, that lot's id; the caller uses
+// the cost as the sale line's cost snapshot. When the stock is short the
+// transaction is rolled back and ErrInsufficientStock is returned.
+func (s *InventoryService) ReserveForSale(ctx context.Context, in ReserveForSaleInput) (*uuid.UUID, valueobjects.Money, error) {
 	var weighted valueobjects.Money
+	var soleBatch *uuid.UUID
 	err := s.txm.WithinTransaction(ctx, func(ctx context.Context) error {
 		page, err := s.batches.List(ctx, InventoryBatchFilter{
 			ProductID:   &in.ProductID,
@@ -46,6 +50,18 @@ func (s *InventoryService) ReserveForSale(ctx context.Context, in ReserveForSale
 		for i := len(page.Items) - 1; i >= 0; i-- {
 			batches = append(batches, page.Items[i])
 		}
+		if in.BatchID != nil {
+			pinned := batches[:0:0]
+			for _, b := range batches {
+				if b.ID == *in.BatchID {
+					pinned = append(pinned, b)
+				}
+			}
+			if len(pinned) == 0 {
+				return derrors.ErrField("el lote seleccionado no tiene stock disponible")
+			}
+			batches = pinned
+		}
 
 		ref, err := valueobjects.NewReference(enums.ReferenceTypeSale, in.SaleID)
 		if err != nil {
@@ -53,6 +69,7 @@ func (s *InventoryService) ReserveForSale(ctx context.Context, in ReserveForSale
 		}
 		remaining := in.Quantity
 		var totalCost, totalQty decimal.Decimal
+		var drawn []uuid.UUID
 		now := time.Now().UTC()
 		for _, b := range batches {
 			if remaining.IsZero() {
@@ -94,15 +111,19 @@ func (s *InventoryService) ReserveForSale(ctx context.Context, in ReserveForSale
 			totalCost = totalCost.Add(locked.UnitCost.Decimal().Mul(take.Decimal()))
 			totalQty = totalQty.Add(take.Decimal())
 			remaining = remaining.Sub(take)
+			drawn = append(drawn, locked.ID)
 		}
 		if !remaining.IsZero() || totalQty.IsZero() {
 			return derrors.Wrap(derrors.ErrInsufficientStock, errField("not enough stock for product "+in.ProductID.String()))
+		}
+		if len(drawn) == 1 {
+			soleBatch = &drawn[0]
 		}
 		weighted, err = valueobjects.MoneyFromDecimal(totalCost.Div(totalQty))
 		return err
 	})
 	if err != nil {
-		return valueobjects.Zero(), err
+		return nil, valueobjects.Zero(), err
 	}
 	s.log.Info("inventory reserved for sale",
 		"sale_id", in.SaleID,
@@ -110,7 +131,7 @@ func (s *InventoryService) ReserveForSale(ctx context.Context, in ReserveForSale
 		"quantity", in.Quantity,
 		"weighted_cost", weighted,
 	)
-	return weighted, nil
+	return soleBatch, weighted, nil
 }
 
 // ReturnVoidedSale restores the stock consumed by a cancelled sale. It

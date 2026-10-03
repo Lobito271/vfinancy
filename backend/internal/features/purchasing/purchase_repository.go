@@ -24,10 +24,22 @@ type PurchaseFilter struct {
 }
 
 // PurchaseLineSummary is one order line rendered in the list's
-// "Productos" column: a decimal quantity and a product name.
+// "Productos" column: a decimal quantity, a product name and the
+// ordered / sold quantities used to flag fully sold orders.
 type PurchaseLineSummary struct {
 	Quantity string
 	Name     string
+	Ordered  string
+	Sold     string
+}
+
+// parseDecimal reads a stored decimal string, defaulting to zero.
+func parseDecimal(s string) decimal.Decimal {
+	d, err := decimal.NewFromString(strings.TrimSpace(s))
+	if err != nil {
+		return decimal.Zero
+	}
+	return d
 }
 
 // SummarizeLines renders the ordered quantities and line names of an
@@ -36,16 +48,27 @@ type PurchaseLineSummary struct {
 func SummarizeLines(lines []PurchaseLineSummary) string {
 	parts := make([]string, 0, len(lines))
 	for _, l := range lines {
-		q, err := decimal.NewFromString(strings.TrimSpace(l.Quantity))
-		if err != nil {
-			q = decimal.Zero
-		}
+		q := parseDecimal(l.Quantity)
 		if q.Equal(q.Truncate(0)) {
 			q = q.Truncate(0)
 		}
 		parts = append(parts, q.String()+"× "+l.Name)
 	}
 	return strings.Join(parts, ", ")
+}
+
+// AllLinesSold reports whether every unit of every line of an order has
+// been sold. An order without lines is never considered sold.
+func AllLinesSold(lines []PurchaseLineSummary) bool {
+	if len(lines) == 0 {
+		return false
+	}
+	for _, l := range lines {
+		if parseDecimal(l.Sold).LessThan(parseDecimal(l.Ordered)) {
+			return false
+		}
+	}
+	return true
 }
 
 // PurchaseRepository persists purchase orders and their line items.

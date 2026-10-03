@@ -41,3 +41,14 @@ func IsPostgres() bool { return CurrentDialect() == DialectPostgres }
 
 // IsSQLite reports whether the process is running against SQLite.
 func IsSQLite() bool { return CurrentDialect() == DialectSQLite }
+
+// Num casts a stored decimal column to a number so aggregates can run
+// over it. Quantities and amounts are stored as decimal strings to
+// avoid float drift in Go; casting inside SQL is only used for sums and
+// comparisons the caller never routes through Money.
+func Num(column string) string {
+	if IsSQLite() {
+		return "CAST(" + column + " AS REAL)"
+	}
+	return "CAST(" + column + " AS numeric)"
+}

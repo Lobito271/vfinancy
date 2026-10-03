@@ -525,6 +525,7 @@ func (s *PurchasingService) CreateClientOrder(ctx context.Context, customerID, s
 			PaymentMethod: DefaultPaymentMethod,
 			ExchangeRate:  rate,
 			CustomerID:    &customerID,
+			SaleID:        &saleID,
 			Notes:         "pedido de cliente (venta " + saleID.String() + ")",
 			Items:         []*PurchaseOrderItem{},
 			CreatedAt:     now,
@@ -576,17 +577,25 @@ func (s *PurchasingService) GetByID(ctx context.Context, id uuid.UUID) (*Purchas
 		return nil, err
 	}
 	po.Items = items
-	po.ProductsText = s.summarizeItems(items)
+	lines := lineSummaries(items)
+	po.ProductsText = SummarizeLines(lines)
+	po.SoldOut = AllLinesSold(lines)
 	return po, nil
 }
 
-// summarizeItems renders the order lines as the products-column text.
-func (s *PurchasingService) summarizeItems(items []*PurchaseOrderItem) string {
+// lineSummaries converts loaded order lines into the summary shape
+// shared by the products column and the sold-out flag.
+func lineSummaries(items []*PurchaseOrderItem) []PurchaseLineSummary {
 	lines := make([]PurchaseLineSummary, 0, len(items))
 	for _, li := range items {
-		lines = append(lines, PurchaseLineSummary{Quantity: li.QuantityOrdered.String(), Name: li.Description})
+		lines = append(lines, PurchaseLineSummary{
+			Quantity: li.QuantityOrdered.String(),
+			Name:     li.Description,
+			Ordered:  li.QuantityOrdered.String(),
+			Sold:     li.QuantitySold.String(),
+		})
 	}
-	return SummarizeLines(lines)
+	return lines
 }
 
 // List returns purchase orders matching the filter, enriched with the
@@ -607,6 +616,7 @@ func (s *PurchasingService) List(ctx context.Context, filter PurchaseFilter) (re
 		}
 		for _, po := range page.Items {
 			po.ProductsText = SummarizeLines(summaries[po.ID])
+			po.SoldOut = AllLinesSold(summaries[po.ID])
 		}
 	}
 	return page, nil

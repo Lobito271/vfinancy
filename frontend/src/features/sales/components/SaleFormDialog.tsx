@@ -25,7 +25,7 @@ import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
 import { PaymentMethodOptions } from '@/constants/paymentMethods';
 import { useNotificationStore } from '@/stores/notification';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatDate, formatNumber } from '@/utils/format';
 
 const SaleFormSchema = z
   .object({
@@ -43,6 +43,7 @@ const SaleFormSchema = z
           productId: z.string().min(1, 'Seleccione un producto'),
           quantity: z.number().int('Debe ser entero').positive('Cantidad debe ser mayor a 0'),
           unitPrice: z.number().min(0.01, 'Ingrese el precio de venta'),
+          batchId: z.string().optional(),
         }),
       )
       .min(1, 'Agregue al menos una línea'),
@@ -113,10 +114,105 @@ interface SaleLinesProps {
   productCreateOption?: CreateSelectOption;
 }
 
+interface SaleLineCardProps {
+  index: number;
+  row: SaleFormValues['items'][number];
+  productOptions: SelectOption[];
+  priceById: Map<string, number>;
+  saleType: 'stock' | 'client_order';
+  onRemove: () => void;
+  productCreateOption?: CreateSelectOption;
+}
+
+// A single sale line. It owns the lot query because hooks cannot run in
+// the field array loop of SaleLines.
+function SaleLineCard({
+  index,
+  row,
+  productOptions,
+  priceById,
+  saleType,
+  onRemove,
+  productCreateOption,
+}: SaleLineCardProps) {
+  const { setValue } = useFormContext<SaleFormValues>();
+
+  const lotsQuery = useQuery({
+    queryKey: queryKeys.inventory.lots(row.productId),
+    queryFn: () => wailsClient.listProductLots(row.productId),
+    enabled: saleType === 'stock' && Boolean(row.productId),
+  });
+  const lots = lotsQuery.data ?? [];
+  const lineTotal = round2((row.unitPrice ?? 0) * (row.quantity ?? 0));
+
+  return (
+    <div className="line-item">
+      <div className="line-item__head">
+        <div className="line-item__field">
+          <SelectField
+            name={`items.${index}.productId` as FieldPath<SaleFormValues>}
+            label={`Producto ${index + 1}`}
+            required
+            options={productOptions}
+            clearable={false}
+            createOption={productCreateOption}
+            onChange={(v) => {
+              const price = priceById.get(v);
+              if (price) {
+                setValue(`items.${index}.unitPrice` as FieldPath<SaleFormValues>, price);
+              }
+              setValue(`items.${index}.batchId` as FieldPath<SaleFormValues>, '');
+            }}
+          />
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="line-item__remove"
+          aria-label={`Quitar línea ${index + 1}`}
+          onClick={onRemove}
+        >
+          <Trash2 />
+        </Button>
+      </div>
+      <div className="grid-2">
+        <NumberField
+          name={`items.${index}.quantity` as FieldPath<SaleFormValues>}
+          label="Cantidad"
+          required
+          min={1}
+          step={1}
+        />
+        <MoneyField
+          name={`items.${index}.unitPrice` as FieldPath<SaleFormValues>}
+          label="Precio unitario"
+          currency="PEN"
+        />
+      </div>
+      {lots.length > 1 && (
+        <SelectField
+          name={`items.${index}.batchId` as FieldPath<SaleFormValues>}
+          label="Lote"
+          description="Déjalo vacío para vender del lote más antiguo (FIFO)."
+          clearable
+          placeholder="Automático (FIFO)"
+          options={lots.map((lot) => ({
+            value: lot.id,
+            label: `${formatDate(lot.arrivalDate)} · ${formatNumber(lot.quantity)} und · ${formatCurrency(lot.unitCost)}${lot.isClearance ? ' · remate' : ''}${lot.purchaseOrderNumber ? ` · ${lot.purchaseOrderNumber}` : ''}`,
+          }))}
+        />
+      )}
+      <p className="field-hint tabular">Total de línea: {formatCurrency(lineTotal)}</p>
+    </div>
+  );
+}
+
 function SaleLines({ productOptions, priceById, productCreateOption }: SaleLinesProps) {
-  const { control, watch, setValue } = useFormContext<SaleFormValues>();
+  const { control, watch } = useFormContext<SaleFormValues>();
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
   const rows = watch('items');
+  const saleType = useWatch({ control, name: 'saleType' });
 
   const total = round2(
     (rows ?? []).reduce((sum, it) => sum + (it.unitPrice ?? 0) * (it.quantity ?? 0), 0),
@@ -124,63 +220,24 @@ function SaleLines({ productOptions, priceById, productCreateOption }: SaleLines
 
   return (
     <div className="line-items">
-      {fields.map((field, index) => {
-        const row = rows?.[index];
-        const lineTotal = round2((row?.unitPrice ?? 0) * (row?.quantity ?? 0));
-        return (
-          <div key={field.id} className="line-item">
-            <div className="line-item__head">
-              <div className="line-item__field">
-                <SelectField
-                  name={`items.${index}.productId` as FieldPath<SaleFormValues>}
-                  label={`Producto ${index + 1}`}
-                  required
-                  options={productOptions}
-                  clearable={false}
-                  createOption={productCreateOption}
-                  onChange={(v) => {
-                    const price = priceById.get(v);
-                    if (price) {
-                      setValue(`items.${index}.unitPrice` as FieldPath<SaleFormValues>, price);
-                    }
-                  }}
-                />
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="line-item__remove"
-                aria-label={`Quitar línea ${index + 1}`}
-                onClick={() => remove(index)}
-              >
-                <Trash2 />
-              </Button>
-            </div>
-            <div className="grid-2">
-              <NumberField
-                name={`items.${index}.quantity` as FieldPath<SaleFormValues>}
-                label="Cantidad"
-                required
-                min={1}
-                step={1}
-              />
-                <MoneyField
-                  name={`items.${index}.unitPrice` as FieldPath<SaleFormValues>}
-                  label="Precio unitario"
-                  currency="PEN"
-              />
-            </div>
-            <p className="field-hint tabular">Total de línea: {formatCurrency(lineTotal)}</p>
-          </div>
-        );
-      })}
+      {fields.map((field, index) => (
+        <SaleLineCard
+          key={field.id}
+          index={index}
+          row={rows?.[index] ?? { productId: '', quantity: 1, unitPrice: 0 }}
+          productOptions={productOptions}
+          priceById={priceById}
+          saleType={saleType}
+          onRemove={() => remove(index)}
+          productCreateOption={productCreateOption}
+        />
+      ))}
 
       <Button
         type="button"
         variant="outline"
         size="sm"
-        onClick={() => append({ productId: '', quantity: 1, unitPrice: 0 })}
+        onClick={() => append({ productId: '', quantity: 1, unitPrice: 0, batchId: '' })}
       >
         <Plus /> Agregar línea
       </Button>
@@ -312,7 +369,7 @@ export function SaleFormDialog({ open, onOpenChange }: SaleFormDialogProps) {
     paymentMethod: 'cash',
     initialPayment: 0,
     notes: '',
-    items: [{ productId: '', quantity: 1, unitPrice: 0 }],
+    items: [{ productId: '', quantity: 1, unitPrice: 0, batchId: '' }],
   };
 
   const [step, setStep] = useState(0);

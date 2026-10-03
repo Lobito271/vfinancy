@@ -28,6 +28,15 @@ type PurchaseOrderItem struct {
 	LineTotalUSD     valueobjects.Money
 	SalePricePen     valueobjects.Money
 	CreatedAt        time.Time
+
+	// QuantitySold is a read-only view computed by the repository from
+	// the inventory movement ledger of the lots created out of this line.
+	QuantitySold valueobjects.Quantity
+}
+
+// SoldOut reports whether every unit of the line has been sold.
+func (li *PurchaseOrderItem) SoldOut() bool {
+	return li.QuantitySold.GreaterOrEqual(li.QuantityOrdered)
 }
 
 // PurchaseOrderItemOptions is the input to NewPurchaseOrderItem.

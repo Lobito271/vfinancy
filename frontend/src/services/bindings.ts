@@ -226,6 +226,10 @@ export const wailsClient = {
     const b = await resolveBindings();
     return b.ListInventoryMovements(req, productId);
   },
+  async listProductLots(productId: string) {
+    const b = await resolveBindings();
+    return b.ListProductLots(productId);
+  },
   async receiveStock(req: ReceiveStockRequest) {
     const b = await resolveBindings();
     return b.ReceiveStock(req);

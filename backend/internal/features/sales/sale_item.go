@@ -10,7 +10,9 @@ import (
 )
 
 // SaleItem is one line of a sale. The cost snapshot fixes the unit
-// cost at the moment of sale and drives the profit calculation.
+// cost at the moment of sale and drives the profit calculation. A
+// nil InventoryBatchID means the units were drawn FIFO across several
+// lots, so there is no single origin to report.
 type SaleItem struct {
 	ID               uuid.UUID
 	SaleID           uuid.UUID
@@ -23,17 +25,25 @@ type SaleItem struct {
 	CostSnapshot     valueobjects.Money
 	Description      string
 	CreatedAt        time.Time
+
+	// OriginLotArrivalDate, OriginPurchaseOrderID and
+	// OriginPurchaseOrderNumber are read-only views of the lot the line
+	// was sold from, filled by the repository for the sale detail.
+	OriginLotArrivalDate      *time.Time
+	OriginPurchaseOrderID     *uuid.UUID
+	OriginPurchaseOrderNumber string
 }
 
 // NewSaleItemOptions is the input to NewSaleItem.
 type NewSaleItemOptions struct {
-	SaleID       uuid.UUID
-	ProductID    uuid.UUID
-	LineNumber   int
-	Quantity     valueobjects.Quantity
-	UnitPrice    valueobjects.Money
-	CostSnapshot valueobjects.Money
-	Description  string
+	SaleID           uuid.UUID
+	ProductID        uuid.UUID
+	InventoryBatchID *uuid.UUID
+	LineNumber       int
+	Quantity         valueobjects.Quantity
+	UnitPrice        valueobjects.Money
+	CostSnapshot     valueobjects.Money
+	Description      string
 }
 
 // NewSaleItem validates and constructs a line. The line total is
@@ -52,15 +62,16 @@ func NewSaleItem(now time.Time, opts NewSaleItemOptions) (*SaleItem, error) {
 		return nil, derrors.Wrap(derrors.ErrNegativeMoney, errField("cost snapshot cannot be negative"))
 	}
 	return &SaleItem{
-		ID:           uuid.New(),
-		SaleID:       opts.SaleID,
-		ProductID:    opts.ProductID,
-		LineNumber:   opts.LineNumber,
-		Quantity:     opts.Quantity,
-		UnitPrice:    opts.UnitPrice,
-		LineTotal:    opts.UnitPrice.MulByDecimal(opts.Quantity.Decimal()).RoundToCurrencyPrecision(),
-		CostSnapshot: opts.CostSnapshot,
-		Description:  opts.Description,
-		CreatedAt:    now,
+		ID:               uuid.New(),
+		SaleID:           opts.SaleID,
+		ProductID:        opts.ProductID,
+		InventoryBatchID: opts.InventoryBatchID,
+		LineNumber:       opts.LineNumber,
+		Quantity:         opts.Quantity,
+		UnitPrice:        opts.UnitPrice,
+		LineTotal:        opts.UnitPrice.MulByDecimal(opts.Quantity.Decimal()).RoundToCurrencyPrecision(),
+		CostSnapshot:     opts.CostSnapshot,
+		Description:      opts.Description,
+		CreatedAt:        now,
 	}, nil
 }

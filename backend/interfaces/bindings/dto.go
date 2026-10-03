@@ -148,6 +148,7 @@ func batchDTO(a *App, b *inventory.InventoryBatch) (InventoryBatchDTO, error) {
 		UnitCost:            moneyFloat(b.UnitCost),
 		Status:              string(b.Status),
 		IsClearance:         b.IsClearance,
+		PurchaseOrderNumber: b.SourcePurchaseOrderNumber,
 	}
 	if p, err := a.productsSvc.GetByID(a.Context(), b.ProductID); err == nil {
 		dto.ProductDescription = p.Description

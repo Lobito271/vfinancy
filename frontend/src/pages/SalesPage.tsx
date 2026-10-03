@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ShoppingCart, CreditCard, Ban, Plus, ReceiptText, Eye, Users } from 'lucide-react';
+import { ShoppingCart, CreditCard, Ban, Plus, ReceiptText, Eye, Users, ArrowUpRight } from 'lucide-react';
 import { PageContainer, PageHeader, StatBand } from '@/components/layout';
 import { StatCard } from '@/components/card';
 import { DataTable, type Column } from '@/components/table';
@@ -22,6 +23,8 @@ import { useSales, useCancelSale, useCollectSalePayment } from '@/features/sales
 import { SaleFormDialog } from '@/features/sales/components/SaleFormDialog';
 import { CustomersDrawer } from '@/features/customers/components/CustomersDrawer';
 import { wailsClient } from '@/services/bindings';
+import { queryKeys } from '@/services/queryKeys';
+import { Routes } from '@/constants/routes';
 import { PaymentMethodOptions } from '@/constants/paymentMethods';
 import type { Sale } from '@/types/domain';
 import { formatCurrency, formatDate, formatNumber } from '@/utils/format';
@@ -83,8 +86,14 @@ export function SalesPage() {
   const [historyTarget, setHistoryTarget] = useState<Sale | null>(null);
   const [detailTarget, setDetailTarget] = useState<Sale | null>(null);
 
+  const navigate = useNavigate();
+  const goToPurchase = (purchaseOrderId: string) => {
+    setDetailTarget(null);
+    navigate(`${Routes.Purchases}?order=${purchaseOrderId}`);
+  };
+
   const detailQuery = useQuery({
-    queryKey: ['sale-detail', detailTarget?.id],
+    queryKey: queryKeys.sales.detail(detailTarget?.id ?? ''),
     queryFn: () => wailsClient.getSale(detailTarget!.id),
     enabled: Boolean(detailTarget),
   });
@@ -115,6 +124,12 @@ export function SalesPage() {
   const pending = sales.filter((x) => x.status === 'pending' || x.status === 'partial').length;
 
   const openCreate = () => setFormOpen(true);
+
+  // Every line of a sale comes from the same import order, so the first
+  // one carries the link to it.
+  const originPurchaseId = detailQuery.data?.items.find((it) => it.purchaseOrderId)?.purchaseOrderId ?? '';
+  const originPurchaseNumber =
+    detailQuery.data?.items.find((it) => it.purchaseOrderId)?.purchaseOrderNumber ?? '';
 
   const buildActions = (row: Sale): RowAction[] => {
     const collectable = row.status === 'pending' || row.status === 'partial';
@@ -432,6 +447,21 @@ export function SalesPage() {
                   <div className="doc-summary__meta">Utilidad</div>
                   <div className="doc-summary__amount">{formatCurrency(detailQuery.data.profit)}</div>
                 </div>
+                {originPurchaseId && (
+                  <div className="doc-summary__row">
+                    <div className="doc-summary__meta">Orden de compra</div>
+                    <div className="doc-summary__amount">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => goToPurchase(originPurchaseId)}
+                      >
+                        {originPurchaseNumber || 'Ver orden'}
+                        <ArrowUpRight />
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
               {detailQuery.data.notes && <p className="muted">{detailQuery.data.notes}</p>}
               {detailQuery.data.cancelledReason && (
@@ -445,6 +475,16 @@ export function SalesPage() {
                     meta={
                       <>
                         {formatNumber(it.quantity)} × {formatCurrency(it.unitPrice)}
+                        {' · '}
+                        {it.lotArrivalDate ? `Lote ${formatDate(it.lotArrivalDate)}` : 'FIFO'}
+                        {' · '}
+                        {it.purchaseOrderId ? (
+                          <button type="button" className="doc-link" onClick={() => goToPurchase(it.purchaseOrderId)}>
+                            {it.purchaseOrderNumber || 'Origen'}
+                          </button>
+                        ) : (
+                          'Sin origen'
+                        )}
                       </>
                     }
                     trailing={<span className="tabular">{formatCurrency(it.lineTotal)}</span>}

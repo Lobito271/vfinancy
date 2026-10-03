@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Package, Ban, Plus, Download, Users, Filter, Eye, Pencil } from 'lucide-react';
 import { z } from 'zod';
@@ -93,6 +94,7 @@ const columns: Column<Purchase>[] = [
           <Badge variant={cfg.variant}>{cfg.label}</Badge>
           {row.customerId && <Badge variant="info">Cliente</Badge>}
           {row.faulty && <Badge variant="destructive">Defectuoso</Badge>}
+          {row.soldOut && <Badge variant="success">Vendido</Badge>}
         </div>
       );
     },
@@ -175,11 +177,25 @@ export function PurchasesPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Purchase | null>(null);
   const [receivedTarget, setReceivedTarget] = useState<Purchase | null>(null);
-  const [detailTarget, setDetailTarget] = useState<Purchase | null>(null);
+  const [detailTarget, setDetailTarget] = useState<{ id: string; number?: string } | null>(null);
   const [numberEditTarget, setNumberEditTarget] = useState<Purchase | null>(null);
 
+  // Sales link here with ?order=<id>; clear it when the drawer closes so
+  // the back button does not re-open the drawer.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedOrderId = searchParams.get('order') ?? '';
+  useEffect(() => {
+    if (requestedOrderId) setDetailTarget({ id: requestedOrderId });
+  }, [requestedOrderId]);
+
+  const closeDetail = () => {
+    setDetailTarget(null);
+    setSearchParams({}, { replace: true });
+  };
+  const openDetail = (row: Purchase) => setDetailTarget({ id: row.id, number: row.number });
+
   const detailQuery = useQuery({
-    queryKey: ['purchase-detail', detailTarget?.id],
+    queryKey: queryKeys.purchasing.detail(detailTarget?.id ?? ''),
     queryFn: () => wailsClient.getPurchaseOrder(detailTarget!.id),
     enabled: Boolean(detailTarget),
   });
@@ -213,7 +229,7 @@ export function PurchasesPage() {
     const open = row.status !== 'cancelled';
     const receivable = !row.arrivalDate && !row.faulty && row.status !== 'cancelled';
     const actions: RowAction[] = [
-      { label: 'Ver detalle', icon: Eye, onSelect: () => setDetailTarget(row) },
+      { label: 'Ver detalle', icon: Eye, onSelect: () => openDetail(row) },
       { label: 'Editar número', icon: Pencil, onSelect: () => setNumberEditTarget(row) },
     ];
     if (receivable) {
@@ -280,7 +296,8 @@ export function PurchasesPage() {
         loading={isLoading}
         error={isError ? (error as Error) : null}
         onRetry={() => refetch()}
-        onRowClick={(row) => setDetailTarget(row)}
+        onRowClick={(row) => openDetail(row)}
+        rowClassName={(row) => (row.soldOut ? 'row-sold-out' : undefined)}
         rowActions={buildActions}
         preferencesKey="purchases-journal"
         defaultPreferences={{ sort: { id: 'date', direction: 'desc' } }}
@@ -447,10 +464,10 @@ export function PurchasesPage() {
       <Drawer
         open={!!detailTarget}
         onOpenChange={(open) => {
-          if (!open) setDetailTarget(null);
+          if (!open) closeDetail();
         }}
         title="Detalle de compra"
-        description={detailTarget ? detailTarget.number : undefined}
+        description={detailTarget?.number || detailQuery.data?.number}
       >
         {detailTarget &&
           (detailQuery.isLoading ? (
@@ -466,10 +483,26 @@ export function PurchasesPage() {
                     {detailQuery.data.customerId ? 'Cliente a pedido' : 'General (stock)'}
                   </div>
                 </div>
+                {detailQuery.data.customerId && (
+                  <div className="doc-summary__row">
+                    <div className="doc-summary__meta">Cliente</div>
+                    <div className="doc-summary__amount">
+                      {detailQuery.data.customerName || '—'}
+                    </div>
+                  </div>
+                )}
                 <div className="doc-summary__row">
                   <div className="doc-summary__meta">Proveedor</div>
                   <div className="doc-summary__amount">{detailQuery.data.supplierName || '—'}</div>
                 </div>
+                {detailQuery.data.saleNumber && (
+                  <div className="doc-summary__row">
+                    <div className="doc-summary__meta">Venta de origen</div>
+                    <div className="doc-summary__amount tabular">
+                      {detailQuery.data.saleNumber}
+                    </div>
+                  </div>
+                )}
                 <div className="doc-summary__row">
                   <div className="doc-summary__meta">Forma de pago</div>
                   <div className="doc-summary__amount">
@@ -517,19 +550,29 @@ export function PurchasesPage() {
                 <p className="field-hint">Anulada: {detailQuery.data.cancelledReason}</p>
               )}
               <div className="stack">
-                {detailQuery.data.items.map((it) => (
-                  <ListRow
-                    key={it.id}
-                    title={it.description}
-                    meta={
-                      <>
-                        {formatNumber(it.quantity)} × {formatCurrency(it.unitCostUsd, 'USD')}
-                        {it.salePricePen > 0 ? ` · Venta ${formatCurrency(it.salePricePen)}` : ''}
-                      </>
-                    }
-                    trailing={<span className="tabular">{formatCurrency(it.lineTotalUsd, 'USD')}</span>}
-                  />
-                ))}
+                {detailQuery.data.items.map((it) => {
+                  const soldOut = it.quantitySold >= it.quantity;
+                  return (
+                    <ListRow
+                      key={it.id}
+                      className={soldOut ? 'list-row--sold' : undefined}
+                      title={it.description}
+                      meta={
+                        <>
+                          {formatNumber(it.quantity)} × {formatCurrency(it.unitCostUsd, 'USD')}
+                          {it.salePricePen > 0 ? ` · Venta ${formatCurrency(it.salePricePen)}` : ''}
+                          {` · Vendidas ${formatNumber(it.quantitySold)}/${formatNumber(it.quantity)}`}
+                        </>
+                      }
+                      trailing={
+                        <>
+                          {soldOut && <Badge variant="muted">Agotado</Badge>}
+                          <span className="tabular">{formatCurrency(it.lineTotalUsd, 'USD')}</span>
+                        </>
+                      }
+                    />
+                  );
+                })}
               </div>
               <Section title="Costos extras" description="Gastos adicionales de la compra: fletes, aranceles, manejo.">
                 <ExtraCostsEditor

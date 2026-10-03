@@ -8,13 +8,19 @@ import (
 )
 
 type SaleItemDTO struct {
-	ID             string  `json:"id"`
-	ProductID      string  `json:"productId"`
-	Description    string  `json:"description"`
-	Quantity       float64 `json:"quantity"`
-	UnitPrice      float64 `json:"unitPrice"`
-	LineTotal      float64 `json:"lineTotal"`
-	CostSnapshot   float64 `json:"costSnapshot"`
+	ID            string  `json:"id"`
+	ProductID     string  `json:"productId"`
+	Description   string  `json:"description"`
+	Quantity      float64 `json:"quantity"`
+	UnitPrice     float64 `json:"unitPrice"`
+	LineTotal     float64 `json:"lineTotal"`
+	CostSnapshot  float64 `json:"costSnapshot"`
+	LotArrivalDate string `json:"lotArrivalDate"`
+	// PurchaseOrderID and PurchaseOrderNumber identify the purchase the
+	// line was sold from. Both are empty for a client order, which never
+	// touches stock.
+	PurchaseOrderID     string `json:"purchaseOrderId"`
+	PurchaseOrderNumber string `json:"purchaseOrderNumber"`
 }
 
 type SaleDTO struct {
@@ -46,6 +52,10 @@ func saleDTO(s *sales.Sale) SaleDTO {
 			UnitPrice:    moneyFloat(it.UnitPrice),
 			LineTotal:    moneyFloat(it.LineTotal),
 			CostSnapshot: moneyFloat(it.CostSnapshot),
+
+			LotArrivalDate:      dayStrPtr(it.OriginLotArrivalDate),
+			PurchaseOrderID:     uuidPtrString(it.OriginPurchaseOrderID),
+			PurchaseOrderNumber: it.OriginPurchaseOrderNumber,
 		})
 	}
 	return SaleDTO{
@@ -129,6 +139,8 @@ type SaleLineRequest struct {
 	ProductID string  `json:"productId"`
 	Quantity  float64 `json:"quantity"`
 	UnitPrice float64 `json:"unitPrice"`
+	// BatchID pins the line to one inventory lot; empty means FIFO.
+	BatchID string `json:"batchId"`
 }
 
 type CreateSaleRequest struct {
@@ -180,7 +192,13 @@ func (a *App) CreateSale(req CreateSaleRequest) (SaleDTO, error) {
 		if err != nil {
 			return SaleDTO{}, err
 		}
-		items = append(items, sales.ItemInput{ProductID: pid, Quantity: qty, UnitPrice: price})
+		batchID, err := parseOptionalUUID(it.BatchID)
+		if err != nil {
+			return SaleDTO{}, err
+		}
+		items = append(items, sales.ItemInput{
+			ProductID: pid, Quantity: qty, UnitPrice: price, InventoryBatchID: batchID,
+		})
 	}
 	result, err := a.salesSvc.Create(a.Context(), sales.CreateInput{
 		CustomerID:    cid,

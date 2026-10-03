@@ -169,6 +169,36 @@ CREATE TABLE suppliers (
 CREATE UNIQUE INDEX uq_suppliers_name ON suppliers (name) WHERE deleted_at IS NULL;
 CREATE INDEX idx_suppliers_active ON suppliers (is_active) WHERE deleted_at IS NULL;
 
+CREATE TABLE sales (
+    id               TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    customer_id      TEXT        NOT NULL,
+    number           VARCHAR(30) NOT NULL,
+    sale_date        TIMESTAMP   NOT NULL,
+    due_date         TIMESTAMP,
+    status           VARCHAR(20) NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'partial', 'paid', 'cancelled')),
+    sale_type        VARCHAR(20) NOT NULL DEFAULT 'stock' CHECK (sale_type IN ('stock', 'client_order')),
+    total            TEXT        NOT NULL DEFAULT '0.00' CHECK (CAST(total AS REAL) >= 0),
+    paid_amount      TEXT        NOT NULL DEFAULT '0.00' CHECK (CAST(paid_amount AS REAL) >= 0),
+    cost_total       TEXT        NOT NULL DEFAULT '0.00' CHECK (CAST(cost_total AS REAL) >= 0),
+    profit           TEXT        NOT NULL DEFAULT '0.00',
+    notes            TEXT,
+    cancelled_at     TIMESTAMP,
+    cancelled_reason TEXT,
+
+    created_at       TIMESTAMP   NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
+    updated_at       TIMESTAMP   NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
+    deleted_at       TIMESTAMP,
+
+    CONSTRAINT fk_sales_customer
+        FOREIGN KEY (customer_id) REFERENCES customers(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT ck_sales_dates CHECK (due_date IS NULL OR due_date >= sale_date)
+);
+
+CREATE UNIQUE INDEX uq_sales_number ON sales (number) WHERE deleted_at IS NULL;
+CREATE INDEX idx_sales_customer ON sales (customer_id, sale_date) WHERE deleted_at IS NULL;
+CREATE INDEX idx_sales_status ON sales (status, sale_date) WHERE deleted_at IS NULL;
+
 CREATE TABLE purchase_orders (
     id             TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
     number         VARCHAR(30) NOT NULL,
@@ -183,6 +213,7 @@ CREATE TABLE purchase_orders (
     customer_id    TEXT,
     supplier_id    TEXT,
     credit_card_id TEXT,
+    sale_id        TEXT,
     arrival_date   TIMESTAMP,
     cost_usd       TEXT        NOT NULL DEFAULT '0.00' CHECK (CAST(cost_usd AS REAL) >= 0),
     sale_price_pen TEXT        NOT NULL DEFAULT '0.00' CHECK (CAST(sale_price_pen AS REAL) >= 0),
@@ -203,6 +234,8 @@ CREATE TABLE purchase_orders (
         FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT fk_purchase_orders_card
         FOREIGN KEY (credit_card_id) REFERENCES credit_cards(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_purchase_orders_sale
+        FOREIGN KEY (sale_id) REFERENCES sales(id) ON UPDATE CASCADE ON DELETE SET NULL,
     CONSTRAINT ck_purchase_orders_dates CHECK (expected_date IS NULL OR expected_date >= order_date)
 );
 
@@ -302,36 +335,6 @@ CREATE TABLE inventory_movements (
 CREATE INDEX idx_inventory_movements_batch ON inventory_movements (batch_id, movement_date);
 CREATE INDEX idx_inventory_movements_product ON inventory_movements (product_id, movement_date);
 CREATE INDEX idx_inventory_movements_reference ON inventory_movements (reference_type, reference_id);
-
-CREATE TABLE sales (
-    id               TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-    customer_id      TEXT        NOT NULL,
-    number           VARCHAR(30) NOT NULL,
-    sale_date        TIMESTAMP   NOT NULL,
-    due_date         TIMESTAMP,
-    status           VARCHAR(20) NOT NULL DEFAULT 'pending'
-        CHECK (status IN ('pending', 'partial', 'paid', 'cancelled')),
-    sale_type        VARCHAR(20) NOT NULL DEFAULT 'stock' CHECK (sale_type IN ('stock', 'client_order')),
-    total            TEXT        NOT NULL DEFAULT '0.00' CHECK (CAST(total AS REAL) >= 0),
-    paid_amount      TEXT        NOT NULL DEFAULT '0.00' CHECK (CAST(paid_amount AS REAL) >= 0),
-    cost_total       TEXT        NOT NULL DEFAULT '0.00' CHECK (CAST(cost_total AS REAL) >= 0),
-    profit           TEXT        NOT NULL DEFAULT '0.00',
-    notes            TEXT,
-    cancelled_at     TIMESTAMP,
-    cancelled_reason TEXT,
-
-    created_at       TIMESTAMP   NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-    updated_at       TIMESTAMP   NOT NULL DEFAULT (CAST(unixepoch('subsec') * 1000 AS INTEGER)),
-    deleted_at       TIMESTAMP,
-
-    CONSTRAINT fk_sales_customer
-        FOREIGN KEY (customer_id) REFERENCES customers(id) ON UPDATE CASCADE ON DELETE RESTRICT,
-    CONSTRAINT ck_sales_dates CHECK (due_date IS NULL OR due_date >= sale_date)
-);
-
-CREATE UNIQUE INDEX uq_sales_number ON sales (number) WHERE deleted_at IS NULL;
-CREATE INDEX idx_sales_customer ON sales (customer_id, sale_date) WHERE deleted_at IS NULL;
-CREATE INDEX idx_sales_status ON sales (status, sale_date) WHERE deleted_at IS NULL;
 
 CREATE TABLE sale_items (
     id                 TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),

@@ -38,6 +38,7 @@ export const queryKeys = {
     all: ['inventory'] as const,
     list: (q: unknown) => ['inventory', 'list', q] as const,
     movements: (productId?: string) => ['inventory', 'movements', productId] as const,
+    lots: (productId: string) => ['inventory', 'lots', productId] as const,
     clearance: ['inventory', 'clearance'] as const,
   },
   treasury: {

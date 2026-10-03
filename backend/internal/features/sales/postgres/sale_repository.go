@@ -61,10 +61,7 @@ func (r *saleRepository) Create(ctx context.Context, s *sales.Sale, items []*sal
 }
 
 func (r *saleRepository) insertItem(ctx context.Context, li *sales.SaleItem) error {
-	const q = `INSERT INTO sale_items (
-		id, sale_id, product_id, inventory_batch_id, line_number, quantity,
-		unit_price, line_total, cost_snapshot, description, created_at
-	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
+	q := `INSERT INTO sale_items (` + saleItemColumns + `) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
 	_, err := persistence.Q(ctx, r.q).ExecContext(ctx, q,
 		li.ID, li.SaleID, li.ProductID, persistence.NullIfEmptyUUID(li.InventoryBatchID),
 		li.LineNumber, li.Quantity.String(), li.UnitPrice.String(),
@@ -129,8 +126,21 @@ func (r *saleRepository) GetByID(ctx context.Context, id uuid.UUID) (*sales.Sale
 	return s, nil
 }
 
+// saleItemListSelect joins the lot a line was sold from and the purchase
+// order that lot came from, so the sale detail can report the origin.
+const saleItemListSelect = `
+	SELECT si.id, si.sale_id, si.product_id, si.inventory_batch_id, si.line_number,
+	si.quantity, si.unit_price, si.line_total, si.cost_snapshot,
+	si.description, si.created_at,
+	b.arrival_date, po.id, COALESCE(po.number, '')
+	FROM sale_items si
+	LEFT JOIN inventory_batches b ON b.id = si.inventory_batch_id
+	LEFT JOIN purchase_order_items poi ON poi.id = b.purchase_order_item_id
+	LEFT JOIN purchase_orders po ON po.id = poi.purchase_order_id
+`
+
 func (r *saleRepository) ListItems(ctx context.Context, saleID uuid.UUID) ([]*sales.SaleItem, error) {
-	q := `SELECT ` + saleItemColumns + ` FROM sale_items WHERE sale_id = $1 ORDER BY line_number`
+	q := saleItemListSelect + ` WHERE si.sale_id = $1 ORDER BY si.line_number`
 	rows, err := persistence.Q(ctx, r.q).QueryContext(ctx, q, saleID)
 	if err != nil {
 		return nil, persistence.Translate(err)
@@ -316,13 +326,16 @@ func parseSaleType(s string) enums.SaleType {
 func scanSaleItem(rows *sql.Rows) (*sales.SaleItem, error) {
 	li := &sales.SaleItem{}
 	var (
-		batchID, description    sql.NullString
-		quantity, unitPrice     string
-		lineTotal, costSnapshot string
+		batchID, description            sql.NullString
+		originPurchaseOrderID, poNumber sql.NullString
+		lotArrival                      sql.NullTime
+		quantity, unitPrice             string
+		lineTotal, costSnapshot         string
 	)
 	if err := rows.Scan(
 		&li.ID, &li.SaleID, &li.ProductID, &batchID, &li.LineNumber,
 		&quantity, &unitPrice, &lineTotal, &costSnapshot, &description, &li.CreatedAt,
+		&lotArrival, &originPurchaseOrderID, &poNumber,
 	); err != nil {
 		return nil, persistence.Translate(err)
 	}
@@ -330,6 +343,15 @@ func scanSaleItem(rows *sql.Rows) (*sales.SaleItem, error) {
 		id := persistence.ParseUUID(batchID.String)
 		li.InventoryBatchID = &id
 	}
+	if lotArrival.Valid {
+		t := lotArrival.Time
+		li.OriginLotArrivalDate = &t
+	}
+	if originPurchaseOrderID.Valid {
+		id := persistence.ParseUUID(originPurchaseOrderID.String)
+		li.OriginPurchaseOrderID = &id
+	}
+	li.OriginPurchaseOrderNumber = poNumber.String
 	q, err := valueobjects.QuantityFromString(quantity)
 	if err != nil {
 		return nil, err

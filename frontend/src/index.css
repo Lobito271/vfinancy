@@ -612,6 +612,28 @@ pre {
   gap: 8px;
 }
 
+/* purchase order lines whose lot was sold out */
+.list-row--sold .list-row__title,
+.list-row--sold .list-row__meta {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+/* inline link inside a document summary or list-row meta */
+.doc-link {
+  font: inherit;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-primary);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.doc-link:hover {
+  color: var(--color-ring);
+}
+
 /* buttons */
 .btn {
   display: inline-flex;
@@ -1766,6 +1788,11 @@ pre {
 
 .datatable-table tr.row-dimmed td {
   opacity: 0.55;
+}
+
+/* purchase orders whose products are all sold out */
+.datatable-table tr.row-sold-out td {
+  background-color: color-mix(in srgb, var(--success) 14%, var(--bg-panel));
 }
 
 .datatable-table tr.clickable:focus-visible {

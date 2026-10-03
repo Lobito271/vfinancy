@@ -166,6 +166,17 @@ export interface InventoryBatchDTO {
   status: string;
   isClearance: boolean;
   maxSaleDate: string;
+  purchaseOrderNumber: string;
+}
+
+export interface LotOptionDTO {
+  id: string;
+  arrivalDate: string;
+  quantity: number;
+  unitCost: number;
+  isClearance: boolean;
+  maxSaleDate: string;
+  purchaseOrderNumber: string;
 }
 
 export interface InventoryMovementDTO {
@@ -206,6 +217,9 @@ export interface SaleItemDTO {
   unitPrice: number;
   lineTotal: number;
   costSnapshot: number;
+  lotArrivalDate: string;
+  purchaseOrderId: string;
+  purchaseOrderNumber: string;
 }
 
 export interface SaleDTO {
@@ -240,6 +254,7 @@ export interface SaleLineRequest {
   productId: string;
   quantity: number;
   unitPrice: number;
+  batchId?: string;
 }
 
 export interface CreateSaleRequest {
@@ -294,6 +309,7 @@ export interface PurchaseItemDTO {
   unitCostUsd: number;
   lineTotalUsd: number;
   salePricePen: number;
+  quantitySold: number;
 }
 
 export interface PurchaseOrderDTO {
@@ -309,8 +325,12 @@ export interface PurchaseOrderDTO {
   exchangeRate: number;
   notes: string;
   customerId: string;
+  customerName: string;
   supplierId: string;
   supplierName: string;
+  saleId: string;
+  saleNumber: string;
+  soldOut: boolean;
   productsText: string;
   creditCardId: string;
   costUsd: number;
@@ -496,6 +516,7 @@ export interface AppBindings {
 
   ListInventoryBatches(req: PaginationRequest, status: string, search: string): Promise<PageResult<InventoryBatchDTO>>;
   ListInventoryMovements(req: PaginationRequest, productId: string): Promise<PageResult<InventoryMovementDTO>>;
+  ListProductLots(productId: string): Promise<LotOptionDTO[]>;
   ReceiveStock(req: ReceiveStockRequest): Promise<InventoryBatchDTO>;
   AdjustStock(req: AdjustStockRequest): Promise<void>;
   VoidStock(req: VoidStockRequest): Promise<void>;

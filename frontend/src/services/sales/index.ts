@@ -12,6 +12,8 @@ export interface SaleLineInput {
   productId: string;
   quantity: number;
   unitPrice: number;
+  /** Pins the line to one inventory lot; omitted means FIFO. */
+  batchId?: string;
 }
 
 export interface SaleCreateInput {

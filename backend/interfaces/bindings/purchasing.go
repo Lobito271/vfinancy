@@ -20,6 +20,7 @@ type PurchaseItemDTO struct {
 	UnitCostUSD      float64 `json:"unitCostUsd"`
 	LineTotalUSD     float64 `json:"lineTotalUsd"`
 	SalePricePen     float64 `json:"salePricePen"`
+	QuantitySold    float64 `json:"quantitySold"`
 }
 
 type PurchaseOrderDTO struct {
@@ -35,8 +36,12 @@ type PurchaseOrderDTO struct {
 	ExchangeRate       float64           `json:"exchangeRate"`
 	Notes              string            `json:"notes"`
 	CustomerID         string            `json:"customerId"`
+	CustomerName       string            `json:"customerName"`
 	SupplierID         string            `json:"supplierId"`
 	SupplierName       string            `json:"supplierName"`
+	SaleID             string            `json:"saleId"`
+	SaleNumber         string            `json:"saleNumber"`
+	SoldOut            bool              `json:"soldOut"`
 	ProductsText       string            `json:"productsText"`
 	CreditCardID       string            `json:"creditCardId"`
 	CostUSD            float64           `json:"costUsd"`
@@ -64,6 +69,7 @@ func purchaseDTO(po *purchasing.PurchaseOrder) PurchaseOrderDTO {
 			UnitCostUSD:      moneyFloat(it.UnitCostUSD),
 			LineTotalUSD:     moneyFloat(it.LineTotalUSD),
 			SalePricePen:     moneyFloat(it.SalePricePen),
+			QuantitySold:    quantityFloat(it.QuantitySold),
 		})
 	}
 	return PurchaseOrderDTO{
@@ -79,8 +85,12 @@ func purchaseDTO(po *purchasing.PurchaseOrder) PurchaseOrderDTO {
 		ExchangeRate:       po.ExchangeRate.Decimal().InexactFloat64(),
 		Notes:              po.Notes,
 		CustomerID:         uuidPtrString(po.CustomerID),
+		CustomerName:       po.CustomerName,
 		SupplierID:         uuidPtrString(po.SupplierID),
 		SupplierName:       po.SupplierName,
+		SaleID:             uuidPtrString(po.SaleID),
+		SaleNumber:         po.SaleNumber,
+		SoldOut:            po.SoldOut,
 		ProductsText:       po.ProductsText,
 		CreditCardID:       uuidPtrString(po.CreditCardID),
 		CostUSD:            moneyFloat(po.CostUSD),

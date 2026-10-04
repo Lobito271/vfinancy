@@ -169,16 +169,25 @@ export interface InventoryBatchDTO {
   purchaseNumber: string;
 }
 
-export interface MonthlyProfitDTO {
+export interface ProfitExtraCostDTO {
+  concept: string;
+  amountUsd: number;
+  amountPen: number;
+}
+
+export interface ProfitBreakdownDTO {
   year: number;
   month: number;
   label: string;
   baseCostUsd: number;
   extraCostUsd: number;
   totalCostUsd: number;
+  baseCostPen: number;
+  extraCostPen: number;
   totalCostPen: number;
   salesPen: number;
   profitPen: number;
+  extraCosts: ProfitExtraCostDTO[];
 }
 
 export interface LotOptionDTO {
@@ -550,7 +559,7 @@ export interface AppBindings {
   CancelSale(req: CancelSaleRequest): Promise<SaleDTO>;
   RegisterSalePayment(req: SalePaymentRequest): Promise<SaleDTO>;
   ListSalePayments(req: PaginationRequest, customerId: string, saleId: string): Promise<PageResult<CustomerPaymentDTO>>;
-  ListMonthlyProfit(months: number): Promise<MonthlyProfitDTO[]>;
+  ListProfitBreakdown(year: number, month: number): Promise<ProfitBreakdownDTO[]>;
   ListSaleCollections(from: string, to: string): Promise<SaleCollectionDTO[]>;
 
   ListPurchases(req: PurchaseFilterRequest): Promise<PageResult<PurchaseDTO>>;

@@ -215,7 +215,7 @@ card/        # Card, CardHeader/Title/Description/Content, StatCard, AssetCard
 badge/       # Badge (8 variants), SaleStatusBadge, CustomerStatusBadge
 navigation/  # Sidebar (flat, collapsible, mobile drawer), Topbar, nav config (nav.ts)
 feedback/    # Spinner, EmptyState, ErrorState, Toaster (Base UI Toast)
-charts/      # LineChart, BarChart (recharts wrappers, token colors)
+charts/      # BarChart, ProfitChart (lazy recharts wrappers, token colors)
 layout/      # AppLayout, PageContainer, PageHeader, Section, Grid, StatBand
 form/        # Form (RHF + zod) + fields (TextField, NumberField, MoneyField, PercentageField, SelectField, domain selects, LineItemsEditor)
 misc/        # DropdownMenu (Base UI Menu), Tooltip, Drawer (Base UI), RowActions, ListRow
@@ -246,7 +246,7 @@ Cada carpeta tiene su `index.ts` barrel — importar de `@/components/<categorí
 - **Cost identity.** `purchases.total_cost_usd = purchases.cost_usd + purchases.extra_cost_usd`, maintained by `Purchase.RecomputeTotals`. Every extra-cost mutation calls `PurchasingService.refreshTotals`, which also rewrites `real_cost_pen`. Never let the three drift apart.
 - **Currency.** Base and extra costs are USD (the supplier currency). `real_cost_pen` is `(total_cost_usd + import_factor) * exchange_rate`. An extra cost already in USD is taken as-is; any other currency is divided by its own rate snapshot.
 - **Landing.** `PurchasingService.lineLandedUnitCostPen` distributes `real_cost_pen` across the purchase lines in proportion to their share of the base cost, and that per-unit value is what the inventory lot carries — so sale `cost_snapshot`, `cost_total` and `profit` all include the extra costs.
-- **Monthly profit.** `Utilidad = Precio de venta − (Costo base + Costos extras)`. Purchase costs are attributed to the month of `purchases.order_date` (not arrival) and converted to PEN at each purchase's own `exchange_rate`; revenue is the non-cancelled `sales.total` of the same calendar month. `bindings.ListMonthlyProfit` is the only source for the dashboard figures.
+- **Monthly profit.** `Utilidad = Precio de venta − (Costo base + Costos extras)`. Purchase costs are attributed to the month of `purchases.order_date` (not arrival) and converted to PEN at each purchase's own `exchange_rate`; revenue is the non-cancelled `sales.total` of the same calendar month. `bindings.ListProfitBreakdown(year, month)` (a calendar month, or a whole year when `month` is 0) is the only source for the dashboard figures: it returns the PEN base/extra split of `purchases.real_cost_pen`, the surcharges broken down by concept, revenue and profit. Base + extra always equals the recorded total.
 
 ## Transactional Rules (non-negotiable)
 

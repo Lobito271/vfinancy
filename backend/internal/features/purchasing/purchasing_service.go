@@ -856,26 +856,29 @@ func (s *PurchasingService) ListExtraCosts(ctx context.Context, purchaseOrderID 
 	return s.orders.ListExtraCosts(ctx, purchaseOrderID)
 }
 
-// MonthlyProfit returns the month-by-month profit breakdown for the last
-// `months` months up to and including the month of `at`. Purchase costs
-// are attributed to the month of Purchase.OrderDate and converted to PEN
-// at each purchase's own rate; revenue is the sum of the non-cancelled
-// sales of the same calendar month. Months without activity are reported
-// with zeroes so the series is continuous, oldest first.
+// ProfitBreakdown returns the month-by-month profit breakdown of the
+// given month keys, which are the 0-based months of [from, to).
+// Purchase costs are attributed to the month of Purchase.OrderDate and
+// converted to PEN at each purchase's own rate; revenue is the sum of the
+// non-cancelled sales of the same calendar month. Months without activity
+// are reported with zeroes so the series is continuous, oldest first.
 //
 // Profit = SalesPEN - TotalCostPEN, where TotalCostPEN is the landed
-// cost including the extra costs.
-func (s *PurchasingService) MonthlyProfit(ctx context.Context, at time.Time, months int, revenue map[int]valueobjects.Money) []ProfitBreakdown {
-	keys := MonthRange(at, months)
+// cost including the extra costs, and each month carries its surcharges
+// broken down by concept.
+func (s *PurchasingService) ProfitBreakdown(ctx context.Context, keys []int, from, to time.Time, revenue map[int]valueobjects.Money) []ProfitBreakdown {
 	if len(keys) == 0 {
 		return nil
 	}
-	first := time.Date(at.Year(), at.Month(), 1, 0, 0, 0, 0, time.UTC).AddDate(0, -(months - 1), 0)
-	until := first.AddDate(0, months, 0)
-	costs, err := s.orders.MonthlyCosts(ctx, first, until)
+	costs, err := s.orders.MonthlyCosts(ctx, from, to)
 	if err != nil {
 		s.log.Error("monthly purchase costs failed", "error", err.Error())
 		costs = nil
 	}
-	return MonthlyProfit(costs, revenue, keys)
+	extraCosts, err := s.orders.MonthlyExtraCosts(ctx, from, to)
+	if err != nil {
+		s.log.Error("monthly extra costs failed", "error", err.Error())
+		extraCosts = nil
+	}
+	return MonthlyProfit(costs, extraCosts, revenue, keys)
 }

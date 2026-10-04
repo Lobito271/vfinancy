@@ -47,9 +47,9 @@ async function resolveBindings(): Promise<AppBindings> {
 }
 
 export const wailsClient = {
-  async listMonthlyProfit(months: number) {
+  async listProfitBreakdown(year: number, month: number) {
     const b = await resolveBindings();
-    return b.ListMonthlyProfit(months);
+    return b.ListProfitBreakdown(year, month);
   },
 
   async getLocalAuthState() {

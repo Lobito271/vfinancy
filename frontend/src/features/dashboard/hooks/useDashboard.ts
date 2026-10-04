@@ -23,7 +23,7 @@ function firstOfMonth(date: Date): string {
 }
 
 // useDashboardData feeds the cash-collection and status widgets. The
-// profitability figures live in ListMonthlyProfit, which aggregates
+// profitability figures live in ListProfitBreakdown, which aggregates
 // purchases and sales on the server instead of guessing a margin here.
 export function useDashboardData() {
   return useQuery({

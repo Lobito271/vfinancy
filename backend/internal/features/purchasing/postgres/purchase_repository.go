@@ -197,7 +197,7 @@ func (r *purchaseRepository) GetByID(ctx context.Context, id uuid.UUID) (*purcha
 	q := `SELECT ` + purchasesListSelect + purchasesListFrom + `
 		WHERE purchases.id = $1 AND purchases.deleted_at IS NULL`
 	row := persistence.Q(ctx, r.q).QueryRowContext(ctx, q, id)
-	return scanPurchase(row)
+	return scanPurchase(func(dest ...any) error { return persistence.ScanRow(row, dest...) })
 }
 
 // ListItems returns the lines of an order ordered by line number.
@@ -295,7 +295,7 @@ func (r *purchaseRepository) List(ctx context.Context, filter purchasing.Purchas
 	}
 	out := make([]*purchasing.Purchase, 0, limit)
 	if err := persistence.ScanRows(rows, func(row *sql.Rows) error {
-		p, err := scanPurchaseFromRows(row)
+		p, err := scanPurchase(row.Scan)
 		if err != nil {
 			return err
 		}
@@ -450,37 +450,19 @@ type purchaseScan struct {
 	faulty                                                           bool
 }
 
-func scanPurchase(row *sql.Row) (*purchasing.Purchase, error) {
+// scanPurchase decodes the purchasesListSelect columns of one order.
+// Single-order and list queries share it so the destination list can
+// never drift from the select.
+func scanPurchase(scan func(dest ...any) error) (*purchasing.Purchase, error) {
 	p := &purchasing.Purchase{}
 	var s purchaseScan
-	if err := persistence.ScanRow(row,
+	if err := scan(
 		&p.ID, &p.Number, &p.OrderDate,
 		&s.expectedDate, &s.receivedDate, &s.arrivalDate,
 		&s.status, &s.currencyCode, &s.paymentMethod, &s.exchangeRate, &s.notes,
 		&s.customerID, &s.supplierID, &s.creditCardID, &s.saleID,
 		&s.costUSD, &s.extraCostUSD, &s.totalCostUSD,
 		&s.salePricePen, &s.realCostPen, &s.refundAmount,
-		&s.faulty, &s.faultyReason, &s.cancelledAt, &s.cancelledReason,
-		&p.CreatedAt, &p.UpdatedAt, &s.deletedAt,
-		&s.supplierName, &s.customerName, &s.saleNumber,
-	); err != nil {
-		return nil, err
-	}
-	if err := decodePurchase(p, &s); err != nil {
-		return nil, err
-	}
-	return p, nil
-}
-
-func scanPurchaseFromRows(rows *sql.Rows) (*purchasing.Purchase, error) {
-	p := &purchasing.Purchase{}
-	var s purchaseScan
-	if err := rows.Scan(
-		&p.ID, &p.Number, &p.OrderDate,
-		&s.expectedDate, &s.receivedDate, &s.arrivalDate,
-		&s.status, &s.currencyCode, &s.paymentMethod, &s.exchangeRate, &s.notes,
-		&s.customerID, &s.supplierID, &s.creditCardID, &s.saleID,
-		&s.costUSD, &s.salePricePen, &s.realCostPen, &s.refundAmount,
 		&s.faulty, &s.faultyReason, &s.cancelledAt, &s.cancelledReason,
 		&p.CreatedAt, &p.UpdatedAt, &s.deletedAt,
 		&s.supplierName, &s.customerName, &s.saleNumber,
@@ -631,6 +613,7 @@ func monthlyCostsQuery() string {
 		persistence.Month("order_date") + ` AS m, ` +
 		`CAST(SUM(` + persistence.Num("cost_usd") + `) AS TEXT) AS base_usd, ` +
 		`CAST(SUM(` + persistence.Num("extra_cost_usd") + `) AS TEXT) AS extra_usd, ` +
+		`CAST(SUM(` + persistence.Num("extra_cost_usd") + ` * ` + persistence.Num("exchange_rate") + `) AS TEXT) AS extra_pen, ` +
 		`CAST(SUM(` + persistence.Num("real_cost_pen") + `) AS TEXT) AS total_pen ` +
 		`FROM purchases ` +
 		`WHERE deleted_at IS NULL AND status <> 'cancelled' ` +
@@ -646,7 +629,46 @@ func (r *purchaseRepository) MonthlyCosts(ctx context.Context, from, to time.Tim
 	out := make([]purchasing.MonthlyCost, 0)
 	if err := persistence.ScanRows(rows, func(row *sql.Rows) error {
 		var c purchasing.MonthlyCost
-		if err := row.Scan(&c.Year, &c.Month, &c.BaseCostUSD, &c.ExtraCostUSD, &c.TotalCostPEN); err != nil {
+		if err := row.Scan(&c.Year, &c.Month, &c.BaseCostUSD, &c.ExtraCostUSD, &c.ExtraCostPEN, &c.TotalCostPEN); err != nil {
+			return persistence.Translate(err)
+		}
+		out = append(out, c)
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// monthlyExtraCostsQuery returns every surcharge of the period with the
+// month of its purchase and both exchange rates involved, so the
+// normalisation into USD and PEN happens in one place with the same rules
+// the purchase itself used.
+func monthlyExtraCostsQuery() string {
+	return `SELECT ` +
+		persistence.Year("purchases.order_date") + ` AS y, ` +
+		persistence.Month("purchases.order_date") + ` AS m, ` +
+		`purchase_extra_costs.concept, ` +
+		`CAST(purchase_extra_costs.amount AS TEXT) AS amount, ` +
+		`purchase_extra_costs.currency_code, ` +
+		`CAST(purchase_extra_costs.exchange_rate AS TEXT) AS cost_rate, ` +
+		`CAST(purchases.exchange_rate AS TEXT) AS purchase_rate ` +
+		`FROM purchase_extra_costs ` +
+		`JOIN purchases ON purchases.id = purchase_extra_costs.purchase_id ` +
+		`WHERE purchases.deleted_at IS NULL AND purchases.status <> 'cancelled' ` +
+		`AND purchases.order_date >= $1 AND purchases.order_date < $2 ` +
+		`ORDER BY y, m, purchase_extra_costs.concept`
+}
+
+func (r *purchaseRepository) MonthlyExtraCosts(ctx context.Context, from, to time.Time) ([]purchasing.MonthlyExtraCost, error) {
+	rows, err := persistence.Q(ctx, r.q).QueryContext(ctx, monthlyExtraCostsQuery(), from, to)
+	if err != nil {
+		return nil, persistence.Translate(err)
+	}
+	out := make([]purchasing.MonthlyExtraCost, 0)
+	if err := persistence.ScanRows(rows, func(row *sql.Rows) error {
+		var c purchasing.MonthlyExtraCost
+		if err := row.Scan(&c.Year, &c.Month, &c.Concept, &c.Amount, &c.CurrencyCode, &c.CostRate, &c.PurchaseRate); err != nil {
 			return persistence.Translate(err)
 		}
 		out = append(out, c)

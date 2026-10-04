@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogBody,
@@ -32,6 +32,14 @@ export function CancelDialog({
 }: CancelDialogProps) {
   const [reason, setReason] = useState('');
   const [preset, setPreset] = useState<string | null>(null);
+
+  // The reason lives here, outside the popup, so it survives a close.
+  // Clearing it on close keeps the next cancellation blank.
+  useEffect(() => {
+    if (open) return;
+    setReason('');
+    setPreset(null);
+  }, [open]);
 
   const pickPreset = (value: string | null) => {
     setPreset(value);

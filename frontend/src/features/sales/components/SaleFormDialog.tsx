@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useFieldArray, useFormContext, useWatch } from 'react-hook-form';
 import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
@@ -391,6 +391,16 @@ export function SaleFormDialog({ open, onOpenChange }: SaleFormDialogProps) {
     { description: 'Agrega los productos de la venta.' },
     { description: 'Condición de pago y confirmación.' },
   ];
+
+  // Closing the dialog clears every trace of the wizard, so the next open
+  // starts again on step 1 with no stale stock error or nested form.
+  useEffect(() => {
+    if (open) return;
+    setStep(0);
+    setStockError(null);
+    setNewCustomerOpen(false);
+    setProductCreateOpen(false);
+  }, [open]);
 
   async function handleSubmit(values: SaleFormValues) {
     if (values.saleType === 'stock') {

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useFieldArray, useFormContext, useWatch, type Path } from 'react-hook-form';
+import { useFieldArray, useFormContext, useWatch, type Path, type UseFormReturn } from 'react-hook-form';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRight, Trash2, Plus } from 'lucide-react';
 import { z } from 'zod';
 import {
   Form,
+  AutocompleteField,
   DateField,
   TextareaField,
   SelectField,
@@ -18,31 +19,28 @@ import { DialogBody, Dialog, AlertDialog, DialogContent, DialogFooter, DialogHea
 import { Button } from '@/components/button';
 import { Badge } from '@/components/badge';
 import { Input, Label } from '@/components/input';
-import { useCreatePurchase } from '@/features/purchasing/hooks/usePurchases';
+import { useCreatePurchase, useNextPurchaseNumber } from '@/features/purchasing/hooks/usePurchases';
 import { useCreditCards } from '@/features/treasury/hooks/useTreasury';
 import { CreditCardFormDialog } from '@/features/treasury/components/CreditCardFormDialog';
 import { CreateCustomerDialog } from '@/features/customers/components/CreateCustomerDialog';
 import { useProducts } from '@/features/products/hooks/useProducts';
+import { ProductFormDialog } from '@/features/products/components/ProductsDrawer';
 import { useSupplierOptions } from '@/features/suppliers/hooks/useSuppliers';
 import { SupplierFormDialog } from '@/features/suppliers/components/SupplierFormDialog';
 import { wailsClient } from '@/services/bindings';
 import { queryKeys } from '@/services/queryKeys';
+import type { ProductDTO } from '@/services/wails-types';
 import { formatCurrency } from '@/utils/format';
 import { useNotificationStore } from '@/stores/notification';
 import { PurchasePaymentMethodOptions } from '@/constants/paymentMethods';
 
-const lineSchema = z
-  .object({
-    productId: z.string(),
-    description: z.string().trim(),
-    quantity: z.number().int('Debe ser entero').positive('Cantidad debe ser mayor a 0'),
-    unitPrice: z.number().positive('Costo USD debe ser mayor a 0'),
-    salePricePen: z.number().min(0, 'El precio de venta no puede ser negativo'),
-  })
-  .refine((l) => l.productId !== '' || l.description !== '', {
-    message: 'Indique el producto o su descripción',
-    path: ['description'],
-  });
+const lineSchema = z.object({
+  productId: z.string().min(1, 'Seleccione o cree el producto'),
+  productQuery: z.string(),
+  quantity: z.number().int('Debe ser entero').positive('Cantidad debe ser mayor a 0'),
+  unitPrice: z.number().positive('Costo USD debe ser mayor a 0'),
+  salePricePen: z.number().min(0, 'El precio de venta no puede ser negativo'),
+});
 
 const PurchaseFormSchema = z
   .object({
@@ -65,7 +63,11 @@ const PurchaseFormSchema = z
 
 type PurchaseFormValues = z.infer<typeof PurchaseFormSchema>;
 
-const emptyLine = () => ({ productId: '', description: '', quantity: 1, unitPrice: 0, salePricePen: 0 });
+const emptyLine = () => ({ productId: '', productQuery: '', quantity: 1, unitPrice: 0, salePricePen: 0 });
+
+function productLabel(product: Pick<ProductDTO, 'sku' | 'description'>): string {
+  return `${product.sku} — ${product.description}`;
+}
 
 function today(): string {
   const d = new Date();
@@ -82,6 +84,16 @@ function ExchangeRateSeed({ rate }: { rate: number | undefined }) {
   useEffect(() => {
     if (rate != null && rate > 0) setValue('exchangeRate', rate, { shouldValidate: true });
   }, [rate, setValue]);
+  return null;
+}
+
+// NumberSeed shows the sequence number the backend would assign, leaving
+// the field editable: an emptied field still falls back to generation.
+function NumberSeed({ number }: { number: string | undefined }) {
+  const { setValue, getValues } = useFormContext<PurchaseFormValues>();
+  useEffect(() => {
+    if (number && !getValues('number')) setValue('number', number);
+  }, [number, setValue, getValues]);
   return null;
 }
 
@@ -103,12 +115,13 @@ interface ProductCostOption extends SelectOption {
   salePrice: number;
 }
 
-function OrderDataStep({ cardOptions, customerOptions, cardsQuery, rateQuery, supplierOptions, cardCreateOption, customerCreateOption, supplierCreateOption }: {
+function OrderDataStep({ cardOptions, customerOptions, cardsQuery, rateQuery, supplierOptions, nextNumber, cardCreateOption, customerCreateOption, supplierCreateOption }: {
   cardOptions: SelectOption[];
   customerOptions: SelectOption[];
   cardsQuery: { isLoading: boolean };
   rateQuery: { data?: { rate?: number; isFallback?: boolean }; isLoading: boolean };
   supplierOptions: SelectOption[];
+  nextNumber: string | undefined;
   cardCreateOption: CreateSelectOption;
   customerCreateOption: CreateSelectOption;
   supplierCreateOption: CreateSelectOption;
@@ -118,6 +131,7 @@ function OrderDataStep({ cardOptions, customerOptions, cardsQuery, rateQuery, su
   return (
     <div className="stack">
       <ExchangeRateSeed rate={rateQuery.data?.rate} />
+      <NumberSeed number={nextNumber} />
       <div className="form-grid">
         <SelectField
           name="supplierId"
@@ -147,6 +161,7 @@ function OrderDataStep({ cardOptions, customerOptions, cardsQuery, rateQuery, su
           required
           placeholder="Seleccione…"
           options={PurchasePaymentMethodOptions}
+          clearable={false}
           onChange={(v) => {
             if (v !== 'card') setValue('creditCardId', '');
           }}
@@ -159,7 +174,7 @@ function OrderDataStep({ cardOptions, customerOptions, cardsQuery, rateQuery, su
         <TextField
           name="number"
           label="Número de compra"
-          description="Se genera automáticamente si lo dejas vacío."
+          description="Se genera automáticamente; puede editarlo."
         />
         <DateField name="date" label="Fecha de compra" required />
         <DateField name="expectedDate" label="Fecha estimada" />
@@ -183,17 +198,15 @@ function OrderDataStep({ cardOptions, customerOptions, cardsQuery, rateQuery, su
   );
 }
 
-function ItemsStep({ products }: { products: ProductCostOption[] }) {
+function ItemsStep({ products, onCreateProduct }: { products: ProductCostOption[]; onCreateProduct: (index: number) => void }) {
   const { control, setValue } = useFormContext<PurchaseFormValues>();
   const exchangeRate = useWatch({ control, name: 'exchangeRate' });
   const { fields, append, remove } = useFieldArray<PurchaseFormValues, 'items'>({ control, name: 'items' });
   const rows = useWatch<PurchaseFormValues, 'items'>({ control, name: 'items' });
 
   const handleProduct = (index: number, productId: string) => {
-    if (!productId) return;
     const p = products.find((o) => o.value === productId);
     if (!p) return;
-    setValue(`items.${index}.description` as Path<PurchaseFormValues>, p.label);
     setValue(`items.${index}.unitPrice` as Path<PurchaseFormValues>, p.unitCost);
     setValue(`items.${index}.salePricePen` as Path<PurchaseFormValues>, p.salePrice);
   };
@@ -216,18 +229,16 @@ function ItemsStep({ products }: { products: ProductCostOption[] }) {
               </Button>
             </div>
             <div className="form-grid">
-              <SelectField
+              <AutocompleteField
                 name={`items.${index}.productId` as Path<PurchaseFormValues>}
+                queryName={`items.${index}.productQuery` as Path<PurchaseFormValues>}
                 label="Producto"
+                required
+                className="form-grid__wide"
                 options={products}
-                placeholder="Nuevo (por descripción)…"
-                clearable
-                onChange={(v) => handleProduct(index, v)}
-              />
-              <TextField
-                name={`items.${index}.description` as Path<PurchaseFormValues>}
-                label="Descripción"
-                description="Si no eliges producto, se creará con esta descripción."
+                placeholder="Escriba para buscar o crear un producto…"
+                createOption={{ label: 'Agregar nuevo producto', onCreate: () => onCreateProduct(index) }}
+                onSelect={(v) => handleProduct(index, v)}
               />
             </div>
             <div className="form-grid">
@@ -285,7 +296,23 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
   const assignCustomer = useRef<(id: string) => void>(() => {});
   const [supplierCreateOpen, setSupplierCreateOpen] = useState(false);
   const assignSupplier = useRef<(id: string) => void>(() => {});
+  const [productCreateOpen, setProductCreateOpen] = useState(false);
+  const productLine = useRef(0);
   const [confirmingValues, setConfirmingValues] = useState<PurchaseFormValues | null>(null);
+  const [step, setStep] = useState(0);
+
+  // Closing the dialog clears every trace of the wizard, so the next open
+  // starts again on step 1 with no pending confirmation or nested form.
+  useEffect(() => {
+    if (open) return;
+    setStep(0);
+    setConfirmingValues(null);
+    setCardCreateOpen(false);
+    setCustomerCreateOpen(false);
+    setSupplierCreateOpen(false);
+    setProductCreateOpen(false);
+  }, [open]);
+
   const cardCreateOption: CreateSelectOption = {
     label: 'Crear nueva tarjeta…',
     onSelect: (assign) => {
@@ -310,6 +337,7 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
   const productsQuery = useProducts();
   const cardsQuery = useCreditCards();
   const suppliersQuery = useSupplierOptions();
+  const nextNumberQuery = useNextPurchaseNumber(open);
   const customersQuery = useQuery({
     queryKey: queryKeys.customers.options,
     queryFn: () => wailsClient.customerOptions(),
@@ -344,9 +372,22 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
   );
 
   const productOptions = useMemo<ProductCostOption[]>(
-    () => (productsQuery.data?.items ?? []).map((p) => ({ value: p.id, label: `${p.sku} — ${p.description}`, unitCost: p.costUsd, salePrice: p.salePrice })),
+    () => (productsQuery.data?.items ?? []).map((p) => ({ value: p.id, label: productLabel(p), unitCost: p.costUsd, salePrice: p.salePrice })),
     [productsQuery.data],
   );
+
+  const openProductCreate = (index: number) => {
+    productLine.current = index;
+    setProductCreateOpen(true);
+  };
+
+  const assignProduct = (form: UseFormReturn<PurchaseFormValues>, product: ProductDTO) => {
+    const index = productLine.current;
+    form.setValue(`items.${index}.productId` as Path<PurchaseFormValues>, product.id);
+    form.setValue(`items.${index}.productQuery` as Path<PurchaseFormValues>, productLabel(product));
+    form.setValue(`items.${index}.unitPrice` as Path<PurchaseFormValues>, product.costUsd);
+    form.setValue(`items.${index}.salePricePen` as Path<PurchaseFormValues>, product.salePrice);
+  };
 
   const defaults = useMemo<PurchaseFormValues>(
     () => ({
@@ -370,8 +411,6 @@ const steps = [
   { description: 'Notas y confirmación.' },
 ];
 
-  const [step, setStep] = useState(0);
-
   const doCreate = (values: PurchaseFormValues) => {
     create.mutate(
       {
@@ -389,7 +428,6 @@ const steps = [
           quantity: it.quantity,
           unitPrice: it.unitPrice,
           salePricePen: it.salePricePen,
-          description: it.description,
         })),
       },
       {
@@ -429,7 +467,7 @@ const steps = [
           </div>
         </DialogHeader>
 
-        <Form schema={PurchaseFormSchema} defaultValues={defaults} onSubmit={handleSubmit}>
+        <Form key={open ? 'open' : 'closed'} schema={PurchaseFormSchema} defaultValues={defaults} onSubmit={handleSubmit}>
           {(form) => (
             <>
               <DialogBody>
@@ -440,12 +478,13 @@ const steps = [
                     cardsQuery={cardsQuery}
                     rateQuery={rateQuery}
                     supplierOptions={supplierOptions}
+                    nextNumber={nextNumberQuery.data}
                     cardCreateOption={cardCreateOption}
                     customerCreateOption={customerCreateOption}
                     supplierCreateOption={supplierCreateOption}
                   />
                 )}
-                {step === 1 && <ItemsStep products={productOptions} />}
+                {step === 1 && <ItemsStep products={productOptions} onCreateProduct={openProductCreate} />}
                 {step === 2 && <ReviewStep />}
               </DialogBody>
               <DialogFooter>
@@ -476,6 +515,12 @@ const steps = [
                   </Button>
                 )}
               </DialogFooter>
+              <ProductFormDialog
+                open={productCreateOpen}
+                onOpenChange={setProductCreateOpen}
+                product={null}
+                onCreated={(product) => assignProduct(form, product)}
+              />
             </>
           )}
         </Form>

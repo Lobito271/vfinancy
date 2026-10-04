@@ -53,7 +53,7 @@ export function InventoryAdjustDialog({ open, onOpenChange, batch }: InventoryAd
           <DialogTitle>Ajustar lote</DialogTitle>
         </DialogHeader>
 
-        <Form schema={AdjustSchema} defaultValues={defaults} onSubmit={handleSubmit}>
+        <Form key={batch?.id ?? 'none'} schema={AdjustSchema} defaultValues={defaults} onSubmit={handleSubmit}>
           {({ formState }) => (
             <>
               <DialogBody>

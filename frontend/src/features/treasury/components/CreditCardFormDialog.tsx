@@ -79,7 +79,7 @@ export function CreditCardFormDialog({ open, onOpenChange, editCard, onCreated }
         <DialogHeader>
           <DialogTitle>{isEditing ? 'Editar tarjeta' : 'Nueva tarjeta de crédito'}</DialogTitle>
         </DialogHeader>
-        <Form<FormValues> schema={schema} defaultValues={defaultValues} onSubmit={handleSubmit}>
+        <Form<FormValues> key={editCard?.id ?? 'new'} schema={schema} defaultValues={defaultValues} onSubmit={handleSubmit}>
           <DialogBody>
             <TextField name="issuer" label="Banco / Entidad" placeholder="Banco o entidad" required />
             <TextField name="lastFour" label="Últimos 4 dígitos" placeholder="1234" required />

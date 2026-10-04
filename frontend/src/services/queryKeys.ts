@@ -28,6 +28,7 @@ export const queryKeys = {
     detail: (id: string) => ['purchasing', 'detail', id] as const,
     extraCosts: (purchaseId: string) => ['purchasing', 'extraCosts', purchaseId] as const,
     extraCostConcepts: ['purchasing', 'extraCostConcepts'] as const,
+    nextNumber: ['purchasing', 'nextNumber'] as const,
   },
   suppliers: {
     all: ['suppliers'] as const,
@@ -60,6 +61,6 @@ export const queryKeys = {
   },
   dashboard: {
     overview: ['dashboard', 'overview'] as const,
-    monthlyProfit: (months: number) => ['dashboard', 'monthlyProfit', months] as const,
+    profitBreakdown: (year: number, month: number) => ['dashboard', 'profitBreakdown', year, month] as const,
   },
 } as const;

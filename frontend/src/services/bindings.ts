@@ -47,9 +47,9 @@ async function resolveBindings(): Promise<AppBindings> {
 }
 
 export const wailsClient = {
-  async listMonthlyProfit(months: number) {
+  async listProfitBreakdown(year: number, month: number) {
     const b = await resolveBindings();
-    return b.ListMonthlyProfit(months);
+    return b.ListProfitBreakdown(year, month);
   },
 
   async getLocalAuthState() {
@@ -292,6 +292,10 @@ export const wailsClient = {
   async createPurchase(req: CreatePurchaseRequest) {
     const b = await resolveBindings();
     return b.CreatePurchase(req);
+  },
+  async nextPurchaseNumber() {
+    const b = await resolveBindings();
+    return b.NextPurchaseNumber();
   },
   async markPurchaseReceived(id: string, receivedDate: string) {
     const b = await resolveBindings();

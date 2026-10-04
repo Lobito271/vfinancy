@@ -320,6 +320,12 @@ func (a *App) MarkPurchaseFaulty(req CancelPurchaseRequest) (PurchaseDTO, error)
 	return purchaseDTO(po), nil
 }
 
+// NextPurchaseNumber returns the number a new order would get, so the
+// form can show it before saving.
+func (a *App) NextPurchaseNumber() (string, error) {
+	return a.purchasingSvc.NextNumber(a.Context())
+}
+
 // UpdatePurchaseNumber corrects the number of an order.
 func (a *App) UpdatePurchaseNumber(id string, number string) (PurchaseDTO, error) {
 	oid, err := parseUUID(id)

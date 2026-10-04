@@ -104,4 +104,8 @@ type PurchaseRepository interface {
 	// MonthlyCosts groups the non-cancelled purchase costs of [from, to)
 	// by calendar month, converted to PEN at each purchase's own rate.
 	MonthlyCosts(ctx context.Context, from, to time.Time) ([]MonthlyCost, error)
+	// MonthlyExtraCosts returns the surcharges of [from, to) with the
+	// month of their purchase, for the concept breakdown of the profit
+	// report.
+	MonthlyExtraCosts(ctx context.Context, from, to time.Time) ([]MonthlyExtraCost, error)
 }

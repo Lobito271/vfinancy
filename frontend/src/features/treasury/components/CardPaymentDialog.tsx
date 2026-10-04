@@ -32,7 +32,7 @@ export function CardPaymentDialog({ card, open, onOpenChange, loading, onConfirm
           </div>
         </div>
         <Form<CardPaymentValues>
-          key={card?.issuer ?? ''}
+          key={`${card?.issuer ?? ''}-${card?.lastFour ?? ''}`}
           schema={CardPaymentSchema}
           defaultValues={{ amount: card?.currentBalance ?? 0 }}
           onSubmit={(values) => onConfirm(values.amount)}

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { z } from 'zod';
 import {
   Form,
@@ -45,6 +45,13 @@ export function InventoryReceiveDialog({ open, onOpenChange, preset }: Inventory
   const push = useNotificationStore((s) => s.push);
   const [productCreateOpen, setProductCreateOpen] = useState(false);
   const assignProduct = useRef<(id: string) => void>(() => {});
+
+  // Closing clears the nested product form so it cannot resurface when
+  // the next entry starts.
+  useEffect(() => {
+    if (open) return;
+    setProductCreateOpen(false);
+  }, [open]);
 
   const defaults = useMemo<ReceiveFormValues>(
     () => ({

@@ -224,7 +224,7 @@ export function ShipmentFormDialog({ open, onOpenChange, edit, defaults }: Shipm
         <DialogHeader>
           <DialogTitle>{isEditing ? `Editar envío ${edit.code}` : 'Nuevo envío'}</DialogTitle>
         </DialogHeader>
-        <Form<FormValues> schema={schema} defaultValues={defaultValues} onSubmit={handleSubmit}>
+        <Form<FormValues> key={edit?.id ?? 'new'} schema={schema} defaultValues={defaultValues} onSubmit={handleSubmit}>
           <DialogBody>
             <ShipmentFields isEditing={isEditing} onCopySecurityCode={copySecurityCode} />
             <TextField name="description" label="Descripción" placeholder="Ej. Caja de mercadería" required />

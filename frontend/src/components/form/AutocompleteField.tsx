@@ -23,9 +23,8 @@ interface AutocompleteFieldProps<T extends FieldValues> {
   placeholder?: string;
   className?: string;
   options: SelectOption[];
-  createLabel?: (query: string) => string;
+  createOption?: { label: string; onCreate: () => void };
   onSelect?: (value: string) => void;
-  onCreate?: (query: string) => void;
 }
 
 // AutocompleteField binds two form fields to one Base UI
@@ -33,6 +32,11 @@ interface AutocompleteFieldProps<T extends FieldValues> {
 // editable while filtering) and name keeps the value of the entry picked
 // from the list. A query that matches no option resolves to an empty
 // name, which lets the schema require a real selection.
+//
+// The createOption entry is only offered while the query matches nothing,
+// and it acts on an explicit press of the entry — typing never triggers
+// it. Base UI commits a highlighted entry with a real click, so pressing
+// it with the keyboard counts as a press too.
 export function AutocompleteField<T extends FieldValues>({
   name,
   queryName,
@@ -42,9 +46,8 @@ export function AutocompleteField<T extends FieldValues>({
   placeholder = 'Escriba para buscar…',
   className,
   options,
-  createLabel,
+  createOption,
   onSelect,
-  onCreate,
 }: AutocompleteFieldProps<T>) {
   const { control, setValue, formState } = useFormContext<T>();
   const query = (useWatch({ control, name: queryName }) as string) ?? '';
@@ -52,18 +55,17 @@ export function AutocompleteField<T extends FieldValues>({
   const id = String(name);
   const set = (field: FieldPath<T>, value: string) => setValue(field, value as never);
 
-  const normalize = (text: string) => text.trim().toLowerCase();
+  const normalize = (text: string) =>
+    text
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '');
   const match = (text: string) => options.find((opt) => normalize(opt.label) === normalize(text));
   const typed = query.trim();
-  const createEntry =
-    onCreate && createLabel && typed !== '' && !match(query) ? [{ value: CREATE_VALUE, label: `+ ${createLabel(typed)}` }] : [];
+  const createEntry: SelectOption[] =
+    createOption && typed !== '' && !match(query) ? [{ value: CREATE_VALUE, label: `+ ${createOption.label}` }] : [];
   const items: SelectOption[] = [...createEntry, ...options];
-
-  const pick = (option: SelectOption) => {
-    set(name, option.value);
-    set(queryName, option.label);
-    onSelect?.(option.value);
-  };
 
   return (
     <Field label={label} required={required} description={description} error={error} className={className} htmlFor={id}>
@@ -71,17 +73,16 @@ export function AutocompleteField<T extends FieldValues>({
         items={items}
         value={query}
         openOnInputClick
+        filter={(item: SelectOption, search: string) =>
+          item.value === CREATE_VALUE || normalize(item.label).includes(normalize(search))
+        }
+        itemToStringValue={(item: SelectOption) => (item.value === CREATE_VALUE ? query : item.label)}
         onValueChange={(text) => {
           const option = match(text);
           if (option) {
-            pick(option);
-            return;
-          }
-          // Pressing an entry fills the input with its label, so text that
-          // was not typed by hand is the create entry, not a new query.
-          if (onCreate && createEntry.length > 0 && text !== query) {
-            set(queryName, query);
-            onCreate(typed);
+            set(name, option.value);
+            set(queryName, option.label);
+            onSelect?.(option.value);
             return;
           }
           set(queryName, text);
@@ -102,7 +103,12 @@ export function AutocompleteField<T extends FieldValues>({
         <AutocompleteContent>
           <AutocompleteList>
             {(item: SelectOption) => (
-              <AutocompleteItem key={item.value} value={item} className={item.value === CREATE_VALUE ? 'select-item--create' : undefined}>
+              <AutocompleteItem
+                key={item.value}
+                value={item}
+                className={item.value === CREATE_VALUE ? 'select-item--create' : undefined}
+                onClick={item.value === CREATE_VALUE ? () => createOption?.onCreate() : undefined}
+              >
                 {item.label}
               </AutocompleteItem>
             )}

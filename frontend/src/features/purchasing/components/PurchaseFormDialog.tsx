@@ -237,9 +237,8 @@ function ItemsStep({ products, onCreateProduct }: { products: ProductCostOption[
                 className="form-grid__wide"
                 options={products}
                 placeholder="Escriba para buscar o crear un producto…"
-                createLabel={(query) => `Crear «${query}»`}
+                createOption={{ label: 'Agregar nuevo producto', onCreate: () => onCreateProduct(index) }}
                 onSelect={(v) => handleProduct(index, v)}
-                onCreate={() => onCreateProduct(index)}
               />
             </div>
             <div className="form-grid">
@@ -300,6 +299,20 @@ export function PurchaseFormDialog({ open, onOpenChange }: PurchaseFormDialogPro
   const [productCreateOpen, setProductCreateOpen] = useState(false);
   const productLine = useRef(0);
   const [confirmingValues, setConfirmingValues] = useState<PurchaseFormValues | null>(null);
+  const [step, setStep] = useState(0);
+
+  // Closing the dialog clears every trace of the wizard, so the next open
+  // starts again on step 1 with no pending confirmation or nested form.
+  useEffect(() => {
+    if (open) return;
+    setStep(0);
+    setConfirmingValues(null);
+    setCardCreateOpen(false);
+    setCustomerCreateOpen(false);
+    setSupplierCreateOpen(false);
+    setProductCreateOpen(false);
+  }, [open]);
+
   const cardCreateOption: CreateSelectOption = {
     label: 'Crear nueva tarjeta…',
     onSelect: (assign) => {
@@ -398,8 +411,6 @@ const steps = [
   { description: 'Notas y confirmación.' },
 ];
 
-  const [step, setStep] = useState(0);
-
   const doCreate = (values: PurchaseFormValues) => {
     create.mutate(
       {
@@ -456,7 +467,7 @@ const steps = [
           </div>
         </DialogHeader>
 
-        <Form schema={PurchaseFormSchema} defaultValues={defaults} onSubmit={handleSubmit}>
+        <Form key={open ? 'open' : 'closed'} schema={PurchaseFormSchema} defaultValues={defaults} onSubmit={handleSubmit}>
           {(form) => (
             <>
               <DialogBody>

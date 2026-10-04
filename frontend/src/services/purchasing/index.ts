@@ -14,7 +14,7 @@ export interface PurchaseLineInput {
   quantity: number;
   unitPrice: number;
   salePricePen?: number;
-  description: string;
+  description?: string;
 }
 
 interface PurchaseQuery {
@@ -32,7 +32,7 @@ export type Purchase = PurchaseDTO;
 function toItems(items: PurchaseLineInput[]): PurchaseItemRequest[] {
   return items.map((it) => ({
     productId: it.productId,
-    description: it.description,
+    description: it.description ?? '',
     quantity: it.quantity,
     unitCostUsd: it.unitPrice,
     salePricePen: it.salePricePen ?? 0,
@@ -104,6 +104,10 @@ export const purchasingService = {
       items: toItems(input.items),
     };
     return wailsClient.createPurchase(req);
+  },
+
+  async nextNumber(): Promise<string> {
+    return wailsClient.nextPurchaseNumber();
   },
 
   async cancel(id: string, reason: string): Promise<Purchase> {

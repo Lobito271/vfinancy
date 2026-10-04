@@ -28,6 +28,7 @@ export const queryKeys = {
     detail: (id: string) => ['purchasing', 'detail', id] as const,
     extraCosts: (purchaseId: string) => ['purchasing', 'extraCosts', purchaseId] as const,
     extraCostConcepts: ['purchasing', 'extraCostConcepts'] as const,
+    nextNumber: ['purchasing', 'nextNumber'] as const,
   },
   suppliers: {
     all: ['suppliers'] as const,

@@ -293,6 +293,10 @@ export const wailsClient = {
     const b = await resolveBindings();
     return b.CreatePurchase(req);
   },
+  async nextPurchaseNumber() {
+    const b = await resolveBindings();
+    return b.NextPurchaseNumber();
+  },
   async markPurchaseReceived(id: string, receivedDate: string) {
     const b = await resolveBindings();
     return b.MarkPurchaseReceived(id, receivedDate);

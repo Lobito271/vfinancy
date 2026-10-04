@@ -25,6 +25,17 @@ export function useCreatePurchase() {
   });
 }
 
+// useNextPurchaseNumber previews the sequence number of the order being
+// created so the form can show it, editable, before saving.
+export function useNextPurchaseNumber(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.purchasing.nextNumber,
+    queryFn: () => purchasingService.nextNumber(),
+    enabled,
+    staleTime: 0,
+  });
+}
+
 export function useCancelPurchase() {
   const qc = useQueryClient();
   return useMutation({

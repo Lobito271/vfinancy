@@ -197,7 +197,7 @@ func (r *purchaseRepository) GetByID(ctx context.Context, id uuid.UUID) (*purcha
 	q := `SELECT ` + purchasesListSelect + purchasesListFrom + `
 		WHERE purchases.id = $1 AND purchases.deleted_at IS NULL`
 	row := persistence.Q(ctx, r.q).QueryRowContext(ctx, q, id)
-	return scanPurchase(row)
+	return scanPurchase(func(dest ...any) error { return persistence.ScanRow(row, dest...) })
 }
 
 // ListItems returns the lines of an order ordered by line number.
@@ -295,7 +295,7 @@ func (r *purchaseRepository) List(ctx context.Context, filter purchasing.Purchas
 	}
 	out := make([]*purchasing.Purchase, 0, limit)
 	if err := persistence.ScanRows(rows, func(row *sql.Rows) error {
-		p, err := scanPurchaseFromRows(row)
+		p, err := scanPurchase(row.Scan)
 		if err != nil {
 			return err
 		}
@@ -450,37 +450,19 @@ type purchaseScan struct {
 	faulty                                                           bool
 }
 
-func scanPurchase(row *sql.Row) (*purchasing.Purchase, error) {
+// scanPurchase decodes the purchasesListSelect columns of one order.
+// Single-order and list queries share it so the destination list can
+// never drift from the select.
+func scanPurchase(scan func(dest ...any) error) (*purchasing.Purchase, error) {
 	p := &purchasing.Purchase{}
 	var s purchaseScan
-	if err := persistence.ScanRow(row,
+	if err := scan(
 		&p.ID, &p.Number, &p.OrderDate,
 		&s.expectedDate, &s.receivedDate, &s.arrivalDate,
 		&s.status, &s.currencyCode, &s.paymentMethod, &s.exchangeRate, &s.notes,
 		&s.customerID, &s.supplierID, &s.creditCardID, &s.saleID,
 		&s.costUSD, &s.extraCostUSD, &s.totalCostUSD,
 		&s.salePricePen, &s.realCostPen, &s.refundAmount,
-		&s.faulty, &s.faultyReason, &s.cancelledAt, &s.cancelledReason,
-		&p.CreatedAt, &p.UpdatedAt, &s.deletedAt,
-		&s.supplierName, &s.customerName, &s.saleNumber,
-	); err != nil {
-		return nil, err
-	}
-	if err := decodePurchase(p, &s); err != nil {
-		return nil, err
-	}
-	return p, nil
-}
-
-func scanPurchaseFromRows(rows *sql.Rows) (*purchasing.Purchase, error) {
-	p := &purchasing.Purchase{}
-	var s purchaseScan
-	if err := rows.Scan(
-		&p.ID, &p.Number, &p.OrderDate,
-		&s.expectedDate, &s.receivedDate, &s.arrivalDate,
-		&s.status, &s.currencyCode, &s.paymentMethod, &s.exchangeRate, &s.notes,
-		&s.customerID, &s.supplierID, &s.creditCardID, &s.saleID,
-		&s.costUSD, &s.salePricePen, &s.realCostPen, &s.refundAmount,
 		&s.faulty, &s.faultyReason, &s.cancelledAt, &s.cancelledReason,
 		&p.CreatedAt, &p.UpdatedAt, &s.deletedAt,
 		&s.supplierName, &s.customerName, &s.saleNumber,

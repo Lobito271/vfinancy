@@ -667,6 +667,13 @@ func (s *PurchasingService) ListItems(ctx context.Context, purchaseOrderID uuid.
 	return s.orders.ListItems(ctx, purchaseOrderID)
 }
 
+// NextNumber returns the sequence number a new order would get. The
+// form shows it upfront and still lets the user replace it; Create
+// falls back to it when the number arrives empty.
+func (s *PurchasingService) NextNumber(ctx context.Context) (string, error) {
+	return s.orders.NextNumber(ctx)
+}
+
 // UpdateNumber changes the order number. Sequence numbers are
 // generated once and can be corrected through this method.
 func (s *PurchasingService) UpdateNumber(ctx context.Context, id uuid.UUID, number string) (*Purchase, error) {

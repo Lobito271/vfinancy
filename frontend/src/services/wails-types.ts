@@ -556,6 +556,7 @@ export interface AppBindings {
   ListPurchases(req: PurchaseFilterRequest): Promise<PageResult<PurchaseDTO>>;
   GetPurchase(id: string): Promise<PurchaseDTO>;
   CreatePurchase(req: CreatePurchaseRequest): Promise<PurchaseDTO>;
+  NextPurchaseNumber(): Promise<string>;
   MarkPurchaseReceived(id: string, receivedDate: string): Promise<void>;
   CancelPurchase(req: CancelPurchaseRequest): Promise<PurchaseDTO>;
   MarkPurchaseFaulty(req: CancelPurchaseRequest): Promise<PurchaseDTO>;

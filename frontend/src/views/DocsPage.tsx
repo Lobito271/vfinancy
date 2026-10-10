@@ -98,8 +98,7 @@ export function DocsPage({ kind }: { kind: 'purchase' | 'sale' | 'shipment' }) {
 
   return <>
     <ViewHead title={title} subtitle={kind === 'purchase' ? 'Órdenes, costos extras y recepción de mercadería' : kind === 'sale' ? 'Ventas, pagos y cuentas por cobrar' : 'Despachos, seguimiento y comprobante'} actions={<button className="btn btn--primary btn--sm" type="button" onClick={() => setCreating(true)}><Plus size={14} /> {createLabel}</button>} />
-    {kind === 'purchase' && <div className="pagebar"><Seg label="Compras" options={[{ value: 'all', label: 'Todas' }, { value: 'clients', label: 'Para clientes' }]} value={purchaseTab} onChange={setPurchaseTab} /></div>}
-    <FilterBar state={filterState} />
+    <div className="pagebar">{kind === 'purchase' && <Seg label="Compras" options={[{ value: 'all', label: 'Todas' }, { value: 'clients', label: 'Para clientes' }]} value={purchaseTab} onChange={setPurchaseTab} />}<FilterBar state={filterState} /></div>
     {loading && !page ? <Loading /> : <MonthJournal page={visiblePage} loading={loading} onMore={() => void loadMore()} emptyText={purchaseTab === 'clients' ? 'Sin compras para clientes' : 'Sin registros que coincidan con los filtros'} renderRow={(row) => {
       const id = Number(row.id)
       const state = statusView(kind === 'purchase' ? 'purchases' : 'sales', row.status)

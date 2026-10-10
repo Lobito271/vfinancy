@@ -97,7 +97,7 @@ func (c *Core) list(entity, _ string, q ListQuery) (Page, error) {
 		}
 	}
 	page := Page{Months: groups}
-	if len(groups) > 0 {
+	if len(groups) == limit {
 		page.NextCursor = groups[len(groups)-1].Month
 	}
 	return page, nil

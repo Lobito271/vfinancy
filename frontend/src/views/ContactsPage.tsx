@@ -7,7 +7,8 @@ import { useStore } from '../data/store'
 import { statusView } from '../data/status'
 import { parseError } from '../lib/errors'
 import { fmtDateShort, monthLabel } from '../lib/format'
-import { Badge, Empty, Field, Loading, Modal, ModalActions, Money, StatusBadge, TextInput, ViewHead } from '../components/ui'
+import { Badge, Empty, Field, Loading, Money, StatusBadge, TextInput, ViewHead } from '../components/ui'
+import { AddressModal, ClientModal, SupplierModal } from '../components/entityModals'
 import { FilterBar, useServerFilters } from '../components/filters'
 
 type Row = Record<string, any>
@@ -101,20 +102,8 @@ export function ContactsPage({ kind, id = 0 }: { kind: Kind; id?: number }) {
     <ViewHead title={title} subtitle="Entidades de consulta con ficha propia" actions={<button className="btn btn--primary btn--sm" type="button" onClick={() => setCreating(true)}><Plus size={14}/> Nuevo {kind === 'client' ? 'cliente' : 'proveedor'}</button>}/>
     <FilterBar state={filters}/>
     {loading ? <Loading/> : !records.length ? <Empty>Sin {title.toLowerCase()} que coincidan con los filtros</Empty> : <div className="catlist">{records.map((row) => { const state = kind === 'client' ? statusView('clients', row.status) : null; return <button key={row.id} type="button" className={`listrow listrow--click ${state ? `stripe stripe--${state.tone}` : ''} ${state?.key === 'voided' ? 'listrow--void' : ''}`} onClick={() => navigate(`/${route}/${row.id}`)}><span className="listrow__main"><span className="listrow__title">{row.name}</span><span className="listrow__meta"><Phone size={11}/>{row.phone || 'sin teléfono'}</span></span>{kind === 'client' && <span className="listrow__amount num">{Number(row.balanceCents ?? 0) > 0 ? <Money cents={row.balanceCents}/> : <span className="muted">sin saldo</span>}</span>}{kind === 'client' && <StatusBadge state={state}/>}</button>})}</div>}
-    {creating && <ContactModal kind={kind} onClose={() => setCreating(false)}/>}
+    {creating && (kind === 'client' ? <ClientModal onClose={() => setCreating(false)}/> : <SupplierModal onClose={() => setCreating(false)}/>)}
   </>
 }
 
 function groupHistory(rows: Row[]): Array<[string, Row[]]> { const groups = new Map<string, Row[]>(); for (const row of rows) { const month = String(row.date).slice(0,7); groups.set(month,[...(groups.get(month) ?? []),row]) } return [...groups.entries()].sort((a,b)=>b[0].localeCompare(a[0])) }
-
-function ContactModal({ kind, onClose }: { kind: Kind; onClose: () => void }) {
-  const [name,setName]=useState(''),[phone,setPhone]=useState(''),[note,setNote]=useState(''),[busy,setBusy]=useState(false)
-  const toast=useStore((state)=>state.toast)
-  return <Modal title={`Nuevo ${kind==='client'?'cliente':'proveedor'}`} onClose={onClose}><form className="stack" onSubmit={async(event)=>{event.preventDefault();setBusy(true);try{if(kind==='client')await api.Catalog.SaveClient(new service.Client({name,phone,note}));else await api.Catalog.SaveSupplier(new service.Supplier({name,phone,note}));useStore.getState().refresh();toast('Contacto creado');onClose()}catch(error){toast(parseError(error).message??'No se pudo guardar el contacto','bad')}finally{setBusy(false)}}}><Field label="Nombre" required><TextInput autoFocus value={name} onChange={(e)=>setName(e.target.value)}/></Field><Field label="Teléfono"><TextInput type="tel" value={phone} onChange={(e)=>setPhone(e.target.value)}/></Field><Field label="Nota"><textarea className="input" rows={3} value={note} onChange={(e)=>setNote(e.target.value)}/></Field><div className="hstack"><ModalActions onClose={onClose} busy={busy} label="Guardar"/></div></form></Modal>
-}
-
-function AddressModal({ clientId, address, onClose }: { clientId: number; address?: Row; onClose: () => void }) {
-  const [region,setRegion]=useState(address?.region??''),[street,setStreet]=useState(address?.address??''),[busy,setBusy]=useState(false)
-  const toast=useStore((state)=>state.toast)
-  return <Modal title={address?'Editar dirección':'Nueva dirección'} onClose={onClose}><form className="stack" onSubmit={async(event)=>{event.preventDefault();setBusy(true);try{await api.Catalog.SaveAddress(new service.Address({id:Number(address?.id??0),clientId,region,address:street}));useStore.getState().refresh();toast('Dirección guardada');onClose()}catch(error){toast(parseError(error).message??'No se pudo guardar la dirección','bad')}finally{setBusy(false)}}}><Field label="Región" required><TextInput value={region} onChange={(e)=>setRegion(e.target.value)}/></Field><Field label="Dirección" required><TextInput value={street} onChange={(e)=>setStreet(e.target.value)}/></Field><div className="hstack"><ModalActions onClose={onClose} busy={busy} label="Guardar dirección"/></div></form></Modal>
-}

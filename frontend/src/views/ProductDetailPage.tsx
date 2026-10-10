@@ -12,6 +12,7 @@ import { fmtDateShort, monthLabel } from '../lib/format'
 import { Badge, Empty, Loading, Money, ViewHead } from '../components/ui'
 import { FilterBar, useServerFilters } from '../components/filters'
 import { EntityLink } from '../components/entity'
+import { ProductModal } from '../components/entityModals'
 
 type Row = Record<string, any>
 
@@ -32,6 +33,7 @@ export function ProductDetailPage() {
   const [cursor, setCursor] = useState('')
   const [loading, setLoading] = useState(true)
   const [moreLoading, setMoreLoading] = useState(false)
+  const [editing, setEditing] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -65,7 +67,7 @@ export function ProductDetailPage() {
     try {
       const next = await api.Inventory.ListKardex(productId, query(currency, filters.filters, cursor, 6))
       setKardex((old) => ({ months: [...(old?.months ?? []), ...(next.months ?? [])], nextCursor: next.nextCursor } as Page))
-      setCursor(next.nextCursor ?? '')
+      setCursor(next.months?.length ? next.nextCursor ?? '' : '')
     } catch (error) { toast(parseError(error).message ?? 'No se pudo cargar más kardex', 'bad') }
     finally { setMoreLoading(false) }
   }
@@ -79,7 +81,7 @@ export function ProductDetailPage() {
   const supplierIds = [...new Set(activeLots.map((lot) => Number(lot.supplier_id)).filter((supplierId) => supplierId > 0))]
 
   return <>
-    <ViewHead title={product.name} subtitle={`${product.sku} · costo y precio por defecto`} actions={<button type="button" className="iconbtn" aria-label="Volver a productos" onClick={() => navigate('/inventario?tab=products')}><ArrowLeft size={16} /></button>} />
+    <ViewHead title={product.name} subtitle={`${product.sku} · costo y precio por defecto`} actions={<><button type="button" className="btn btn--sm" onClick={() => setEditing(true)}>Editar</button><button type="button" className="iconbtn" aria-label="Volver a productos" onClick={() => navigate('/inventario?tab=products')}><ArrowLeft size={16} /></button></>} />
     <div className="kpis">
       <div className="kpi"><span className="kpi__label">Stock total</span><span className="kpi__value">{stock} uds</span><div className="kpi__foot"><span className="kpi__sub">{sold} vendidas</span></div></div>
       <div className="kpi"><span className="kpi__label">Valor del stock</span><span className="kpi__value"><Money cents={stockValue} /></span><div className="kpi__foot"><span className="kpi__sub">{lots.length} lote{lots.length === 1 ? '' : 's'} (sin anular)</span></div></div>
@@ -98,5 +100,6 @@ export function ProductDetailPage() {
     <FilterBar state={filters} />
     {!kardex?.months.length ? <Empty>Sin movimientos que coincidan</Empty> : kardex.months.map((month) => <section key={month.month} className="jmonth"><header className="jmonth__head"><h2>{monthLabel(month.month)}</h2><span className="jmonth__stats">{month.count} mov.</span></header><div className="table-scroll"><table className="tbl"><thead><tr><th>Fecha</th><th>Movimiento</th><th>Lote</th><th>Ref.</th><th className="num">Cant.</th><th className="num">Costo unit.</th><th className="num">Saldo uds</th><th className="num">Saldo valor</th></tr></thead><tbody>{(month.rows as Row[]).map((row) => <tr key={row.id}><td>{fmtDateShort(row.date)}</td><td>{row.movLabel}</td><td className="num">{row.lotCode}</td><td>{row.refCode || '—'}</td><td className={`num ${row.direction === 'out' ? 'negnum' : ''}`}>{row.direction === 'in' ? '+' : '−'}{row.qty}</td><td className="num"><Money cents={row.unitCents} /></td><td className="num">{row.balanceQty}</td><td className="num"><Money cents={row.balanceValueCents} /></td></tr>)}</tbody></table></div></section>)}
     {cursor && <div className="jmore"><button type="button" className="btn" disabled={moreLoading} onClick={() => void loadMore()}>{moreLoading ? 'Cargando…' : 'Cargar meses anteriores'}</button></div>}
+    {editing && <ProductModal existing={product} onClose={() => setEditing(false)} />}
   </>
 }

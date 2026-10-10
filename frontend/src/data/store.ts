@@ -26,9 +26,9 @@ interface AppState {
 }
 
 export const applyTheme = (theme: string) => {
-  const dark = theme === 'dark' || (theme === 'system' && window.matchMedia?.('(prefers-color-scheme: dark)').matches)
+  const dark = theme === 'dark'
   document.documentElement.dataset.theme = dark ? 'dark' : 'light'
-  document.documentElement.classList.toggle('dark', !!dark)
+  document.documentElement.classList.toggle('dark', dark)
 }
 
 let toastId = 0
@@ -36,7 +36,7 @@ export const useStore = create<AppState>((set, get) => {
   const loadSettings = async () => {
     const settings = await api.Settings.GetSettings()
     const currency: Currency = settings.display_currency === 'USD' ? 'USD' : 'PEN'
-    applyTheme(settings.theme ?? 'system')
+    applyTheme(settings.theme ?? 'light')
     set({ settings, currency, ready: true, locked: false, busy: false })
   }
   return {

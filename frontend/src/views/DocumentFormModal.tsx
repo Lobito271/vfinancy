@@ -10,6 +10,7 @@ import { todayISO } from '../lib/format'
 import { centsText, textToCents, tcFromText, tcText } from '../lib/money'
 import { Field, Modal, ModalActions, Money, MoneyInput, Seg, TcField, TextInput } from '../components/ui'
 import { Autocomplete } from '../components/Autocomplete'
+import { AddressModal, CardModal, ClientModal, ProductModal, SupplierModal } from '../components/entityModals'
 
 type Catalog = { clients: Array<Record<string, any>>; suppliers: Array<Record<string, any>>; products: Array<Record<string, any>>; cards: Array<Record<string, any>> }
 type Line = { productId: string; lotId: string; qty: string; amount: string; description: string }
@@ -17,7 +18,7 @@ type ExtraLine = { concept: string; amount: string; currency: Currency }
 
 const blankLine = (): Line => ({ productId: '', lotId: '', qty: '1', amount: '', description: '' })
 
-export function DocumentFormModal({ kind, catalog, onClose, existing, extrasOnly = false }: { kind: 'purchase' | 'sale' | 'shipment'; catalog: Catalog; onClose: () => void; existing?: service.Purchase | service.Sale; extrasOnly?: boolean }) {
+export function DocumentFormModal({ kind, catalog, onClose, existing }: { kind: 'purchase' | 'sale' | 'shipment'; catalog: Catalog; onClose: () => void; existing?: service.Purchase | service.Sale }) {
   const displayCurrency = useStore((state) => state.currency)
   const refresh = useStore((state) => state.refresh)
   const toast = useStore((state) => state.toast)
@@ -51,7 +52,7 @@ export function DocumentFormModal({ kind, catalog, onClose, existing, extrasOnly
   const [addresses, setAddresses] = useState<Array<Record<string, any>>>([])
   const tcScaled = tcFromText(tc) ?? 37500
   const editingPurchase = kind === 'purchase'
-  const title = existing ? extrasOnly ? `Editar extras · ${record.code}` : `Editar · ${record.code}` : editingPurchase ? 'Nueva compra' : kind === 'shipment' ? 'Nuevo envío' : 'Nueva venta'
+  const title = existing ? `Editar · ${record.code}` : editingPurchase ? 'Nueva compra' : kind === 'shipment' ? 'Nuevo envío' : 'Nueva venta'
 
   useEffect(() => {
     if (!existing) {
@@ -87,7 +88,6 @@ export function DocumentFormModal({ kind, catalog, onClose, existing, extrasOnly
   }
 
   useEffect(() => {
-    if (extrasOnly) return
     const timer = window.setTimeout(async () => {
       try {
         const lineItems = items.filter((line) => line.productId && Number(line.qty) > 0).map((line) => editingPurchase
@@ -102,7 +102,7 @@ export function DocumentFormModal({ kind, catalog, onClose, existing, extrasOnly
       } catch { setPreview(null) }
     }, 250)
     return () => window.clearTimeout(timer)
-  }, [items, extras, currency, tcScaled, displayCurrency, kind, extrasOnly])
+  }, [items, extras, currency, tcScaled, displayCurrency, kind])
 
   const submit = async (event: FormEvent) => {
     event.preventDefault(); setBusy(true); setFieldErrors({})
@@ -115,29 +115,25 @@ export function DocumentFormModal({ kind, catalog, onClose, existing, extrasOnly
         await api.Purchases.Save(new service.Purchase({ id: Number(existing?.id ?? 0), code, supplierId: Number(supplierId), date, paymentMethod: method, cardId: method === 'card' ? Number(cardId) : undefined, currency, tc: rate, forClientId: forClient && clientId ? Number(clientId) : undefined, items: purchaseItems, extras: extraItems }))
       } else {
         const saleItems: service.SaleItem[] = []
-        if (extrasOnly && existing) {
-          saleItems.push(...(existing as service.Sale).items.map((item) => new service.SaleItem(item)))
-        } else {
-          for (const line of items.filter((item) => item.productId)) {
-            const qty = Number(line.qty)
-            if (existing && line.lotId) {
-              saleItems.push(new service.SaleItem({ productId: Number(line.productId), lotId: Number(line.lotId), qty, description: line.description, unitPriceCents: textToCents(line.amount) ?? 0 }))
-            } else if (line.lotId) {
-              const choices = (lotOptions[line.productId] ?? []).filter((lot) => Number(lot.available) > 0 && (lot.reserved_client_id == null || Number(lot.reserved_client_id) === Number(clientId)))
-              const selectedIndex = choices.findIndex((lot) => Number(lot.id) === Number(line.lotId))
-              if (selectedIndex < 0) throw new Error(`Lote ${line.lotId} no tiene stock disponible para este cliente`)
-              let remaining = qty
-              for (const lot of choices.slice(selectedIndex)) {
-                if (remaining <= 0) break
-                const take = Math.min(remaining, Number(lot.available))
-                saleItems.push(new service.SaleItem({ productId: Number(line.productId), lotId: Number(lot.id), qty: take, description: line.description, unitPriceCents: textToCents(line.amount) ?? 0 }))
-                remaining -= take
-              }
-              if (remaining > 0) throw new Error(`Stock insuficiente: faltan ${remaining} unidades`)
-            } else {
-              const suggested = await api.Inventory.SuggestLots(Number(line.productId), qty)
-              for (const lot of suggested) saleItems.push(new service.SaleItem({ productId: Number(line.productId), lotId: lot.lotId, qty: lot.suggestedQty, description: line.description, unitPriceCents: textToCents(line.amount) ?? 0 }))
+        for (const line of items.filter((item) => item.productId)) {
+          const qty = Number(line.qty)
+          if (existing && line.lotId) {
+            saleItems.push(new service.SaleItem({ productId: Number(line.productId), lotId: Number(line.lotId), qty, description: line.description, unitPriceCents: textToCents(line.amount) ?? 0 }))
+          } else if (line.lotId) {
+            const choices = (lotOptions[line.productId] ?? []).filter((lot) => Number(lot.available) > 0 && (lot.reserved_client_id == null || Number(lot.reserved_client_id) === Number(clientId)))
+            const selectedIndex = choices.findIndex((lot) => Number(lot.id) === Number(line.lotId))
+            if (selectedIndex < 0) throw new Error(`Lote ${line.lotId} no tiene stock disponible para este cliente`)
+            let remaining = qty
+            for (const lot of choices.slice(selectedIndex)) {
+              if (remaining <= 0) break
+              const take = Math.min(remaining, Number(lot.available))
+              saleItems.push(new service.SaleItem({ productId: Number(line.productId), lotId: Number(lot.id), qty: take, description: line.description, unitPriceCents: textToCents(line.amount) ?? 0 }))
+              remaining -= take
             }
+            if (remaining > 0) throw new Error(`Stock insuficiente: faltan ${remaining} unidades`)
+          } else {
+            const suggested = await api.Inventory.SuggestLots(Number(line.productId), qty)
+            for (const lot of suggested) saleItems.push(new service.SaleItem({ productId: Number(line.productId), lotId: lot.lotId, qty: lot.suggestedQty, description: line.description, unitPriceCents: textToCents(line.amount) ?? 0 }))
           }
         }
         await api.Sales.Save(new service.Sale({ id: Number(existing?.id ?? 0), code, kind, clientId: clientId ? Number(clientId) : undefined, date, currency, tc: rate, items: saleItems, extras: extraItems, paidNowCents: existing ? 0 : textToCents(paidNow) ?? 0, paymentMethod: method, shipRegion: region || record?.shipRegion, shipAddress: address || record?.shipAddress, securityCode }))
@@ -148,31 +144,18 @@ export function DocumentFormModal({ kind, catalog, onClose, existing, extrasOnly
     } finally { setBusy(false) }
   }
 
-  return <Modal title={title} onClose={onClose} wide><form id={formId} className="stack" onSubmit={submit}>
-    {extrasOnly && <div className="formwarn">Esta compra ya fue recibida: editar sus extras afecta el costo proporcional de las ventas.</div>}
-    {!extrasOnly && <>
+  return <Modal title={title} onClose={onClose} wide footer={<ModalActions onClose={onClose} busy={busy} formId={formId} label={existing ? 'Guardar cambios' : editingPurchase ? 'Registrar compra' : kind === 'shipment' ? 'Registrar envío' : 'Registrar venta'} />}><form id={formId} className="stack" onSubmit={submit}>
     <div className="formgrid formgrid--3"><Field label="Código" required error={fieldErrors.code}><TextInput className="input--mono" value={code} onChange={(event) => setCode(event.target.value)} /></Field><Field label="Fecha" required><TextInput type="date" value={date} onChange={(event) => setDate(event.target.value)} /></Field><Field label={editingPurchase ? 'Proveedor' : 'Cliente'} required={editingPurchase} error={fieldErrors.supplierId ?? fieldErrors.clientId}><Autocomplete options={(editingPurchase ? catalog.suppliers : catalog.clients).map((row) => ({ value: String(row.id), label: row.name, sub: row.phone || undefined }))} value={editingPurchase ? supplierId : clientId} onChange={(value) => editingPurchase ? setSupplierId(value) : setClientId(value)} placeholder={editingPurchase ? 'Proveedor…' : 'Cliente general'} onCreate={(name) => { setQuickName(name); setQuickKind(editingPurchase ? 'supplier' : 'client') }} /></Field></div>
     {editingPurchase && <div className="formgrid"><Field label="Método de pago"><Seg options={[{ value: 'card', label: 'Tarjeta' }, { value: 'cash', label: 'Efectivo' }, { value: 'wallet', label: 'Billetera digital' }]} value={method} onChange={(value) => { setMethod(value); void api.Settings.SetSetting('last_payment_method', value).then(() => useStore.setState((current) => ({ settings: { ...current.settings, last_payment_method: value } }))) }} /></Field>{method === 'card' && <Field label="Tarjeta" required><Autocomplete options={catalog.cards.map((row) => ({ value: String(row.id), label: `${row.name} · ••${row.last4}` }))} value={cardId} onChange={setCardId} placeholder="Tarjeta…" onCreate={(name) => { setQuickName(name); setQuickKind('card') }} /></Field>}</div>}
     {editingPurchase && <fieldset className="formsection"><legend className="formsection__title">Encargo</legend><label className="checkline"><input type="checkbox" checked={forClient} onChange={(event) => setForClient(event.target.checked)} /> Para cliente: reservar los lotes al recibir</label>{forClient && <Field label="Cliente" required error={fieldErrors.forClientId}><Autocomplete options={catalog.clients.map((row) => ({ value: String(row.id), label: row.name, sub: row.phone || undefined }))} value={clientId} onChange={setClientId} placeholder="Cliente…" onCreate={() => setQuickKind('client')} /></Field>}</fieldset>}
     <div className="formgrid"><Field label="Moneda"><Seg options={[{ value: 'PEN', label: 'S/' }, { value: 'USD', label: '$' }]} value={currency} onChange={setCurrency} /></Field><Field label="TC (S/ por $)" required><TcField value={tc} onChange={setTc} /></Field></div>
-    <fieldset className="formsection"><legend className="formsection__title">Ítems</legend><div className="formsection__body stack">{items.map((line, index) => { const availableLots = (lotOptions[line.productId] ?? []).filter((lot) => Number(lot.available) > 0 && (lot.reserved_client_id == null || Number(lot.reserved_client_id) === Number(clientId))); const selectedLotId = line.lotId || String(availableLots[0]?.id ?? ''); const selectedLot = availableLots.find((lot) => String(lot.id) === selectedLotId); return <div className="lineditor__row lineditor__row--item" key={index}><Field label="Producto" required><Autocomplete options={catalog.products.map((product) => ({ value: String(product.id), label: product.name, sub: product.sku }))} value={line.productId} onChange={(value) => setDefaultPrice(index, value)} placeholder="Producto…" onCreate={(name) => { setQuickName(name); setQuickProductIndex(index); setQuickKind('product') }} /></Field>{!editingPurchase && <Field label="Lote · disponible" required><select className="select" value={selectedLotId} disabled={!availableLots.length} onChange={(event) => updateLine(index, { lotId: event.target.value })}><option value="">{availableLots.length ? 'Elegir lote' : 'Sin stock disponible'}</option>{availableLots.map((lot) => <option key={lot.id} value={lot.id}>{lot.code} · {lot.available} uds</option>)}</select>{selectedLot && Number(line.qty) > Number(selectedLot.available) && <small className="muted">Se dividirá en los siguientes lotes FIFO.</small>}</Field>}<Field label="Descripción"><TextInput value={line.description} onChange={(event) => updateLine(index, { description: event.target.value })} /></Field><Field label="Cantidad" required><TextInput className="input--quantity" type="number" min="1" step="1" value={line.qty} onChange={(event) => updateLine(index, { qty: event.target.value })} /></Field><Field label={editingPurchase ? 'Costo unitario' : 'Precio unitario'} required><MoneyInput currency={currency} value={line.amount} onChange={(amount) => updateLine(index, { amount })} /></Field><button className="iconbtn lineditor__remove" type="button" aria-label="Quitar ítem" disabled={items.length === 1} onClick={() => setItems((current) => current.filter((_, i) => i !== index))}><Trash2 size={14} /></button></div>})}<button className="btn btn--xs" type="button" onClick={() => setItems((current) => [...current, blankLine()])}><Plus size={13} /> Añadir ítem</button>{fieldErrors.items && <small className="field__error">{fieldErrors.items}</small>}</div></fieldset>
+    <fieldset className="formsection"><legend className="formsection__title">Ítems</legend><div className="formsection__body stack">{items.map((line, index) => { const availableLots = (lotOptions[line.productId] ?? []).filter((lot) => Number(lot.available) > 0 && (lot.reserved_client_id == null || Number(lot.reserved_client_id) === Number(clientId))); const selectedLotId = line.lotId || String(availableLots[0]?.id ?? ''); const selectedLot = availableLots.find((lot) => String(lot.id) === selectedLotId); return <div className="lineditor__row lineditor__row--item" key={index}><Field label="Producto" required><Autocomplete options={catalog.products.map((product) => ({ value: String(product.id), label: product.name, sub: product.sku }))} value={line.productId} onChange={(value) => setDefaultPrice(index, value)} placeholder="Producto…" onCreate={(name) => { setQuickName(name); setQuickProductIndex(index); setQuickKind('product') }} /></Field>{!editingPurchase && <Field label="Lote · disponible" required><select className="select" value={selectedLotId} disabled={!availableLots.length} onChange={(event) => updateLine(index, { lotId: event.target.value })}><option value="">{availableLots.length ? 'Elegir lote' : 'Sin stock disponible'}</option>{availableLots.map((lot) => <option key={lot.id} value={lot.id}>{lot.code} · {lot.available} uds</option>)}</select>{selectedLot && Number(line.qty) > Number(selectedLot.available) && <small className="muted">Se dividirá en los siguientes lotes FIFO.</small>}</Field>}<Field label="Cantidad" required><TextInput className="input--quantity" type="number" min="1" step="1" value={line.qty} onChange={(event) => updateLine(index, { qty: event.target.value })} /></Field><Field label={editingPurchase ? 'Costo unitario' : 'Precio unitario'} required><MoneyInput currency={currency} value={line.amount} onChange={(amount) => updateLine(index, { amount })} /></Field><button className="iconbtn lineditor__remove" type="button" aria-label="Quitar ítem" disabled={items.length === 1} onClick={() => setItems((current) => current.filter((_, i) => i !== index))}><Trash2 size={14} /></button></div>})}<button className="btn btn--xs" type="button" onClick={() => setItems((current) => [...current, blankLine()])}><Plus size={13} /> Añadir ítem</button>{fieldErrors.items && <small className="field__error">{fieldErrors.items}</small>}</div></fieldset>
     <fieldset className="formsection"><legend className="formsection__title">{editingPurchase ? 'Costos extras' : 'Extras'}</legend><div className="formsection__body stack">{extras.map((extra, index) => <div className="lineditor__row lineditor__row--extra" key={index}><Field label="Concepto" required><ConceptInput value={extra.concept} onChange={(concept) => setExtras((current) => current.map((item, i) => i === index ? { ...item, concept } : item))} /></Field><Field label="Monto" required><MoneyInput currency={extra.currency} value={extra.amount} onChange={(amount) => setExtras((current) => current.map((item, i) => i === index ? { ...item, amount } : item))} /></Field>{editingPurchase && <Field label="Moneda"><Seg options={[{ value: 'PEN', label: 'S/' }, { value: 'USD', label: '$' }]} value={extra.currency} onChange={(value) => setExtras((current) => current.map((item, i) => i === index ? { ...item, currency: value } : item))} /></Field>}<button className="iconbtn lineditor__remove" type="button" aria-label="Quitar extra" onClick={() => setExtras((current) => current.filter((_, i) => i !== index))}><Trash2 size={14} /></button></div>)}<button className="btn btn--xs" type="button" onClick={() => setExtras((current) => [...current, { concept: '', amount: '', currency }])}><Plus size={13} /> Añadir extra</button></div></fieldset>
     {kind === 'shipment' && <div className="formgrid formgrid--3"><Field label="Dirección de envío" required error={fieldErrors.shipAddress}><Autocomplete options={addresses.map((item) => ({ value: String(item.id), label: `${item.region} · ${item.address}` }))} value={addressId} onChange={(value) => { setAddressId(value); const match = addresses.find((item) => String(item.id) === value); if (match) { setRegion(match.region); setAddress(match.address) } }} placeholder="Busca una dirección" onCreate={() => { if (!clientId) { toast('Elige primero al cliente', 'warn'); return }; setAddingAddress(true) }} /></Field><Field label="Región" required error={fieldErrors.shipRegion}><TextInput value={region} onChange={(event) => setRegion(event.target.value)} /></Field><Field label="Código de seguridad" required><TextInput className="input--mono" inputMode="numeric" maxLength={4} value={securityCode} onChange={(event) => setSecurityCode(event.target.value.replace(/\D/g, '').slice(0, 4))} /></Field></div>}
     {!editingPurchase && <div className="formgrid"><Field label="Pagado ahora"><MoneyInput currency={currency} value={paidNow} onChange={setPaidNow} /></Field><Field label="Método de pago"><Seg options={[{ value: 'cash', label: 'Efectivo' }, { value: 'card', label: 'Tarjeta' }, { value: 'wallet', label: 'Billetera digital' }]} value={method} onChange={(value) => { setMethod(value); void api.Settings.SetSetting('last_payment_method', value).then(() => useStore.setState((current) => ({ settings: { ...current.settings, last_payment_method: value } }))) }} /></Field></div>}
     <div className="formtotals" aria-live="polite">{preview ? <><div className="sumrow"><span>Base</span><Money cents={preview.subtotalCents} currency={displayCurrency} /></div><div className="sumrow"><span>Extras</span><Money cents={preview.extrasCents} currency={displayCurrency} /></div><div className="sumrow sumrow--strong"><span>Total · moneda del switch</span><Money cents={preview.totalCents} currency={displayCurrency} /></div></> : <span className="muted">Ingresa los ítems para calcular el total.</span>}</div>
-    </>}
-    {extrasOnly && <fieldset className="formsection"><legend className="formsection__title">Costos extras</legend><div className="formsection__body stack">{extras.map((extra, index) => <div className="lineditor__row lineditor__row--extra" key={index}><Field label="Concepto" required><ConceptInput value={extra.concept} onChange={(concept) => setExtras((current) => current.map((item, i) => i === index ? { ...item, concept } : item))} /></Field><Field label="Monto" required><MoneyInput currency={extra.currency} value={extra.amount} onChange={(amount) => setExtras((current) => current.map((item, i) => i === index ? { ...item, amount } : item))} /></Field><Field label="Moneda"><Seg options={[{ value: 'PEN', label: 'S/' }, { value: 'USD', label: '$' }]} value={extra.currency} onChange={(value) => setExtras((current) => current.map((item, i) => i === index ? { ...item, currency: value } : item))} /></Field><button className="iconbtn lineditor__remove" type="button" aria-label="Quitar extra" onClick={() => setExtras((current) => current.filter((_, i) => i !== index))}><Trash2 size={14} /></button></div>)}<button className="btn btn--xs" type="button" onClick={() => setExtras((current) => [...current, { concept: '', amount: '', currency }])}><Plus size={13} /> Añadir extra</button></div></fieldset>}
     {fieldErrors.tc && <small className="field__error">{fieldErrors.tc}</small>}
-    <div className="hstack hstack--end"><ModalActions onClose={onClose} busy={busy} label={existing ? extrasOnly ? 'Guardar extras' : 'Guardar cambios' : editingPurchase ? 'Registrar compra' : kind === 'shipment' ? 'Registrar envío' : 'Registrar venta'} /></div>
-  </form>{quickKind && <QuickEntityModal kind={quickKind} presetName={quickName} onClose={() => setQuickKind(null)} onSaved={(id) => { if (quickKind === 'client') { setClientId(String(id)); setAddressId(''); setAddresses([]) }; if (quickKind === 'supplier') setSupplierId(String(id)); if (quickKind === 'card') setCardId(String(id)); if (quickKind === 'product') setItems((current) => current.map((line, index) => index === quickProductIndex ? { ...line, productId: String(id) } : line)); setQuickKind(null); setQuickName('') }} />}{addingAddress && <QuickAddressModal clientId={Number(clientId)} onClose={() => setAddingAddress(false)} onSaved={(saved) => { setAddresses((old) => [...old, saved]); setAddressId(String(saved.id)); setRegion(saved.region); setAddress(saved.address); setAddingAddress(false) }} />}</Modal>
-}
-
-function QuickEntityModal({ kind, presetName, onClose, onSaved }: { kind: 'client' | 'supplier' | 'product' | 'card'; presetName: string; onClose: () => void; onSaved: (id: number) => void }) {
-  const [name, setName] = useState(presetName)
-  const [busy, setBusy] = useState(false)
-  const toast = useStore((state) => state.toast)
-  const title = kind === 'client' ? 'Nuevo cliente' : kind === 'supplier' ? 'Nuevo proveedor' : kind === 'product' ? 'Nuevo producto' : 'Nueva tarjeta'
-  return <Modal title={title} onClose={onClose}><form className="stack" onSubmit={async (event) => { event.preventDefault(); setBusy(true); try { const result = kind === 'client' ? await api.Catalog.QuickCreateClient(name) : kind === 'supplier' ? await api.Catalog.QuickCreateSupplier(name) : kind === 'product' ? await api.Catalog.QuickCreateProduct(name) : await api.Catalog.QuickCreateCard(name); useStore.getState().refresh(); onSaved(Number(result.id)) } catch (error) { toast(parseError(error).message ?? 'No se pudo crear la entidad', 'bad') } finally { setBusy(false) } }}><Field label="Nombre" required><TextInput autoFocus value={name} onChange={(event) => setName(event.target.value)} /></Field><div className="hstack"><ModalActions onClose={onClose} busy={busy} label="Guardar" /></div></form></Modal>
+  </form>{quickKind === 'client' && <ClientModal initialName={quickName} onClose={() => setQuickKind(null)} onSaved={(row) => { setClientId(String(row.id)); setAddressId(''); setAddresses([]); setQuickKind(null); setQuickName('') }} />}{quickKind === 'supplier' && <SupplierModal initialName={quickName} onClose={() => setQuickKind(null)} onSaved={(row) => { setSupplierId(String(row.id)); setQuickKind(null); setQuickName('') }} />}{quickKind === 'card' && <CardModal initialName={quickName} onClose={() => setQuickKind(null)} onSaved={(row) => { setCardId(String(row.id)); setQuickKind(null); setQuickName('') }} />}{quickKind === 'product' && <ProductModal initialName={quickName} onClose={() => setQuickKind(null)} onSaved={(row) => { setItems((current) => current.map((line, index) => index === quickProductIndex ? { ...line, productId: String(row.id) } : line)); setQuickKind(null); setQuickName('') }} />}{addingAddress && <AddressModal clientId={Number(clientId)} onClose={() => setAddingAddress(false)} onSaved={(saved) => { setAddresses((old) => [...old, saved]); setAddressId(String(saved.id)); setRegion(saved.region); setAddress(saved.address); setAddingAddress(false) }} />}</Modal>
 }
 
 function ConceptInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
@@ -185,7 +168,3 @@ function ConceptInput({ value, onChange }: { value: string; onChange: (value: st
   return <><TextInput list={id} value={value} onChange={(event) => onChange(event.target.value)} /><datalist id={id}>{suggestions.map((suggestion) => <option value={suggestion} key={suggestion} />)}</datalist></>
 }
 
-function QuickAddressModal({ clientId, onClose, onSaved }: { clientId: number; onClose: () => void; onSaved: (address: { id: number; region: string; address: string }) => void }) {
-  const [region, setRegion] = useState(''); const [address, setAddress] = useState(''); const [busy, setBusy] = useState(false); const toast = useStore((state) => state.toast)
-  return <Modal title="Nueva dirección de envío" onClose={onClose}><form className="stack" onSubmit={async (event) => { event.preventDefault(); setBusy(true); try { const saved = await api.Catalog.QuickCreateAddress(clientId, region, address); useStore.getState().refresh(); onSaved(saved) } catch (error) { toast(parseError(error).message ?? 'No se pudo guardar la dirección', 'bad') } finally { setBusy(false) } }}><Field label="Región" required><TextInput value={region} onChange={(event) => setRegion(event.target.value)} /></Field><Field label="Dirección" required><TextInput value={address} onChange={(event) => setAddress(event.target.value)} /></Field><div className="hstack"><ModalActions onClose={onClose} busy={busy} label="Guardar dirección" /></div></form></Modal>
-}

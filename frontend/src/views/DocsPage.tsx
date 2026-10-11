@@ -11,6 +11,7 @@ import { parseError } from '../lib/errors'
 import { cx, fmtDate, todayISO } from '../lib/format'
 import { formatMoney, tcFromText, tcText, textToCents } from '../lib/money'
 import { Badge, Field, Loading, Modal, ModalActions, Money, MoneyInput, Seg, TcField, TextInput, ViewHead } from '../components/ui'
+import type { ColSpec } from '../components/ui'
 import { RowMenu } from '../components/menu'
 import { DocumentFormModal } from './DocumentFormModal'
 import { MonthJournal } from '../components/journal'
@@ -20,9 +21,32 @@ import { printShipment } from '../components/print'
 
 type Row = Record<string, any>
 type Catalog = { clients: Row[]; suppliers: Row[]; products: Row[]; cards: Row[] }
+type Kind = 'purchase' | 'sale' | 'shipment'
 const isPurchaseKind = (kind: string): boolean => kind === 'purchase'
 
-export function DocsPage({ kind }: { kind: 'purchase' | 'sale' | 'shipment' }) {
+const docColumns = (kind: Kind): ColSpec[] => ['Fecha · Código', 'Estado', kind === 'purchase' ? 'Proveedor' : 'Cliente', { label: 'Monto', num: true }, '']
+
+function counterparty(kind: Kind, catalog: Catalog, row: Row): string {
+  if (kind === 'purchase') return catalog.suppliers.find((supplier) => supplier.id === row.supplier_id)?.name ?? 'Proveedor'
+  return catalog.clients.find((client) => client.id === row.client_id)?.name ?? 'Cliente general'
+}
+
+function buildFilter(kind: Kind, filters: service.Filter[]): service.Filter[] {
+  return kind === 'purchase' ? filters : [...filters, new service.Filter({ field: 'kind', op: 'is', value: kind })]
+}
+
+function visiblePurchases(kind: Kind, tab: string, page: Page | null): Page | null {
+  if (kind !== 'purchase' || tab === 'all' || !page) return page
+  const months = page.months
+    .map((month) => {
+      const rows = (month.rows as Row[]).filter((row) => row.for_client_id != null)
+      return { ...month, rows, count: rows.length, total: rows.reduce((sum, row) => sum + Number(row.totalCents ?? 0), 0) }
+    })
+    .filter((month) => month.count > 0)
+  return { ...page, months } as Page
+}
+
+export function DocsPage({ kind }: { kind: Kind }) {
   const currency = useStore((state) => state.currency)
   const revision = useStore((state) => state.revision)
   const toast = useStore((state) => state.toast)
@@ -35,9 +59,9 @@ export function DocsPage({ kind }: { kind: 'purchase' | 'sale' | 'shipment' }) {
   const filterState = useServerFilters(kind === 'purchase' ? 'purchases' : 'sales')
   const [purchaseTab, setPurchaseTab] = useState('all')
   const [openIds, setOpenIds] = useState<Set<number>>(new Set())
-  const [creating, setCreating] = useState(false)
+  const [creating, setCreating] = useState<{ code: string; tc: string } | null>(null)
   const [editing, setEditing] = useState<service.Purchase | service.Sale | null>(null)
-  const filter = useMemo(() => kind === 'purchase' ? filterState.filters : [...filterState.filters, new service.Filter({ field: 'kind', op: 'is', value: kind })], [filterState.filters, kind])
+  const filter = useMemo(() => buildFilter(kind, filterState.filters), [filterState.filters, kind])
   const filterKey = JSON.stringify(filter.map((item: any) => ({ field: item.field, op: item.op, value: item.value, end: item.end })))
 
   useEffect(() => {
@@ -79,38 +103,48 @@ export function DocsPage({ kind }: { kind: 'purchase' | 'sale' | 'shipment' }) {
     }
     if (!found && cursor && !moreLoading) void loadMore()
   }, [page, searchParams, cursor, moreLoading, loadMore])
-  useEffect(() => { useStore.getState().registerNew(() => setCreating(true)); return () => useStore.getState().registerNew(null) }, [])
+  // El código y el TC por defecto se generan al abrir el formulario, no en un efecto dentro del modal.
+  const startCreate = useCallback(async () => {
+    try {
+      const [code, rate] = await Promise.all([kind === 'purchase' ? api.Purchases.NextCode() : api.Sales.NextCode(kind), api.Settings.DefaultTC()])
+      setCreating({ code, tc: tcText(rate) })
+    } catch (error) { toast(parseError(error).message ?? 'No se pudo generar el código', 'bad') }
+  }, [kind, toast])
+  useEffect(() => { useStore.getState().registerNew(() => void startCreate()); return () => useStore.getState().registerNew(null) }, [startCreate])
 
-  const visiblePage = useMemo(() => {
-    if (kind !== 'purchase' || purchaseTab === 'all' || !page) return page
-    const months = page.months.map((month) => {
-      const rows = (month.rows as Row[]).filter((row) => row.for_client_id != null)
-      return { ...month, rows, count: rows.length, total: rows.reduce((sum, row) => sum + Number(row.totalCents ?? 0), 0) }
-    }).filter((month) => month.count > 0)
-    return { ...page, months } as Page
-  }, [kind, purchaseTab, page])
-
-  const title = kind === 'purchase' ? 'Compras' : kind === 'sale' ? 'Ventas' : 'Envíos'
-  const createLabel = kind === 'purchase' ? 'Nueva compra' : kind === 'sale' ? 'Nueva venta' : 'Nuevo envío'
-  const counterparty = (row: Row) => kind === 'purchase'
-    ? catalog.suppliers.find((supplier) => supplier.id === row.supplier_id)?.name ?? 'Proveedor'
-    : catalog.clients.find((client) => client.id === row.client_id)?.name ?? 'Cliente general'
+  const visiblePage = useMemo(() => visiblePurchases(kind, purchaseTab, page), [kind, purchaseTab, page])
+  const emptyText = purchaseTab === 'clients' ? 'Sin compras para clientes' : 'Sin registros que coincidan con los filtros'
 
   return <>
-    <ViewHead title={title} subtitle={kind === 'purchase' ? 'Órdenes, costos extras y recepción de mercadería' : kind === 'sale' ? 'Ventas, pagos y cuentas por cobrar' : 'Despachos, seguimiento y comprobante'} actions={<button className="btn btn--primary btn--sm" type="button" onClick={() => setCreating(true)}><Plus size={14} /> {createLabel}</button>} />
-    <div className="pagebar">{kind === 'purchase' && <Seg label="Compras" options={[{ value: 'all', label: 'Todas' }, { value: 'clients', label: 'Para clientes' }]} value={purchaseTab} onChange={setPurchaseTab} />}</div>
-    {loading && !page ? <Loading /> : <MonthJournal page={visiblePage} loading={loading} onMore={() => void loadMore()} emptyText={purchaseTab === 'clients' ? 'Sin compras para clientes' : 'Sin registros que coincidan con los filtros'} cols={['Fecha · Código','Estado', kind === 'purchase' ? 'Proveedor' : 'Cliente', { label: 'Monto', num: true }, '']} renderRow={(row) => {
+    <DocsHeader kind={kind} purchaseTab={purchaseTab} setPurchaseTab={setPurchaseTab} onCreate={() => void startCreate()} />
+    {loading && !page ? <Loading /> : <MonthJournal page={visiblePage} loading={loading} onMore={() => void loadMore()} emptyText={emptyText} cols={docColumns(kind)} renderRow={(row) => {
       const id = Number(row.id)
-      const state = statusView(kind === 'purchase' ? 'purchases' : 'sales', row.status)
-      const opened = openIds.has(id)
-      return <article className={cx('rec', state && `stripe stripe--${state.tone}`, row.status === 'voided' && 'rec--void', opened && 'rec--open')}><button className="rec__main" type="button" aria-expanded={opened} onClick={() => setOpenIds((old) => { const next = new Set(old); opened ? next.delete(id) : next.add(id); return next })}><span className="rec__id"><span className="rec__title">{fmtDate(row.date)}</span><span className="rec__meta"><b className={cx('rec__code', row.status === 'voided' && 'rec__code--void')}>{row.code}</b> · {title.slice(0, -1)}</span></span><span className="rec__state"><Badge state={state} /></span><span className="rec__date">{counterparty(row) == 'Cliente general' || counterparty(row) == 'Proveedor' ? <span className="muted">{counterparty(row)}</span> : (kind === 'purchase' ? <EntityLink kind="supplier" id={row.supplier_id}>{counterparty(row)}</EntityLink> : <EntityLink kind="client" id={row.client_id}>{counterparty(row)}</EntityLink>)}</span><span className="rec__amount"><Money cents={row.totalCents ?? 0} currency={currency} original={row.originalTotalCents} documentCurrency={(row.currency ?? 'PEN') as Currency} tc={row.tc} />{Number(row.balanceCents) > 0 && <small className="rec__balance">Saldo {formatMoney(row.balanceCents, currency)}</small>}</span><ChevronDown size={14} className="rec__chev" /></button>{opened && <DocumentDetail kind={kind} row={row} counterparty={counterparty(row)} catalog={catalog} onEdit={(record) => setEditing(record)} afterChange={() => { useStore.getState().refresh(); toast(`${row.code} actualizado`) }} />}</article>
+      return <DocumentRow kind={kind} row={row} catalog={catalog} currency={currency} title={DOC_TITLES[kind]} open={openIds.has(id)} onToggle={() => setOpenIds((old) => { const next = new Set(old); next.has(id) ? next.delete(id) : next.add(id); return next })} onEdit={setEditing} />
     }} />}
-    {creating && <DocumentFormModal kind={kind} catalog={catalog} onClose={() => setCreating(false)} />}
+    {creating && <DocumentFormModal kind={kind} catalog={catalog} defaults={creating} onClose={() => setCreating(null)} />}
     {editing && <DocumentFormModal kind={kind} catalog={catalog} existing={editing} onClose={() => setEditing(null)} />}
   </>
 }
 
-function DocumentDetail({ kind, row, counterparty, catalog, onEdit, afterChange }: { kind: 'purchase' | 'sale' | 'shipment'; row: Row; counterparty: string; catalog: Catalog; onEdit: (record: service.Purchase | service.Sale) => void; afterChange: () => void }) {
+const DOC_TITLES: Record<Kind, string> = { purchase: 'Compras', sale: 'Ventas', shipment: 'Envíos' }
+
+function DocsHeader({ kind, purchaseTab, setPurchaseTab, onCreate }: { kind: Kind; purchaseTab: string; setPurchaseTab: (value: string) => void; onCreate: () => void }) {
+  const subtitle = kind === 'purchase' ? 'Órdenes, costos extras y recepción de mercadería' : kind === 'sale' ? 'Ventas, pagos y cuentas por cobrar' : 'Despachos, seguimiento y comprobante'
+  const createLabel = kind === 'purchase' ? 'Nueva compra' : kind === 'sale' ? 'Nueva venta' : 'Nuevo envío'
+  return <>
+    <ViewHead title={DOC_TITLES[kind]} subtitle={subtitle} actions={<button className="btn btn--primary btn--sm" type="button" onClick={onCreate}><Plus size={14} /> {createLabel}</button>} />
+    {kind === 'purchase' && <div className="pagebar"><Seg label="Compras" options={[{ value: 'all', label: 'Todas' }, { value: 'clients', label: 'Para clientes' }]} value={purchaseTab} onChange={setPurchaseTab} /></div>}
+  </>
+}
+
+function DocumentRow({ kind, row, catalog, currency, title, open, onToggle, onEdit }: { kind: Kind; row: Row; catalog: Catalog; currency: Currency; title: string; open: boolean; onToggle: () => void; onEdit: (record: service.Purchase | service.Sale) => void }) {
+  const name = counterparty(kind, catalog, row)
+  const state = statusView(kind === 'purchase' ? 'purchases' : 'sales', row.status)
+  const generic = name === 'Cliente general' || name === 'Proveedor'
+  return <article className={cx('rec', state && `stripe stripe--${state.tone}`, row.status === 'voided' && 'rec--void', open && 'rec--open')}><button className="rec__main" type="button" aria-expanded={open} onClick={onToggle}><span className="rec__id"><span className="rec__title">{fmtDate(row.date)}</span><span className="rec__meta"><b className={cx('rec__code', row.status === 'voided' && 'rec__code--void')}>{row.code}</b> · {title.slice(0, -1)}</span></span><span className="rec__state"><Badge state={state} /></span><span className="rec__date">{generic ? <span className="muted">{name}</span> : kind === 'purchase' ? <EntityLink kind="supplier" id={row.supplier_id}>{name}</EntityLink> : <EntityLink kind="client" id={row.client_id}>{name}</EntityLink>}</span><span className="rec__amount"><Money cents={row.totalCents ?? 0} currency={currency} original={row.originalTotalCents} documentCurrency={(row.currency ?? 'PEN') as Currency} tc={row.tc} />{Number(row.balanceCents) > 0 && <small className="rec__balance">Saldo {formatMoney(row.balanceCents, currency)}</small>}</span><ChevronDown size={14} className="rec__chev" /></button>{open && <DocumentDetail kind={kind} row={row} counterparty={name} catalog={catalog} onEdit={onEdit} afterChange={() => { useStore.getState().refresh(); useStore.getState().toast(`${row.code} actualizado`) }} />}</article>
+}
+
+function DocumentDetail({ kind, row, counterparty, catalog, onEdit, afterChange }: { kind: Kind; row: Row; counterparty: string; catalog: Catalog; onEdit: (record: service.Purchase | service.Sale) => void; afterChange: () => void }) {
   const currency = useStore((state) => state.currency)
   const revision = useStore((state) => state.revision)
   const toast = useStore((state) => state.toast)
@@ -184,17 +218,12 @@ function SaleDetail({ document, row, catalog, lots, summary, costing, busy, act,
   const payments = document.payments ?? []
   const advance = payments.find((payment) => payment.kind === 'advance')
   const charges = payments.filter((payment) => payment.kind === 'payment')
-  const client = document.clientId == null ? null : catalog.clients.find((entry) => Number(entry.id) === Number(document.clientId))
+  const client = document.clientId == null ? null : catalog.clients.find((entry) => Number(entry.id) === Number(document.clientId)) ?? null
   const balance = Number(summary?.balanceCents ?? 0)
   const total = Number(summary?.totalCents ?? row.totalCents ?? 0)
 
   return <div className="rec__body"><div className="rec__bodyin">
-    <div className="meta-grid">
-      <div className="meta-grid__cell"><span className="meta-grid__k">Cliente</span><span className="meta-grid__v">{client ? <EntityLink kind="client" id={client.id}>{client.name}</EntityLink> : 'Cliente general'}</span></div>
-      <div className="meta-grid__cell"><span className="meta-grid__k">Moneda del documento</span><span className="meta-grid__v">{document.currency}</span></div>
-      <div className="meta-grid__cell"><span className="meta-grid__k">Fecha</span><span className="meta-grid__v">{fmtDate(document.date)}</span></div>
-      {advance && <div className="meta-grid__cell"><span className="meta-grid__k">Adelanto</span><span className="meta-grid__v"><Money cents={advance.amountCents} currency={advance.currency as Currency} /> · Aplicado</span></div>}
-    </div>
+    <SaleMeta document={document} client={client} advance={advance} />
     <SaleItems document={document} catalog={catalog} lots={lots} />
     <ExtrasBlock extras={document.extras ?? []} label="Precio extras" />
     <div className="sum-grid">
@@ -210,33 +239,41 @@ function SaleDetail({ document, row, catalog, lots, summary, costing, busy, act,
         {charges.length > 0 && <PaymentNotes payments={charges} />}
       </div>
     </div>
-    <div className="rec__foot">
-      <div className="hstack hstack--wrap">{advance && <span className="tag">Adelanto {advance.code} · Aplicado</span>}</div>
-      <div className="hstack">
-        {balance > 0 && <PaymentAction sale={document} />}
-        {row.status !== 'voided' && <button type="button" className="btn btn--xs" disabled={busy} onClick={() => onEdit(document)}>Editar</button>}
-        {row.status === 'voided'
-          ? <RowMenu label="Más acciones" items={[{ label: 'Restaurar venta', icon: <Undo2 size={13} />, disabled: busy, onSelect: () => void act(() => api.Sales.Restore(Number(row.id)), 'Venta restaurada') }]} />
-          : <RowMenu label="Más acciones" items={[{ label: 'Anular venta', icon: <XCircle size={13} />, danger: true, disabled: busy, onSelect: () => void act(() => api.Sales.Void(Number(row.id)), 'Venta anulada') }]} />}
-      </div>
-    </div>
+    <SaleActions document={document} row={row} busy={busy} balance={balance} advance={advance} act={act} onEdit={onEdit} />
   </div></div>
+}
+
+function SaleMeta({ document, client, advance }: { document: service.Sale; client: Row | null; advance: service.Payment | undefined }) {
+  return <div className="meta-grid">
+    <div className="meta-grid__cell"><span className="meta-grid__k">Cliente</span><span className="meta-grid__v">{client ? <EntityLink kind="client" id={client.id}>{client.name}</EntityLink> : 'Cliente general'}</span></div>
+    <div className="meta-grid__cell"><span className="meta-grid__k">Moneda del documento</span><span className="meta-grid__v">{document.currency}</span></div>
+    <div className="meta-grid__cell"><span className="meta-grid__k">Fecha</span><span className="meta-grid__v">{fmtDate(document.date)}</span></div>
+    {advance && <div className="meta-grid__cell"><span className="meta-grid__k">Adelanto</span><span className="meta-grid__v"><Money cents={advance.amountCents} currency={advance.currency as Currency} /> · Aplicado</span></div>}
+  </div>
+}
+
+function SaleActions({ document, row, busy, balance, advance, act, onEdit }: { document: service.Sale; row: Row; busy: boolean; balance: number; advance: service.Payment | undefined; act: (action: () => Promise<unknown>, label: string) => Promise<void>; onEdit: (record: service.Purchase | service.Sale) => void }) {
+  return <div className="rec__foot">
+    <div className="hstack hstack--wrap">{advance && <span className="tag">Adelanto {advance.code} · Aplicado</span>}</div>
+    <div className="hstack">
+      {balance > 0 && <PaymentAction sale={document} />}
+      {row.status !== 'voided' && <button type="button" className="btn btn--xs" disabled={busy} onClick={() => onEdit(document)}>Editar</button>}
+      {row.status === 'voided'
+        ? <RowMenu label="Más acciones" items={[{ label: 'Restaurar venta', icon: <Undo2 size={13} />, disabled: busy, onSelect: () => void act(() => api.Sales.Restore(Number(row.id)), 'Venta restaurada') }]} />
+        : <RowMenu label="Más acciones" items={[{ label: 'Anular venta', icon: <XCircle size={13} />, danger: true, disabled: busy, onSelect: () => void act(() => api.Sales.Void(Number(row.id)), 'Venta anulada') }]} />}
+    </div>
+  </div>
 }
 
 function ShipmentDetail({ document, row, catalog, lots, summary, costing, busy, act, onEdit }: SaleDetailProps) {
   const currency = useStore((state) => state.currency)
   const payments = (document.payments ?? []).filter((payment) => payment.kind === 'payment')
-  const client = document.clientId == null ? null : catalog.clients.find((entry) => Number(entry.id) === Number(document.clientId))
+  const client = document.clientId == null ? null : catalog.clients.find((entry) => Number(entry.id) === Number(document.clientId)) ?? null
   const balance = Number(summary?.balanceCents ?? 0)
   const total = Number(summary?.totalCents ?? row.totalCents ?? 0)
 
   return <div className="rec__body"><div className="rec__bodyin">
-    <div className="meta-grid">
-      <div className="meta-grid__cell"><span className="meta-grid__k">Cliente</span><span className="meta-grid__v">{client ? <EntityLink kind="client" id={client.id}>{client.name}</EntityLink> : 'Cliente general'}</span></div>
-      <div className="meta-grid__cell"><span className="meta-grid__k">Dirección</span><span className="meta-grid__v">{document.shipAddress} / {document.shipRegion}</span></div>
-      <div className="meta-grid__cell"><span className="meta-grid__k">Fecha</span><span className="meta-grid__v">{fmtDate(document.date)}</span></div>
-      <div className="meta-grid__cell"><span className="meta-grid__k">Código de seguridad</span><span className="meta-grid__v"><span className="lotchip lotchip--static">{document.securityCode}</span></span></div>
-    </div>
+    <ShipmentMeta document={document} client={client} />
     <SaleItems document={document} catalog={catalog} lots={lots} />
     <ExtrasBlock extras={document.extras ?? []} label="Precio extras" />
     <div className="sum-grid">
@@ -250,23 +287,40 @@ function ShipmentDetail({ document, row, catalog, lots, summary, costing, busy, 
         {payments.length > 0 && <PaymentNotes payments={payments} />}
       </div>
     </div>
-    <div className="rec__foot">
-      <div className="hstack">
-        <button type="button" className="btn btn--xs" onClick={() => printShipment(document, catalog.products, client?.name ?? 'Cliente general', Number(summary?.originalTotalCents ?? 0))}><Printer size={13} /> Comprobante</button>
-        {row.status === 'prepared' && <button type="button" className="btn btn--primary btn--xs" disabled={busy} onClick={() => void act(() => api.Sales.AdvanceShipment(Number(row.id)), 'Envío marcado como enviado')}><Send size={13} /> Marcar enviado</button>}
-        {row.status === 'sent' && <button type="button" className="btn btn--primary btn--xs" disabled={busy} onClick={() => void act(() => api.Sales.AdvanceShipment(Number(row.id)), 'Envío marcado como entregado')}><CircleCheck size={13} /> Marcar entregado</button>}
-        {row.status !== 'voided' && <button type="button" className="btn btn--xs" disabled={busy} onClick={() => onEdit(document)}>Editar</button>}
-        {row.status === 'voided'
-          ? <RowMenu label="Más acciones" items={[{ label: 'Restaurar envío', icon: <Undo2 size={13} />, disabled: busy, onSelect: () => void act(() => api.Sales.Restore(Number(row.id)), 'Envío restaurado') }]} />
-          : <RowMenu label="Más acciones" items={[{ label: 'Anular envío', icon: <XCircle size={13} />, danger: true, disabled: busy, onSelect: () => void act(() => api.Sales.Void(Number(row.id)), 'Envío anulado') }]} />}
-      </div>
-    </div>
+    <ShipmentActions document={document} row={row} busy={busy} summary={summary} catalog={catalog} client={client} act={act} onEdit={onEdit} />
   </div></div>
+}
+
+function ShipmentMeta({ document, client }: { document: service.Sale; client: Row | null }) {
+  return <div className="meta-grid">
+    <div className="meta-grid__cell"><span className="meta-grid__k">Cliente</span><span className="meta-grid__v">{client ? <EntityLink kind="client" id={client.id}>{client.name}</EntityLink> : 'Cliente general'}</span></div>
+    <div className="meta-grid__cell"><span className="meta-grid__k">Dirección</span><span className="meta-grid__v">{document.shipAddress} / {document.shipRegion}</span></div>
+    <div className="meta-grid__cell"><span className="meta-grid__k">Fecha</span><span className="meta-grid__v">{fmtDate(document.date)}</span></div>
+    <div className="meta-grid__cell"><span className="meta-grid__k">Código de seguridad</span><span className="meta-grid__v"><span className="lotchip lotchip--static">{document.securityCode}</span></span></div>
+  </div>
+}
+
+function ShipmentActions({ document, row, busy, summary, catalog, client, act, onEdit }: { document: service.Sale; row: Row; busy: boolean; summary: Row | null; catalog: Catalog; client: Row | null; act: (action: () => Promise<unknown>, label: string) => Promise<void>; onEdit: (record: service.Purchase | service.Sale) => void }) {
+  return <div className="rec__foot">
+    <div className="hstack">
+      <button type="button" className="btn btn--xs" onClick={() => printShipment(document, catalog.products, client?.name ?? 'Cliente general', Number(summary?.originalTotalCents ?? 0))}><Printer size={13} /> Comprobante</button>
+      {row.status === 'prepared' && <button type="button" className="btn btn--primary btn--xs" disabled={busy} onClick={() => void act(() => api.Sales.AdvanceShipment(Number(row.id)), 'Envío marcado como enviado')}><Send size={13} /> Marcar enviado</button>}
+      {row.status === 'sent' && <button type="button" className="btn btn--primary btn--xs" disabled={busy} onClick={() => void act(() => api.Sales.AdvanceShipment(Number(row.id)), 'Envío marcado como entregado')}><CircleCheck size={13} /> Marcar entregado</button>}
+      {row.status !== 'voided' && <button type="button" className="btn btn--xs" disabled={busy} onClick={() => onEdit(document)}>Editar</button>}
+      {row.status === 'voided'
+        ? <RowMenu label="Más acciones" items={[{ label: 'Restaurar envío', icon: <Undo2 size={13} />, disabled: busy, onSelect: () => void act(() => api.Sales.Restore(Number(row.id)), 'Envío restaurado') }]} />
+        : <RowMenu label="Más acciones" items={[{ label: 'Anular envío', icon: <XCircle size={13} />, danger: true, disabled: busy, onSelect: () => void act(() => api.Sales.Void(Number(row.id)), 'Envío anulado') }]} />}
+    </div>
+  </div>
+}
+
+function DocItemsHead({ unit }: { unit: string }) {
+  return <thead><tr><th>Producto</th><th>Detalle</th><th className="num">Cant.</th><th className="num">{unit}</th><th className="num">Subtotal</th></tr></thead>
 }
 
 function SaleItems({ document, catalog, lots }: { document: service.Sale; catalog: Catalog; lots: Record<number, Row> }) {
   return <div className="table-scroll"><table className="tbl docitems-table" aria-label={`Productos de ${document.kind === 'shipment' ? 'envío' : 'venta'} ${document.code}`}>
-    <thead><tr><th>Producto</th><th>Detalle</th><th className="num">Cant.</th><th className="num">Precio unit.</th><th className="num">Subtotal</th></tr></thead>
+    <DocItemsHead unit="Precio unit." />
     <tbody>{(document.items ?? []).map((item) => {
       const product = catalog.products.find((entry) => Number(entry.id) === Number(item.productId))
       const lot = lots[Number(item.lotId)]
@@ -314,49 +368,65 @@ function PurchaseDetail({ document, row, counterparty, catalog, lots, advances, 
   const method = document.paymentMethod === 'card' ? 'Tarjeta' : document.paymentMethod === 'wallet' ? 'Billetera digital' : 'Efectivo'
 
   return <div className="rec__body"><div className="rec__bodyin">
-    <div className="meta-grid">
-      <div className="meta-grid__cell"><span className="meta-grid__k">Proveedor</span><span className="meta-grid__v"><EntityLink kind="supplier" id={document.supplierId}>{counterparty}</EntityLink></span></div>
-      <div className="meta-grid__cell"><span className="meta-grid__k">Método de pago</span><span className="meta-grid__v">{method}</span></div>
-      <div className="meta-grid__cell"><span className="meta-grid__k">Fecha</span><span className="meta-grid__v">{fmtDate(document.date)}</span></div>
-      {received && <div className="meta-grid__cell"><span className="meta-grid__k">Recepción</span><span className="meta-grid__v">{fmtDate(document.receivedAt)}</span></div>}
-    </div>
-    <div className="table-scroll"><table className="tbl docitems-table" aria-label={`Productos de la compra ${document.code}`}>
-      <thead><tr><th>Producto</th><th>Detalle</th><th className="num">Cant.</th><th className="num">Costo unit.</th><th className="num">Subtotal</th></tr></thead>
-      <tbody>{(document.items ?? []).map((item) => {
-        const product = catalog.products.find((entry) => Number(entry.id) === Number(item.productId))
-        const itemLots = purchaseLots.filter((lot) => Number(lot.purchase_item_id) === Number(item.id))
-        return <tr key={item.id}>
-          <td><EntityLink kind="product" id={item.productId}>{product?.name ?? `Producto ${item.productId}`}</EntityLink></td>
-          <td><div className="docitems-table__detail">{itemLots.map((lot) => <EntityLink key={lot.id} kind="lot" id={lot.id} chip>{lot.code}</EntityLink>)}</div></td>
-          <td className="num">{item.qty}</td>
-          <td className="num"><Money cents={item.unitCostCents} currency={document.currency as Currency} /></td>
-          <td className="num"><Money cents={item.qty * item.unitCostCents} currency={document.currency as Currency} /></td>
-        </tr>
-      })}</tbody>
-    </table></div>
-    {!!document.extras?.length && <div className="extras"><span className="extras__label">Costos extras</span><div className="extras__list">{document.extras.map((extra) => <span className="extras__item" key={extra.id}>{extra.concept} <Money cents={extra.amountCents} currency={extra.currency as Currency} /></span>)}</div></div>}
-    <div className="sum-grid"><div>
-      <div className="sumrow"><span>Base</span><Money cents={totals?.subtotalCents ?? 0} currency={displayCurrency} original={totals?.originalSubtotalCents} documentCurrency={document.currency as Currency} tc={document.tc} /></div>
-      <div className="sumrow"><span>Costos extras</span><Money cents={totals?.extrasCents ?? 0} currency={displayCurrency} original={totals?.originalExtrasCents} documentCurrency={document.currency as Currency} tc={document.tc} /></div>
-      <div className="sumrow sumrow--strong"><span>Total</span><Money cents={totals?.totalCents ?? row.totalCents ?? 0} currency={displayCurrency} original={totals?.originalTotalCents ?? row.originalTotalCents} documentCurrency={document.currency as Currency} tc={document.tc} /></div>
-    </div><div>
-      {document.forClientId && <div className="sumrow"><span>Encargo para</span><EntityLink kind="client" id={document.forClientId}>{catalog.clients.find((entry) => Number(entry.id) === Number(document.forClientId))?.name ?? 'Cliente'}</EntityLink></div>}
-      {advances.map((advance) => <div className="sumrow" key={advance.id}><span>Adelanto · {advance.status === 'active' ? 'Vigente' : advance.status === 'applied' ? 'Aplicado' : advance.status === 'refunded' ? 'Devuelto' : 'Anulado'}</span><Money cents={advance.amount_cents} currency={advance.currency as Currency} /></div>)}
-    </div></div>
-    <div className="rec__foot">
-      <div className="hstack hstack--wrap">{purchaseLots.length > 0 && <EntityLink kind="lot" id={purchaseLots[0].id} chip>{purchaseLots.length} lote{purchaseLots.length === 1 ? '' : 's'}</EntityLink>}{card && <EntityLink kind="card" id={card.id} chip>{card.name}</EntityLink>}{document.forClientId && <span className="tag">Para cliente</span>}</div>
-      <div className="hstack">
-        {row.status !== 'voided' && <button type="button" className="btn btn--xs" disabled={busy} onClick={() => onEdit(document)}>Editar</button>}
-        {row.status === 'pending' && <button type="button" className="btn btn--primary btn--xs" disabled={busy} onClick={() => void act(() => api.Purchases.ReceivePurchase(Number(row.id)), 'Compra recibida')}><CircleCheck size={13} /> Marcar recibida</button>}
-        {document.forClientId && row.status === 'pending' && <AdvanceAction purchase={document} />}
-        {row.status === 'reserved' && <SellReservedAction purchase={document} catalog={catalog} />}
-        {row.status === 'reserved' && <button type="button" className="btn btn--xs" disabled={busy} onClick={() => window.confirm('¿Cancelar el encargo? Los lotes se liberarán y los adelantos activos pasarán a Devuelto.') && void act(() => api.Purchases.CancelOrder(Number(row.id)), 'Encargo cancelado')}>Cancelar encargo</button>}
-        {row.status === 'voided'
-          ? <RowMenu label="Más acciones" items={[{ label: 'Restaurar compra', icon: <Undo2 size={13} />, disabled: busy, onSelect: () => void act(() => api.Purchases.Restore(Number(row.id)), 'Compra restaurada') }]} />
-          : <RowMenu label="Más acciones" items={[{ label: 'Anular compra', icon: <XCircle size={13} />, danger: true, disabled: busy, onSelect: () => void act(() => api.Purchases.Void(Number(row.id)), 'Compra anulada') }]} />}
-      </div>
-    </div>
+    <PurchaseMeta document={document} counterparty={counterparty} method={method} received={received} />
+    <PurchaseItemsTable document={document} catalog={catalog} purchaseLots={purchaseLots} />
+    {!!document.extras?.length && <ExtrasBlock extras={document.extras} label="Costos extras" />}
+    <PurchaseSummary document={document} row={row} totals={totals} displayCurrency={displayCurrency} advances={advances} catalog={catalog} />
+    <PurchaseActions document={document} row={row} busy={busy} catalog={catalog} purchaseLots={purchaseLots} card={card} act={act} onEdit={onEdit} />
   </div></div>
+}
+
+function PurchaseMeta({ document, counterparty, method, received }: { document: service.Purchase; counterparty: string; method: string; received: boolean }) {
+  return <div className="meta-grid">
+    <div className="meta-grid__cell"><span className="meta-grid__k">Proveedor</span><span className="meta-grid__v"><EntityLink kind="supplier" id={document.supplierId}>{counterparty}</EntityLink></span></div>
+    <div className="meta-grid__cell"><span className="meta-grid__k">Método de pago</span><span className="meta-grid__v">{method}</span></div>
+    <div className="meta-grid__cell"><span className="meta-grid__k">Fecha</span><span className="meta-grid__v">{fmtDate(document.date)}</span></div>
+    {received && <div className="meta-grid__cell"><span className="meta-grid__k">Recepción</span><span className="meta-grid__v">{fmtDate(document.receivedAt)}</span></div>}
+  </div>
+}
+
+function PurchaseItemsTable({ document, catalog, purchaseLots }: { document: service.Purchase; catalog: Catalog; purchaseLots: Row[] }) {
+  return <div className="table-scroll"><table className="tbl docitems-table" aria-label={`Productos de la compra ${document.code}`}>
+    <DocItemsHead unit="Costo unit." />
+    <tbody>{(document.items ?? []).map((item) => {
+      const product = catalog.products.find((entry) => Number(entry.id) === Number(item.productId))
+      const itemLots = purchaseLots.filter((lot) => Number(lot.purchase_item_id) === Number(item.id))
+      return <tr key={item.id}>
+        <td><EntityLink kind="product" id={item.productId}>{product?.name ?? `Producto ${item.productId}`}</EntityLink></td>
+        <td><div className="docitems-table__detail">{itemLots.map((lot) => <EntityLink key={lot.id} kind="lot" id={lot.id} chip>{lot.code}</EntityLink>)}</div></td>
+        <td className="num">{item.qty}</td>
+        <td className="num"><Money cents={item.unitCostCents} currency={document.currency as Currency} /></td>
+        <td className="num"><Money cents={item.qty * item.unitCostCents} currency={document.currency as Currency} /></td>
+      </tr>
+    })}</tbody>
+  </table></div>
+}
+
+function PurchaseSummary({ document, row, totals, displayCurrency, advances, catalog }: { document: service.Purchase; row: Row; totals: service.DocumentTotals | null; displayCurrency: Currency; advances: Row[]; catalog: Catalog }) {
+  return <div className="sum-grid"><div>
+    <div className="sumrow"><span>Base</span><Money cents={totals?.subtotalCents ?? 0} currency={displayCurrency} original={totals?.originalSubtotalCents} documentCurrency={document.currency as Currency} tc={document.tc} /></div>
+    <div className="sumrow"><span>Costos extras</span><Money cents={totals?.extrasCents ?? 0} currency={displayCurrency} original={totals?.originalExtrasCents} documentCurrency={document.currency as Currency} tc={document.tc} /></div>
+    <div className="sumrow sumrow--strong"><span>Total</span><Money cents={totals?.totalCents ?? row.totalCents ?? 0} currency={displayCurrency} original={totals?.originalTotalCents ?? row.originalTotalCents} documentCurrency={document.currency as Currency} tc={document.tc} /></div>
+  </div><div>
+    {document.forClientId && <div className="sumrow"><span>Encargo para</span><EntityLink kind="client" id={document.forClientId}>{catalog.clients.find((entry) => Number(entry.id) === Number(document.forClientId))?.name ?? 'Cliente'}</EntityLink></div>}
+    {advances.map((advance) => <div className="sumrow" key={advance.id}><span>Adelanto · {advance.status === 'active' ? 'Vigente' : advance.status === 'applied' ? 'Aplicado' : advance.status === 'refunded' ? 'Devuelto' : 'Anulado'}</span><Money cents={advance.amount_cents} currency={advance.currency as Currency} /></div>)}
+  </div></div>
+}
+
+function PurchaseActions({ document, row, busy, catalog, purchaseLots, card, act, onEdit }: { document: service.Purchase; row: Row; busy: boolean; catalog: Catalog; purchaseLots: Row[]; card: Row | undefined; act: (action: () => Promise<unknown>, label: string) => Promise<void>; onEdit: (record: service.Purchase | service.Sale) => void }) {
+  return <div className="rec__foot">
+    <div className="hstack hstack--wrap">{purchaseLots.length > 0 && <EntityLink kind="lot" id={purchaseLots[0].id} chip>{purchaseLots.length} lote{purchaseLots.length === 1 ? '' : 's'}</EntityLink>}{card && <EntityLink kind="card" id={card.id} chip>{card.name}</EntityLink>}{document.forClientId && <span className="tag">Para cliente</span>}</div>
+    <div className="hstack">
+      {row.status !== 'voided' && <button type="button" className="btn btn--xs" disabled={busy} onClick={() => onEdit(document)}>Editar</button>}
+      {row.status === 'pending' && <button type="button" className="btn btn--primary btn--xs" disabled={busy} onClick={() => void act(() => api.Purchases.ReceivePurchase(Number(row.id)), 'Compra recibida')}><CircleCheck size={13} /> Marcar recibida</button>}
+      {document.forClientId && row.status === 'pending' && <AdvanceAction purchase={document} />}
+      {row.status === 'reserved' && <SellReservedAction purchase={document} catalog={catalog} />}
+      {row.status === 'reserved' && <button type="button" className="btn btn--xs" disabled={busy} onClick={() => window.confirm('¿Cancelar el encargo? Los lotes se liberarán y los adelantos activos pasarán a Devuelto.') && void act(() => api.Purchases.CancelOrder(Number(row.id)), 'Encargo cancelado')}>Cancelar encargo</button>}
+      {row.status === 'voided'
+        ? <RowMenu label="Más acciones" items={[{ label: 'Restaurar compra', icon: <Undo2 size={13} />, disabled: busy, onSelect: () => void act(() => api.Purchases.Restore(Number(row.id)), 'Compra restaurada') }]} />
+        : <RowMenu label="Más acciones" items={[{ label: 'Anular compra', icon: <XCircle size={13} />, danger: true, disabled: busy, onSelect: () => void act(() => api.Purchases.Void(Number(row.id)), 'Compra anulada') }]} />}
+    </div>
+  </div>
 }
 
 function PaymentAction({ sale }: { sale: service.Sale }) {
@@ -369,11 +439,15 @@ function AdvanceAction({ purchase }: { purchase: service.Purchase }) {
   return <><button type="button" className="btn btn--xs" onClick={() => setOpen(true)}><Wallet size={13} /> Registrar adelanto</button>{open && <AdvanceDialog purchase={purchase} onClose={() => setOpen(false)} />}</>
 }
 
+function PaymentFields({ date, setDate, method, setMethod }: { date: string; setDate: (value: string) => void; method: string; setMethod: (value: string) => void }) {
+  return <div className="formgrid"><Field label="Fecha"><TextInput type="date" value={date} onChange={(event) => setDate(event.target.value)} /></Field><Field label="Método"><select className="select" value={method} onChange={(event) => setMethod(event.target.value)}><option value="cash">Efectivo</option><option value="card">Tarjeta</option><option value="wallet">Billetera digital</option></select></Field></div>
+}
+
 function AdvanceDialog({ purchase, onClose }: { purchase: service.Purchase; onClose: () => void }) {
   const formId = useId()
   const [code, setCode] = useState(''); const [amount, setAmount] = useState(''); const [currency, setCurrency] = useState<Currency>('PEN'); const [date, setDate] = useState(() => todayISO()); const [method, setMethod] = useState(() => useStore.getState().settings.last_payment_method ?? 'cash'); const [tc, setTc] = useState('3.7500'); const [busy, setBusy] = useState(false); const toast = useStore((state) => state.toast)
   useEffect(() => { void api.Payments.NextCode().then(setCode); void api.Settings.DefaultTC().then((rate) => setTc(tcText(rate))) }, [])
-  return <Modal title={`Registrar adelanto · ${purchase.code}`} onClose={onClose} footer={<ModalActions onClose={onClose} busy={busy} formId={formId} label="Registrar adelanto" />}><form id={formId} className="stack" onSubmit={async (event) => { event.preventDefault(); setBusy(true); try { const rate = tcFromText(tc); if (!rate) throw new Error('TC no válido'); await api.Payments.AddAdvance(new service.Payment({ code, clientId: purchase.forClientId, purchaseId: purchase.id, date, method, amountCents: textToCents(amount) ?? 0, currency, tc: rate })); useStore.getState().refresh(); toast('Adelanto registrado'); onClose() } catch (error) { toast(parseError(error).message ?? 'No se pudo registrar el adelanto', 'bad') } finally { setBusy(false) } }}><Field label="Código" required><TextInput className="input--mono" value={code} onChange={(event) => setCode(event.target.value)} /></Field><Field label="Monto" required><MoneyInput currency={currency} value={amount} onChange={setAmount} /></Field><div className="formgrid"><Field label="Fecha"><TextInput type="date" value={date} onChange={(event) => setDate(event.target.value)} /></Field><Field label="Método"><select className="select" value={method} onChange={(event) => setMethod(event.target.value)}><option value="cash">Efectivo</option><option value="card">Tarjeta</option><option value="wallet">Billetera digital</option></select></Field></div><Seg options={[{ value: 'PEN', label: 'S/' }, { value: 'USD', label: '$' }]} value={currency} onChange={setCurrency} /><Field label="TC (S/ por $)" required><TcField value={tc} onChange={setTc} /></Field></form></Modal>
+  return <Modal title={`Registrar adelanto · ${purchase.code}`} onClose={onClose} footer={<ModalActions onClose={onClose} busy={busy} formId={formId} label="Registrar adelanto" />}><form id={formId} className="stack" onSubmit={async (event) => { event.preventDefault(); setBusy(true); try { const rate = tcFromText(tc); if (!rate) throw new Error('TC no válido'); await api.Payments.AddAdvance(new service.Payment({ code, clientId: purchase.forClientId, purchaseId: purchase.id, date, method, amountCents: textToCents(amount) ?? 0, currency, tc: rate })); useStore.getState().refresh(); toast('Adelanto registrado'); onClose() } catch (error) { toast(parseError(error).message ?? 'No se pudo registrar el adelanto', 'bad') } finally { setBusy(false) } }}><Field label="Código" required><TextInput className="input--mono" value={code} onChange={(event) => setCode(event.target.value)} /></Field><Field label="Monto" required><MoneyInput currency={currency} value={amount} onChange={setAmount} /></Field><PaymentFields date={date} setDate={setDate} method={method} setMethod={setMethod} /><Seg options={[{ value: 'PEN', label: 'S/' }, { value: 'USD', label: '$' }]} value={currency} onChange={setCurrency} /><Field label="TC (S/ por $)" required><TcField value={tc} onChange={setTc} /></Field></form></Modal>
 }
 
 function SellReservedAction({ purchase, catalog }: { purchase: service.Purchase; catalog: Catalog }) {
@@ -399,5 +473,5 @@ function PaymentDialog({ sale, onClose }: { sale: service.Sale; onClose: () => v
   const formId = useId()
   const [code, setCode] = useState(''); const [amount, setAmount] = useState(''); const [date, setDate] = useState(() => todayISO()); const [method, setMethod] = useState(() => useStore.getState().settings.last_payment_method ?? 'cash'); const [tc, setTc] = useState('3.7500'); const [busy, setBusy] = useState(false); const toast = useStore((state) => state.toast)
   useEffect(() => { void api.Payments.NextCode().then(setCode); void api.Settings.DefaultTC().then((rate) => setTc(tcText(rate))) }, [])
-  return <Modal title={`Registrar cobro · ${sale.code}`} onClose={onClose} footer={<ModalActions onClose={onClose} busy={busy} formId={formId} label="Registrar cobro" />}><form id={formId} className="stack" onSubmit={async (event) => { event.preventDefault(); setBusy(true); try { const rate = tcFromText(tc); if (!rate) throw new Error('TC no válido'); await api.Payments.AddPayment(new service.Payment({ code, saleId: sale.id, date, method, amountCents: textToCents(amount) ?? 0, currency: sale.currency, tc: rate })); useStore.getState().refresh(); toast('Cobro registrado'); onClose() } catch (error) { toast(parseError(error).message ?? 'No se pudo registrar el cobro', 'bad') } finally { setBusy(false) } }}><Field label="Código" required><TextInput className="input--mono" value={code} onChange={(event) => setCode(event.target.value)} /></Field><Field label="Monto" required><MoneyInput currency={sale.currency as Currency} value={amount} onChange={setAmount} /></Field><div className="formgrid"><Field label="Fecha"><TextInput type="date" value={date} onChange={(event) => setDate(event.target.value)} /></Field><Field label="Método"><select className="select" value={method} onChange={(event) => setMethod(event.target.value)}><option value="cash">Efectivo</option><option value="card">Tarjeta</option><option value="wallet">Billetera digital</option></select></Field></div><Field label="TC (S/ por $)" required><TcField value={tc} onChange={setTc} /></Field></form></Modal>
+  return <Modal title={`Registrar cobro · ${sale.code}`} onClose={onClose} footer={<ModalActions onClose={onClose} busy={busy} formId={formId} label="Registrar cobro" />}><form id={formId} className="stack" onSubmit={async (event) => { event.preventDefault(); setBusy(true); try { const rate = tcFromText(tc); if (!rate) throw new Error('TC no válido'); await api.Payments.AddPayment(new service.Payment({ code, saleId: sale.id, date, method, amountCents: textToCents(amount) ?? 0, currency: sale.currency, tc: rate })); useStore.getState().refresh(); toast('Cobro registrado'); onClose() } catch (error) { toast(parseError(error).message ?? 'No se pudo registrar el cobro', 'bad') } finally { setBusy(false) } }}><Field label="Código" required><TextInput className="input--mono" value={code} onChange={(event) => setCode(event.target.value)} /></Field><Field label="Monto" required><MoneyInput currency={sale.currency as Currency} value={amount} onChange={setAmount} /></Field><PaymentFields date={date} setDate={setDate} method={method} setMethod={setMethod} /><Field label="TC (S/ por $)" required><TcField value={tc} onChange={setTc} /></Field></form></Modal>
 }

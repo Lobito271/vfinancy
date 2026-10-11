@@ -40,6 +40,10 @@ export function Seg<T extends string>({ options, value, onChange, label, small =
 }
 export function ViewHead({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) { return <header className="viewhead"><div><h1 className="viewhead__title">{title}</h1>{subtitle && <p className="viewhead__sub">{subtitle}</p>}</div>{actions && <div className="viewhead__actions">{actions}</div>}</header> }
 export function Card({ title, subtitle, children, className = '', flush = false }: { title: string; subtitle?: string; children: ReactNode; className?: string; flush?: boolean }) { return <section className={cx('card', className)}><header className="card__head"><div><h3 className="card__title">{title}</h3>{subtitle && <p className="card__sub">{subtitle}</p>}</div></header><div className={cx('card__body', flush && 'card__body--flush')}>{children}</div></section> }
+export type ColSpec = string | { label: string; num?: boolean }
+export function ColHead({ cols }: { cols: ColSpec[] }) {
+  return <div className="col-head" aria-hidden="true">{cols.map((col, index) => <span key={index} className={typeof col === 'object' && col.num ? 'col-head--num' : undefined}>{typeof col === 'string' ? col : col.label}</span>)}</div>
+}
 export function Empty({ children }: { children: ReactNode }) { return <div className="empty">{children}</div> }
 export function Loading() { return <div className="skls" aria-busy="true"><div className="skl skl--row" /><div className="skl skl--row" /><div className="skl skl--row" /></div> }
 let modalSequence = 0

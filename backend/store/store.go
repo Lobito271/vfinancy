@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -18,13 +19,22 @@ var migrations embed.FS
 
 type Store struct{ DB *sql.DB }
 
+// dsn builds the sqlite URI. SQLite reads a Windows drive path as a URI
+// authority ("C:") unless the path starts with "/", so prepend one.
+func dsn(absolute string) string {
+	p := filepath.ToSlash(absolute)
+	if !strings.HasPrefix(p, "/") {
+		p = "/" + p
+	}
+	return (&url.URL{Scheme: "file", Path: p}).String() + "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"
+}
+
 func Open(path string) (*Store, error) {
 	absolute, err := filepath.Abs(path)
 	if err != nil {
 		return nil, err
 	}
-	dsn := (&url.URL{Scheme: "file", Path: filepath.ToSlash(absolute)}).String() + "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"
-	db, err := sql.Open("sqlite", dsn)
+	db, err := sql.Open("sqlite", dsn(absolute))
 	if err != nil {
 		return nil, err
 	}

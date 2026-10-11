@@ -8,14 +8,14 @@ import type { Currency, Page } from '../data/api'
 import { useStore } from '../data/store'
 import { statusView } from '../data/status'
 import { parseError } from '../lib/errors'
-import { cx, fmtDate, fmtDateShort, todayISO } from '../lib/format'
+import { cx, fmtDate, todayISO } from '../lib/format'
 import { formatMoney, tcFromText, tcText, textToCents } from '../lib/money'
 import { Badge, Field, Loading, Modal, ModalActions, Money, MoneyInput, Seg, TcField, TextInput, ViewHead } from '../components/ui'
 import { RowMenu } from '../components/menu'
 import { DocumentFormModal } from './DocumentFormModal'
-import { FilterBar, useServerFilters } from '../components/filters'
 import { MonthJournal } from '../components/journal'
 import { EntityLink } from '../components/entity'
+import {  useServerFilters } from '../components/filters'
 import { printShipment } from '../components/print'
 
 type Row = Record<string, any>
@@ -38,7 +38,7 @@ export function DocsPage({ kind }: { kind: 'purchase' | 'sale' | 'shipment' }) {
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<service.Purchase | service.Sale | null>(null)
   const filter = kind === 'purchase' ? filterState.filters : [...filterState.filters, new service.Filter({ field: 'kind', op: 'is', value: kind })]
-  const filterKey = JSON.stringify(filter.map((item) => ({ field: item.field, op: item.op, value: item.value, end: item.end })))
+  const filterKey = JSON.stringify(filter.map((item: any) => ({ field: item.field, op: item.op, value: item.value, end: item.end })))
 
   useEffect(() => {
     let active = true
@@ -98,12 +98,12 @@ export function DocsPage({ kind }: { kind: 'purchase' | 'sale' | 'shipment' }) {
 
   return <>
     <ViewHead title={title} subtitle={kind === 'purchase' ? 'Órdenes, costos extras y recepción de mercadería' : kind === 'sale' ? 'Ventas, pagos y cuentas por cobrar' : 'Despachos, seguimiento y comprobante'} actions={<button className="btn btn--primary btn--sm" type="button" onClick={() => setCreating(true)}><Plus size={14} /> {createLabel}</button>} />
-    <div className="pagebar">{kind === 'purchase' && <Seg label="Compras" options={[{ value: 'all', label: 'Todas' }, { value: 'clients', label: 'Para clientes' }]} value={purchaseTab} onChange={setPurchaseTab} />}<FilterBar state={filterState} /></div>
-    {loading && !page ? <Loading /> : <MonthJournal page={visiblePage} loading={loading} onMore={() => void loadMore()} emptyText={purchaseTab === 'clients' ? 'Sin compras para clientes' : 'Sin registros que coincidan con los filtros'} cols={[{ label: kind === 'purchase' ? 'Proveedor' : 'Cliente' }, 'Estado', 'Fecha', { label: 'Monto', num: true }, '']} renderRow={(row) => {
+    <div className="pagebar">{kind === 'purchase' && <Seg label="Compras" options={[{ value: 'all', label: 'Todas' }, { value: 'clients', label: 'Para clientes' }]} value={purchaseTab} onChange={setPurchaseTab} />}</div>
+    {loading && !page ? <Loading /> : <MonthJournal page={visiblePage} loading={loading} onMore={() => void loadMore()} emptyText={purchaseTab === 'clients' ? 'Sin compras para clientes' : 'Sin registros que coincidan con los filtros'} cols={['Fecha · Código','Estado', kind === 'purchase' ? 'Proveedor' : 'Cliente', { label: 'Monto', num: true }, '']} renderRow={(row) => {
       const id = Number(row.id)
       const state = statusView(kind === 'purchase' ? 'purchases' : 'sales', row.status)
       const opened = openIds.has(id)
-      return <article className={cx('rec', state && `stripe stripe--${state.tone}`, row.status === 'voided' && 'rec--void', opened && 'rec--open')}><button className="rec__main" type="button" aria-expanded={opened} onClick={() => setOpenIds((old) => { const next = new Set(old); opened ? next.delete(id) : next.add(id); return next })}><span className="rec__id"><span className="rec__title">{counterparty(row)}</span><span className="rec__meta"><b className={cx('rec__code', row.status === 'voided' && 'rec__code--void')}>{row.code}</b> · {title.slice(0, -1)}</span></span><span className="rec__state"><Badge state={state} /></span><span className="rec__date">{fmtDateShort(row.date)}</span><span className="rec__amount"><Money cents={row.totalCents ?? 0} currency={currency} original={row.originalTotalCents} documentCurrency={(row.currency ?? 'PEN') as Currency} tc={row.tc} />{Number(row.balanceCents) > 0 && <small className="rec__balance">Saldo {formatMoney(row.balanceCents, currency)}</small>}</span><ChevronDown size={14} className="rec__chev" /></button>{opened && <DocumentDetail kind={kind} row={row} counterparty={counterparty(row)} catalog={catalog} onEdit={(record) => setEditing(record)} afterChange={() => { useStore.getState().refresh(); toast(`${row.code} actualizado`) }} />}</article>
+      return <article className={cx('rec', state && `stripe stripe--${state.tone}`, row.status === 'voided' && 'rec--void', opened && 'rec--open')}><button className="rec__main" type="button" aria-expanded={opened} onClick={() => setOpenIds((old) => { const next = new Set(old); opened ? next.delete(id) : next.add(id); return next })}><span className="rec__id"><span className="rec__title">{fmtDate(row.date)}</span><span className="rec__meta"><b className={cx('rec__code', row.status === 'voided' && 'rec__code--void')}>{row.code}</b> · {title.slice(0, -1)}</span></span><span className="rec__state"><Badge state={state} /></span><span className="rec__date">{counterparty(row) == 'Cliente general' || counterparty(row) == 'Proveedor' ? <span className="muted">{counterparty(row)}</span> : (kind === 'purchase' ? <EntityLink kind="supplier" id={row.supplier_id}>{counterparty(row)}</EntityLink> : <EntityLink kind="client" id={row.client_id}>{counterparty(row)}</EntityLink>)}</span><span className="rec__amount"><Money cents={row.totalCents ?? 0} currency={currency} original={row.originalTotalCents} documentCurrency={(row.currency ?? 'PEN') as Currency} tc={row.tc} />{Number(row.balanceCents) > 0 && <small className="rec__balance">Saldo {formatMoney(row.balanceCents, currency)}</small>}</span><ChevronDown size={14} className="rec__chev" /></button>{opened && <DocumentDetail kind={kind} row={row} counterparty={counterparty(row)} catalog={catalog} onEdit={(record) => setEditing(record)} afterChange={() => { useStore.getState().refresh(); toast(`${row.code} actualizado`) }} />}</article>
     }} />}
     {creating && <DocumentFormModal kind={kind} catalog={catalog} onClose={() => setCreating(false)} />}
     {editing && <DocumentFormModal kind={kind} catalog={catalog} existing={editing} onClose={() => setEditing(null)} />}
@@ -288,7 +288,7 @@ function ExtrasBlock({ extras, label }: { extras: service.Extra[]; label: string
 
 function PaymentNotes({ payments }: { payments: service.Payment[] }) {
   const method = (value: string) => value === 'card' ? 'Tarjeta' : value === 'wallet' ? 'Billetera digital' : 'Efectivo'
-  return <div className="sumnote">{payments.map((payment) => <span key={payment.id}>{fmtDateShort(payment.date)} · {formatMoney(payment.amountCents, payment.currency as Currency)} ({method(payment.method)})</span>)}</div>
+  return <div className="sumnote">{payments.map((payment) => <span key={payment.id}>{fmtDate(payment.date)} · {formatMoney(payment.amountCents, payment.currency as Currency)} ({method(payment.method)})</span>)}</div>
 }
 
 function SummaryRow({ label, value, strong, tone }: { label: ReactNode; value: ReactNode; strong?: boolean; tone?: 'ok' | 'warn' }) {

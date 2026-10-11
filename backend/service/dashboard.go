@@ -28,20 +28,22 @@ func (s *DashboardService) GetDashboard(period, anchor, displayCurrency string) 
 	extrasConcept := map[string]int64{}
 	receivables := map[string]int64{}
 	receivableRows := map[string][]map[string]any{}
-	rows, e := db.Query(`SELECT id,date,currency,tc,code FROM sales WHERE voided_at IS NULL AND date>=? AND date<? ORDER BY date`, start, end)
+	rows, e := db.Query(`SELECT id,date,currency,tc,code,kind,COALESCE(client_id,0) AS client_id FROM sales WHERE voided_at IS NULL AND date>=? AND date<? ORDER BY date`, start, end)
 	if e != nil {
 		return nil, e
 	}
 	type saleRef struct {
-		id        int64
-		date, cur string
-		code      string
-		tc        int64
+		id                int64
+		date, cur         string
+		code              string
+		tc                int64
+		kind              string
+		client_id         int64
 	}
 	saleList := []saleRef{}
 	for rows.Next() {
 		var v saleRef
-		if e = rows.Scan(&v.id, &v.date, &v.cur, &v.tc, &v.code); e != nil {
+		if e = rows.Scan(&v.id, &v.date, &v.cur, &v.tc, &v.code, &v.kind, &v.client_id); e != nil {
 			rows.Close()
 			return nil, e
 		}
@@ -61,7 +63,7 @@ func (s *DashboardService) GetDashboard(period, anchor, displayCurrency string) 
 		byMonth[month]["sales"] += summary.TotalCents
 		if summary.BalanceCents > 0 {
 			receivables[month] += summary.BalanceCents
-			receivableRows[month] = append(receivableRows[month], map[string]any{"id": v.id, "code": v.code, "date": v.date, "balanceCents": summary.BalanceCents, "currency": summary.Currency})
+			receivableRows[month] = append(receivableRows[month], map[string]any{"id": v.id, "code": v.code, "date": v.date, "balanceCents": summary.BalanceCents, "currency": summary.Currency, "kind": v.kind, "client_id": v.client_id})
 		}
 		var rows *sql.Rows
 		rows, e = db.Query(`SELECT si.qty,l.unit_cost_cents,l.currency,l.tc FROM sale_items si JOIN lots l ON l.id=si.lot_id WHERE si.sale_id=?`, v.id)

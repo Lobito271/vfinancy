@@ -2470,3 +2470,5 @@ body {
   body.side-open .side__nav { align-items: stretch; }
   body.side-open .side__item { width: 100%; justify-content: flex-start; }
 }
+
+.listtoolbar { display: flex; justify-content: flex-end; margin-bottom: var(--space-2); }

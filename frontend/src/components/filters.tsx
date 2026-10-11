@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, X } from 'lucide-react'
+import { Plus, X, Funnel } from 'lucide-react'
 import { service } from '../../wailsjs/go/models'
 import { api } from '../data/api'
 import { fieldLabel } from '../data/status'
@@ -87,7 +87,7 @@ const operatorLabels: Record<string, string> = { contains: 'contiene', equals: '
 export function FilterBar({ state }: { state: ReturnType<typeof useServerFilters> }) {
   const [open, setOpen] = useState(false)
   const activeCount = state.drafts.filter((draft) => Array.isArray(draft.value) ? draft.value.length > 0 : draft.value.trim() !== '' || draft.end !== '').length
-  return <section className="filtercontrol"><button type="button" className="btn filtercontrol__toggle" aria-expanded={open} onClick={() => setOpen((value) => !value)}>{open ? 'Ocultar filtros' : 'Filtros'}{activeCount > 0 && <span className="filtercontrol__count">{activeCount}</span>}</button>{open && <div className="filterbar" role="group" aria-label="Filtros de la página">
+  return <section className="filtercontrol"><button type="button" className="btn filtercontrol__toggle" aria-expanded={open} aria-label={open ? 'Ocultar filtros' : 'Filtros'} onClick={() => setOpen((value) => !value)}><Funnel size={14} aria-hidden="true" />{activeCount > 0 && <span className="filtercontrol__count">{activeCount}</span>}</button>{open && <div className="filterbar" role="group" aria-label="Filtros de la página">
     {state.drafts.map((draft) => {
       const field = state.schema.find((item) => item.field === draft.field)
       const options = draft.field === 'status' ? statesByEntity[state.entity] ?? optionSets.status : optionSets[draft.field] ?? []

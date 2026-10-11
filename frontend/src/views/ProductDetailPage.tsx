@@ -81,7 +81,7 @@ export function ProductDetailPage() {
   const supplierIds = [...new Set(activeLots.map((lot) => Number(lot.supplier_id)).filter((supplierId) => supplierId > 0))]
 
   return <>
-    <ViewHead title={product.name} subtitle={`${product.sku} · costo y precio por defecto`} actions={<><button type="button" className="btn btn--sm" onClick={() => setEditing(true)}>Editar</button><button type="button" className="iconbtn" aria-label="Volver a productos" onClick={() => navigate('/inventario?tab=products')}><ArrowLeft size={16} /></button></>} />
+    <ViewHead title={product.name} subtitle={`${product.sku} · costo y precio por defecto`} actions={<><button type="button" className="iconbtn" aria-label="Volver a productos" onClick={() => navigate('/inventario?tab=products')}><ArrowLeft size={16} /></button><button type="button" className="btn btn--sm" onClick={() => setEditing(true)}>Editar</button></>} />
     <div className="kpis">
       <div className="kpi"><span className="kpi__label">Stock total</span><span className="kpi__value">{stock} uds</span><div className="kpi__foot"><span className="kpi__sub">{sold} vendidas</span></div></div>
       <div className="kpi"><span className="kpi__label">Valor del stock</span><span className="kpi__value"><Money cents={stockValue} /></span><div className="kpi__foot"><span className="kpi__sub">{lots.length} lote{lots.length === 1 ? '' : 's'} (sin anular)</span></div></div>
@@ -97,7 +97,7 @@ export function ProductDetailPage() {
       return <button key={lot.id} type="button" className={`listrow listrow--click ${state ? `stripe stripe--${state.tone}` : ''}`} onClick={() => navigate(`/inventario?tab=lots&lote=${lot.id}`)}><span className="listrow__main"><span className="listrow__title num">{lot.code}</span><span className="listrow__meta">{fmtDateShort(lot.entry_date)} · {lot.available} disponibles</span></span><span className="listrow__amount num">{soldQty}/{lot.qty_initial} vendidas</span><Badge state={state} /></button>
     })}</div>}
     <h3 className="sectitle">Kardex (saldo acumulado)</h3>
-    <FilterBar state={filters} />
+    <div className="pagebar"><FilterBar state={filters} /></div>
     {!kardex?.months.length ? <Empty>Sin movimientos que coincidan</Empty> : kardex.months.map((month) => <section key={month.month} className="jmonth"><header className="jmonth__head"><h2>{monthLabel(month.month)}</h2><span className="jmonth__stats">{month.count} mov.</span></header><div className="table-scroll"><table className="tbl"><thead><tr><th>Fecha</th><th>Movimiento</th><th>Lote</th><th>Ref.</th><th className="num">Cant.</th><th className="num">Costo unit.</th><th className="num">Saldo uds</th><th className="num">Saldo valor</th></tr></thead><tbody>{(month.rows as Row[]).map((row) => <tr key={row.id}><td>{fmtDateShort(row.date)}</td><td>{row.movLabel}</td><td className="num">{row.lotCode}</td><td>{row.refCode || '—'}</td><td className={`num ${row.direction === 'out' ? 'negnum' : ''}`}>{row.direction === 'in' ? '+' : '−'}{row.qty}</td><td className="num"><Money cents={row.unitCents} /></td><td className="num">{row.balanceQty}</td><td className="num"><Money cents={row.balanceValueCents} /></td></tr>)}</tbody></table></div></section>)}
     {cursor && <div className="jmore"><button type="button" className="btn" disabled={moreLoading} onClick={() => void loadMore()}>{moreLoading ? 'Cargando…' : 'Cargar meses anteriores'}</button></div>}
     {editing && <ProductModal existing={product} onClose={() => setEditing(false)} />}

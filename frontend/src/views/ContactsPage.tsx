@@ -7,7 +7,7 @@ import { useStore } from '../data/store'
 import { statusView } from '../data/status'
 import { parseError } from '../lib/errors'
 import { fmtDateShort, monthLabel } from '../lib/format'
-import { Badge, Empty, Field, Loading, Money, StatusBadge, TextInput, ViewHead } from '../components/ui'
+import { Badge, Empty, Loading, Money, StatusBadge, ViewHead } from '../components/ui'
 import { AddressModal, ClientModal, SupplierModal } from '../components/entityModals'
 import { FilterBar, useServerFilters } from '../components/filters'
 
@@ -31,10 +31,6 @@ export function ContactsPage({ kind, id = 0 }: { kind: Kind; id?: number }) {
   const [creating, setCreating] = useState(false)
   const [addressModal, setAddressModal] = useState<Row | null | false>(false)
   const [editing, setEditing] = useState(false)
-  const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [note, setNote] = useState('')
-  const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -46,9 +42,8 @@ export function ContactsPage({ kind, id = 0 }: { kind: Kind; id?: number }) {
 
   const record = records.find((row) => Number(row.id) === id)
   useEffect(() => {
-    if (!id) { setHistory([]); setAddresses([]); setEditing(false); return }
-    if (record) { setName(record.name ?? ''); setPhone(record.phone ?? ''); setNote(record.note ?? '') }
-  }, [record?.id, revision])
+    if (!id) { setHistory([]); setAddresses([]); setEditing(false) }
+  }, [id])
   useEffect(() => {
     if (!id) return
     let active = true
@@ -73,15 +68,6 @@ export function ContactsPage({ kind, id = 0 }: { kind: Kind; id?: number }) {
 
   useEffect(() => { useStore.getState().registerNew(() => setCreating(true)); return () => useStore.getState().registerNew(null) }, [])
   const title = kind === 'client' ? 'Clientes' : 'Proveedores'
-  const saveContact = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault(); setBusy(true)
-    try {
-      if (kind === 'client') await api.Catalog.SaveClient(new service.Client({ id, name, phone, note }))
-      else await api.Catalog.SaveSupplier(new service.Supplier({ id, name, phone, note }))
-      useStore.getState().refresh(); setEditing(false); toast(`${title.slice(0, -1)} actualizado`)
-    } catch (error) { toast(parseError(error).message ?? 'No se pudo guardar el contacto', 'bad') }
-    finally { setBusy(false) }
-  }
 
   if (id) {
     if (loading || detailLoading) return <Loading />
@@ -89,18 +75,18 @@ export function ContactsPage({ kind, id = 0 }: { kind: Kind; id?: number }) {
     const state = statusView('clients', record.status)
     const grouped = groupHistory(history)
     return <>
-      <ViewHead title={record.name} subtitle={[record.phone || 'sin teléfono', record.note || 'sin nota'].filter(Boolean).join(' · ')} actions={<div className="hstack"><button className="iconbtn" type="button" aria-label={`Volver a ${title.toLowerCase()}`} onClick={() => navigate(`/${route}`)}><ArrowLeft size={16}/></button><button className="btn btn--sm" type="button" onClick={() => setEditing((value) => !value)}><Pencil size={13}/>{editing ? ' Cerrar edición' : ' Editar'}</button></div>} />
-      {editing && <form className="stack card profile-edit" onSubmit={(event) => void saveContact(event)}><Field label="Nombre" required><TextInput autoFocus value={name} onChange={(event) => setName(event.target.value)}/></Field><Field label="Teléfono"><TextInput type="tel" value={phone} onChange={(event) => setPhone(event.target.value)}/></Field><Field label="Nota"><textarea className="input" rows={3} value={note} onChange={(event) => setNote(event.target.value)}/></Field><div><button className="btn btn--sm btn--primary" type="submit" disabled={busy}>{busy ? 'Guardando…' : `Guardar ${kind === 'client' ? 'cliente' : 'proveedor'}`}</button></div></form>}
+      <ViewHead title={record.name} subtitle={[record.phone || 'sin teléfono', record.note || 'sin nota'].filter(Boolean).join(' · ')} actions={<div className="hstack"><button className="iconbtn" type="button" aria-label={`Volver a ${title.toLowerCase()}`} onClick={() => navigate(`/${route}`)}><ArrowLeft size={16}/></button><button className="btn btn--sm" type="button" onClick={() => setEditing(true)}><Pencil size={13}/> Editar</button></div>} />
       {kind === 'client' && <><div className="kpis"><div className="kpi"><span className="kpi__label">Saldo por cobrar</span><span className="kpi__value">{Number(record.balanceCents ?? 0) > 0 ? <Money cents={record.balanceCents}/> : <span className="muted">0</span>}</span></div><div className="kpi"><span className="kpi__label">Estado</span><span className="kpi__value">{state ? <Badge state={state}/> : 'Sin saldo'}</span></div></div><h3 className="sectitle">Direcciones de envío</h3>{addresses.length ? <ul className="addrlist">{addresses.map((address) => <li key={address.id}><MapPin size={12}/><b>{address.region}</b> / {address.address}<button className="btn btn--xs" type="button" onClick={() => setAddressModal(address)}>Editar</button></li>)}</ul> : <span className="muted">Sin direcciones guardadas</span>}<button className="btn btn--xs" type="button" onClick={() => setAddressModal(null)}><Plus size={13}/> Agregar dirección</button></>}
       <h3 className="sectitle">{kind === 'client' ? 'Historial por mes' : 'Compras por mes'}</h3>
       {!grouped.length ? <Empty>No hay historial registrado</Empty> : grouped.map(([month, rows]) => <section className="jmonth" key={month}><header className="jmonth__head"><h2>{monthLabel(month)}</h2><span className="jmonth__stats">{rows.length} registro{rows.length === 1 ? '' : 's'}</span></header>{rows.map((row) => { const purchase = row.historyKind === 'purchase'; const entityName = purchase ? 'purchases' : 'sales'; const view = statusView(entityName, row.status); const route = purchase ? 'compras' : row.kind === 'shipment' ? 'envios' : 'ventas'; return <button key={`${row.historyKind}-${row.id}`} type="button" className={`listrow listrow--click ${view ? `stripe stripe--${view.tone}` : ''} ${view?.key === 'voided' ? 'listrow--void' : ''}`} onClick={() => navigate(`/${route}?abrir=${encodeURIComponent(row.code)}`)}><span className="listrow__main"><span className="listrow__title">{row.code} · {purchase ? 'Compra (encargo)' : row.kind === 'shipment' ? 'Envío' : 'Venta'}</span><span className="listrow__meta">{fmtDateShort(row.date)}</span></span><span className="listrow__amount num"><Money cents={row.totalCents ?? 0}/></span><StatusBadge state={view}/></button>})}</section>)}
       {addressModal !== false && <AddressModal clientId={id} address={addressModal || undefined} onClose={() => setAddressModal(false)}/>}
+      {editing && (kind === 'client' ? <ClientModal existing={record} onClose={() => setEditing(false)}/> : <SupplierModal existing={record} onClose={() => setEditing(false)}/>)}
     </>
   }
 
   return <>
     <ViewHead title={title} subtitle="Entidades de consulta con ficha propia" actions={<button className="btn btn--primary btn--sm" type="button" onClick={() => setCreating(true)}><Plus size={14}/> Nuevo {kind === 'client' ? 'cliente' : 'proveedor'}</button>}/>
-    <FilterBar state={filters}/>
+    <div className="pagebar"><FilterBar state={filters}/></div>
     {loading ? <Loading/> : !records.length ? <Empty>Sin {title.toLowerCase()} que coincidan con los filtros</Empty> : <div className="catlist">{records.map((row) => { const state = kind === 'client' ? statusView('clients', row.status) : null; return <button key={row.id} type="button" className={`listrow listrow--click ${state ? `stripe stripe--${state.tone}` : ''} ${state?.key === 'voided' ? 'listrow--void' : ''}`} onClick={() => navigate(`/${route}/${row.id}`)}><span className="listrow__main"><span className="listrow__title">{row.name}</span><span className="listrow__meta"><Phone size={11}/>{row.phone || 'sin teléfono'}</span></span>{kind === 'client' && <span className="listrow__amount num">{Number(row.balanceCents ?? 0) > 0 ? <Money cents={row.balanceCents}/> : <span className="muted">sin saldo</span>}</span>}{kind === 'client' && <StatusBadge state={state}/>}</button>})}</div>}
     {creating && (kind === 'client' ? <ClientModal onClose={() => setCreating(false)}/> : <SupplierModal onClose={() => setCreating(false)}/>)}
   </>

@@ -1510,10 +1510,20 @@ g:hover .tchart__barB {
     opacity: 1;
   }
 }
+.modal__backdrop__hit {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: transparent;
+  border: none;
+  padding: 0;
+}
 .modal {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 0px;
+  position: relative;
+  z-index: 1;
   
   width: min(460px, 100%);
   /* el scroll vive dentro del modal: header visible, cuerpo desplazable */

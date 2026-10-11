@@ -59,7 +59,7 @@ export function ProductDetailPage() {
       if (active) { toast(parseError(error).message ?? 'No se pudo cargar el producto', 'bad'); setLoading(false) }
     })
     return () => { active = false }
-  }, [productId, currency, revision, filterKey])
+  }, [productId, currency, revision, filterKey, filters.filters, toast])
 
   const loadMore = async () => {
     if (!cursor || moreLoading) return

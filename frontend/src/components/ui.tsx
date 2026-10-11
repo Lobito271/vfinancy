@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useId, useRef, useState } from 'react'
 import type { InputHTMLAttributes, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
@@ -26,8 +26,8 @@ export function Field({ label, children, error, required }: { label: string; chi
   return <label className="field" htmlFor={id}><span className="field__label">{label}{required && <b className="field__req"> *</b>}</span>{typeof children === 'object' && children !== null ? children : <span id={id}>{children}</span>}{error && <small className="field__error">{error}</small>}</label>
 }
 export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) { return <input {...props} className={cx('input', props.className)} /> }
-export function MoneyInput({ currency, value, onChange }: { currency: Currency; value: string; onChange: (text: string) => void }) {
-  return <div className="moneyfield"><span className="moneyfield__symbol">{currency === 'USD' ? '$' : 'S/'}</span><input className="input input--tabs" inputMode="decimal" value={value} onChange={(event) => onChange(sanitizeMoney(event.target.value))} /></div>
+export function MoneyInput({ currency, value, onChange, label }: { currency: Currency; value: string; onChange: (text: string) => void; label?: string }) {
+  return <div className="moneyfield"><span className="moneyfield__symbol" aria-hidden="true">{currency === 'USD' ? '$' : 'S/'}</span><input className="input input--tabs" inputMode="decimal" aria-label={label} value={value} onChange={(event) => onChange(sanitizeMoney(event.target.value))} /></div>
 }
 export function TcField({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const [loading, setLoading] = useState(false)
@@ -50,19 +50,21 @@ let modalSequence = 0
 const modalStack: number[] = []
 export function Modal({ title, onClose, children, footer, wide = false }: { title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
   const sectionRef = useRef<HTMLElement>(null)
+  const onClosed = useEffectEvent(onClose)
   useEffect(() => {
+    const section = sectionRef.current
     const id = ++modalSequence
     const previous = document.activeElement as HTMLElement | null
     modalStack.push(id)
     document.body.classList.add('modal-lock')
-    const focusable = () => Array.from(sectionRef.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])') ?? []).filter((el) => el.offsetParent !== null)
-    if (modalStack.at(-1) === id && !sectionRef.current?.contains(document.activeElement)) {
-      const bodyFirst = Array.from(sectionRef.current?.querySelectorAll<HTMLElement>('.modal__body button, .modal__body input, .modal__body select, .modal__body textarea, .modal__body a[href]') ?? []).find((el) => el.offsetParent !== null)
-      ;(sectionRef.current?.querySelector<HTMLElement>('[autofocus]') ?? bodyFirst ?? focusable()[0] ?? sectionRef.current)?.focus()
+    const focusable = () => Array.from(section?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])') ?? []).filter((el) => el.offsetParent !== null)
+    if (modalStack.at(-1) === id && !section?.contains(document.activeElement)) {
+      const bodyFirst = Array.from(section?.querySelectorAll<HTMLElement>('.modal__body button, .modal__body input, .modal__body select, .modal__body textarea, .modal__body a[href]') ?? []).find((el) => el.offsetParent !== null)
+      ;(section?.querySelector<HTMLElement>('[autofocus]') ?? bodyFirst ?? focusable()[0] ?? section)?.focus()
     }
     const key = (event: KeyboardEvent) => {
       if (modalStack.at(-1) !== id) return
-      if (event.key === 'Escape') { onClose(); return }
+      if (event.key === 'Escape') { onClosed(); return }
       if (event.key === 'Tab') {
         const items = focusable()
         if (!items.length) { event.preventDefault(); return }
@@ -79,11 +81,11 @@ export function Modal({ title, onClose, children, footer, wide = false }: { titl
       if (index >= 0) modalStack.splice(index, 1)
       if (!modalStack.length) {
         document.body.classList.remove('modal-lock')
-        if (previous && previous.isConnected && !sectionRef.current?.contains(previous)) previous.focus()
+        if (previous && previous.isConnected && !section?.contains(previous)) previous.focus()
       }
     }
-  }, [onClose])
-  return createPortal(<div className="modal__backdrop" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section ref={sectionRef} tabIndex={-1} className={cx('modal', wide && 'modal--wide')} role="dialog" aria-modal="true" aria-label={title}><header className="modal__head"><h2 className="modal__title">{title}</h2><button type="button" className="iconbtn" aria-label="Cerrar" onClick={onClose}><X size={16} /></button></header><div className="modal__body">{children}</div>{footer && <footer className="modal__foot">{footer}</footer>}</section></div>, document.body)
+  }, [])
+  return createPortal(<div className="modal__backdrop"><button type="button" className="modal__backdrop__hit" aria-label="Cerrar" tabIndex={-1} onMouseDown={onClose} /><section ref={sectionRef} tabIndex={-1} className={cx('modal', wide && 'modal--wide')} role="dialog" aria-modal="true" aria-label={title}><header className="modal__head"><h2 className="modal__title">{title}</h2><button type="button" className="iconbtn" aria-label="Cerrar" onClick={onClose}><X size={16} /></button></header><div className="modal__body">{children}</div>{footer && <footer className="modal__foot">{footer}</footer>}</section></div>, document.body)
 }
 export function ModalActions({ onClose, busy, label, formId }: { onClose: () => void; busy?: boolean; label: string; formId?: string }) { return <><button className="btn" type="button" onClick={onClose} disabled={busy}>Cancelar</button><button className="btn btn--primary" type="submit" form={formId} disabled={busy}>{busy ? 'Guardando…' : label}</button></> }
 export function Toasts() { const toasts = useStore((s) => s.toasts); return createPortal(<div className="toasts" aria-live="polite">{toasts.map((toast) => <div className={cx('toast', `toast--${toast.tone}`)} key={toast.id}>{toast.msg}</div>)}</div>, document.body) }

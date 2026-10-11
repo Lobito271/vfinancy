@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { ChevronDown, CircleCheck, Plus, Printer, Send, Undo2, Wallet, XCircle } from 'lucide-react'
@@ -37,7 +37,7 @@ export function DocsPage({ kind }: { kind: 'purchase' | 'sale' | 'shipment' }) {
   const [openIds, setOpenIds] = useState<Set<number>>(new Set())
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<service.Purchase | service.Sale | null>(null)
-  const filter = kind === 'purchase' ? filterState.filters : [...filterState.filters, new service.Filter({ field: 'kind', op: 'is', value: kind })]
+  const filter = useMemo(() => kind === 'purchase' ? filterState.filters : [...filterState.filters, new service.Filter({ field: 'kind', op: 'is', value: kind })], [filterState.filters, kind])
   const filterKey = JSON.stringify(filter.map((item: any) => ({ field: item.field, op: item.op, value: item.value, end: item.end })))
 
   useEffect(() => {
@@ -55,7 +55,19 @@ export function DocsPage({ kind }: { kind: 'purchase' | 'sale' | 'shipment' }) {
     const loader = kind === 'purchase' ? api.Purchases.List(query(currency, filter, '', 6)) : api.Sales.List(query(currency, filter, '', 6))
     loader.then((result) => { if (active) { setPage(result); setCursor(result.nextCursor ?? ''); setLoading(false) } }).catch((error) => { if (active) { setPage({ months: [] } as unknown as Page); setLoading(false); toast(parseError(error).message ?? 'No se pudieron cargar los registros', 'bad') } })
     return () => { active = false }
-  }, [kind, currency, filterKey, revision])
+  }, [kind, currency, filterKey, filter, revision, toast])
+
+  const loadMore = useCallback(async () => {
+    if (!cursor || moreLoading) return
+    setMoreLoading(true)
+    try {
+      const q = query(currency, filter, cursor, 6)
+      const next = kind === 'purchase' ? await api.Purchases.List(q) : await api.Sales.List(q)
+      setPage((old) => ({ months: [...(old?.months ?? []), ...(next.months ?? [])], nextCursor: next.nextCursor } as unknown as Page))
+      setCursor(next.months?.length ? next.nextCursor ?? '' : '')
+    } catch (error) { toast(parseError(error).message ?? 'No se pudieron cargar más meses', 'bad') }
+    finally { setMoreLoading(false) }
+  }, [cursor, moreLoading, currency, filter, kind, toast])
 
   useEffect(() => {
     const code = searchParams.get('abrir')
@@ -66,7 +78,7 @@ export function DocsPage({ kind }: { kind: 'purchase' | 'sale' | 'shipment' }) {
       if (row) { found = true; setOpenIds((old) => new Set(old).add(Number(row.id))); break }
     }
     if (!found && cursor && !moreLoading) void loadMore()
-  }, [page, searchParams, cursor, moreLoading])
+  }, [page, searchParams, cursor, moreLoading, loadMore])
   useEffect(() => { useStore.getState().registerNew(() => setCreating(true)); return () => useStore.getState().registerNew(null) }, [])
 
   const visiblePage = useMemo(() => {
@@ -80,18 +92,6 @@ export function DocsPage({ kind }: { kind: 'purchase' | 'sale' | 'shipment' }) {
 
   const title = kind === 'purchase' ? 'Compras' : kind === 'sale' ? 'Ventas' : 'Envíos'
   const createLabel = kind === 'purchase' ? 'Nueva compra' : kind === 'sale' ? 'Nueva venta' : 'Nuevo envío'
-  const loadMore = async () => {
-    if (!cursor || moreLoading) return
-    setMoreLoading(true)
-    try {
-      const q = query(currency, filter, cursor, 6)
-      const next = kind === 'purchase' ? await api.Purchases.List(q) : await api.Sales.List(q)
-      setPage((old) => ({ months: [...(old?.months ?? []), ...(next.months ?? [])], nextCursor: next.nextCursor } as unknown as Page))
-      setCursor(next.months?.length ? next.nextCursor ?? '' : '')
-    } catch (error) { toast(parseError(error).message ?? 'No se pudieron cargar más meses', 'bad') }
-    finally { setMoreLoading(false) }
-  }
-
   const counterparty = (row: Row) => kind === 'purchase'
     ? catalog.suppliers.find((supplier) => supplier.id === row.supplier_id)?.name ?? 'Proveedor'
     : catalog.clients.find((client) => client.id === row.client_id)?.name ?? 'Cliente general'
@@ -153,7 +153,7 @@ function DocumentDetail({ kind, row, counterparty, catalog, onEdit, afterChange 
       api.Sales.Costing(Number(row.id), currency).then((value) => { if (active) setCosting(value as Row) }).catch(() => { if (active) setCosting(null) })
     }
     return () => { active = false }
-  }, [row.id, kind, currency, revision])
+  }, [row.id, kind, currency, revision, toast])
 
   const act = async (action: () => Promise<unknown>, label: string) => {
     setBusy(true)
@@ -267,10 +267,10 @@ function ShipmentDetail({ document, row, catalog, lots, summary, costing, busy, 
 function SaleItems({ document, catalog, lots }: { document: service.Sale; catalog: Catalog; lots: Record<number, Row> }) {
   return <div className="table-scroll"><table className="tbl docitems-table" aria-label={`Productos de ${document.kind === 'shipment' ? 'envío' : 'venta'} ${document.code}`}>
     <thead><tr><th>Producto</th><th>Detalle</th><th className="num">Cant.</th><th className="num">Precio unit.</th><th className="num">Subtotal</th></tr></thead>
-    <tbody>{(document.items ?? []).map((item, index) => {
+    <tbody>{(document.items ?? []).map((item) => {
       const product = catalog.products.find((entry) => Number(entry.id) === Number(item.productId))
       const lot = lots[Number(item.lotId)]
-      return <tr key={`${item.productId}-${item.lotId}-${index}`}>
+      return <tr key={`${item.productId}-${item.lotId}`}>
         <td><EntityLink kind="product" id={item.productId}>{product?.name ?? `Producto ${item.productId}`}</EntityLink></td>
         <td>{lot ? <EntityLink kind="lot" id={item.lotId} chip>{lot.code}</EntityLink> : <span className="muted">-</span>}</td>
         <td className="num">{item.qty}</td>
@@ -283,7 +283,7 @@ function SaleItems({ document, catalog, lots }: { document: service.Sale; catalo
 
 function ExtrasBlock({ extras, label }: { extras: service.Extra[]; label: string }) {
   if (!extras.length) return null
-  return <div className="extras"><span className="extras__label">{label}</span><div className="extras__list">{extras.map((extra, index) => <span className="extras__item" key={extra.id ?? index}>{extra.concept} <Money cents={extra.amountCents} currency={extra.currency as Currency} /></span>)}</div></div>
+  return <div className="extras"><span className="extras__label">{label}</span><div className="extras__list">{extras.map((extra) => <span className="extras__item" key={extra.id}>{extra.concept} <Money cents={extra.amountCents} currency={extra.currency as Currency} /></span>)}</div></div>
 }
 
 function PaymentNotes({ payments }: { payments: service.Payment[] }) {
@@ -322,10 +322,10 @@ function PurchaseDetail({ document, row, counterparty, catalog, lots, advances, 
     </div>
     <div className="table-scroll"><table className="tbl docitems-table" aria-label={`Productos de la compra ${document.code}`}>
       <thead><tr><th>Producto</th><th>Detalle</th><th className="num">Cant.</th><th className="num">Costo unit.</th><th className="num">Subtotal</th></tr></thead>
-      <tbody>{(document.items ?? []).map((item, index) => {
+      <tbody>{(document.items ?? []).map((item) => {
         const product = catalog.products.find((entry) => Number(entry.id) === Number(item.productId))
         const itemLots = purchaseLots.filter((lot) => Number(lot.purchase_item_id) === Number(item.id))
-        return <tr key={item.id || index}>
+        return <tr key={item.id}>
           <td><EntityLink kind="product" id={item.productId}>{product?.name ?? `Producto ${item.productId}`}</EntityLink></td>
           <td><div className="docitems-table__detail">{itemLots.map((lot) => <EntityLink key={lot.id} kind="lot" id={lot.id} chip>{lot.code}</EntityLink>)}</div></td>
           <td className="num">{item.qty}</td>
@@ -371,7 +371,7 @@ function AdvanceAction({ purchase }: { purchase: service.Purchase }) {
 
 function AdvanceDialog({ purchase, onClose }: { purchase: service.Purchase; onClose: () => void }) {
   const formId = useId()
-  const [code, setCode] = useState(''); const [amount, setAmount] = useState(''); const [currency, setCurrency] = useState<Currency>('PEN'); const [date, setDate] = useState(todayISO()); const [method, setMethod] = useState(useStore.getState().settings.last_payment_method ?? 'cash'); const [tc, setTc] = useState('3.7500'); const [busy, setBusy] = useState(false); const toast = useStore((state) => state.toast)
+  const [code, setCode] = useState(''); const [amount, setAmount] = useState(''); const [currency, setCurrency] = useState<Currency>('PEN'); const [date, setDate] = useState(() => todayISO()); const [method, setMethod] = useState(() => useStore.getState().settings.last_payment_method ?? 'cash'); const [tc, setTc] = useState('3.7500'); const [busy, setBusy] = useState(false); const toast = useStore((state) => state.toast)
   useEffect(() => { void api.Payments.NextCode().then(setCode); void api.Settings.DefaultTC().then((rate) => setTc(tcText(rate))) }, [])
   return <Modal title={`Registrar adelanto · ${purchase.code}`} onClose={onClose} footer={<ModalActions onClose={onClose} busy={busy} formId={formId} label="Registrar adelanto" />}><form id={formId} className="stack" onSubmit={async (event) => { event.preventDefault(); setBusy(true); try { const rate = tcFromText(tc); if (!rate) throw new Error('TC no válido'); await api.Payments.AddAdvance(new service.Payment({ code, clientId: purchase.forClientId, purchaseId: purchase.id, date, method, amountCents: textToCents(amount) ?? 0, currency, tc: rate })); useStore.getState().refresh(); toast('Adelanto registrado'); onClose() } catch (error) { toast(parseError(error).message ?? 'No se pudo registrar el adelanto', 'bad') } finally { setBusy(false) } }}><Field label="Código" required><TextInput className="input--mono" value={code} onChange={(event) => setCode(event.target.value)} /></Field><Field label="Monto" required><MoneyInput currency={currency} value={amount} onChange={setAmount} /></Field><div className="formgrid"><Field label="Fecha"><TextInput type="date" value={date} onChange={(event) => setDate(event.target.value)} /></Field><Field label="Método"><select className="select" value={method} onChange={(event) => setMethod(event.target.value)}><option value="cash">Efectivo</option><option value="card">Tarjeta</option><option value="wallet">Billetera digital</option></select></Field></div><Seg options={[{ value: 'PEN', label: 'S/' }, { value: 'USD', label: '$' }]} value={currency} onChange={setCurrency} /><Field label="TC (S/ por $)" required><TcField value={tc} onChange={setTc} /></Field></form></Modal>
 }
@@ -383,7 +383,7 @@ function SellReservedAction({ purchase, catalog }: { purchase: service.Purchase;
 
 function SellReservedDialog({ purchase, catalog, onClose }: { purchase: service.Purchase; catalog: Catalog; onClose: () => void }) {
   const formId = useId()
-  const [items, setItems] = useState(() => (purchase.items ?? []).map((item) => ({ productId: item.productId, qty: String(item.qty), price: '' })))
+  const [items, setItems] = useState(() => (purchase.items ?? []).map((item) => ({ id: item.id, productId: item.productId, qty: String(item.qty), price: '' })))
   const [kind, setKind] = useState<'sale' | 'shipment'>('sale')
   const [region, setRegion] = useState('')
   const [address, setAddress] = useState('')
@@ -392,12 +392,12 @@ function SellReservedDialog({ purchase, catalog, onClose }: { purchase: service.
   const [busy, setBusy] = useState(false)
   const toast = useStore((state) => state.toast)
   useEffect(() => { void api.Settings.DefaultTC().then((rate) => setTc(tcText(rate))) }, [])
-  return <Modal title={`Vender a cliente · ${purchase.code}`} onClose={onClose} wide footer={<ModalActions onClose={onClose} busy={busy} formId={formId} label={`Crear ${kind === 'sale' ? 'venta' : 'envío'}`} />}><form id={formId} className="stack" onSubmit={async (event) => { event.preventDefault(); setBusy(true); try { const rate = tcFromText(tc); if (!rate) throw new Error('TC no válido'); const saleItems = items.map((item) => new service.SaleItem({ productId: item.productId, lotId: 0, qty: Number(item.qty), unitPriceCents: textToCents(item.price) ?? 0, description: '' })); await api.Sales.SellToClient(Number(purchase.forClientId), purchase.id, new service.Sale({ kind, clientId: purchase.forClientId, purchaseId: purchase.id, date: todayISO(), currency: 'PEN', tc: rate, items: saleItems, extras: [], paidNowCents: 0, paymentMethod: 'cash', shipRegion: region, shipAddress: address, securityCode })); useStore.getState().refresh(); toast('Venta creada desde el encargo'); onClose() } catch (error) { toast(parseError(error).message ?? 'No se pudo vender a cliente', 'bad') } finally { setBusy(false) } }}><div className="forminfo">Las unidades se asignarán a los lotes reservados en orden FIFO. Los adelantos activos se aplicarán automáticamente.</div><Field label="Tipo de documento"><Seg options={[{ value: 'sale', label: 'Venta' }, { value: 'shipment', label: 'Envío' }]} value={kind} onChange={setKind} /></Field>{items.map((item, index) => <div className="formgrid" key={`${item.productId}-${index}`}><Field label="Producto"><span>{catalog.products.find((product) => Number(product.id) === Number(item.productId))?.name ?? `Producto ${item.productId}`}</span></Field><Field label="Cantidad" required><TextInput type="number" min="1" step="1" value={item.qty} onChange={(event) => setItems((old) => old.map((line, i) => i === index ? { ...line, qty: event.target.value } : line))} /></Field><Field label="Precio unitario (S/)" required><MoneyInput currency="PEN" value={item.price} onChange={(price) => setItems((old) => old.map((line, i) => i === index ? { ...line, price } : line))} /></Field></div>)}{kind === 'shipment' && <div className="formgrid"><Field label="Región" required><TextInput value={region} onChange={(event) => setRegion(event.target.value)} /></Field><Field label="Dirección" required><TextInput value={address} onChange={(event) => setAddress(event.target.value)} /></Field><Field label="Código de seguridad"><TextInput inputMode="numeric" maxLength={4} value={securityCode} onChange={(event) => setSecurityCode(event.target.value.replace(/\D/g, '').slice(0, 4))} /></Field></div>}<Field label="TC (S/ por $)" required><TcField value={tc} onChange={setTc} /></Field></form></Modal>
+  return <Modal title={`Vender a cliente · ${purchase.code}`} onClose={onClose} wide footer={<ModalActions onClose={onClose} busy={busy} formId={formId} label={`Crear ${kind === 'sale' ? 'venta' : 'envío'}`} />}><form id={formId} className="stack" onSubmit={async (event) => { event.preventDefault(); setBusy(true); try { const rate = tcFromText(tc); if (!rate) throw new Error('TC no válido'); const saleItems = items.map((item) => new service.SaleItem({ productId: item.productId, lotId: 0, qty: Number(item.qty), unitPriceCents: textToCents(item.price) ?? 0, description: '' })); await api.Sales.SellToClient(Number(purchase.forClientId), purchase.id, new service.Sale({ kind, clientId: purchase.forClientId, purchaseId: purchase.id, date: todayISO(), currency: 'PEN', tc: rate, items: saleItems, extras: [], paidNowCents: 0, paymentMethod: 'cash', shipRegion: region, shipAddress: address, securityCode })); useStore.getState().refresh(); toast('Venta creada desde el encargo'); onClose() } catch (error) { toast(parseError(error).message ?? 'No se pudo vender a cliente', 'bad') } finally { setBusy(false) } }}><div className="forminfo">Las unidades se asignarán a los lotes reservados en orden FIFO. Los adelantos activos se aplicarán automáticamente.</div><Field label="Tipo de documento"><Seg options={[{ value: 'sale', label: 'Venta' }, { value: 'shipment', label: 'Envío' }]} value={kind} onChange={setKind} /></Field>{items.map((item, index) => <div className="formgrid" key={item.id}><Field label="Producto"><span>{catalog.products.find((product) => Number(product.id) === Number(item.productId))?.name ?? `Producto ${item.productId}`}</span></Field><Field label="Cantidad" required><TextInput type="number" min="1" step="1" value={item.qty} onChange={(event) => setItems((old) => old.map((line, i) => i === index ? { ...line, qty: event.target.value } : line))} /></Field><Field label="Precio unitario (S/)" required><MoneyInput currency="PEN" value={item.price} onChange={(price) => setItems((old) => old.map((line, i) => i === index ? { ...line, price } : line))} /></Field></div>)}{kind === 'shipment' && <div className="formgrid"><Field label="Región" required><TextInput value={region} onChange={(event) => setRegion(event.target.value)} /></Field><Field label="Dirección" required><TextInput value={address} onChange={(event) => setAddress(event.target.value)} /></Field><Field label="Código de seguridad"><TextInput inputMode="numeric" maxLength={4} value={securityCode} onChange={(event) => setSecurityCode(event.target.value.replace(/\D/g, '').slice(0, 4))} /></Field></div>}<Field label="TC (S/ por $)" required><TcField value={tc} onChange={setTc} /></Field></form></Modal>
 }
 
 function PaymentDialog({ sale, onClose }: { sale: service.Sale; onClose: () => void }) {
   const formId = useId()
-  const [code, setCode] = useState(''); const [amount, setAmount] = useState(''); const [date, setDate] = useState(todayISO()); const [method, setMethod] = useState(useStore.getState().settings.last_payment_method ?? 'cash'); const [tc, setTc] = useState('3.7500'); const [busy, setBusy] = useState(false); const toast = useStore((state) => state.toast)
+  const [code, setCode] = useState(''); const [amount, setAmount] = useState(''); const [date, setDate] = useState(() => todayISO()); const [method, setMethod] = useState(() => useStore.getState().settings.last_payment_method ?? 'cash'); const [tc, setTc] = useState('3.7500'); const [busy, setBusy] = useState(false); const toast = useStore((state) => state.toast)
   useEffect(() => { void api.Payments.NextCode().then(setCode); void api.Settings.DefaultTC().then((rate) => setTc(tcText(rate))) }, [])
   return <Modal title={`Registrar cobro · ${sale.code}`} onClose={onClose} footer={<ModalActions onClose={onClose} busy={busy} formId={formId} label="Registrar cobro" />}><form id={formId} className="stack" onSubmit={async (event) => { event.preventDefault(); setBusy(true); try { const rate = tcFromText(tc); if (!rate) throw new Error('TC no válido'); await api.Payments.AddPayment(new service.Payment({ code, saleId: sale.id, date, method, amountCents: textToCents(amount) ?? 0, currency: sale.currency, tc: rate })); useStore.getState().refresh(); toast('Cobro registrado'); onClose() } catch (error) { toast(parseError(error).message ?? 'No se pudo registrar el cobro', 'bad') } finally { setBusy(false) } }}><Field label="Código" required><TextInput className="input--mono" value={code} onChange={(event) => setCode(event.target.value)} /></Field><Field label="Monto" required><MoneyInput currency={sale.currency as Currency} value={amount} onChange={setAmount} /></Field><div className="formgrid"><Field label="Fecha"><TextInput type="date" value={date} onChange={(event) => setDate(event.target.value)} /></Field><Field label="Método"><select className="select" value={method} onChange={(event) => setMethod(event.target.value)}><option value="cash">Efectivo</option><option value="card">Tarjeta</option><option value="wallet">Billetera digital</option></select></Field></div><Field label="TC (S/ por $)" required><TcField value={tc} onChange={setTc} /></Field></form></Modal>
 }

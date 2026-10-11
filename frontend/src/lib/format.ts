@@ -9,7 +9,8 @@ export const monthLabel = (key: string) => {
 export const fmtDate = (iso = '') => iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '—'
 export const fmtMoney = formatMoney
 export const fmtTc = formatTc
-export const fmtNum = (value: number) => new Intl.NumberFormat('es-PE').format(value)
+const numFormat = new Intl.NumberFormat('es-PE')
+export const fmtNum = (value: number) => numFormat.format(value)
 export const todayISO = () => new Date().toISOString().slice(0, 10)
 export const formatDisplay = (value: number, original: number | undefined, docCurrency: Currency, display: Currency, tc: number) => {
   const main = formatMoney(value, display)

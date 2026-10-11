@@ -38,7 +38,7 @@ export function ContactsPage({ kind, id = 0 }: { kind: Kind; id?: number }) {
     const fetch = kind === 'client' ? api.Catalog.ListClients : api.Catalog.ListSuppliers
     void allPages(fetch, currency, id ? [] : filters.filters).then((rows) => { if (active) { setRecords(rows); setLoading(false) } }).catch((error) => { if (active) { toast(parseError(error).message ?? 'No se pudo cargar la lista', 'bad'); setLoading(false) } })
     return () => { active = false }
-  }, [kind, currency, revision, filterKey, id])
+  }, [kind, currency, revision, filterKey, id, filters.filters, toast])
 
   const record = records.find((row) => Number(row.id) === id)
   useEffect(() => {
@@ -64,7 +64,7 @@ export function ContactsPage({ kind, id = 0 }: { kind: Kind; id?: number }) {
       if (active) { setAddresses(nextAddresses); setHistory(rows); setDetailLoading(false) }
     })().catch((error) => { if (active) { setDetailLoading(false); toast(parseError(error).message ?? 'No se pudo cargar el historial', 'bad') } })
     return () => { active = false }
-  }, [id, kind, currency, revision, record?.id])
+  }, [id, kind, currency, revision, record?.id, record, toast])
 
   useEffect(() => { useStore.getState().registerNew(() => setCreating(true)); return () => useStore.getState().registerNew(null) }, [])
   const title = kind === 'client' ? 'Clientes' : 'Proveedores'

@@ -32,7 +32,7 @@ export function DashboardPage() {
       .then(([data,receivables,clients])=>{if(active){setSnapshot({key:queryKey,data:data as Row,receivables,clients});setLoading(false)}})
       .catch(()=>{if(active)setLoading(false)})
     return ()=>{active=false}
-  },[queryKey])
+  },[queryKey, period, anchor, currency])
   const data=snapshot?.key===queryKey?snapshot.data:null
   const receivables=snapshot?.key===queryKey?snapshot.receivables:[]
   const clients=snapshot?.key===queryKey?snapshot.clients:[]
@@ -60,5 +60,5 @@ function groupMonths(rows:Row[]):Array<[string,Row[]]>{const groups=new Map<stri
 function Alerts({data,navigate}:{data:Row;navigate:(path:string)=>void}){
   const rows=[...(data.pendingPurchases??[]).map((row:Row)=>({...row,label:`${row.code} sigue pendiente`,kind:'purchase'})),...(data.cardCycles??[]).map((row:Row)=>({...row,label:`${row.cardName} · ciclo ${fmtDate(row.cycleEnd)}`,kind:'cycle'})),...(data.overdueSales??[]).map((row:Row)=>({...row,label:`${row.code} atrasada`,kind:row.kind==='shipment'?'shipment':'sale'}))]
   if(!rows.length)return <Empty>Sin alertas</Empty>
-  return <><ColHead cols={['Alerta','','Fecha','','']}/><div className="jmonth__list">{rows.map((row,index)=>{const path=row.kind==='purchase'?`/compras?abrir=${encodeURIComponent(row.code)}`:row.kind==='cycle'?`/tarjetas?cardId=${row.cardId}&cycleEnd=${row.cycleEnd}`:`/${row.kind==='shipment'?'envios':'ventas'}?abrir=${encodeURIComponent(row.code)}`;return <button key={`${row.kind}-${row.id??row.code}-${index}`} className={`listrow listrow--click ${row.kind==='purchase'?'stripe stripe--amber':row.kind==='cycle'?'stripe stripe--red':'stripe stripe--red'}`} type="button" onClick={()=>navigate(path)}><span className="listrow__main"><span className="listrow__title">{row.label}</span></span><span className="listrow__state"><Badge tone={row.kind==='purchase'?'amber':'red'}>{row.kind==='cycle'?'tarjeta':row.kind==='purchase'?'compra':row.kind==='shipment'?'envío':'venta'}</Badge></span><span className="listrow__date">{fmtDate(row.date??row.dueDate)}</span></button>})}</div></>
+  return <><ColHead cols={['Alerta','','Fecha','','']}/><div className="jmonth__list">{rows.map((row)=>{const path=row.kind==='purchase'?`/compras?abrir=${encodeURIComponent(row.code)}`:row.kind==='cycle'?`/tarjetas?cardId=${row.cardId}&cycleEnd=${row.cycleEnd}`:`/${row.kind==='shipment'?'envios':'ventas'}?abrir=${encodeURIComponent(row.code)}`;return <button key={`${row.kind}-${row.id??row.code}`} className={`listrow listrow--click ${row.kind==='purchase'?'stripe stripe--amber':row.kind==='cycle'?'stripe stripe--red':'stripe stripe--red'}`} type="button" onClick={()=>navigate(path)}><span className="listrow__main"><span className="listrow__title">{row.label}</span></span><span className="listrow__state"><Badge tone={row.kind==='purchase'?'amber':'red'}>{row.kind==='cycle'?'tarjeta':row.kind==='purchase'?'compra':row.kind==='shipment'?'envío':'venta'}</Badge></span><span className="listrow__date">{fmtDate(row.date??row.dueDate)}</span></button>})}</div></>
 }

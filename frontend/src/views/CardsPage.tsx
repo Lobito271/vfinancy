@@ -46,7 +46,7 @@ export function CardsPage() {
       })
       .catch((error) => { if (active) { toast(parseError(error).message ?? 'No se pudieron cargar las tarjetas', 'bad'); setLoading(false) } })
     return () => { active = false }
-  }, [currency, revision, filterKey])
+  }, [currency, revision, filterKey, filters.filters, toast])
   useEffect(() => { useStore.getState().registerNew(() => setCardModal(null)); return () => useStore.getState().registerNew(null) }, [])
   useEffect(() => { const id = Number(params.get('cardId')); if (id > 0 && cards.some((card) => Number(card.id) === id)) setSelected(id) }, [cards, params])
 
@@ -97,7 +97,7 @@ function CycleAccordion({ row, currency, onPaid, autoOpen = false }: { row: Row;
 
 function ExpenseModal({ cardId, cards, onClose }: { cardId: number; cards: Row[]; onClose: () => void }) {
   const formId=useId()
-  const [concept,setConcept]=useState(''),[amount,setAmount]=useState(''),[date,setDate]=useState(todayISO()),[currency,setCurrency]=useState<Currency>('PEN'),[rate,setRate]=useState('3.7500'),[busy,setBusy]=useState(false)
+  const [concept,setConcept]=useState(''),[amount,setAmount]=useState(''),[date,setDate]=useState(() => todayISO()),[currency,setCurrency]=useState<Currency>('PEN'),[rate,setRate]=useState('3.7500'),[busy,setBusy]=useState(false)
   const toast=useStore((state)=>state.toast)
   useEffect(()=>{void api.Settings.DefaultTC().then((value)=>setRate(tcText(value)))},[])
   const card=cards.find((item)=>Number(item.id)===cardId)

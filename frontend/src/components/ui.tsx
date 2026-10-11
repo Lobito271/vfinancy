@@ -3,7 +3,7 @@ import type { InputHTMLAttributes, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { cx } from '../lib/format'
-import { formatMoney, sanitizeMoney, sanitizeTc, tcFromText, tcText, type Currency } from '../lib/money'
+import { formatMoney, sanitizeMoney, sanitizeTc, tcText, type Currency } from '../lib/money'
 import { useStore } from '../data/store'
 import { api } from '../data/api'
 import type { StatusView, Tone } from '../data/status'
@@ -46,47 +46,29 @@ export function ColHead({ cols }: { cols: ColSpec[] }) {
 }
 export function Empty({ children }: { children: ReactNode }) { return <div className="empty">{children}</div> }
 export function Loading() { return <div className="skls" aria-busy="true"><div className="skl skl--row" /><div className="skl skl--row" /><div className="skl skl--row" /></div> }
-let modalSequence = 0
-const modalStack: number[] = []
+let modalLocks = 0
 export function Modal({ title, onClose, children, footer, wide = false }: { title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; wide?: boolean }) {
-  const sectionRef = useRef<HTMLElement>(null)
+  const dialogRef = useRef<HTMLDialogElement>(null)
   const onClosed = useEffectEvent(onClose)
   useEffect(() => {
-    const section = sectionRef.current
-    const id = ++modalSequence
-    const previous = document.activeElement as HTMLElement | null
-    modalStack.push(id)
+    const dialog = dialogRef.current
+    if (!dialog) return
+    dialog.showModal()
+    modalLocks += 1
     document.body.classList.add('modal-lock')
-    const focusable = () => Array.from(section?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])') ?? []).filter((el) => el.offsetParent !== null)
-    if (modalStack.at(-1) === id && !section?.contains(document.activeElement)) {
-      const bodyFirst = Array.from(section?.querySelectorAll<HTMLElement>('.modal__body button, .modal__body input, .modal__body select, .modal__body textarea, .modal__body a[href]') ?? []).find((el) => el.offsetParent !== null)
-      ;(section?.querySelector<HTMLElement>('[autofocus]') ?? bodyFirst ?? focusable()[0] ?? section)?.focus()
-    }
-    const key = (event: KeyboardEvent) => {
-      if (modalStack.at(-1) !== id) return
-      if (event.key === 'Escape') { onClosed(); return }
-      if (event.key === 'Tab') {
-        const items = focusable()
-        if (!items.length) { event.preventDefault(); return }
-        const current = document.activeElement as HTMLElement
-        const index = items.indexOf(current)
-        if (event.shiftKey && (index <= 0 || index === -1)) { event.preventDefault(); items[items.length - 1].focus() }
-        else if (!event.shiftKey && (index === items.length - 1 || index === -1)) { event.preventDefault(); items[0].focus() }
-      }
-    }
-    window.addEventListener('keydown', key)
+    const bodyFirst = dialog.querySelector<HTMLElement>('.modal__body button, .modal__body input, .modal__body select, .modal__body textarea, .modal__body a[href]')
+    ;(dialog.querySelector<HTMLElement>('[autofocus]') ?? bodyFirst)?.focus()
+    // Cerrar al hacer clic fuera del contenido: solo aplica al backdrop del <dialog>.
+    const dismiss = (event: MouseEvent) => { if (event.target === dialog) onClosed() }
+    dialog.addEventListener('click', dismiss)
     return () => {
-      window.removeEventListener('keydown', key)
-      const index = modalStack.indexOf(id)
-      if (index >= 0) modalStack.splice(index, 1)
-      if (!modalStack.length) {
-        document.body.classList.remove('modal-lock')
-        if (previous && previous.isConnected && !section?.contains(previous)) previous.focus()
-      }
+      dialog.removeEventListener('click', dismiss)
+      modalLocks -= 1
+      if (!modalLocks) document.body.classList.remove('modal-lock')
+      if (dialog.open) dialog.close()
     }
   }, [])
-  return createPortal(<div className="modal__backdrop"><button type="button" className="modal__backdrop__hit" aria-label="Cerrar" tabIndex={-1} onMouseDown={onClose} /><section ref={sectionRef} tabIndex={-1} className={cx('modal', wide && 'modal--wide')} role="dialog" aria-modal="true" aria-label={title}><header className="modal__head"><h2 className="modal__title">{title}</h2><button type="button" className="iconbtn" aria-label="Cerrar" onClick={onClose}><X size={16} /></button></header><div className="modal__body">{children}</div>{footer && <footer className="modal__foot">{footer}</footer>}</section></div>, document.body)
+  return createPortal(<dialog ref={dialogRef} className={cx('modal', wide && 'modal--wide')} aria-label={title} onCancel={onClose}><header className="modal__head"><h2 className="modal__title">{title}</h2><button type="button" className="iconbtn" aria-label="Cerrar" onClick={onClose}><X size={16} /></button></header><div className="modal__body">{children}</div>{footer && <footer className="modal__foot">{footer}</footer>}</dialog>, document.body)
 }
 export function ModalActions({ onClose, busy, label, formId }: { onClose: () => void; busy?: boolean; label: string; formId?: string }) { return <><button className="btn" type="button" onClick={onClose} disabled={busy}>Cancelar</button><button className="btn btn--primary" type="submit" form={formId} disabled={busy}>{busy ? 'Guardando…' : label}</button></> }
 export function Toasts() { const toasts = useStore((s) => s.toasts); return createPortal(<div className="toasts" aria-live="polite">{toasts.map((toast) => <div className={cx('toast', `toast--${toast.tone}`)} key={toast.id}>{toast.msg}</div>)}</div>, document.body) }
-export function tcValue(text: string): number | null { return tcFromText(text) }

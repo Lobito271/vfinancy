@@ -88,15 +88,15 @@ export function ProductDetailPage() {
       <div className="kpi"><span className="kpi__label">Costo por defecto</span><span className="kpi__value"><Money cents={product.default_cost_cents} currency={currency} original={product.original_default_cost_cents} documentCurrency={product.default_cost_currency} tc={product.default_cost_tc} /></span></div>
       <div className="kpi"><span className="kpi__label">Precio por defecto</span><span className="kpi__value"><Money cents={product.default_price_cents} currency={currency} original={product.original_default_price_cents} documentCurrency={product.default_price_currency} tc={product.default_price_tc} /></span></div>
     </div>
-    <h3 className="sectitle">Proveedores (se vinculan al comprar)</h3>
+    <h2 className="sectitle">Proveedores (se vinculan al comprar)</h2>
     {supplierIds.length === 0 ? <span className="muted">Aún sin proveedores</span> : <div className="hstack hstack--wrap">{supplierIds.map((supplierId) => { const supplier = suppliers.find((row) => Number(row.id) === supplierId); return supplier && <EntityLink key={supplierId} kind="supplier" id={supplierId} chip>{supplier.name}</EntityLink> })}</div>}
-    <h3 className="sectitle">Lotes</h3>
+    <h2 className="sectitle">Lotes</h2>
     {!activeLots.length ? <span className="muted">Sin lotes todavía</span> : <div className="catlist">{activeLots.map((lot) => {
       const state = statusView('lots', lotStates[Number(lot.id)])
       const soldQty = Number(lot.qty_initial) - Number(lot.available)
       return <button key={lot.id} type="button" className={`listrow listrow--click ${state ? `stripe stripe--${state.tone}` : ''}`} onClick={() => navigate(`/inventario?tab=lots&lote=${lot.id}`)}><span className="listrow__main"><span className="listrow__title num">{lot.code}</span><span className="listrow__meta">{fmtDateShort(lot.entry_date)} · {lot.available} disponibles</span></span><span className="listrow__amount num">{soldQty}/{lot.qty_initial} vendidas</span><Badge state={state} /></button>
     })}</div>}
-    <h3 className="sectitle">Kardex (saldo acumulado)</h3>
+    <h2 className="sectitle">Kardex (saldo acumulado)</h2>
     <div className="pagebar"><FilterBar state={filters} /></div>
     {!kardex?.months.length ? <Empty>Sin movimientos que coincidan</Empty> : kardex.months.map((month) => <section key={month.month} className="jmonth"><header className="jmonth__head"><h2>{monthLabel(month.month)}</h2><span className="jmonth__stats">{month.count} mov.</span></header><div className="table-scroll"><table className="tbl"><thead><tr><th>Fecha</th><th>Movimiento</th><th>Lote</th><th>Ref.</th><th className="num">Cant.</th><th className="num">Costo unit.</th><th className="num">Saldo uds</th><th className="num">Saldo valor</th></tr></thead><tbody>{(month.rows as Row[]).map((row) => <tr key={row.id}><td>{fmtDateShort(row.date)}</td><td>{row.movLabel}</td><td className="num">{row.lotCode}</td><td>{row.refCode || '—'}</td><td className={`num ${row.direction === 'out' ? 'negnum' : ''}`}>{row.direction === 'in' ? '+' : '−'}{row.qty}</td><td className="num"><Money cents={row.unitCents} /></td><td className="num">{row.balanceQty}</td><td className="num"><Money cents={row.balanceValueCents} /></td></tr>)}</tbody></table></div></section>)}
     {cursor && <div className="jmore"><button type="button" className="btn" disabled={moreLoading} onClick={() => void loadMore()}>{moreLoading ? 'Cargando…' : 'Cargar meses anteriores'}</button></div>}

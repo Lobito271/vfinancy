@@ -280,6 +280,15 @@ button {
   gap: var(--space-2);
   font-size: var(--fs-12);
   color: var(--ink-3);
+  min-width: 0;
+}
+.topbar__crumbtitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--ink);
 }
 
 .topbar__sep {
@@ -289,6 +298,7 @@ button {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  flex-shrink: 0;
 }
 
 /* view head */
@@ -1600,7 +1610,7 @@ g:hover .tchart__barB {
     white-space: nowrap;
   }
 }
-@media (max-width: 680px) {
+@media (max-width: 760px) {
   .sum-grid {
     grid-template-columns: 1fr;
   }
@@ -2192,7 +2202,7 @@ body {
 }
 .listrow__metric-label { color: var(--ink-3); font-size: var(--fs-11); }
 
-@media (max-width: 680px) {
+@media (max-width: 760px) {
   .sum-grid > :nth-child(2) {
     border-left: 0;
     border-top: 1px solid var(--line-2);

@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Grouped Accordion List</title>
+<style>
+  :root{
+    --line:      #e4e4e4;
+    --ink:       #111;
+    --muted:     #8c8c8c;
+    --hover:     #fafafa;
+    --ease:      cubic-bezier(.4, 0, .2, 1);
+    --dur:       .28s;
+    --pad-x:     20px;
+    --gap-group: 40px;
+  }
+
+  *{ box-sizing: border-box; }
+
+  body{
+    margin: 0;
+    padding: 72px 24px;
+    background: #fff;
+    color: var(--ink);
+    font: 14px/1.5 ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap{ max-width: 920px; margin: 0 auto; }
+
+  /* single source of truth for column alignment */
+  .accordion,
+  .col-head{
+    --cols: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, .9fr) 12px;
+  }
+
+  .grid{
+    display: grid;
+    grid-template-columns: var(--cols);
+    gap: 0 20px;
+    align-items: center;
+  }
+
+  /* ── Month group ─────────────────────────────────────────────── */
+  .group + .group{ margin-top: var(--gap-group); }
+
+  .group-title{
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 0 0 12px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  /* hairline that trails the month label */
+  .group-title::after{
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+
+  /* ── Small borderless column header inside each group ────────── */
+  .col-head{
+    padding: 0 var(--pad-x) 6px;
+    font-size: 10px;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .col-head .col-amount{ justify-self: end; }
+
+  /* ── Accordion box ───────────────────────────────────────────── */
+  .accordion{ border: 1px solid var(--line); }
+
+  .row + .row{ border-top: 1px solid var(--line); }
+
+  .row-head{
+    width: 100%;
+    padding: 16px var(--pad-x);
+    background: none;
+    border: 0;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    transition: background-color .15s ease;
+  }
+  .row-head:hover,
+  .row.open .row-head{ background: var(--hover); }
+
+  .row-head:focus-visible{
+    outline: 1px solid var(--ink);
+    outline-offset: -2px;
+  }
+
+  .cell{
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cell-name{ font-weight: 500; }
+  .cell-muted{ color: var(--muted); }
+  .cell-num{
+    justify-self: end;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* status tag */
+  .tag{
+    display: inline-block;
+    padding: 2px 8px;
+    border: 1px solid var(--line);
+    font-size: 10px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    line-height: 1.6;
+    color: #666;
+  }
+  .tag-strong{ border-color: var(--ink); color: var(--ink); }
+
+  /* ── Chevron indicator ───────────────────────────────────────── */
+  .chev{
+    width: 12px;
+    height: 12px;
+    justify-self: end;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink);
+  }
+  .chev::before{
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-right: 1px solid currentColor;
+    border-bottom: 1px solid currentColor;
+    transform: rotate(45deg) translate(-1px, -1px);
+    transition: transform var(--dur) var(--ease);
+  }
+  /* flip to point upward when open */
+  .row.open .chev::before{
+    transform: rotate(-135deg) translate(-1px, -1px);
+  }
+
+  /* ── Collapsible body ────────────────────────────────────────── */
+  .row-body{
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows var(--dur) var(--ease);
+  }
+  .row.open .row-body{ grid-template-rows: 1fr; }
+
+  .row-body-inner{
+    overflow: hidden;
+    visibility: hidden;
+    transition: visibility 0s linear var(--dur);
+  }
+  .row.open .row-body-inner{
+    visibility: visible;
+    transition-delay: 0s;
+  }
+
+  /* ── Detail content ──────────────────────────────────────────── */
+  .detail{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 20px 24px;
+    margin: 0;
+    padding: 20px var(--pad-x) 26px;
+    border-top: 1px solid var(--line);
+  }
+
+  .detail dt{
+    margin: 0 0 4px;
+    font-size: 10px;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .detail dd{ margin: 0; }
+
+  .detail-note{
+    grid-column: 1 / -1;
+    margin: 0;
+    padding-top: 4px;
+    color: #555;
+    max-width: 62ch;
+  }
+
+  /* ── Responsive ──────────────────────────────────────────────── */
+  @media (max-width: 640px){
+    :root{ --gap-group: 32px; }
+    body{ padding: 32px 16px; }
+
+    .accordion,
+    .col-head{
+      --cols: minmax(0, 1fr) auto 12px;
+    }
+    .col-status,
+    .col-date{ display: none; }
+
+    .row-head{ padding-left: 14px; padding-right: 14px; }
+    .col-head{ padding-left: 14px; padding-right: 14px; }
+    .detail{ padding: 18px 14px 22px; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .row-body,
+    .row-body-inner,
+    .chev::before{ transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- ══════════ MARCH 2026 ══════════ -->
+  <section class="group">
+    <h2 class="group-title">March 2026</h2>
+
+    <div class="col-head grid" aria-hidden="true">
+      <span>Client</span>
+      <span class="col-status">Status</span>
+      <span class="col-date">Date</span>
+      <span class="col-amount">Amount</span>
+      <span></span>
+    </div>
+
+    <div class="accordion">
+      <div class="row">
+        <button class="row-head grid" type="button" aria-expanded="false" aria-controls="d1">
+          <span class="cell cell-name">Northwind Studio</span>
+          <span class="cell"><span class="tag tag-strong">Paid</span></span>
+          <span class="cell cell-muted">Mar 14</span>
+          <span class="cell cell-num">$4,200</span>
+          <span class="chev" aria-hidden="true"></span>
+        </button>
+        <div class="row-body" id="d1">
+          <div class="row-body-inner">
+            <dl class="detail">
+              <div><dt>Invoice</dt><dd>INV-2041</dd></div>
+              <div><dt>Owner</dt><dd>M. Delacroix</dd></div>
+              <div><dt>Terms</dt><dd>Net 30</dd></div>
+              <div><dt>Method</dt><dd>Bank transfer</dd></div>
+              <p class="detail-note">Retainer for Q1 brand system work. Paid in full, no outstanding balance.</p>
+            </dl>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <button class="row-head grid" type="button" aria-expanded="false" aria-controls="d2">
+          <span class="cell cell-name">Kestrel Labs</span>
+          <span class="cell"><span class="tag">Pending</span></span>
+          <span class="cell cell-muted">Mar 11</span>
+          <span class="cell cell-num">$1,850</span>
+          <span class="chev" aria-hidden="true"></span>
+        </button>
+        <div class="row-body" id="d2">
+          <div class="row-body-inner">
+            <dl class="detail">
+              <div><dt>Invoice</dt><dd>INV-2038</dd></div>
+              <div><dt>Owner</dt><dd>J. Okafor</dd></div>
+              <div><dt>Terms</dt><dd>Net 15</dd></div>
+              <div><dt>Method</dt><dd>Card</dd></div>
+              <p class="detail-note">Awaiting confirmation from their finance team. Follow up on the 22nd.</p>
+            </dl>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <button class="row-head grid" type="button" aria-expanded="false" aria-controls="d3">
+          <span class="cell cell-name">Aster &amp; Finch</span>
+          <span class="cell"><span class="tag tag-strong">Paid</span></span>
+          <span class="cell cell-muted">Mar 03</span>
+          <span class="cell cell-num">$2,100</span>
+          <span class="chev" aria-hidden="true"></span>
+        </button>
+        <div class="row-body" id="d3">
+          <div class="row-body-inner">
+            <dl class="detail">
+              <div><dt>Invoice</dt><dd>INV-2033</dd></div>
+              <div><dt>Owner</dt><dd>L. Marchetti</dd></div>
+              <div><dt>Terms</dt><dd>Net 30</dd></div>
+              <div><dt>Method</dt><dd>Wire</dd></div>
+              <p class="detail-note">Editorial illustration package. Delivered on schedule, signed off by client.</p>
+            </dl>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ FEBRUARY 2026 ══════════ -->
+  <section class="group">
+    <h2 class="group-title">February 2026</h2>
+
+    <div class="col-head grid" aria-hidden="true">
+      <span>Client</span>
+      <span class="col-status">Status</span>
+      <span class="col-date">Date</span>
+      <span class="col-amount">Amount</span>
+      <span></span>
+    </div>
+
+    <div class="accordion">
+      <div class="row">
+        <button class="row-head grid" type="button" aria-expanded="false" aria-controls="d4">
+          <span class="cell cell-name">Bonneville Co.</span>
+          <span class="cell"><span class="tag">Overdue</span></span>
+          <span class="cell cell-muted">Feb 28</span>
+          <span class="cell cell-num">$960</span>
+          <span class="chev" aria-hidden="true"></span>
+        </button>
+        <div class="row-body" id="d4">
+          <div class="row-body-inner">
+            <dl class="detail">
+              <div><dt>Invoice</dt><dd>INV-2029</dd></div>
+              <div><dt>Owner</dt><dd>R. Iversen</dd></div>
+              <div><dt>Terms</dt><dd>Net 30</dd></div>
+              <div><dt>Method</dt><dd>Bank transfer</dd></div>
+              <p class="detail-note">14 days past due. Second reminder sent; escalation queued for next week.</p>
+            </dl>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <button class="row-head grid" type="button" aria-expanded="false" aria-controls="d5">
+          <span class="cell cell-name">Meridian Works</span>
+          <span class="cell"><span class="tag tag-strong">Paid</span></span>
+          <span class="cell cell-muted">Feb 20</span>
+          <span class="cell cell-num">$7,400</span>
+          <span class="chev" aria-hidden="true"></span>
+        </button>
+        <div class="row-body" id="d5">
+          <div class="row-body-inner">
+            <dl class="detail">
+              <div><dt>Invoice</dt><dd>INV-2016</dd></div>
+              <div><dt>Owner</dt><dd>L. Marchetti</dd></div>
+              <div><dt>Terms</dt><dd>Net 45</dd></div>
+              <div><dt>Method</dt><dd>Wire</dd></div>
+              <p class="detail-note">Annual platform licence, paid early. Renewal notice goes out in December.</p>
+            </dl>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ JANUARY 2026 ══════════ -->
+  <section class="group">
+    <h2 class="group-title">January 2026</h2>
+
+    <div class="col-head grid" aria-hidden="true">
+      <span>Client</span>
+      <span class="col-status">Status</span>
+      <span class="col-date">Date</span>
+      <span class="col-amount">Amount</span>
+      <span></span>
+    </div>
+
+    <div class="accordion">
+      <div class="row">
+        <button class="row-head grid" type="button" aria-expanded="false" aria-controls="d6">
+          <span class="cell cell-name">Halcyon Press</span>
+          <span class="cell"><span class="tag tag-strong">Paid</span></span>
+          <span class="cell cell-muted">Jan 18</span>
+          <span class="cell cell-num">$3,600</span>
+          <span class="chev" aria-hidden="true"></span>
+        </button>
+        <div class="row-body" id="d6">
+          <div class="row-body-inner">
+            <dl class="detail">
+              <div><dt>Invoice</dt><dd>INV-2004</dd></div>
+              <div><dt>Owner</dt><dd>M. Delacroix</dd></div>
+              <div><dt>Terms</dt><dd>Net 30</dd></div>
+              <div><dt>Method</dt><dd>Bank transfer</dd></div>
+              <p class="detail-note">Print collateral for spring catalogue. Client requested minor reprint, billed separately.</p>
+            </dl>
+          </div>
+        </div>
+      </div>
+
+      <div class="row">
+        <button class="row-head grid" type="button" aria-expanded="false" aria-controls="d7">
+          <span class="cell cell-name">Corvo Analytics</span>
+          <span class="cell"><span class="tag">Pending</span></span>
+          <span class="cell cell-muted">Jan 07</span>
+          <span class="cell cell-num">$1,275</span>
+          <span class="chev" aria-hidden="true"></span>
+        </button>
+        <div class="row-body" id="d7">
+          <div class="row-body-inner">
+            <dl class="detail">
+              <div><dt>Invoice</dt><dd>INV-1998</dd></div>
+              <div><dt>Owner</dt><dd>J. Okafor</dd></div>
+              <div><dt>Terms</dt><dd>Net 15</dd></div>
+              <div><dt>Method</dt><dd>Card</dd></div>
+              <p class="detail-note">Dashboard audit, scoped as a two-week engagement. Payment scheduled for month end.</p>
+            </dl>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  document.querySelectorAll('.row').forEach(function (row) {
+    var head = row.querySelector('.row-head');
+
+    head.addEventListener('click', function () {
+      var isOpen = row.classList.toggle('open');
+      head.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+  });
+</script>
+
+</body>
+</html>

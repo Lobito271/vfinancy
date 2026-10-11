@@ -166,10 +166,13 @@ importers:
 
   .:
     dependencies:
-      '@fontsource-variable/inter':
+      '@fontsource-variable/figtree':
         specifier: ^5.3.0
         version: 5.3.0
-      '@fontsource-variable/jetbrains-mono':
+      '@fontsource-variable/montserrat':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@fontsource-variable/roboto-mono':
         specifier: ^5.3.0
         version: 5.3.0
       lucide-react:
@@ -206,11 +209,14 @@ importers:
 
 packages:
 
-  '@fontsource-variable/inter@5.3.0':
-    resolution: {integrity: sha512-OupL48va4JNofb97w6NYeF9S7W/kHNKM0Er8Dem5nqi4jeOLrVJDoE8tZEpnMJmtkvNbB1EIPPwHcdkF6b1oUA==}
+  '@fontsource-variable/figtree@5.3.0':
+    resolution: {integrity: sha512-VRVodD7OiG7apQwE8/2fMjaqpY/a0qRJqL5HtYj8CKIVps+9amaFcdfKmDIf7iqYQx6iPLlArVXAfKeIZmVcNQ==}
 
-  '@fontsource-variable/jetbrains-mono@5.3.0':
-    resolution: {integrity: sha512-F32xpS2NsGYoQi2ADSkKTgpJj7ozajsGgDJ8woTnqjmIB+dxDIqImjl4pXZVEExu8UFZ2ndhmX18EBS/hdz3Lw==}
+  '@fontsource-variable/montserrat@5.3.0':
+    resolution: {integrity: sha512-7PaZoxaxrWLAyrhO46v65An9LhUhfkTExWLhfbywYZCnZEgg/W1rEHnlNmZKjNZ3nJTVYyicqxlJt10z/26yTA==}
+
+  '@fontsource-variable/roboto-mono@5.3.0':
+    resolution: {integrity: sha512-h5r+KY/6qy8JEOj33JgcrFO81YAnvrc1EAwMpl/EPJLb2OIvOy0/jmB5M7qs7x/uXk5JUP5Ux4LrkeOK7faHkQ==}
 
   '@oxc-project/types@0.153.0':
     resolution: {integrity: sha512-jSNrRIyvPVLL5E1z/tS5zLAprosGz/FuI1PWwEOz59j3E4TTTzSpqKb/RDGqJhhW0QHYISGXxq582wGx6T11Tw==}
@@ -695,9 +701,11 @@ packages:
 
 snapshots:
 
-  '@fontsource-variable/inter@5.3.0': {}
+  '@fontsource-variable/figtree@5.3.0': {}
 
-  '@fontsource-variable/jetbrains-mono@5.3.0': {}
+  '@fontsource-variable/montserrat@5.3.0': {}
+
+  '@fontsource-variable/roboto-mono@5.3.0': {}
 
   '@oxc-project/types@0.153.0': {}
 

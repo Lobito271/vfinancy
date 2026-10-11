@@ -58,14 +58,24 @@
   --fs-16: 16px;
   --fs-20: 20px;
   --fs-24: 24px;
-  --fs-28: 28px;
   --z-chart-tooltip: 5;
   --z-header: 30;
   --z-popover: 40;
   --z-modal: 60;
   --z-toast: 80;
-  --font: 'Inter Variable', 'Inter', -apple-system, 'Segoe UI', sans-serif;
-  --mono: 'JetBrains Mono Variable', ui-monospace, monospace;
+  --font-display: 'Montserrat Variable', 'Figtree Variable', -apple-system, 'Segoe UI', sans-serif;
+  --font: 'Figtree Variable', -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'Roboto Mono Variable', ui-monospace, monospace;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+  --lh-tight: 1.2;
+  --lh-snug: 1.35;
+  --lh-normal: 1.5;
+  --ls-tight: -0.02em;
+  --ls-normal: 0;
+  --ls-wide: 0.06em;
 }
 
 [data-theme='dark'],
@@ -113,7 +123,8 @@ body {
   margin: 0;
   font-family: var(--font);
   font-size: var(--fs-14);
-  line-height: 1.45;
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-normal);
   color: var(--ink);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
@@ -201,12 +212,13 @@ button {
 .side__brandtxt {
   display: flex;
   flex-direction: column;
-  line-height: 1.25;
+  line-height: var(--lh-tight);
 }
 .side__brandtxt b {
+  font-family: var(--font-display);
   font-size: var(--fs-14);
-  font-weight: 650;
-  letter-spacing: -0.01em;
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-normal);
 }
 .side__brandtxt i {
   font-style: normal;
@@ -229,7 +241,7 @@ button {
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
   font-size: var(--fs-14);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   color: var(--ink-2);
   text-decoration: none;
   transition: background 0.14s ease, color 0.14s ease;
@@ -245,7 +257,7 @@ button {
 .side__item.is-active {
   background: var(--accent);
   color: var(--on-accent);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
 }
 .side__item.is-active svg {
   color: var(--on-accent);
@@ -287,7 +299,7 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
 }
 
@@ -311,9 +323,11 @@ button {
   flex-wrap: wrap;
 }
 .viewhead__title {
+  font-family: var(--font-display);
   font-size: var(--fs-20);
-  font-weight: 650;
-  letter-spacing: -0.015em;
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-tight);
+  line-height: var(--lh-tight);
 }
 .viewhead__sub {
   font-size: var(--fs-12);
@@ -339,7 +353,7 @@ button {
   background: var(--panel);
   border-radius: var(--radius-sm);
   font-size: var(--fs-12);
-  font-weight: 550;
+  font-weight: var(--fw-medium);
   color: var(--ink);
   transition: background 0.14s ease, border-color 0.14s ease, transform 0.08s ease;
   white-space: nowrap;
@@ -355,7 +369,7 @@ button {
   background: var(--accent);
   border-color: transparent;
   color: var(--on-accent);
-  font-weight: 650;
+  font-weight: var(--fw-semibold);
 }
 .btn--primary:hover {
   background: var(--accent-hover);
@@ -418,7 +432,7 @@ button {
   padding: var(--space-1) var(--space-3);
   border-radius: 0px;
   font-size: var(--fs-12);
-  font-weight: 550;
+  font-weight: var(--fw-medium);
   color: var(--ink-2);
   transition: background 0.14s ease, color 0.14s ease;
   white-space: nowrap;
@@ -429,7 +443,7 @@ button {
 .seg__opt.is-active {
   background: var(--accent);
   color: var(--on-accent);
-  font-weight: 650;
+  font-weight: var(--fw-bold);
 }
 .seg--sm .seg__opt {
   padding: var(--space-1) var(--space-2);
@@ -447,8 +461,8 @@ button {
   padding: var(--space-1) var(--space-2);
   border-radius: 0px;
   font-size: var(--fs-12);
-  font-weight: 620;
-  letter-spacing: 0.01em;
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-normal);
   background: transparent;
   color: var(--ink-2);
   border: 1px solid currentcolor;
@@ -547,7 +561,7 @@ button {
   border: 1px solid var(--line);
   border-radius: 0px;
   font-size: var(--fs-11);
-  font-weight: 550;
+  font-weight: var(--fw-medium);
   color: var(--ink-3);
   background: var(--panel);
 }
@@ -560,7 +574,7 @@ button {
   border-radius: 0px;
   background: var(--panel);
   font-size: var(--fs-11);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   color: var(--ink-2);
   text-decoration: none;
   transition: border-color 0.14s ease, background 0.14s ease, color 0.14s ease;
@@ -579,6 +593,7 @@ button {
 
 /* money */
 .money {
+  font-family: var(--mono);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -603,10 +618,10 @@ button {
 }
 .field__label {
   font-size: var(--fs-12);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   color: var(--ink-2);
   min-height: 18px;
-  line-height: 18px;
+  line-height: var(--lh-snug);
 }
 .input,
 .select {
@@ -655,9 +670,11 @@ textarea.input {
 }
 .card__headtxt { min-width: 0; flex: 1; }
 .card__title {
+  font-family: var(--font-display);
   font-size: var(--fs-14);
-  font-weight: 640;
-  letter-spacing: -0.01em;
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-normal);
+  line-height: var(--lh-snug);
 }
 .card__sub {
   font-size: var(--fs-12);
@@ -732,14 +749,15 @@ textarea.input {
 }
 .kpi__label {
   font-size: var(--fs-12);
-  font-weight: 560;
+  font-weight: var(--fw-medium);
   color: var(--ink-3);
 }
 .kpi__value {
   font-size: var(--fs-24);
-  font-weight: 660;
-  letter-spacing: -0.02em;
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-normal);
   font-variant-numeric: tabular-nums;
+  line-height: var(--lh-tight);
   margin: var(--space-1) 0;
 }
 .kpi__foot {
@@ -831,7 +849,7 @@ g:hover .tchart__barB {
   z-index: var(--z-chart-tooltip);
 }
 .tchart__tiphead {
-  font-weight: 650;
+  font-weight: var(--fw-bold);
   color: var(--ink);
   margin-bottom: var(--space-1);
 }
@@ -898,14 +916,15 @@ g:hover .tchart__barB {
   min-width: 2px;
 }
 .hbars__value {
+  font-family: var(--mono);
   font-size: var(--fs-12);
-  font-weight: 620;
+  font-weight: var(--fw-semibold);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 .hbars__value em {
   font-style: normal;
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   color: var(--ink-3);
   font-size: var(--fs-11);
 }
@@ -924,8 +943,9 @@ g:hover .tchart__barB {
   margin-bottom: var(--space-1);
 }
 .statline b {
+  font-family: var(--mono);
   font-size: var(--fs-14);
-  font-weight: 640;
+  font-weight: var(--fw-semibold);
   font-variant-numeric: tabular-nums;
 }
 
@@ -966,7 +986,7 @@ g:hover .tchart__barB {
   align-items: center;
   gap: 6px;
   font-size: var(--fs-12);
-  font-weight: 570;
+  font-weight: var(--fw-medium);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -984,7 +1004,7 @@ g:hover .tchart__barB {
 }
 .listrow__amount {
   font-size: var(--fs-12);
-  font-weight: 620;
+  font-weight: var(--fw-semibold);
 }
 .listrow--void .listrow__main,
 .listrow--void .listrow__main *,
@@ -1007,9 +1027,11 @@ g:hover .tchart__barB {
   padding: 0 var(--space-1) var(--space-2);
 }
 .jmonth__head h2 {
+  font-family: var(--font-display);
   font-size: var(--fs-14);
-  font-weight: 660;
-  letter-spacing: 0.01em;
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-normal);
+  line-height: var(--lh-snug);
 }
 .jmonth__stats {
   font-size: var(--fs-12);
@@ -1069,9 +1091,10 @@ g:hover .tchart__barB {
   gap: var(--space-1);
 }
 .rec__code {
+  font-family: var(--mono);
   font-size: var(--fs-12);
-  font-weight: 660;
-  letter-spacing: 0.01em;
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-normal);
   font-variant-numeric: tabular-nums;
 }
 .rec__meta {
@@ -1080,8 +1103,8 @@ g:hover .tchart__barB {
 }
 .rec__title {
   font-size: var(--fs-14);
-  font-weight: 590;
-  letter-spacing: -0.005em;
+  font-weight: var(--fw-medium);
+  letter-spacing: var(--ls-normal);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1092,7 +1115,7 @@ g:hover .tchart__barB {
   align-items: flex-end;
   gap: var(--space-1);
   font-size: var(--fs-14);
-  font-weight: 640;
+  font-weight: var(--fw-semibold);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -1101,8 +1124,9 @@ g:hover .tchart__barB {
   align-items: center;
 }
 .rec__balance {
+  font-family: var(--mono);
   font-size: var(--fs-11);
-  font-weight: 580;
+  font-weight: var(--fw-semibold);
   color: var(--warn);
 }
 .rec__chev {
@@ -1167,16 +1191,16 @@ g:hover .tchart__barB {
 .meta-grid__k {
   display: block;
   font-size: var(--fs-11);
-  font-weight: 580;
+  font-weight: var(--fw-semibold);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--ls-wide);
   color: var(--ink-3);
   margin-bottom: var(--space-1);
 }
 .meta-grid__cell { min-width: 0; }
 .meta-grid__v {
   font-size: var(--fs-12);
-  font-weight: 540;
+  font-weight: var(--fw-medium);
 }
 .extras {
   display: flex;
@@ -1185,9 +1209,9 @@ g:hover .tchart__barB {
 }
 .extras__label {
   font-size: var(--fs-11);
-  font-weight: 580;
+  font-weight: var(--fw-semibold);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--ls-wide);
   color: var(--ink-3);
 }
 .extras__list {
@@ -1223,7 +1247,7 @@ g:hover .tchart__barB {
   color: var(--ink-2);
 }
 .sumrow--strong {
-  font-weight: 640;
+  font-weight: var(--fw-semibold);
   color: var(--ink);
   border-top: 1px solid var(--line-2);
   margin-top: var(--space-1);
@@ -1246,7 +1270,7 @@ g:hover .tchart__barB {
 }
 .sumrow--click .sumrow__v {
   color: var(--ink);
-  font-weight: 620;
+  font-weight: var(--fw-semibold);
 }
 .lotchip {
   display: inline-flex;
@@ -1256,16 +1280,16 @@ g:hover .tchart__barB {
   color: var(--ink-2);
   border-radius: 0px;
   font-size: var(--fs-11);
-  font-weight: 650;
+  font-weight: var(--fw-semibold);
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
+  letter-spacing: var(--ls-normal);
 }
 .lotchip--static {
   cursor: default;
 }
 .plink {
   font-size: var(--fs-12);
-  font-weight: 560;
+  font-weight: var(--fw-medium);
   color: var(--ink);
   text-align: left;
   text-decoration: none;
@@ -1289,9 +1313,9 @@ g:hover .tchart__barB {
 .tbl th {
   text-align: left;
   font-size: var(--fs-11);
-  font-weight: 640;
+  font-weight: var(--fw-semibold);
   text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: var(--ls-wide);
   color: var(--ink-3);
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--line);
@@ -1316,9 +1340,11 @@ g:hover .tchart__barB {
   font-variant-numeric: tabular-nums;
 }
 .sectitle {
-  font-size: var(--fs-12);
-  font-weight: 650;
-  letter-spacing: 0.01em;
+  font-family: var(--font-display);
+  font-size: var(--fs-16);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-normal);
+  line-height: var(--lh-snug);
   margin: var(--space-6) 0 var(--space-3);
 }
 
@@ -1368,7 +1394,7 @@ g:hover .tchart__barB {
   padding: var(--space-2) var(--space-3);
   border-radius: 0px;
   font-size: var(--fs-12);
-  font-weight: 540;
+  font-weight: var(--fw-medium);
   text-align: left;
   color: var(--ink-2);
   transition: background 0.12s ease;
@@ -1435,9 +1461,11 @@ g:hover .tchart__barB {
   border-bottom: 1px solid var(--line-2);
 }
 .modal__title {
+  font-family: var(--font-display);
   font-size: var(--fs-14);
-  font-weight: 650;
-  letter-spacing: -0.01em;
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-normal);
+  line-height: var(--lh-snug);
 }
 .modal__body {
   min-height: 0;
@@ -1487,7 +1515,7 @@ g:hover .tchart__barB {
   padding: var(--space-2) var(--space-3);
   border-radius: 0px;
   font-size: var(--fs-12);
-  font-weight: 540;
+  font-weight: var(--fw-medium);
   border-left: 3px solid var(--accent);
   animation: toastin 0.22s ease both;
   max-width: 320px;
@@ -1626,13 +1654,14 @@ body {
 }
 .money__orig {
   display: block;
+  font-family: var(--mono);
   font-size: var(--fs-11);
-  font-weight: 500;
+  font-weight: var(--fw-medium);
   color: var(--ink-3);
 }
 .field__req {
   color: var(--ink);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
 }
 .field__error {
   font-size: var(--fs-12);
@@ -1659,8 +1688,10 @@ body {
   text-align: center;
 }
 .lockscreen__card h1 {
+  font-family: var(--font-display);
   font-size: var(--fs-16);
-  font-weight: 660;
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
 }
 .cyc {
   border: 1px solid var(--line);
@@ -1681,7 +1712,7 @@ body {
 }
 .cyc__total {
   font-size: var(--fs-14);
-  font-weight: 650;
+  font-weight: var(--fw-semibold);
   font-variant-numeric: tabular-nums;
 }
 .span6 {
@@ -1721,7 +1752,7 @@ body {
   white-space: nowrap;
 }
 .num,
-.input--tabs { font-variant-numeric: tabular-nums; }
+.input--tabs { font-family: var(--mono); font-variant-numeric: tabular-nums; }
 
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -1760,7 +1791,7 @@ body {
   padding: var(--space-1);
   flex-wrap: wrap;
   font-size: var(--fs-12);
-  font-weight: 550;
+  font-weight: var(--fw-medium);
   color: var(--ink-2);
   transition: border-color 0.14s ease, background 0.14s ease;
 }
@@ -1953,17 +1984,17 @@ body {
   .printroot {
     margin: 32px;
     color: #0a0a0a;
-    font-family: system-ui, sans-serif;
+    font-family: var(--font);
   }
   .printroot .code {
     font-size: var(--fs-20);
-    font-weight: 700;
+    font-weight: var(--fw-bold);
   }
   .printroot .sec {
     background: #f5c518;
     display: inline-block;
     padding: 4px 10px;
-    font-weight: 700;
+    font-weight: var(--fw-bold);
   }
   .printroot table {
     width: 100%;
@@ -2105,6 +2136,11 @@ body {
   gap: var(--space-1);
   text-align: left;
 }
+.cyc__toggle strong {
+  font-family: var(--font-display);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+}
 @media (max-width: 759px) {
   .cyc__head {
     align-items: stretch;
@@ -2177,7 +2213,7 @@ body {
   gap: var(--space-2);
   margin-bottom: var(--space-2);
   font-size: var(--fs-14);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
 }
 .cardselect__name > span,
 .cardselect__meta,
@@ -2186,11 +2222,13 @@ body {
   font-size: var(--fs-12);
 }
 .cardselect__debt {
+  font-family: var(--mono);
   font-size: var(--fs-20);
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   font-variant-numeric: tabular-nums;
+  line-height: var(--lh-tight);
 }
-.cardselect__meta { line-height: 1.5; }
+.cardselect__meta { line-height: var(--lh-normal); }
 .cardselect-item__action { align-self: flex-start; margin: var(--space-2); }
 /* Product list numbers keep their context when aligned in columns */
 .listrow__metric {
@@ -2241,8 +2279,10 @@ body {
   width: 100%;
   padding: 0;
   color: var(--ink);
+  font-family: var(--font-display);
   font-size: var(--fs-14);
-  font-weight: 640;
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
 }
 .formsection__body { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
 .formsection > .formgrid,
@@ -2290,8 +2330,10 @@ body {
   margin: 0 0 var(--space-3);
   padding-bottom: var(--space-3);
   border-bottom: 1px solid var(--line-2);
+  font-family: var(--font-display);
   font-size: var(--fs-16);
-  font-weight: 650;
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
 }
 .settings__formgrid {
   display: grid;
